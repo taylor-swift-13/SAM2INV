@@ -1,14 +1,12 @@
 /*@ requires a > 2;*/
-int main1(){
-
-  int r, k, q, d, n, t, s, a;
+int main51(int a,int s){
   
-  n = s*s;
-  d = a;
-  r = n % d;
-  t = 0;
-  k = n % (d - 2);
-  q = 4 * (n / (d - 2) - n / d);
+  int n = s*s;
+  int d = a;
+  int r = n % d;
+  int t = 0;
+  int k = n % (d - 2);
+  int q = 4 * (n / (d - 2) - n / d);
 
   while (((s >= d) && (r != 0))) {
         if (2 * r  + q < k) {

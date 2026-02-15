@@ -2,8 +2,6 @@
 requires n >= 0;
 */
 int main20(int n){
-    // variable declarations
-    a,s,t;
 
     //precondition
     int a=0;

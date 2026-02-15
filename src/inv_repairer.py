@@ -4,7 +4,7 @@ References ASGSE's repair strategies but more concise and unified
 """
 import re
 import logging
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from llm import Chatbot, LLMConfig
 from houdini_pruner import HoudiniPruner
 from config import MAX_ITERATION
@@ -21,17 +21,12 @@ class InvariantRepairer:
     
     def repair_syntax_error(self, code: str, error_msg: str) -> str:
         """Fix syntax errors (similar to inv_gen.py's repair_annotations)"""
-        prompt = f"""You are an ACSL specification expert. Please fix the ACSL syntax errors in the following code.
-
-Error message:
-{error_msg}
-
-Code:
-```c
-{code}
-```
-
-Please return only the complete fixed C code (including all ACSL annotations and function definitions) without any explanation."""
+        prompt = (
+            "You are an ACSL specification expert. Fix ACSL syntax errors.\n\n"
+            f"Error message:\n{error_msg}\n\n"
+            f"Code:\n```c\n{code}\n```\n\n"
+            "Return only the complete fixed C code."
+        )
         
         response = self.llm.chat(prompt)
         
@@ -42,6 +37,9 @@ Please return only the complete fixed C code (including all ACSL annotations and
         extracted = re.sub(r'>\s*Reasoning\s*[\s\S]*?(?=\n\n|$)', '', extracted, flags=re.IGNORECASE)
         extracted = re.sub(r'<think>.*?</think>', '', extracted, flags=re.DOTALL)
         
+        if not self._looks_like_c_code(extracted):
+            self.logger.warning("Syntax repair returned non-code content, keep previous code")
+            return code
         return extracted
     
     def repair_invariant_error(self, code: str, error_msg: str, error_type: str = 'general') -> str:
@@ -76,98 +74,25 @@ loop invariant w == z;
 ```
 """
         
-        prompt = f"""You are an ACSL loop invariant expert. The current invariants failed verification. Your task is to fix or strengthen them.
-
-{common_error_hint}
-
-### Analysis Strategy: ###
-
-1. **Understand the verification error**:
-   - If "Preservation" failed: The invariant doesn't hold after one loop iteration
-   - If "Establishment" failed: The invariant doesn't hold initially
-   - If assertion failed: The invariant is too weak to prove the postcondition
-
-2. **For Preservation Failures**:
-   
-   The invariant may be mathematically correct but the prover needs help!
-   
-   **Common Issue 1**: Complex loop bodies with multiple branches
-   - The prover may not be able to verify preservation automatically
-   - Solution: Add auxiliary invariants that help the prover
-   
-   **Common Issue 2**: Conditional updates (if statements in loop)
-   - Some variables only update under certain conditions
-   - Solution: Use conditional invariants with `==>`
-   - Example: `x <= y ==> w == z` (w equals z while x hasn't reached y+1)
-   
-   **Common Issue 3**: Wrong relationship between variables
-   - If you have `w == z * x` and it fails, try `w == z` instead
-   - Check if variables are equal at loop entry, not related by loop counter
-   
-   **For loops with modulo operations (a % 2, b % 2)**:
-   - Add bounds: `a >= 0`, `b >= 0`, `p >= 1`
-   - Add parity invariants if needed
-   
-   **For loops modifying multiple variables**:
-   - Add invariants for each variable's range
-   - Add relationship invariants between variables
-   - Check if two variables are equal: use `var1 == var2` or conditional `condition ==> var1 == var2`
-   
-   **Example 1 - multiplication algorithm**:
-   Main invariant: `q + a*b*p == x*y`
-   Auxiliary invariants:
-   - `a >= 0 && b >= 0` (bounds)
-   - `p >= 1` (p is always positive)
-   
-   **Example 2 - factorial algorithm with conditional update**:
-   Main invariant: `w == z` (NOT `w == z * x`!)
-   Auxiliary invariants:
-   - `1 <= x <= y + 1` (bounds)
-   - `z >= 1 && w >= 1` (positive values)
-
-3. **For Establishment Failures**:
-   - Check initial values carefully
-   - The invariant must hold BEFORE the loop starts
-   - Adjust constants or add conditions
-
-4. **Key Insight for Complex Loops**:
-   - The main invariant captures the CONSERVED QUANTITY or KEY RELATIONSHIP
-   - Auxiliary invariants help the prover verify preservation
-   - Don't remove the main invariant - strengthen it with helpers!
-   - Use `==>` when the relationship depends on loop variable values
-
-### Critical Requirements: ###
-
-- Do NOT remove the main invariant if it's mathematically correct
-- ADD auxiliary invariants to help the prover
-- Use `==>` for conditional invariants when appropriate
-- Do NOT generate trivial invariants (e.g., `x == x`, `true`, `false`)
-- If you see PLACE_HOLDER_VERIFICATION_GOAL, replace it with a concrete invariant
-- Keep all variables that appear in the loop condition or body
-- **IMPORTANT**: If you see `w == z * x` pattern, replace with `w == z`!
-
-### Constraints: ###
-
-- Do not generate any ensures/requires; only loop invariants are allowed
-- Only modify or add loop invariants; keep code structure unchanged
-- Return full C code with ACSL annotations, no explanations
-
-### Verification Feedback: ###
-{error_msg}
-
-### Code to Fix: ###
-```c
-{code}
-```
-
-### Your Task: ###
-Analyze the code structure (especially if statements). If variables update conditionally, consider using `==>` for conditional invariants.
-If you see `w == z * x` or similar, this is likely WRONG - use `w == z` instead!
-"""
+        prompt = (
+            "You are an ACSL loop invariant expert. The current invariants failed verification. "
+            "Fix or strengthen them.\n\n"
+            f"{common_error_hint}\n\n"
+            "Constraints:\n"
+            "- only modify/add loop invariants\n"
+            "- do not add requires/ensures\n"
+            "- keep code structure unchanged\n"
+            "- return full C code only\n\n"
+            f"Verification feedback:\n{error_msg}\n\n"
+            f"Code to fix:\n```c\n{code}\n```"
+        )
         response = self.llm.chat(prompt)
         extracted = self._extract_code(response)
         extracted = re.sub(r'>\s*Reasoning\s*[\s\S]*?(?=\n\n|$)', '', extracted, flags=re.IGNORECASE)
         extracted = re.sub(r'<think>.*?</think>', '', extracted, flags=re.DOTALL)
+        if not self._looks_like_c_code(extracted):
+            self.logger.warning("Invariant repair returned non-code content, keep previous code")
+            return code
         return extracted
     
     def _get_repair_instruction(self, error_type: str) -> str:
@@ -188,7 +113,7 @@ If you see `w == z * x` or similar, this is likely WRONG - use `w == z` instead!
         """
         return self.houdini_pruner.hudini_annotations(validate_result, annotations)
     
-    def hudini(self, code: str, verifier, c_file_path: str, max_hudini_iterations: int = 5) -> Optional[str]:
+    def hudini(self, code: str, verifier, c_file_path: str, max_hudini_iterations: int = 5) -> Tuple[Optional[str], bool]:
         """
         Houdini-style iterative pruning: repeatedly remove failed invariants
         委托给 HoudiniPruner
@@ -202,7 +127,12 @@ If you see `w == z * x` or similar, this is likely WRONG - use `w == z` instead!
         Returns:
             Code with failed invariants removed, or None if all invariants were removed
         """
-        return self.houdini_pruner.hudini(code, verifier, c_file_path, max_hudini_iterations)
+        return self.houdini_pruner.hudini(
+            code,
+            verifier,
+            c_file_path,
+            max_hudini_iterations=max_hudini_iterations,
+        )
     
     def repair_iterative(self, code: str, verifier, c_file_path: str) -> Optional[str]:
         """
@@ -248,20 +178,10 @@ If you see `w == z * x` or similar, this is likely WRONG - use `w == z` instead!
             pruned_code = self.hudini(current_code, verifier, c_file_path)
             if pruned_code is None:
                 self.logger.info("Houdini removed all invariants, regenerating via LLM")
-                regen_msg = """All invariants were removed by Houdini. This means the invariants were incorrect.
-
-CRITICAL: You must generate the MAIN invariant that captures the conserved quantity!
-
-For multiplication algorithms (postcondition: q == x*y):
-- Main invariant: q + a*b*p == x*y (conserved quantity)
-- Auxiliary: a >= 0, b >= 0, p >= 1
-
-For division algorithms (postcondition: x == q*y + r):
-- Main invariant: x == q*y + r + remaining
-- Auxiliary: 0 <= r < y
-
-DO NOT generate only auxiliary invariants (bounds). You MUST include the main invariant!
-"""
+                regen_msg = (
+                    "All invariants were removed by Houdini. Regenerate invariants with a strong main "
+                    "conserved/relational invariant plus minimal auxiliary bounds."
+                )
                 current_code = self.repair_invariant_error(current_code, regen_msg, 'general')
                 continue
 
@@ -322,6 +242,16 @@ DO NOT generate only auxiliary invariants (bounds). You MUST include the main in
         
         # Otherwise return original text (might be pure code)
         return text.strip()
+
+    def _looks_like_c_code(self, text: str) -> bool:
+        """Heuristic guard: reject API error text or empty/non-code responses."""
+        if not text or len(text.strip()) < 20:
+            return False
+        if "Error code:" in text or "Invalid token" in text or "生成响应失败" in text:
+            return False
+        if "int main" in text or re.search(r'\b(?:int|void|char|float|double)\s+\w+\s*\(', text):
+            return '{' in text and '}' in text
+        return False
     
     def _insert_verification_goal_placeholder(self, code: str) -> str:
         """
@@ -385,4 +315,3 @@ DO NOT generate only auxiliary invariants (bounds). You MUST include the main in
                 self.logger.info(f"  [{i}] {inv}")
         else:
             self.logger.info("  (No invariants found)")
-

@@ -1,12 +1,10 @@
 /*@ requires a >= 1 && b >= 1;*/
-int main1(){
-
-  int x, y, u, v, a, b;
+int main35(int a,int b){
   
-  x=a;
-  y=b;
-  u=b;
-  v=0;
+  int x=a;
+  int y=b;
+  int u=b;
+  int v=0;
 
   while(x!=y) {
     if (x>y){

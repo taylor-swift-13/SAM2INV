@@ -1,10 +1,8 @@
 /*@ requires n > 0;*/
-int main1(){
+int main31(int n,int a){
 
-  int i, n, sn, a;
-  
-  sn = 0;
-  i = 0;
+  int sn = 0;
+  int i = 0;
 
   while(i < n) {
     sn = sn + a;

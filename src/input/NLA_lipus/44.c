@@ -1,10 +1,9 @@
 /*@ requires a % 2 == 0 && a > 0;*/
-int main1(){
+int main44(int a){
 
-  int x, a, r;
   
-  r = 0;
-  x = a / 2;
+  int r = 0;
+  int x = a / 2;
 
   while (x > r){
         x = x - r;

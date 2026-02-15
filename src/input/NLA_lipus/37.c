@@ -1,10 +1,8 @@
 /*@ requires n > 0;*/
-int main1(){
-
-  int n, guess, prev_guess;
+int main37(int n){
   
-  guess = n / 2;
-  prev_guess = 0;
+  int guess = n / 2;
+  int prev_guess = 0;
 
   while (guess != prev_guess) {
         prev_guess = guess;

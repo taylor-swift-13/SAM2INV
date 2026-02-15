@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class LLMConfig:
     # API model configuration
     use_api_model = True # Control whether to use API model or local Transformers model
-    api_model:str = "gpt-4o-mini" # API model name, e.g., "gpt-4o"
+    api_model:str = "gpt-4o-mini" # model name, e.g., "gpt-4o"
     api_key:str = "sk-9dnxPHHwjlTiAlH0uUoKwiW79Hs51AGpqUSRj9DvZurLZx1R"
     base_url:str = "https://yunwu.ai/v1"
     api_temperature = 1.0 # Temperature parameter for API calls
@@ -24,7 +24,7 @@ SUBDIR = "NLA_lipus"
 #   1. 不触发动态采样（跳过程序执行获取 traces）
 #   2. Prompt 中不包含 traces 信息
 #   3. 跳过基于 traces 的候选不变式筛选阶段
-USE_TRACES = True
+USE_TRACES = False
 
 # ==============================================================================
 # 采样策略配置 (Sampling Strategy Configuration)
@@ -61,7 +61,7 @@ RANDOM_SAMPLING_CONFIG = {
 }
 
 # 调试选项
-SAMPLING_DEBUG = True  # 是否输出采样策略调试信息
+SAMPLING_DEBUG = False  # 是否输出采样策略调试信息
 
 # ==============================================================================
 # 主流程配置 (Main Loop Configuration)
@@ -70,6 +70,9 @@ SAMPLING_DEBUG = True  # 是否输出采样策略调试信息
 # 主流程最大迭代次数
 MAX_ITERATION = 1
 
+# 不变量补强最大迭代次数（用于 syntax/valid 通过但 satisfy 失败时）
+MAX_STRENGTHEN_ITERATIONS = 0
+
 # ==============================================================================
 # 不变式生成配置 (Invariant Generation Configuration)
 # ==============================================================================
@@ -77,7 +80,7 @@ MAX_ITERATION = 1
 # 并行生成配置
 PARALLEL_GENERATION_CONFIG = {
     'enabled': True,              # 是否启用并行生成多组候选不变式
-    'num_candidates': 5,         # 并行生成的候选组数 (增加到10个以获得更多样化的候选)
+    'num_candidates': 1,        # 并行生成的候选组数 (增加到10个以获得更多样化的候选)
     'temperature': 1.0,           # 生成温度,控制多样性 (提高到1.0增加多样性)
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
     'use_houdini': True,          # 是否使用Houdini进一步筛选组合后的不变式
@@ -91,13 +94,17 @@ PARALLEL_GENERATION_CONFIG = {
 PROMPT_CONFIG = {
     'max_samples': 5,              # 最大执行组数（避免 token 超限）
     'max_traces_per_sample': 10,   # 每个执行组最大 traces 数量
+    # prompt_mode:
+    # - "typed_goal": 根据是否存在验证目标和目标类型动态调整 guidance（当前策略）
+    # - "generic": 单一通用 guidance，不做目标类型区分
+    'prompt_mode': 'typed_goal',
 }
 
 # 并行生成多样性配置 (Parallel Generation Diversity Configuration)
 PARALLEL_DIVERSITY_CONFIG = {
-    'random_prompt': False,         # 是否随机选择 prompt
+    'random_prompt': False,        # 是否随机选择 prompt
     'random_model': False,          # 是否随机选择模型
-    'default_prompt': 'detailed',  # 默认 prompt 名称（当 random_prompt=False 时使用）
+    'default_prompt': 'simple',  # 默认 prompt 名称（当 random_prompt=False 时使用）
     'available_models': [          # 可用的模型列表
         'gpt-4o',
         'deepseek-v3.2',
@@ -194,8 +201,8 @@ CACHE_CONFIG = {
 
 # 语法过滤配置 (Syntax Filter Configuration)
 SYNTAX_FILTER_CONFIG = {
-    'enabled': True,              # 是否启用语法过滤（基于 unified_filter.py）
-    'verbose': True,              # 是否输出详细的过滤日志
+    'enabled': False,          # 是否启用语法过滤（基于 unified_filter.py）
+    'verbose': False        # 是否输出详细的过滤日志
 }
 
 # Filter is always enabled and uses variables from symbolic execution record

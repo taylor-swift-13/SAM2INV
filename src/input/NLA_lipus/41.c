@@ -1,11 +1,10 @@
 /*@ requires X > 0 && Y > 0 && X >= Y;*/
-int main1(){
+int main41(int X, int Y){
 
-  int X, Y, v, x, y;
-  
-  v = 2 * Y - X;
-  y = 0;
-  x = 0;
+    
+  int v = 2 * Y - X;
+  int y = 0;
+  int x = 0;
 
   while (x <= X) {
         if (v < 0) {

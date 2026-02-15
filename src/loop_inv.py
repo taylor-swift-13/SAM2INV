@@ -8,6 +8,8 @@
 import argparse
 import logging
 import os
+import signal
+import sys
 import time
 from inv_generator import InvariantGenerator
 from llm import LLMConfig, reset_token_stats, get_token_stats
@@ -96,6 +98,22 @@ def main():
     if generator.repairer is not None:
         generator.repairer.max_iterations = args.max_iterations
     
+    # Register SIGTERM handler to save partial results on timeout
+    def _sigterm_handler(signum, frame):
+        logger.warning("Received SIGTERM (timeout), saving partial results...")
+        generator.save_results(args.output_dir)
+        # Log partial first_pass if available
+        first_pass = generator.first_pass if hasattr(generator, 'first_pass') and generator.first_pass else None
+        if first_pass:
+            logger.info(f"syntax={first_pass.get('syntax', 'N/A')}, valid={first_pass.get('valid', 'N/A')}, satisfy={first_pass.get('satisfy', 'N/A')}")
+        total_duration = time.time() - start_time
+        logger.info(f"Total execution time before timeout: {total_duration:.2f} seconds")
+        stats = get_token_stats()
+        logger.info(f"Total API calls: {stats['call_count']}, Total tokens: {stats['total_tokens']:,}")
+        sys.exit(1)
+
+    signal.signal(signal.SIGTERM, _sigterm_handler)
+
     logger.info(f"开始为 {args.file_name} 生成循环不变量...")
     annotated_code = generator.generate_all(max_iterations=args.max_iterations)
     

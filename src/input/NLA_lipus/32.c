@@ -1,10 +1,8 @@
-/*@ requires 1==1;*/
-int main1(){
 
-  int sn, a, x;
-  
-  sn = 0;
-  x = 0;
+int main32(int a){
+
+  int sn = 0;
+  int x = 0;
 
   while(unknown()) {
     if (x<10) {

@@ -246,45 +246,56 @@ class LoopSampler:
         """
         headers = '''
 #include "stdio.h"
+#include "stdlib.h"
 '''
 
         # 使用字符串操作而不是字符列表，避免索引问题
         result_code = code
-        
+
         # Find all for or while loop positions
         loop_pattern = r'\b(for|while)\s*\([^)]*\)\s*\{'
         matches = list(re.finditer(loop_pattern, code))
-        
+
+        # Max iterations to trace per loop (prevents OOM from infinite/very long loops)
+        MAX_TRACE_ITERS = 10000
+
         # 从后往前处理，避免索引偏移问题
         for idx in range(len(matches) - 1, -1, -1):
             match = matches[idx]
             loop_start = match.start()
-            
+
             # 获取循环变量
             try:
                 params = self._get_vars_at_index(idx)
             except Exception as e:
                 # 如果获取变量失败，使用默认的 printf
                 params = f'printf("LoopEntry_{idx}:\\n");'
-            
-            # 1. 在循环开始前（进入循环前）插入 initial 标记
+
+            # 1. 在循环开始前（进入循环前）插入 initial 标记和iteration counter
             # 位置：在循环条件检查之前，紧邻循环语句
-            insert_str_initial = f'printf("LoopEntry_{idx}_initial:\\n");\n{params}\n'
+            insert_str_initial = (
+                f'printf("LoopEntry_{idx}_initial:\\n");\n{params}\n'
+                f'int _trace_iter_{idx} = 0;\n'
+            )
             result_code = result_code[:loop_start] + insert_str_initial + result_code[loop_start:]
-            
+
             # 重新计算循环开始位置（因为已经插入了内容）
             updated_start = loop_start + len(insert_str_initial)
-            
+
             # 找到循环体的开始 {
             pos = updated_start
             while pos < len(result_code) and result_code[pos] != '{':
                 pos += 1
-            
+
             if pos < len(result_code):
-                # 2. 在循环体开始处（每次迭代开始时）插入迭代标记
+                # 2. 在循环体开始处（每次迭代开始时）插入迭代标记 + iteration guard
                 # 位置：在循环体的第一个 { 之后，循环体代码之前
                 pos += 1  # 跳过 {
-                insert_str_iter = f'\nprintf("LoopEntry_{idx}:\\n");\n{params}\n'
+                insert_str_iter = (
+                    f'\nif (++_trace_iter_{idx} > {MAX_TRACE_ITERS}) {{ '
+                    f'printf("LoopEntry_{idx}_final:\\n");\n{params}\nexit(0); }}\n'
+                    f'printf("LoopEntry_{idx}:\\n");\n{params}\n'
+                )
                 result_code = result_code[:pos] + insert_str_iter + result_code[pos:]
                 
                 # 更新位置（跳过插入的内容）
@@ -1177,56 +1188,66 @@ class LoopSampler:
     def dynamic(self, num_samples: int = None):
         """
         执行动态采样，多次运行程序收集数据点。
-        
+
         每组采样对应一次独立的完整程序执行，采样结果按独立执行组存储。
         这样验证不变量时可以用每组独立的 traces 来验证。
-        
+
         Args:
             num_samples: 采样次数（每次是一个独立的完整执行）
                         如果为 None，则使用配置文件中的 DYNAMIC_SAMPLING_CONFIG['num_groups']
         """
         from config import DYNAMIC_SAMPLING_CONFIG
-        
+        import logging
+        logger = logging.getLogger('SE2INV')
+
         # 使用配置文件中的采样组数，如果没有指定
         if num_samples is None:
             num_samples = DYNAMIC_SAMPLING_CONFIG.get('num_groups', 10)
-        
+
         code = self.dynamic_loop_file(self.input_file, self.unfold_file)
-        
+
         # 清空之前的采样内容，重新按独立执行组存储
         self.sample_contents = []
-        
-        print(f"Starting dynamic sampling with {num_samples} independent execution groups...")
-        
+
+        logger.info(f"Dynamic sampling: {num_samples} independent execution groups...")
+
+        timeout_count = 0
+        error_count = 0
         for i in range(num_samples):
-            main, param_values = self.executor.generate_random_test_case(code)
-            
-            if param_values:
-                param_str = ', '.join([f"{k}={v}" for k, v in param_values.items()])
-                print(f"Execution {i+1}/{num_samples}: generated params: {param_str}")
-            
-            result, timeout = self.executor.execute_c_code(main)
-            self.timeout = timeout
-            
-            if timeout:
-                print(f"Execution {i+1}/{num_samples}: timeout, skipping")
+            try:
+                main, param_values = self.executor.generate_random_test_case(code)
+
+                if param_values:
+                    param_str = ', '.join([f"{k}={v}" for k, v in param_values.items()])
+                    logger.info(f"Execution {i+1}/{num_samples}: params: {param_str}")
+
+                result, timeout = self.executor.execute_c_code(main)
+                self.timeout = timeout
+
+                if timeout:
+                    timeout_count += 1
+                    logger.info(f"Execution {i+1}/{num_samples}: timeout, skipping")
+                    continue
+
+                sample_content = parse_samples(result, None)
+
+                if sample_content:
+                    sample_content['_params'] = param_values  # Store param_values
+
+                    # 对每个 run 的 traces 进行截断：保留前 m 个和后 m 个
+                    sample_content = self._truncate_traces_per_run(sample_content)
+
+                    self.sample_contents.append(sample_content)
+                    logger.info(f"Execution {i+1}/{num_samples}: collected traces for {list([k for k in sample_content.keys() if k != '_params'])}")
+                else:
+                    logger.info(f"Execution {i+1}/{num_samples}: no traces collected")
+            except Exception as e:
+                error_count += 1
+                logger.warning(f"Execution {i+1}/{num_samples}: error: {e}")
                 continue
-            
-            sample_content = parse_samples(result, None)
-            
-            if sample_content:
-                sample_content['_params'] = param_values  # Store param_values
-                
-                # 对每个 run 的 traces 进行截断：保留前 m 个和后 m 个
-                sample_content = self._truncate_traces_per_run(sample_content)
-                
-                self.sample_contents.append(sample_content)
-                print(f"Execution {i+1}/{num_samples}: collected traces for {list([k for k in sample_content.keys() if k != '_params'])}")
-            else:
-                print(f"Execution {i+1}/{num_samples}: no traces collected")
-        
-        print(f"Dynamic sampling completed: {len(self.sample_contents)} independent execution groups")
-        print(f"sample_contents structure: {len(self.sample_contents)} groups")
+
+        logger.info(f"Dynamic sampling completed: {len(self.sample_contents)} groups "
+                     f"({timeout_count} timeouts, {error_count} errors)")
         
         # 验证每个循环都有足够的 run 和 traces
         self._validate_runs_and_traces_per_loop()
@@ -1520,30 +1541,32 @@ class LoopSampler:
     def sample(self):
         """
         执行动态采样流程（简化版本）
-        
+
         只执行动态采样，不进行符号执行分析。
         从代码中提取基本的循环信息创建 records。
         """
         import re
-        
+        import logging
+        logger = logging.getLogger('SE2INV')
+
         # 1. 提取循环信息（简化版本，不需要符号执行）
-        print('------------------------------------extracting loops------------------------------------')
+        logger.info('Extracting loops...')
         try:
             # 读取输入文件
             with open(self.input_file, 'r', encoding='utf-8') as f:
                 code = f.read()
-            
+
             # 提取循环内容（使用 process_loop_file 但不执行符号执行）
             self.loop_contents, self.sorted_indices, self.inner_flags = self.process_loop_file(self.input_file, self.unfold_file)
-            
+
             # 初始化 records
             self.records = []
             self.loop_slices = []
-            
+
             # 为每个循环创建基本 record
             for idx in self.sorted_indices:
                 loop_content = self.loop_contents[idx]
-                
+
                 # 提取循环条件
                 loop_condition = None
                 for_loop_match = re.search(r'for\s*\([^;]*;\s*([^;]+);', loop_content)
@@ -1552,17 +1575,26 @@ class LoopSampler:
                     loop_condition = for_loop_match.group(1).strip()
                 elif while_loop_match:
                     loop_condition = while_loop_match.group(1).strip()
-                
-                # 提取变量（简单提取）
+
+                # 提取变量（简单提取）- 从循环体中提取
                 current_vars = set(re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', loop_content))
                 # 排除关键字
-                keywords = {'for', 'while', 'if', 'else', 'int', 'return', 'break', 'continue', 'printf', 'scanf'}
+                keywords = {'for', 'while', 'if', 'else', 'int', 'return', 'break', 'continue', 'printf', 'scanf',
+                            'char', 'float', 'double', 'void', 'do', 'switch', 'case', 'sizeof', 'struct',
+                            'union', 'enum', 'typedef', 'static', 'extern', 'const', 'volatile',
+                            'unsigned', 'signed', 'short', 'long', 'goto', 'main'}
                 current_vars = {v for v in current_vars if v not in keywords}
-                
+
+                # 从完整代码中提取局部变量声明（循环前的 int x = ...; 声明）
+                # 这样 LLM 生成包含这些变量的不变式不会被语法过滤器误杀
+                local_var_pattern = r'\b(?:int|long|short|unsigned|signed|char|float|double)\s+([a-zA-Z_]\w*)\s*[=;,]'
+                local_vars = set(re.findall(local_var_pattern, code))
+                current_vars.update(local_vars)
+
                 # Extract function parameters (just the parameter names, not the full \\at format)
                 # The filter expects parameter names, not the full \\at(param, Pre) format
                 param_pre_vars = list(self.function_params)
-                
+
                 # 提取 requires 子句
                 requires_match = re.search(r'(?:/\*@|//@)\s*requires\s+([^@]+?)(?:\*/|$)', code, re.DOTALL)
                 pre_condition = requires_match.group(1).strip() if requires_match else None
@@ -1588,26 +1620,25 @@ class LoopSampler:
                 }
                 self.records.append(record)
                 self.loop_slices.append([idx])
-                print(f"Loop {idx}: extracted basic info")
-            
-            print(f"Found {len(self.records)} loops")
-            print('----------------------------------------------------------------------------------------')
+                logger.info(f"Loop {idx}: extracted basic info")
+
+            logger.info(f"Found {len(self.records)} loops")
         except Exception as e:
-            print(f"Error extracting loops: {e}")
+            logger.error(f"Error extracting loops: {e}")
             import traceback
-            traceback.print_exc()
+            logger.error(traceback.format_exc())
             return
-        
+
         # 2. 执行动态采样
-        print('------------------------------------dynamic sampling------------------------------------')
+        logger.info('Starting dynamic sampling...')
         try:
             self.dynamic()
-            print(f"Dynamic sampling completed: {len(self.sample_contents)} execution groups")
+            logger.info(f"Dynamic sampling completed: {len(self.sample_contents)} execution groups")
         except Exception as e:
-            print(f"Dynamic sampling failed: {e}")
+            logger.error(f"Dynamic sampling failed: {e}")
             import traceback
-            traceback.print_exc()
-        print('----------------------------------------------------------------------------------------')
+            logger.error(traceback.format_exc())
+            logger.warning("Proceeding without trace data")
 
     def sample_without_traces(self):
         """
@@ -1645,10 +1676,18 @@ class LoopSampler:
                 elif while_loop_match:
                     loop_condition = while_loop_match.group(1).strip()
 
-                # 提取变量
+                # 提取变量 - 从循环体中提取
                 current_vars = set(re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\b', loop_content))
-                keywords = {'for', 'while', 'if', 'else', 'int', 'return', 'break', 'continue', 'printf', 'scanf'}
+                keywords = {'for', 'while', 'if', 'else', 'int', 'return', 'break', 'continue', 'printf', 'scanf',
+                            'char', 'float', 'double', 'void', 'do', 'switch', 'case', 'sizeof', 'struct',
+                            'union', 'enum', 'typedef', 'static', 'extern', 'const', 'volatile',
+                            'unsigned', 'signed', 'short', 'long', 'goto', 'main'}
                 current_vars = {v for v in current_vars if v not in keywords}
+
+                # 从完整代码中提取局部变量声明（循环前的 int x = ...; 声明）
+                local_var_pattern = r'\b(?:int|long|short|unsigned|signed|char|float|double)\s+([a-zA-Z_]\w*)\s*[=;,]'
+                local_vars = set(re.findall(local_var_pattern, code))
+                current_vars.update(local_vars)
 
                 # Extract function parameters
                 param_pre_vars = [f"\\at({param}, Pre)" for param in self.function_params]

@@ -1,11 +1,9 @@
 /*@ requires x >= 0 && y >= 1;*/
-int main1(){
-
-  int x, y, q, a, b;
+int main46(int x,int y){
   
-  q = 0;
-  a = 0;
-  b = x;
+  int q = 0;
+  int a = 0;
+  int b = x;
 
   while(b != 0) {
         if (a + 1 == y) {

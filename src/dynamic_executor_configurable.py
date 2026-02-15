@@ -470,19 +470,27 @@ int main() {
 
             run_command = [executable_path]
 
-            result = subprocess.run(
+            # Use Popen with output limit to prevent OOM from infinite loops.
+            # Infinite loops (e.g., Newton's method oscillation) can produce GBs
+            # of printf output in 10s, causing memory exhaustion with capture_output.
+            MAX_OUTPUT_BYTES = 2 * 1024 * 1024  # 2 MB limit
+            proc = subprocess.Popen(
                 run_command,
-                capture_output=True,
-                text=True,
-                timeout=10
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
             )
-
-            timeout = False
-            return result.stdout.strip(), timeout
-
-        except subprocess.TimeoutExpired:
-            timeout = True
-            return "", timeout
+            try:
+                stdout_bytes, _ = proc.communicate(timeout=10)
+                # Truncate to limit memory usage
+                if len(stdout_bytes) > MAX_OUTPUT_BYTES:
+                    stdout_bytes = stdout_bytes[:MAX_OUTPUT_BYTES]
+                timeout = False
+                return stdout_bytes.decode('utf-8', errors='replace').strip(), timeout
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate()  # clean up
+                timeout = True
+                return "", timeout
         except subprocess.CalledProcessError as e:
             timeout = False
             return (f"Compilation/execution failed\nSTDOUT: {e.stdout}\nSTDERR: {e.stderr.strip()}"), timeout

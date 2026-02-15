@@ -319,7 +319,7 @@ class OutputVerifier:
             frama_c_command = "frama-c"
             # 确保使用绝对路径
             abs_file_path = os.path.abspath(file_path) if not os.path.isabs(file_path) else file_path
-            wp_command = [frama_c_command, "-wp", "-wp-print", "-wp-timeout", "3", "-wp-prover", "z3", "-wp-model", "Typed", abs_file_path]
+            wp_command = [frama_c_command, "-wp", "-wp-print", "-wp-timeout", "10", "-wp-prover", "z3", "-wp-model", "Typed", abs_file_path]
             try:
                 result = subprocess.run(wp_command, capture_output=True, text=True, check=True)
                 spliter = '------------------------------------------------------------'

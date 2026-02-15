@@ -79,6 +79,30 @@ class SyntaxFilter:
         violations = []
         stripped = invariant.strip()
 
+        # -1. 快速拒绝明显无效的不变式（LLM 有时生成 '...' 或其他垃圾 token）
+        if not stripped or stripped in ('...', '…', 'true', 'false', 'TRUE', 'FALSE'):
+            violations.append(Violation(
+                ViolationType.VALIDATION_ERROR,
+                f"Invalid invariant token: '{stripped}'"
+            ))
+            return violations
+
+        # 检查是否只包含非标识符字符（如纯标点、纯数字等）
+        if not re.search(r'[a-zA-Z_]', stripped):
+            violations.append(Violation(
+                ViolationType.VALIDATION_ERROR,
+                f"Invariant contains no variables or identifiers: '{stripped}'"
+            ))
+            return violations
+
+        # 检查是否包含省略号 '...'（可能嵌在表达式中）
+        if '...' in stripped or '…' in stripped:
+            violations.append(Violation(
+                ViolationType.VALIDATION_ERROR,
+                f"Invariant contains ellipsis '...': not a valid ACSL expression"
+            ))
+            return violations
+
         # 0. 检查括号平衡（必须最先检查，因为不平衡的括号会导致后续检查失败）
         paren_balance = 0
         bracket_balance = 0
@@ -186,6 +210,14 @@ class SyntaxFilter:
                     f"Math operator '{op}' is not allowed"
                 ))
 
+        # 3b. 禁止把 ^ 当作幂运算（在 C/ACSL 中 ^ 是按位异或）
+        if '^' in stripped:
+            violations.append(Violation(
+                ViolationType.FORBIDDEN_CONSTRUCT,
+                "Operator '^' is not allowed in loop invariants. "
+                "Use explicit multiplication (e.g., x * x) instead of exponent notation."
+            ))
+
         # 4. 检查 let 绑定和赋值
         if '\\let' in stripped:
             violations.append(Violation(
@@ -234,13 +266,23 @@ class SyntaxFilter:
         # 在 ACSL 中，比较运算符（==, !=, <, >, <=, >=）返回布尔值，不能用于 * / + -
         # 例如: "(y - 1) * (r >= y - 1)" 或 "(r >= y - 1) * (y - 1)" 是非法的
 
-        pattern1 = r'[*\/]\s*\([^)]*([<>]=?|==|!=)[^)]*\)'
-        pattern2 = r'\([^)]*([<>]=?|==|!=)[^)]*\)[\s]*[*\/]'
+        pattern1 = r'[+\-*/%]\s*\([^)]*([<>]=?|==|!=)[^)]*\)'
+        pattern2 = r'\([^)]*([<>]=?|==|!=)[^)]*\)[\s]*[+\-*/%]'
 
         if re.search(pattern1, stripped) or re.search(pattern2, stripped):
             violations.append(Violation(
                 ViolationType.VALIDATION_ERROR,
                 f"Boolean expression cannot be used in arithmetic operation. Use conditional expression '(cond ? val1 : val2)' instead"
+            ))
+
+        # 7b. 检查蕴含表达式被嵌入算术项（例如: a - (p ==> q)）
+        implies_in_arith_pattern1 = r'[+\-*/%]\s*\([^)]*==>[^)]*\)'
+        implies_in_arith_pattern2 = r'\([^)]*==>[^)]*\)\s*[+\-*/%]'
+        if re.search(implies_in_arith_pattern1, stripped) or re.search(implies_in_arith_pattern2, stripped):
+            violations.append(Violation(
+                ViolationType.VALIDATION_ERROR,
+                "Implication '==>' cannot be used as an arithmetic sub-expression. "
+                "Use implication as the top-level predicate (e.g., 'cond ==> expr')."
             ))
 
         # 8. 检查 ! 运算符只能用于布尔值，不能用于数值
@@ -560,18 +602,39 @@ def validate_code_structure(code: str) -> List[Violation]:
                 f"Invariants must have a non-empty expression."
             ))
     
-    # 检查是否有多个 loop invariant 语句在同一行（用分号分隔）
-    # 模式：loop invariant ... ; ... ; (但不是 loop assigns 或 loop variant)
-    # 更精确的检查：在一个 loop invariant 语句后，如果有分号，下一个非空内容不应该是另一个表达式
-    # 简化：检查是否有 "loop invariant ... ; ... ;" 其中中间部分不是 loop assigns/variant
-    multi_inv_pattern = r'loop\s+invariant\s+[^;]+;\s*(?!loop\s+(?:assigns|variant|invariant)|\s*\*/)[^;\s]+[^/]*;'
-    if re.search(multi_inv_pattern, code):
+    # 检查是否有同一行中的 "loop invariant a; b;"（保守检测，避免跨行/注释误报）
+    for line in code.splitlines():
+        if 'loop invariant' not in line:
+            continue
+
+        # 去掉行内 // 注释，避免注释文本影响结构判断
+        line_no_comment = re.sub(r'//.*$', '', line).strip()
+        if not line_no_comment:
+            continue
+
+        # 仅关注 loop invariant 起始后的内容
+        inv_start = re.search(r'loop\s+invariant\s+', line_no_comment)
+        if not inv_start:
+            continue
+        tail = line_no_comment[inv_start.end():]
+
+        # 一个合法 invariant 行应当只有一个语句终止分号
+        semicolon_count = tail.count(';')
+        if semicolon_count <= 1:
+            continue
+
+        # 允许 "loop invariant a; loop invariant b;" 这种极少见的同一行双声明格式
+        extra = tail[tail.find(';') + 1:].strip()
+        if re.match(r'^loop\s+(?:invariant|assigns|variant)\b', extra):
+            continue
+
         violations.append(Violation(
             ViolationType.VALIDATION_ERROR,
             f"Multiple invariant expressions found in same statement. "
             f"Each invariant should be a separate 'loop invariant' statement. "
             f"Split into multiple lines."
         ))
+        break
     
     # 5. 检查 requires/ensures 子句的格式
     # 查找 requires 子句 - 改进正则以正确提取内容
@@ -580,9 +643,13 @@ def validate_code_structure(code: str) -> List[Violation]:
     
     for req in requires_matches:
         req_stripped = req.strip()
+        # Ignore trailing comments when checking statement terminator.
+        # Example: "1; // placeholder" should still be treated as semicolon-terminated.
+        req_no_comments = re.sub(r'//.*$', '', req_stripped, flags=re.MULTILINE)
+        req_no_comments = re.sub(r'/\*.*?\*/', '', req_no_comments, flags=re.DOTALL).strip()
         
         # 检查是否为空或只有分号
-        if not req_stripped or req_stripped == ';':
+        if not req_no_comments or req_no_comments == ';':
             violations.append(Violation(
                 ViolationType.VALIDATION_ERROR,
                 f"Empty requires clause found. "
@@ -591,7 +658,7 @@ def validate_code_structure(code: str) -> List[Violation]:
             continue
         
         # 检查是否缺少分号
-        if not req_stripped.endswith(';'):
+        if not req_no_comments.endswith(';'):
             violations.append(Violation(
                 ViolationType.VALIDATION_ERROR,
                 f"Requires clause missing semicolon: '{req_stripped[:50]}...'. "
@@ -824,9 +891,6 @@ def _rewrite_at_pre(invariants: List[str], precondition: str, function_params: S
     else:
         pre_values = _extract_precondition_values(precondition)
 
-    if not pre_values:
-        return invariants
-
     # 查找所有 \\at(var, Pre) 模式
     pattern = r'\\at\((\w+),\s*Pre\)'
 
@@ -841,8 +905,9 @@ def _rewrite_at_pre(invariants: List[str], precondition: str, function_params: S
         if var_name in pre_values:
             return pre_values[var_name]
 
-        # 如果都不是，保留原样
-        return match.group(0)
+        # 对非参数变量，如果没有初值信息，降级为当前变量名，避免 Frama-C
+        # 报 "unbound logic variable <var>" 的语法错误。
+        return var_name
 
     # 对每个不变量应用改写
     rewritten_invariants = []
