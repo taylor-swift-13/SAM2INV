@@ -1460,18 +1460,6 @@ class InvariantGenerator:
         - no verification target: avoid target-driven wording
         - with assertion target: enforce target-driven invariant construction
         """
-        from config import PROMPT_CONFIG
-        prompt_mode = PROMPT_CONFIG.get('prompt_mode', 'typed_goal')
-        if prompt_mode == 'generic':
-            self.logger.info("Prompt mode: generic")
-            return (
-                "Use a single generic invariant synthesis strategy.\n"
-                "- Focus on inductive, non-empty invariants from loop semantics.\n"
-                "- Include one conservation/relational invariant and necessary bounds.\n"
-                "- Keep invariants concise, strong, and non-redundant.\n"
-                "- Provide complete and exact loop assigns."
-            )
-
         target = self._extract_verification_target(code_with_template)
         if not target['has_target']:
             return (
@@ -1620,27 +1608,12 @@ class InvariantGenerator:
         return prompt_template, loop_context
     
     def _get_gen_template(self) -> str:
-        """Load default generation prompt from prompts/*.txt."""
-        from config import PARALLEL_DIVERSITY_CONFIG
-        default_prompt_name = PARALLEL_DIVERSITY_CONFIG.get('default_prompt', 'enhanced')
-        prompt_templates = self._load_prompt_templates()
-
-        # Prefer configured default prompt name.
-        for name, content in prompt_templates:
-            if name == default_prompt_name:
-                return content
-
-        # Fallback to enhanced if configured name is missing.
-        for name, content in prompt_templates:
-            if name == 'enhanced':
-                self.logger.warning(
-                    f"Default prompt '{default_prompt_name}' not found, fallback to 'enhanced'"
-                )
-                return content
-
-        raise FileNotFoundError(
-            f"No usable prompt template found in prompts/ for default '{default_prompt_name}'"
-        )
+        """Load the single generation prompt from prompts/simple.txt."""
+        prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'simple.txt')
+        if not os.path.exists(prompt_path):
+            raise FileNotFoundError(f"Single prompt not found: {prompt_path}")
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            return f.read()
 
     def _generate_initial_invariant(self, code_with_template: str, prompt_info: tuple) -> Optional[str]:
         """Generate initial invariant using LLM - fills PLACE_HOLDER in template"""
@@ -1687,44 +1660,7 @@ class InvariantGenerator:
         
         return extracted_code
     
-    def _load_prompt_templates(self) -> List[tuple]:
-        """
-        从 prompts 文件夹加载所有 prompt 模板
-        
-        Returns:
-            List of (prompt_name, prompt_content) tuples
-        """
-        prompts_dir = os.path.join(os.path.dirname(__file__), 'prompts')
-        prompt_templates = []
-        
-        if not os.path.exists(prompts_dir):
-            self.logger.warning(f"Prompts directory not found: {prompts_dir}, using default template")
-            return [('default', self._get_gen_template())]
-        
-        try:
-            for filename in os.listdir(prompts_dir):
-                if filename.endswith('.txt') and filename != 'system_prompt.txt':
-                    prompt_path = os.path.join(prompts_dir, filename)
-                    try:
-                        with open(prompt_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            prompt_name = filename[:-4]  # Remove .txt extension
-                            prompt_templates.append((prompt_name, content))
-                            self.logger.debug(f"Loaded prompt template: {prompt_name}")
-                    except Exception as e:
-                        self.logger.warning(f"Failed to load prompt {filename}: {e}")
-            
-            if not prompt_templates:
-                self.logger.warning("No prompt templates found, using default")
-                return [('default', self._get_gen_template())]
-            
-            return prompt_templates
-        except Exception as e:
-            self.logger.error(f"Error loading prompt templates: {e}")
-            return [('default', self._get_gen_template())]
-    
-    def _select_prompt_for_candidate(self, candidate_idx: int, prompt_templates: List[tuple], 
-                                     loop_context: str, code_with_template: str) -> tuple:
+    def _select_prompt_for_candidate(self, candidate_idx: int, loop_context: str, code_with_template: str) -> tuple:
         """
         为每个候选选择一个 prompt
         
@@ -1737,37 +1673,9 @@ class InvariantGenerator:
         Returns:
             (prompt_string, prompt_name) 元组
         """
-        import random
-        from config import PARALLEL_DIVERSITY_CONFIG
-        
-        # 根据配置决定是否随机选择 prompt
-        if PARALLEL_DIVERSITY_CONFIG.get('random_prompt', True):
-            # 随机选择
-            selected_template_name, selected_template = random.choice(prompt_templates)
-        else:
-            # 使用默认 prompt
-            default_prompt_name = PARALLEL_DIVERSITY_CONFIG.get('default_prompt', 'enhanced')
-            
-            # 查找默认 prompt
-            selected_template = None
-            selected_template_name = default_prompt_name
-            
-            for name, template in prompt_templates:
-                if name == default_prompt_name:
-                    selected_template = template
-                    selected_template_name = name
-                    break
-            
-            # 如果找不到默认 prompt，使用第一个
-            if selected_template is None:
-                if prompt_templates:
-                    selected_template_name, selected_template = prompt_templates[0]
-                    self.logger.warning(f"Default prompt '{default_prompt_name}' not found, using '{selected_template_name}' instead")
-                else:
-                    # 回退到内置模板
-                    selected_template = self._get_gen_template()
-                    selected_template_name = 'default'
-                    self.logger.warning("No prompt templates available, using built-in template")
+        # Single-prompt mode: always use prompts/simple.txt
+        selected_template = self._get_gen_template()
+        selected_template_name = 'simple'
         
         # 替换占位符
         # 1. 首先替换 {{cache_reference}}（如果存在）
@@ -1856,7 +1764,7 @@ class InvariantGenerator:
         # 创建新的 Chatbot 实例（每个实例有独立的 client 和消息历史）
         return Chatbot(thread_config)
     
-    def _select_model_for_candidate(self, candidate_idx: int) -> str:
+    def _select_model_for_candidate(self) -> str:
         """
         为每个候选随机选择一个模型
         
@@ -1866,22 +1774,12 @@ class InvariantGenerator:
         Returns:
             选择的模型名称
         """
-        import random
-        from config import PARALLEL_DIVERSITY_CONFIG
-        
-        # 根据配置决定是否随机选择模型
-        if PARALLEL_DIVERSITY_CONFIG.get('random_model', True):
-            available_models = PARALLEL_DIVERSITY_CONFIG.get('available_models', ['gpt-4o'])
-            selected_model = random.choice(available_models)
-        else:
-            # 如果不随机，使用默认模型
-            selected_model = self.llm_config.api_model
-        
-        return selected_model
+        # Single-model mode: always use configured API model
+        return self.llm_config.api_model
     
     def _generate_multiple_candidates(self, code_with_template: str, prompt_info: tuple, num_candidates: int = 3, temperature: float = 0.8, use_threading: bool = True, max_workers: int = 5) -> List[Optional[str]]:
         """
-        并行生成多组候选不变式，每个线程可以选择不同的 prompt
+        并行生成多组候选不变式（单一 prompt + 单一模型）
         
         Args:
             code_with_template: 带有PLACE_HOLDER的代码模板
@@ -1895,10 +1793,7 @@ class InvariantGenerator:
             候选代码列表
         """
         _, loop_context = prompt_info
-        
-        # 加载所有可用的 prompt 模板
-        prompt_templates = self._load_prompt_templates()
-        self.logger.info(f"Loaded {len(prompt_templates)} prompt templates: {[name for name, _ in prompt_templates]}")
+        self.logger.info("Loaded single prompt template: simple")
         
         # 保存原始温度
         original_temp = self.llm_config.api_temperature
@@ -1914,14 +1809,14 @@ class InvariantGenerator:
                 from concurrent.futures import ThreadPoolExecutor, as_completed
                 
                 def generate_single_candidate(candidate_idx: int) -> Optional[str]:
-                    """生成单个候选，使用选择的 prompt 和模型，创建独立的 LLM client"""
+                    """生成单个候选，使用单一 prompt/模型并创建独立 LLM client"""
                     thread_llm = None
                     try:
-                        # 为每个候选随机选择 prompt 和模型
+                        # 单一 prompt + 单一模型
                         prompt, prompt_name = self._select_prompt_for_candidate(
-                            candidate_idx, prompt_templates, loop_context, code_with_template
+                            candidate_idx, loop_context, code_with_template
                         )
-                        selected_model = self._select_model_for_candidate(candidate_idx)
+                        selected_model = self._select_model_for_candidate()
                         
                         # 为每个线程创建独立的 LLM client（不共享上下文窗口）
                         thread_llm = self._create_llm_client_for_thread(selected_model)
@@ -1993,11 +1888,11 @@ class InvariantGenerator:
                 # 顺序生成（也使用独立的 client）
                 candidates = []
                 for i in range(num_candidates):
-                    # 为每个候选随机选择 prompt 和模型
+                    # 单一 prompt + 单一模型
                     prompt, prompt_name = self._select_prompt_for_candidate(
-                        i, prompt_templates, loop_context, code_with_template
+                        i, loop_context, code_with_template
                     )
-                    selected_model = self._select_model_for_candidate(i)
+                    selected_model = self._select_model_for_candidate()
                     
                     # 为每个候选创建独立的 LLM client（不共享上下文窗口）
                     thread_llm = self._create_llm_client_for_thread(selected_model)

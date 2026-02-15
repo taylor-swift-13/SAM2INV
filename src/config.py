@@ -94,23 +94,6 @@ PARALLEL_GENERATION_CONFIG = {
 PROMPT_CONFIG = {
     'max_samples': 5,              # 最大执行组数（避免 token 超限）
     'max_traces_per_sample': 10,   # 每个执行组最大 traces 数量
-    # prompt_mode:
-    # - "typed_goal": 根据是否存在验证目标和目标类型动态调整 guidance（当前策略）
-    # - "generic": 单一通用 guidance，不做目标类型区分
-    'prompt_mode': 'typed_goal',
-}
-
-# 并行生成多样性配置 (Parallel Generation Diversity Configuration)
-PARALLEL_DIVERSITY_CONFIG = {
-    'random_prompt': False,        # 是否随机选择 prompt
-    'random_model': False,          # 是否随机选择模型
-    'default_prompt': 'simple',  # 默认 prompt 名称（当 random_prompt=False 时使用）
-    'available_models': [          # 可用的模型列表
-        'gpt-4o',
-        'deepseek-v3.2',
-        'gpt-5-mini',
-        'gpt-5',
-    ],
 }
 
 # ==============================================================================
