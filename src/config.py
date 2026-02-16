@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class LLMConfig:
     # API model configuration
     use_api_model = True # Control whether to use API model or local Transformers model
-    api_model:str = "gpt-4o-mini" # model name, e.g., "gpt-4o"
+    api_model:str = "gpt-5-mini" # model name, e.g., "gpt-4o"
     api_key:str = "sk-9dnxPHHwjlTiAlH0uUoKwiW79Hs51AGpqUSRj9DvZurLZx1R"
     base_url:str = "https://yunwu.ai/v1"
     api_temperature = 1.0 # Temperature parameter for API calls
