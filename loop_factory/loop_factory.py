@@ -21,7 +21,7 @@ class HyperParams:
     q_nest: float = 0.12
     p_nonlinear: float = 0.55   # probability a loop is NLA-like family
     nonlinear_strength: float = 0.60
-    p_semantic_core: float = 0.50
+    p_semantic_core: float = 0.20
     w_core_rel_guard: float = 1.0
     w_core_cond_fixed: float = 1.0
     w_core_linear_state: float = 1.0
@@ -289,24 +289,39 @@ class ProbabilisticLoopFactory:
         nla_family: bool,
     ) -> int:
         used = 0
-        if len(writable) < 3:
+        if len(writable) < 2:
             return used
 
         if nla_family:
-            # NLA-like recurrences
-            a, b, c = writable[0], writable[1], writable[2]
+            # NLA-like recurrences with generalized semantic motifs:
+            # (2) affine chains, (3) multiply-add, (9) scaling pairs.
+            a, b = writable[0], writable[1]
+            c = writable[2] if len(writable) >= 3 else b
+            d = writable[3] if len(writable) >= 4 else a
+            mul = self.rng.randint(2, 4)
+            off = self.rng.randint(1, 5)
             kernels = [
                 [Assign(a, f"{a}+{b}"), Assign(b, f"{b}+{c}"), Assign(c, f"{c}+{self.rng.randint(1, 6)}")],
                 [Assign(a, f"{a}*2"), Assign(b, f"{b}+{a}"), Assign(c, f"{c}%{self.rng.randint(2, 9)}")],
                 [Assign(a, f"{a}+{ctr}"), Assign(b, f"{b}*{b}"), Assign(c, f"{c}+{a}*{b}")],
+                [Assign(a, f"{a}*{mul}+{off}"), Assign(b, f"{b}*{a}+{off}")],
+                [Assign(a, f"{a}*{mul}"), Assign(b, f"{b}/{mul}")],
+                [Assign(d, f"{d}*{d}+{a}"), Assign(a, f"{a}%{self.rng.randint(2, 9)}")],
             ]
         else:
-            # linear-like transitions
-            a, b, c = writable[0], writable[1], writable[2]
+            # linear-like transitions with generalized semantic motifs:
+            # (1) conservation pairs, (2) affine chains, (12) counter decomposition.
+            a, b = writable[0], writable[1]
+            c = writable[2] if len(writable) >= 3 else b
+            d = writable[3] if len(writable) >= 4 else a
+            off = self.rng.randint(1, 5)
             kernels = [
                 [Assign(a, f"{a}+1"), Assign(b, f"{b}+{a}")],
                 [Assign(a, f"{a}+{self.rng.randint(1, 5)}"), Assign(c, f"{c}+{self.rng.randint(1, 4)}")],
                 [Assign(b, f"{b}+{c}"), Assign(c, f"{c}+{a}")],
+                [Assign(a, f"{a}+1"), Assign(b, f"{b}-1")],
+                [Assign(a, f"{a}+{off}"), Assign(b, f"{b}+{a}"), Assign(c, f"{c}+{b}")],
+                [Assign(d, f"{a}+{b}+{c}"), Assign(a, f"{a}+1")],
             ]
 
         k = self.rng.choice(kernels)
@@ -364,80 +379,154 @@ class ProbabilisticLoopFactory:
                     return
 
         # Generalized core rules extracted from target datasets (not exact copies).
-        # Core rules are inserted probabilistically via p_semantic_core and per-rule weights.
+        # Covers additional semantic motifs:
+        # 1) linear conservation, 2) affine chain, 3) multiply-add,
+        # 4) remainder buckets, 5) quotient-remainder coupling,
+        # 6) monotone-bound update, 7) phase switching,
+        # 8) saturation/truncation, 9) scaling pair,
+        # 10) two-var compare driven, 11) branch + fixed updates,
+        # 12) counter decomposition.
         core_applied = False
-        if self.rng.random() < self.hp.p_semantic_core and if_budget >= 1:
-            nla_rules: List[str] = []
-            nla_weights: List[float] = []
-            if nla_family and len(state_vars) >= 4 and self.hp.w_core_rel_guard > 0:
-                nla_rules.append("rel_guard")
-                nla_weights.append(self.hp.w_core_rel_guard)
-            if nla_family and len(state_vars) >= 3 and self.hp.w_core_cond_fixed > 0:
-                nla_rules.append("cond_fixed")
-                nla_weights.append(self.hp.w_core_cond_fixed)
-            if (not nla_family) and len(state_vars) >= 3 and self.hp.w_core_linear_state > 0:
-                nla_rules.append("linear_state")
-                nla_weights.append(self.hp.w_core_linear_state)
+        if self.rng.random() < self.hp.p_semantic_core:
+            a = state_vars[0]
+            b = state_vars[1] if len(state_vars) > 1 else state_vars[0]
+            c = state_vars[2] if len(state_vars) > 2 else state_vars[0]
+            d = state_vars[3] if len(state_vars) > 3 else state_vars[0]
 
-            if nla_rules:
-                chosen = self.rng.choices(nla_rules, weights=nla_weights, k=1)[0]
-            else:
-                chosen = ""
+            candidates: List[str] = []
+            weights: List[float] = []
+
+            def allow(name: str, w: float, need_if: int, need_asg: int, need_vars: int) -> None:
+                if w > 0 and if_budget >= need_if and assign_total >= need_asg and len(state_vars) >= need_vars:
+                    candidates.append(name)
+                    weights.append(w)
+
+            # Existing controls reused as coarse weights.
+            rel_w = self.hp.w_core_rel_guard
+            cond_w = self.hp.w_core_cond_fixed
+            lin_w = self.hp.w_core_linear_state
+
+            allow("rel_guard", rel_w if nla_family else 0.0, 1, 2, 4)         # (5)
+            allow("cond_fixed", cond_w if nla_family else 0.0, 1, 4, 3)       # (11)
+            allow("linear_state", lin_w if (not nla_family) else 0.0, 1, 2, 3)  # (10-like FSM)
+            allow("conservation", lin_w, 0, 2, 2)                             # (1)
+            allow("affine_chain", lin_w + cond_w, 0, 3, 3)                    # (2)
+            allow("mul_add", cond_w if nla_family else 0.0, 0, 2, 2)          # (3)
+            allow("remainder_buckets", cond_w, 2, 2, 3)                        # (4)
+            allow("monotone_bound", lin_w, 1, 1, 2)                            # (6)
+            allow("phase_switch", cond_w, 1, 2, 2)                             # (7)
+            allow("saturation", cond_w, 1, 1, 2)                               # (8)
+            allow("scaling_pair", cond_w if nla_family else lin_w, 0, 2, 2)    # (9)
+            allow("counter_decomp", lin_w, 0, 4, 4)                            # (12)
+            allow("gcd_compare", cond_w if nla_family else lin_w, 1, 1, 2)     # (10)
+
+            chosen = self.rng.choices(candidates, weights=weights, k=1)[0] if candidates else ""
 
             if chosen == "rel_guard":
-                # Relational-guard core: A > B*C + D
-                x, y, qv, rv = state_vars[0], state_vars[1], state_vars[2], state_vars[3]
-                set_init(x, f"({src}%60)+60")
-                set_init(y, f"({src}%9)+2")
-                set_init(qv, "0")
-                set_init(rv, "0")
-                guard = f"{x}>{y}*{qv}+{rv}"
-                body.append(
-                    IfElse(
-                        cond=f"{rv}=={y}-1",
-                        then_body=[Assign(rv, "0"), Assign(qv, f"{qv}+1")],
-                        else_body=[Assign(rv, f"{rv}+1")],
-                    )
-                )
+                # (5) x = y*q + r style relation with q/r updates.
+                set_init(a, f"({src}%60)+60")
+                set_init(b, f"({src}%9)+2")
+                set_init(c, "0")
+                set_init(d, "0")
+                guard = f"{a}>{b}*{c}+{d}"
+                body.append(IfElse(cond=f"{d}=={b}-1", then_body=[Assign(d, "0"), Assign(c, f"{c}+1")], else_body=[Assign(d, f"{d}+1")]))
                 used_if += 1
                 used_assign += 2
                 core_applied = True
             elif chosen == "cond_fixed":
-                # Conditional update + fixed updates core.
-                x, y, z = state_vars[0], state_vars[1], state_vars[2]
-                set_init(x, f"({src}%20)+1")
-                set_init(y, f"({src}%25)+1")
-                set_init(z, "0")
-                guard = f"{y}!=0"
-                body.append(
-                    IfElse(
-                        cond=f"{y}%2==1",
-                        then_body=[Assign(z, f"{z}+{x}"), Assign(y, f"{y}-1")],
-                        else_body=[],
-                    )
-                )
-                body.append(Assign(x, f"2*{x}"))
-                body.append(Assign(y, f"{y}/2"))
+                # (11) branch updates + fixed updates outside branch.
+                set_init(a, f"({src}%20)+1")
+                set_init(b, f"({src}%25)+1")
+                set_init(c, "0")
+                guard = f"{b}!=0"
+                body.append(IfElse(cond=f"{b}%2==1", then_body=[Assign(c, f"{c}+{a}"), Assign(b, f"{b}-1")], else_body=[]))
+                body.append(Assign(a, f"2*{a}"))
+                body.append(Assign(b, f"{b}/2"))
                 used_if += 1
                 used_assign += 4
                 core_applied = True
             elif chosen == "linear_state":
-                # Linear state-machine core.
-                t, c, lvar = state_vars[0], state_vars[1], state_vars[2]
-                set_init(t, "0")
-                set_init(c, "0")
-                set_init(lvar, f"({src}%40)+10")
-                guard = f"{t}<{lvar}"
+                # (10) two-variable compare-driven state transition.
+                set_init(a, f"({src}%40)+10")
+                set_init(b, f"({src}%30)+6")
+                guard = f"{a}!=0&&{b}!=0"
+                body.append(IfElse(cond=f"{a}>{b}", then_body=[Assign(a, f"{a}-{b}")], else_body=[Assign(b, f"{b}-{a}")]))
+                used_if += 1
+                used_assign += 1
+                core_applied = True
+            elif chosen == "conservation":
+                # (1) u-v or u+v style conservation pair.
+                if self.rng.random() < 0.5:
+                    body.extend([Assign(a, f"{a}+1"), Assign(b, f"{b}-1")])
+                else:
+                    body.extend([Assign(a, f"{a}+1"), Assign(b, f"{b}+1")])
+                used_assign += 2
+                core_applied = True
+            elif chosen == "affine_chain":
+                # (2) affine recurrence chain.
+                body.extend([Assign(a, f"{a}+{self.rng.randint(1,4)}"), Assign(b, f"{b}+{a}"), Assign(c, f"{c}+{b}")])
+                used_assign += 3
+                core_applied = True
+            elif chosen == "mul_add":
+                # (3) multiply-add recurrence.
+                k = self.rng.randint(2, 4)
+                cst = self.rng.randint(1, 5)
+                body.extend([Assign(a, f"{a}*{k}+{cst}"), Assign(b, f"{b}*{a}+{cst}")])
+                used_assign += 2
+                core_applied = True
+            elif chosen == "remainder_buckets":
+                # (4) remainder bucket counting with 2-way split (generalizable).
+                k = self.rng.randint(2, 6)
+                r = self.rng.randint(0, k - 1)
+                body.append(IfElse(cond=f"{ctr}%{k}=={r}", then_body=[Assign(a, f"{a}+1")], else_body=[Assign(b, f"{b}+1")]))
+                # second split to mimic multi-bucket partitions
+                body.append(IfElse(cond=f"{ctr}%{k}=={(r+1)%k}", then_body=[Assign(c, f"{c}+1")], else_body=[]))
+                used_if += 2
+                used_assign += 2
+                core_applied = True
+            elif chosen == "monotone_bound":
+                # (6) monotone variable tied to guard.
+                guard = f"{a}<{lim}"
+                body.append(IfOnly(cond=f"{a}<{lim}", then_body=[Assign(a, f"{a}+1")]))
+                used_if += 1
+                used_assign += 1
+                core_applied = True
+            elif chosen == "phase_switch":
+                # (7) phase-dependent update law.
                 body.append(
                     IfElse(
-                        cond=f"{c}!=4",
-                        then_body=[Assign(c, f"{c}+1")],
-                        else_body=[Assign(c, "1")],
+                        cond=f"{ctr}<{lim}/2",
+                        then_body=[Assign(a, f"{a}+{b}")],
+                        else_body=[Assign(a, f"{a}*{b}") if nla_family else Assign(a, f"{a}+1")],
                     )
                 )
-                body.append(Assign(t, f"{t}+1"))
                 used_if += 1
+                used_assign += 1
+                core_applied = True
+            elif chosen == "saturation":
+                # (8) saturation/truncation via if-else (DSL equivalent).
+                cst = self.rng.randint(1, 6)
+                body.append(IfElse(cond=f"{a}+{cst}<={lim}", then_body=[Assign(a, f"{a}+{cst}")], else_body=[Assign(a, lim)]))
+                used_if += 1
+                used_assign += 1
+                core_applied = True
+            elif chosen == "scaling_pair":
+                # (9) scaling pair.
+                k = self.rng.randint(2, 4)
+                body.extend([Assign(a, f"{a}*{k}"), Assign(b, f"{b}/{k}")])
                 used_assign += 2
+                core_applied = True
+            elif chosen == "counter_decomp":
+                # (12) decomposition: c1+c2+c3 tracks step-like progress.
+                body.extend([Assign(a, f"{a}+1"), Assign(b, f"{b}+1"), Assign(c, f"{c}+1"), Assign(d, f"{a}+{b}+{c}")])
+                used_assign += 4
+                core_applied = True
+            elif chosen == "gcd_compare":
+                # (10) compare-driven dual-variable decrease.
+                guard = f"{a}!=0&&{b}!=0"
+                body.append(IfElse(cond=f"{a}>{b}", then_body=[Assign(a, f"{a}-{b}")], else_body=[Assign(b, f"{b}-{a}")]))
+                used_if += 1
+                used_assign += 1
                 core_applied = True
 
         if core_applied:
@@ -560,7 +649,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--p-nonlinear", type=float, default=0.58, help="Probability of NLA-like loop family")
     parser.add_argument("--nonlinear-strength", type=float, default=0.70, help="Strength of nonlinear updates in NLA-like loops")
-    parser.add_argument("--p-semantic-core", type=float, default=0.50, help="Probability to inject one semantic core rule in a loop")
+    parser.add_argument("--p-semantic-core", type=float, default=0.20, help="Probability to inject one semantic core rule in a loop")
     parser.add_argument("--w-core-rel-guard", type=float, default=1.0, help="Weight of relational-guard core rule")
     parser.add_argument("--w-core-cond-fixed", type=float, default=1.0, help="Weight of conditional+fixed-update core rule")
     parser.add_argument("--w-core-linear-state", type=float, default=1.0, help="Weight of linear state-machine core rule")
