@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import argparse
 import random
+import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 
 @dataclass(frozen=True)
@@ -253,6 +254,57 @@ class ProbabilisticLoopFactory:
             else:
                 expr = self._sample_expr(tgt, vars_pool + [lim], nla_family=True)
         return Assign(tgt, expr)
+
+    def _normalize_expr(self, expr: str) -> str:
+        return re.sub(r"\s+", "", expr).strip("()")
+
+    def _dedup_loop_body(self, body: List[Stmt], ctr: str) -> List[Stmt]:
+        """
+        Suppress low-value repetitive updates, e.g. repeated `v=v-v`/`v=v+1` chains.
+        Keep control-flow statements unchanged and only trim top-level Assign noise.
+        """
+        out: List[Stmt] = []
+        assign_seen: Dict[Tuple[str, str], int] = {}
+        prev_assign_fp: Tuple[str, str] | None = None
+        prev_target: str | None = None
+        same_target_run = 0
+
+        for st in body:
+            if not isinstance(st, Assign):
+                out.append(st)
+                prev_assign_fp = None
+                prev_target = None
+                same_target_run = 0
+                continue
+
+            tgt = st.target
+            expr_n = self._normalize_expr(st.expr)
+            fp = (tgt, expr_n)
+
+            if tgt == prev_target:
+                same_target_run += 1
+            else:
+                same_target_run = 1
+                prev_target = tgt
+
+            # 1) Drop exact consecutive duplicates.
+            if prev_assign_fp == fp:
+                continue
+            # 2) Keep at most one explicit self-zeroing update like x=x-x.
+            if expr_n == f"{tgt}-{tgt}" and assign_seen.get(fp, 0) >= 1:
+                continue
+            # 3) Cap repeated same assignment forms.
+            if assign_seen.get(fp, 0) >= 2:
+                continue
+            # 4) Avoid long same-target straight-line update chains (except loop counter).
+            if tgt != ctr and same_target_run > 2:
+                continue
+
+            out.append(st)
+            assign_seen[fp] = assign_seen.get(fp, 0) + 1
+            prev_assign_fp = fp
+
+        return out
 
     def _sample_cond(self, ctr: str, lim: str, aux: str, vars_pool: Sequence[str], nla_family: bool) -> str:
         r = self.rng.random()
@@ -571,6 +623,8 @@ class ProbabilisticLoopFactory:
             p = self.rng.choice([w for w in state_vars if w != t] or [t])
             body.append(self._semantic_assign(t, p, ctr, lim, vars_pool, nla_family))
             used_assign += 1
+
+        body = self._dedup_loop_body(body, ctr)
 
         if append_step:
             body.append(step_stmt)

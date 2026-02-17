@@ -174,33 +174,51 @@ class OutputVerifier:
     def print_errors(self, error_list):
         for error in error_list:
             print(error[0].splitlines()[0])
-            print(error[1])
-            print(error[2])
+            if error[1]:
+                print(error[1])
+            if error[2]:
+                print(error[2])
             print()
 
     def extract_semantic_error(self, error_message):
         pattern = r'file\s+([\w\/\.\-]+),\s+line\s+(\d+)'
         match = re.search(pattern, error_message)
-        
-        if match:
-            file_path = match.group(1)
-            line_number = int(match.group(2))
-            try:
-                with open(file_path, 'r') as file:
-                    lines = file.readlines()
-                    if 1 <= line_number <= len(lines):
-                        error_line = lines[line_number - 1].strip()
-                    else:
-                        error_line = None
-            except FileNotFoundError:
-                # print(f"Error: File '{file_path}' not found.")
-                return None, None
 
-            error_location_msg = f"Error found in file: {file_path} at line: {line_number}"
-            error_content_msg = f"Error line content: {error_line}" if error_line else "Error line content: Line number out of range."
-            return error_location_msg, error_content_msg
-        else:
-            return None, None
+        if not match:
+            # 无法从错误信息中解析出文件和行号，回退到原始错误描述
+            desc = error_message.strip().splitlines()[0] if error_message.strip() else "Unknown error"
+            return f"Location: {desc}", "Error line content: (unable to parse file/line from Frama-C output)"
+
+        file_path = match.group(1)
+        line_number = int(match.group(2))
+        error_location_msg = f"Error found in file: {file_path} at line: {line_number}"
+
+        try:
+            with open(file_path, 'r') as file:
+                lines = file.readlines()
+                if 1 <= line_number <= len(lines):
+                    error_line = lines[line_number - 1].strip()
+                    return error_location_msg, f"Error line content: {error_line}"
+                else:
+                    return error_location_msg, "Error line content: Line number out of range."
+        except FileNotFoundError:
+            # 文件可能已被清理（如 batch_pipeline 临时目录），从错误描述中提取 proof obligation 信息
+            proof_detail = self._extract_proof_obligation(error_message)
+            content_msg = f"Error line content: (file not found) {proof_detail}" if proof_detail else "Error line content: (file not found)"
+            return error_location_msg, content_msg
+
+    def _extract_proof_obligation(self, error_message):
+        """从 Frama-C 输出中提取 proof obligation 的具体内容（Prove/Goal 行）"""
+        lines = error_message.strip().splitlines()
+        for line in lines:
+            stripped = line.strip()
+            # Frama-C WP 输出中 "Prove:" 行包含需要证明的具体条件
+            if stripped.startswith("Prove:"):
+                return stripped
+            # "Goal" 行包含 proof obligation 的描述
+            if stripped.startswith("Goal") and ("Establishment" in stripped or "Preservation" in stripped or "Assertion" in stripped):
+                return stripped
+        return ""
 
     def _parse_goal_info(self, content):
         """

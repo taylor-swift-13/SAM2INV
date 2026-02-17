@@ -3085,7 +3085,10 @@ class InvariantGenerator:
         for index, (desc, location, content) in enumerate(error_list, start=1):
             desc = desc.splitlines()[0]
             error_str.append(f"Error {index}: {desc}")
-            error_str.append(f"Code: {content}")
+            if content:
+                error_str.append(f"Code: {content}")
+            if location:
+                error_str.append(f"Location: {location}")
             if 'Establishment' in desc:
                 error_str.append(f"Instruction: You need weaken the invariant to be valid under initial conditions {pre_condition}.")
             if 'Preservation' in desc:
@@ -3093,7 +3096,7 @@ class InvariantGenerator:
             if 'Assertion' in desc:
                 error_str.append(f"Instruction: You need strengthen the invariant to make sure postcondition can be implied by the invariant combined with the negation of the loop condition.")
             error_str.append("-" * 50)
-        
+
         return "\n".join(error_str)
 
     def _heuristic_seed_invariants(self, code: str) -> List[str]:
@@ -3436,7 +3439,10 @@ class InvariantGenerator:
         for index, (desc, location, content) in enumerate(error_list, start=1):
             desc = desc.splitlines()[0]
             error_str.append(f"Error {index}: {desc}")
-            error_str.append(f"Code: {content}")
+            if content:
+                error_str.append(f"Code: {content}")
+            if location:
+                error_str.append(f"Location: {location}")
             if 'Establishment' in desc:
                 error_str.append(f"Instruction: You need weaken the invariant to be valid under initial conditions {pre_condition}.")
             if 'Preservation' in desc:
@@ -3444,7 +3450,7 @@ class InvariantGenerator:
             if 'Assertion' in desc:
                 error_str.append(f"Instruction: You need strengthen the invariant to make sure postcondition can be implied by the invariant combined with the negation of the loop condition.")
             error_str.append("-" * 50)
-        
+
         return "\n".join(error_str)
     
     def _detect_error_type_from_list(self, error_list) -> str:

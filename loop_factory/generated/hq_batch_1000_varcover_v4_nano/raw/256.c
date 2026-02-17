@@ -1,0 +1,25 @@
+int main1(int n,int p,int q){
+  int l, i, v;
+
+  l=p+11;
+  i=0;
+  v=p;
+
+  while (i<l) {
+      if ((i%5)==0) {
+          v = v+1;
+      }
+      else {
+          v = v+4;
+      }
+      if (v+3<l) {
+          v = v+3;
+      }
+      v = v+1;
+      if ((i%6)==0) {
+          v = v-v;
+      }
+      i = i+1;
+  }
+
+}

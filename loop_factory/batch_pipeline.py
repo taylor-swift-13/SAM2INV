@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import os
+import math
 import hashlib
 import json
 import logging
@@ -10,6 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
@@ -90,6 +94,39 @@ def compute_raw_structure_key(raw_code: str) -> str:
     return hashlib.sha256(raw_norm.encode("utf-8")).hexdigest()
 
 
+def compute_loop_skeleton_key(raw_code: str) -> str:
+    """
+    Loop skeleton key:
+    - Canonicalize identifiers.
+    - Normalize whitespace/comments.
+    - Abstract numeric constants to reduce near-duplicate loop bodies.
+    """
+    m = re.search(r"while\s*\([^)]*\)\s*\{", raw_code)
+    if not m:
+        payload = normalize_code(canonicalize_identifiers(raw_code))
+        payload = re.sub(r"\b\d+\b", "C", payload)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    i = m.end()
+    depth = 1
+    while i < len(raw_code):
+        c = raw_code[i]
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+            if depth == 0:
+                body = raw_code[m.end() : i]
+                body_norm = normalize_code(canonicalize_identifiers(body))
+                body_norm = re.sub(r"\b\d+\b", "C", body_norm)
+                return hashlib.sha256(body_norm.encode("utf-8")).hexdigest()
+        i += 1
+
+    payload = normalize_code(canonicalize_identifiers(raw_code))
+    payload = re.sub(r"\b\d+\b", "C", payload)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def has_no_assert(code: str) -> bool:
     return re.search(r"/\*@\s*assert\b", code) is None
 
@@ -97,6 +134,37 @@ def has_no_assert(code: str) -> bool:
 def extract_updated_vars(loop_content: str) -> Set[str]:
     updated = set(re.findall(r"\b([A-Za-z_]\w*)\s*=", loop_content))
     return {v for v in updated if v not in CPP_KEYWORDS}
+
+
+def has_repetitive_loop_updates(loop_content: str) -> bool:
+    """
+    Detect low-value repetitive assignment patterns in loop body, e.g.:
+    repeated identical updates or long same-target straight-line chains.
+    """
+    assigns = re.findall(r"\b([A-Za-z_]\w*)\s*=\s*([^;]+);", loop_content or "")
+    if not assigns:
+        return False
+
+    # Pattern repetition cap by normalized assignment form.
+    form_counts: Dict[Tuple[str, str], int] = {}
+    for t, e in assigns:
+        fp = (t, re.sub(r"\s+", "", e))
+        form_counts[fp] = form_counts.get(fp, 0) + 1
+        if form_counts[fp] > 2:
+            return True
+
+    # Consecutive same-target chain cap.
+    prev_t = None
+    run = 0
+    for t, _ in assigns:
+        if t == prev_t:
+            run += 1
+        else:
+            prev_t = t
+            run = 1
+        if run > 3:
+            return True
+    return False
 
 
 def is_tautological(inv: str) -> bool:
@@ -149,6 +217,35 @@ def is_relational(inv: str) -> bool:
     return len(vars_found) >= 2 and has_rel_op
 
 
+def inv_identifiers(inv: str) -> Set[str]:
+    ids = set(re.findall(r"\b([A-Za-z_]\w*)\b", inv))
+    return {x for x in ids if x not in CPP_KEYWORDS and x != "Pre"}
+
+
+def has_arith_expr(inv: str) -> bool:
+    return any(op in inv for op in ["+", "-", "*", "/", "%"])
+
+
+def is_prestate_copy_only(inv: str) -> bool:
+    """
+    True for invariants that only state x == \\at(x, Pre)-style unchanged facts
+    (possibly chained with &&), which are too weak alone.
+    """
+    parts = [p.strip() for p in inv.split("&&") if p.strip()]
+    if not parts:
+        return False
+    pat = re.compile(r"^([A-Za-z_]\w*)\s*==\s*\\at\(\s*\1\s*,\s*Pre\s*\)$")
+    return all(bool(pat.match(p)) for p in parts)
+
+
+def is_nontrivial_inv(inv: str) -> bool:
+    if is_tautological(inv):
+        return False
+    if not any(op in inv for op in ["==", "!=", "<=", ">=", "<", ">"]):
+        return False
+    return True
+
+
 def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) -> Tuple[bool, str]:
     if count_loops(raw_code) != 1:
         return False, "not single-loop input"
@@ -160,25 +257,58 @@ def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) ->
         return False, "too few invariants"
     if any(is_tautological(inv) for inv in invariants):
         return False, "contains tautology"
-    relation_invs = [inv for inv in invariants if is_relational(inv) and not is_tautological(inv)]
-    if len(relation_invs) < 2:
-        return False, "insufficient relational invariants"
+    useful_invs = [inv for inv in invariants if is_nontrivial_inv(inv)]
+    if not useful_invs:
+        return False, "no nontrivial invariants"
 
     loop_content = ""
     if gen.sampler.records:
         loop_content = gen.sampler.records[0].get("loop_content", "")
+    if has_repetitive_loop_updates(loop_content):
+        return False, "repetitive loop updates"
     updated_vars = extract_updated_vars(loop_content)
-    if updated_vars:
-        # Deterministic "behavior coverage": every updated var must appear in a non-trivial relation.
-        for v in sorted(updated_vars):
-            if not any(re.search(rf"\b{re.escape(v)}\b", inv) for inv in relation_invs):
-                return False, f"updated var not covered by relational invariant: {v}"
+    if not updated_vars:
+        return False, "no updated vars extracted from loop"
+    loop_var = gen._extract_loop_variable(loop_content) if loop_content else None
+    non_loop_updated = [v for v in sorted(updated_vars) if v != loop_var]
+    if not non_loop_updated:
+        return False, "counter-only loop body"
 
-        # Require one relation to tie loop progress variable to state variables.
-        loop_var = gen._extract_loop_variable(loop_content) if loop_content else None
-        if loop_var:
-            if not any(re.search(rf"\b{re.escape(loop_var)}\b", inv) and len(set(re.findall(r'\b([A-Za-z_]\w*)\b', inv))) >= 2 for inv in relation_invs):
-                return False, f"no progress-linked relational invariant for loop var {loop_var}"
+    vars_to_cover = set(updated_vars)
+    if loop_var:
+        vars_to_cover.add(loop_var)
+
+    for v in sorted(vars_to_cover):
+        if not any(re.search(rf"\b{re.escape(v)}\b", inv) for inv in useful_invs):
+            return False, f"var lacks nontrivial invariant: {v}"
+
+    # Prefer equality constraints for changed non-loop variables (soft ratio).
+    eq_covered = 0
+    for v in sorted(updated_vars):
+        if v == loop_var:
+            continue
+        has_eq = any(("==" in inv) and re.search(rf"\b{re.escape(v)}\b", inv) for inv in useful_invs)
+        if has_eq:
+            eq_covered += 1
+    if non_loop_updated:
+        need_eq = max(1, math.ceil(0.7 * len(non_loop_updated)))
+        if eq_covered < need_eq:
+            return False, f"insufficient equality coverage: {eq_covered}/{len(non_loop_updated)}"
+
+    # Loop variable should have explicit lower + upper bound.
+    if loop_var:
+        lo_ok = any(
+            re.search(rf"\b{re.escape(loop_var)}\b\s*(>=|>)", inv)
+            or re.search(rf"(<=|<)\s*\b{re.escape(loop_var)}\b", inv)
+            for inv in useful_invs
+        )
+        hi_ok = any(
+            re.search(rf"\b{re.escape(loop_var)}\b\s*(<=|<)", inv)
+            or re.search(rf"(>=|>)\s*\b{re.escape(loop_var)}\b", inv)
+            for inv in useful_invs
+        )
+        if not (lo_ok and hi_ok):
+            return False, f"loop var lacks explicit bounds: {loop_var}"
 
     if not has_no_assert(raw_code):
         return False, "input unexpectedly contains assert"
@@ -189,31 +319,158 @@ def generate_one_loop(out_dir: Path, seed: int) -> Path:
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    hp = loop_factory_hyperparams(seed, out_dir)
     cmd = [
         sys.executable,
         str(ROOT / "loop_factory.py"),
-        "--profile",
-        "benchmark",
-        "--out-dir",
-        str(out_dir),
-        "--count",
-        "1",
-        "--seed",
-        str(seed),
-        "--max-loops",
-        "1",
-        "--max-depth",
-        "1",
-        "--p-multi",
-        "0.0",
-        "--q-nest",
-        "0.0",
+        "--profile", str(hp["profile"]),
+        "--out-dir", str(hp["out_dir"]),
+        "--count", str(hp["count"]),
+        "--seed", str(hp["seed"]),
+        "--max-vars", str(hp["max_vars"]),
+        "--params", str(hp["params"]),
+        "--min-loops", str(hp["min_loops"]),
+        "--max-loops", str(hp["max_loops"]),
+        "--max-assign", str(hp["max_assign"]),
+        "--max-ifelse", str(hp["max_ifelse"]),
+        "--max-depth", str(hp["max_depth"]),
+        "--p-multi", str(hp["p_multi"]),
+        "--q-nest", str(hp["q_nest"]),
+        "--p-nonlinear", str(hp["p_nonlinear"]),
+        "--nonlinear-strength", str(hp["nonlinear_strength"]),
+        "--p-semantic-core", str(hp["p_semantic_core"]),
+        "--w-core-rel-guard", str(hp["w_core_rel_guard"]),
+        "--w-core-cond-fixed", str(hp["w_core_cond_fixed"]),
+        "--w-core-linear-state", str(hp["w_core_linear_state"]),
     ]
     subprocess.run(cmd, check=True)
     c_files = sorted(out_dir.glob("*.c"), key=lambda p: int(p.stem))
     if not c_files:
         raise RuntimeError("loop_factory did not generate any .c")
     return c_files[0]
+
+
+def loop_factory_hyperparams(seed: int, out_dir: Path) -> Dict[str, object]:
+    """
+    Fully materialized loop_factory configuration for one generation call.
+    Keep this aligned with loop_factory.py defaults + this pipeline constraints.
+    """
+    return {
+        "profile": "benchmark",
+        "out_dir": str(out_dir),
+        "count": 1,
+        "seed": seed,
+        "max_vars": 14,
+        "params": 4,
+        "min_loops": 1,
+        "max_loops": 1,
+        "max_assign": 8,
+        "max_ifelse": 6,
+        "max_depth": 1,
+        "p_multi": 0.0,
+        "q_nest": 0.0,
+        "p_nonlinear": 0.75,
+        "nonlinear_strength": 0.85,
+        "p_semantic_core": 0.30,
+        "w_core_rel_guard": 1.0,
+        "w_core_cond_fixed": 1.0,
+        "w_core_linear_state": 1.0,
+    }
+
+
+def run_one_attempt(
+    attempt: int,
+    seed: int,
+    work_root: Path,
+    logs_dir: Path,
+    llm_cfg: LLMConfig,
+    model_name: str,
+    system_prompt: str,
+    run_tag: str,
+) -> Dict:
+    attempt_tmp_loops = work_root / "tmp_loops" / f"a{attempt}"
+    src_input_dir = SRC / "input" / f"loop_factory_batch_tmp_{run_tag}_{attempt}"
+    src_output_dir = SRC / "output" / f"loop_factory_batch_tmp_{run_tag}_{attempt}"
+    src_input_dir.mkdir(parents=True, exist_ok=True)
+    src_output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        src_c = generate_one_loop(attempt_tmp_loops, seed)
+        raw_code = src_c.read_text(encoding="utf-8")
+        if not has_no_assert(raw_code):
+            return {"ok": False, "reason": "input has assert", "attempt": attempt, "seed": seed}
+
+        file_id = "1"
+        input_c = src_input_dir / f"{file_id}.c"
+        input_c.write_text(raw_code, encoding="utf-8")
+
+        reset_token_stats()
+        logger = make_logger(logs_dir / f"attempt_{attempt}.log")
+        gen = InvariantGenerator(
+            file_id,
+            llm_config=llm_cfg,
+            logger=logger,
+            output_dir=str(src_output_dir),
+            input_subdir=src_input_dir.name,
+        )
+
+        captured = {"user_prompt": "", "raw_response": ""}
+        original_chat = gen.llm.chat
+
+        def chat_capture(user_input: str) -> str:
+            resp = original_chat(user_input)
+            if not captured["user_prompt"]:
+                captured["user_prompt"] = user_input
+                captured["raw_response"] = resp
+            return resp
+
+        gen.llm.chat = chat_capture  # type: ignore[assignment]
+
+        final_code = gen.generate_all(max_iterations=1)
+        gen.save_results(str(src_output_dir))
+        first_pass = gen.first_pass or {}
+        syntax_ok = first_pass.get("syntax") is not None
+        valid_ok = first_pass.get("valid") is not None
+        if not (syntax_ok and valid_ok):
+            return {"ok": False, "reason": "syntax/valid failed", "attempt": attempt, "seed": seed}
+
+        out_c = src_output_dir / f"{file_id}.c"
+        annotated = out_c.read_text(encoding="utf-8") if out_c.exists() else (final_code or "")
+        ok, reason = quality_gate(gen, raw_code, annotated)
+        if not ok:
+            return {"ok": False, "reason": reason, "attempt": attempt, "seed": seed}
+
+        invariants = gen._extract_invariants_from_code(annotated)
+        sig = compute_signature(raw_code, invariants)
+        raw_key = compute_raw_structure_key(raw_code)
+        hparams = loop_factory_hyperparams(seed, attempt_tmp_loops)
+        return {
+            "ok": True,
+            "attempt": attempt,
+            "seed": seed,
+            "raw_code": raw_code,
+            "annotated": annotated,
+            "invariants": invariants,
+            "signature": sig,
+            "raw_structure_key": raw_key,
+            "first_pass": first_pass,
+            "token_stats": get_token_stats(),
+            "user_prompt": captured["user_prompt"],
+            "raw_model_output": captured["raw_response"],
+            "model": model_name,
+            "system_prompt": system_prompt,
+            "loop_factory_hyperparams": hparams,
+        }
+    finally:
+        for d in [src_input_dir, src_output_dir]:
+            if d.exists():
+                shutil.rmtree(d, ignore_errors=True)
+        # LoopSampler creates loop/ and unfold/ dirs as side effects
+        subdir_name = src_input_dir.name
+        for parent in ["loop", "unfold"]:
+            side_dir = SRC / parent / subdir_name
+            if side_dir.exists():
+                shutil.rmtree(side_dir, ignore_errors=True)
 
 
 def extract_candidate_vars(code: str) -> List[str]:
@@ -233,6 +490,196 @@ def convert_for_to_while(code: str) -> str:
     # Conservative conversion for simple one-block for loops.
     pattern = re.compile(r"for\s*\(([^;{}]*);([^;{}]*);([^){}]*)\)\s*\{", re.DOTALL)
     return pattern.sub(lambda m: f"{m.group(1).strip()};\nwhile ({m.group(2).strip()}) {{", code)
+
+
+def _build_backfill_input(raw_c: str) -> str:
+    """
+    Reconstruct a training-compatible input prompt from raw C code.
+    Used for samples that lack LLM interaction data.
+    """
+    # Extract loop code snippet
+    loop_match = re.search(r'((?:while|for)\s*\([^)]*\)\s*\{)', raw_c)
+    if loop_match:
+        start = loop_match.start()
+        depth = 0
+        i = loop_match.end() - 1  # the opening brace
+        while i < len(raw_c):
+            if raw_c[i] == '{':
+                depth += 1
+            elif raw_c[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    loop_snippet = raw_c[start:i + 1]
+                    break
+            i += 1
+        else:
+            loop_snippet = raw_c[loop_match.start():]
+    else:
+        loop_snippet = raw_c
+
+    # Extract function parameters
+    param_match = re.search(r'main\w*\s*\(([^)]*)\)', raw_c)
+    params = []
+    if param_match:
+        for p in param_match.group(1).split(','):
+            p = p.strip()
+            parts = p.split()
+            if len(parts) >= 2:
+                params.append(parts[-1])
+
+    # Extract all identifiers as available variables
+    all_ids = set(re.findall(r'\b([A-Za-z_]\w*)\b', raw_c))
+    avail_vars = sorted(v for v in all_ids if v not in CPP_KEYWORDS and not v.startswith("main"))
+
+    # Build prompt in same format as _prepare_prompt + _generate_initial_invariant
+    param_lines = []
+    for p in sorted(params):
+        param_lines.append(f"  - \\at({p}, Pre) (or \\at(\\at({p}, Pre), Pre) for initial value)")
+    if not param_lines:
+        param_lines.append("  - (none)")
+
+    # Insert placeholder template into raw code
+    code_with_template = raw_c
+    # Replace existing invariant comment with placeholder
+    code_with_template = re.sub(
+        r'/\*\s*>>>\s*LOOP INVARIANT TO FILL\s*<<<\s*\*/\s*',
+        '/* >>> LOOP INVARIANT TO FILL <<< */\n',
+        code_with_template,
+    )
+    if '/*@' not in code_with_template and 'LOOP INVARIANT TO FILL' not in code_with_template:
+        # Add placeholder before loop
+        code_with_template = re.sub(
+            r'((?:while|for)\s*\()',
+            '/* >>> LOOP INVARIANT TO FILL <<< */\n/*@\n  loop invariant PLACE_HOLDER_VERIFICATION_GOAL;\n  loop assigns PLACE_HOLDER_ASSIGNMENTS;\n*/\n\\1',
+            code_with_template,
+            count=1,
+        )
+
+    loop_context = "\n".join([
+        "### Loop Context ###",
+        "",
+        "1. Pre-Condition (Before Loop Entry):",
+        "   No pre-condition specified",
+        "",
+        "2. Loop Code:",
+        "```c",
+        loop_snippet,
+        "```",
+        "",
+        "### AVAILABLE VARIABLES AND PARAMETERS ###",
+        "",
+        f"**Available Variables:** {avail_vars}",
+        "",
+        "**Function Parameters:**",
+    ] + param_lines + [
+        "",
+        "IMPORTANT:",
+        "- You can ONLY use variables from the 'Available Variables' list",
+        "- For function parameters, you can use:",
+        "  * 'param' to refer to the current value",
+        "  * '\\at(param, Pre)' to refer to the initial value at function entry",
+        "- Using undefined variables or \\at() on non-parameters will cause validation errors",
+    ])
+
+    goal_guidance = (
+        "No explicit verification target is present.\n"
+        "- Focus on inductive, non-empty invariants derived from loop semantics.\n"
+        "- Prioritize transition/conservation relations and necessary bounds.\n"
+        "- Do not mention or optimize for post-loop assert."
+    )
+
+    prompt = (
+        "\n\nFollow the system prompt rules. This prompt adds only proof-oriented strategy.\n\n"
+        "Goal: produce a small, strong, inductive invariant set for the current loop.\n\n"
+        f"Goal-specific guidance:\n{goal_guidance}\n\n"
+        "Required construction order:\n"
+        "1. If a verification target is provided, map target terms to loop-preserved forms.\n"
+        "2. Add one core conservation/relational equality that explains loop updates (state transition law).\n"
+        "3. Add minimal progress bounds for loop counters and key arithmetic variables.\n"
+        "4. If a verification target is provided, ensure `invariants && !guard` can imply it.\n"
+        "5. Add complete and exact `loop assigns`.\n\n"
+        "Quality requirements:\n"
+        "- Prefer 3-6 strong invariants; avoid weak/tautological ones.\n"
+        "- Do not add unrelated invariants just to increase count.\n"
+        "- Reuse assert vocabulary/symbols directly whenever possible.\n"
+        "- Keep original code unchanged except loop annotations.\n\n"
+        f"Code:\n```c\n{code_with_template}\n```\n\n"
+        f"Loop context:\n{loop_context}\n\n"
+        "Return only complete C code with ACSL loop annotations.\n"
+    )
+    return prompt
+
+
+def rebuild_dataset(work_root: Path) -> List[Dict]:
+    """
+    Rebuild dataset.jsonl from raw/ and annotated/ directories (single source of truth).
+    Output format: {instruction, input, output} per sample, 1:1 with annotated files.
+    Merges LLM interaction fields from existing jsonl files when available;
+    reconstructs prompts for samples that lack them.
+    """
+    raw_dir = work_root / "raw"
+    ann_dir = work_root / "annotated"
+    dataset_path = work_root / "dataset.jsonl"
+
+    # Load system prompt.
+    system_prompt_path = SRC / "prompts" / "system_prompt.txt"
+    system_prompt = system_prompt_path.read_text(encoding="utf-8") if system_prompt_path.exists() else ""
+
+    # Load existing items keyed by raw_c hash for merging LLM interaction fields.
+    # Check dataset.jsonl, dataset_full.jsonl (legacy full), dataset_train_iio.jsonl (legacy iio).
+    existing_by_raw_hash: Dict[str, Dict] = {}
+    for candidate in [work_root / "dataset_full.jsonl"]:
+        if not candidate.exists():
+            continue
+        for line in candidate.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                item = json.loads(line)
+            except Exception:
+                continue
+            raw_c = item.get("raw_c", "")
+            if not raw_c:
+                continue
+            raw_hash = hashlib.sha256(raw_c.encode("utf-8")).hexdigest()
+            existing_by_raw_hash[raw_hash] = item
+
+    # Scan raw/annotated file pairs — the single source of truth.
+    raw_files = sorted(raw_dir.glob("*.c"), key=lambda p: int(p.stem))
+    items: List[Dict] = []
+    for rf in raw_files:
+        af = ann_dir / rf.name
+        if not af.exists():
+            continue
+        raw_c = rf.read_text(encoding="utf-8")
+        annotated_c = af.read_text(encoding="utf-8")
+        raw_hash = hashlib.sha256(raw_c.encode("utf-8")).hexdigest()
+        existing = existing_by_raw_hash.get(raw_hash, {})
+
+        # Determine the three training fields.
+        instruction = existing.get("system_prompt", system_prompt)
+        input_prompt = existing.get("user_prompt", "")
+        output_text = existing.get("raw_model_output", "")
+
+        # Backfill for samples without LLM interaction data.
+        if not input_prompt:
+            input_prompt = _build_backfill_input(raw_c)
+        if not output_text:
+            output_text = annotated_c
+
+        items.append({
+            "instruction": instruction,
+            "input": input_prompt,
+            "output": output_text,
+        })
+
+    # Write dataset.jsonl.
+    with dataset_path.open("w", encoding="utf-8") as f:
+        for item in items:
+            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+    return items
 
 
 def build_augments(base_item: Dict, aug_per_sample: int, rng: random.Random) -> List[Dict]:
@@ -287,11 +734,23 @@ def build_augments(base_item: Dict, aug_per_sample: int, rng: random.Random) -> 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Batch generate high-quality training data with simple augmentation.")
     parser.add_argument("--target-count", type=int, default=100, help="Number of accepted base samples.")
-    parser.add_argument("--aug-per-sample", type=int, default=1, help="Augmented copies per accepted sample.")
+    parser.add_argument("--aug-per-sample", type=int, default=0, help="(Deprecated, unused) Augmented copies per accepted sample.")
     parser.add_argument("--max-attempts", type=int, default=1200, help="Max generation attempts before stop.")
     parser.add_argument("--seed", type=int, default=2026, help="Base random seed.")
+    parser.add_argument("--workers", type=int, default=20, help="Number of concurrent workers.")
+    parser.add_argument("--model", type=str, default="gpt-5-mini", help="LLM model name for invariant generation.")
+    parser.add_argument("--max-skeleton-repeat", type=int, default=3, help="Maximum accepted samples per loop skeleton key.")
+    parser.add_argument(
+        "--append",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Append to existing work-dir data and dedup against existing samples (default: true).",
+    )
     parser.add_argument("--work-dir", type=str, default="", help="Optional work dir under loop_factory/generated.")
     args = parser.parse_args()
+
+    # LoopSampler uses relative paths assuming CWD is src/
+    os.chdir(SRC)
 
     work_root = ROOT / "generated" / (args.work_dir if args.work_dir else "hq_batch_100")
     raw_dir = work_root / "raw"
@@ -301,17 +760,7 @@ def main() -> None:
     for d in [raw_dir, ann_dir, tmp_loops, logs_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
-    input_subdir = "loop_factory_batch_tmp"
-    src_input_dir = SRC / "input" / input_subdir
-    src_output_dir = SRC / "output" / input_subdir
-    if src_input_dir.exists():
-        shutil.rmtree(src_input_dir)
-    if src_output_dir.exists():
-        shutil.rmtree(src_output_dir)
-    src_input_dir.mkdir(parents=True, exist_ok=True)
-    src_output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Align with single prompt + single model generation path.
+    # Keep one-candidate path; outer pipeline handles concurrency.
     config.PARALLEL_GENERATION_CONFIG["num_candidates"] = 1
     config.PARALLEL_GENERATION_CONFIG["use_threading"] = False
     config.PARALLEL_GENERATION_CONFIG["max_workers"] = 1
@@ -319,182 +768,130 @@ def main() -> None:
     invgen_mod.USE_TRACES = False
 
     llm_cfg = LLMConfig()
-    llm_cfg.api_model = "gpt-5-mini"
+    llm_cfg.api_model = args.model
     system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
 
+    # Build in-memory dedup sets from existing raw/annotated pairs.
     signatures: Set[str] = set()
-    sig_file = work_root / "accepted_signatures.txt"
-    if sig_file.exists():
-        for line in sig_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line:
-                signatures.add(line)
     raw_structures: Set[str] = set()
-    raw_struct_file = work_root / "accepted_raw_structures.txt"
-    if raw_struct_file.exists():
-        for line in raw_struct_file.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line:
-                raw_structures.add(line)
+    loop_skeleton_counts: Dict[str, int] = {}
+    existing_max_idx = 0
+    existing_count = 0
+    if args.append:
+        existing_raw_files = sorted(raw_dir.glob("*.c"), key=lambda p: int(p.stem))
+        existing_max_idx = max((int(p.stem) for p in existing_raw_files), default=0)
+        for rf in existing_raw_files:
+            af = ann_dir / rf.name
+            if not af.exists():
+                continue
+            raw_code = rf.read_text(encoding="utf-8")
+            ann_code = af.read_text(encoding="utf-8")
+            invariants = [m.strip() for m in re.findall(r"loop invariant\s+([^;]+);", ann_code)]
+            sig = compute_signature(raw_code, invariants)
+            raw_key = compute_raw_structure_key(raw_code)
+            skey = compute_loop_skeleton_key(raw_code)
+            signatures.add(sig)
+            raw_structures.add(raw_key)
+            loop_skeleton_counts[skey] = loop_skeleton_counts.get(skey, 0) + 1
+            existing_count += 1
 
     accepted_records: List[Dict] = []
     reject_log: List[Dict] = []
     rng = random.Random(args.seed)
+    workers = max(1, args.workers)
+    run_tag = f"{os.getpid()}_{int(time.time())}"
+    # In append mode, offset seeds to avoid regenerating loops already accepted.
+    seed_offset = existing_max_idx if args.append else 0
+    next_attempt = 1
+    pending: Dict[concurrent.futures.Future, Tuple[int, int]] = {}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+        while (next_attempt <= args.max_attempts or pending) and len(accepted_records) < args.target_count:
+            while next_attempt <= args.max_attempts and len(pending) < workers and len(accepted_records) < args.target_count:
+                attempt = next_attempt
+                next_attempt += 1
+                seed = args.seed + seed_offset + (attempt - 1)
+                fut = ex.submit(run_one_attempt, attempt, seed, work_root, logs_dir, llm_cfg, args.model, system_prompt, run_tag)
+                pending[fut] = (attempt, seed)
 
-    for attempt in range(args.max_attempts):
-        if len(accepted_records) >= args.target_count:
-            break
+            if not pending:
+                break
 
-        seed = args.seed + attempt
-        src_c = generate_one_loop(tmp_loops, seed)
-        raw_code = src_c.read_text(encoding="utf-8")
-        if not has_no_assert(raw_code):
-            reject_log.append({"attempt": attempt + 1, "seed": seed, "reason": "input has assert"})
-            continue
+            done, _ = concurrent.futures.wait(
+                pending.keys(),
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
+            for fut in done:
+                attempt, seed = pending.pop(fut)
+                try:
+                    result = fut.result()
+                except Exception as e:
+                    reject_log.append({"attempt": attempt, "seed": seed, "reason": f"exception: {e}"})
+                    continue
 
-        file_id = "1"
-        input_c = src_input_dir / f"{file_id}.c"
-        input_c.write_text(raw_code, encoding="utf-8")
+                if not result.get("ok"):
+                    reject_log.append(
+                        {
+                            "attempt": result.get("attempt", attempt),
+                            "seed": result.get("seed", seed),
+                            "reason": result.get("reason", "unknown"),
+                        }
+                    )
+                    continue
 
-        reset_token_stats()
-        logger = make_logger(logs_dir / f"attempt_{attempt+1}.log")
-        gen = InvariantGenerator(
-            file_id,
-            llm_config=llm_cfg,
-            logger=logger,
-            output_dir=str(src_output_dir),
-            input_subdir=input_subdir,
-        )
+                raw_key = result["raw_structure_key"]
+                sig = result["signature"]
+                skeleton_key = compute_loop_skeleton_key(result["raw_code"])
+                if raw_key in raw_structures:
+                    reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate raw structure"})
+                    continue
+                if sig in signatures:
+                    reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate signature"})
+                    continue
+                if loop_skeleton_counts.get(skeleton_key, 0) >= max(1, args.max_skeleton_repeat):
+                    reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate loop skeleton"})
+                    continue
 
-        captured = {"user_prompt": "", "raw_response": ""}
-        original_chat = gen.llm.chat
+                signatures.add(sig)
+                raw_structures.add(raw_key)
+                loop_skeleton_counts[skeleton_key] = loop_skeleton_counts.get(skeleton_key, 0) + 1
+                idx = existing_max_idx + len(accepted_records) + 1
+                (raw_dir / f"{idx}.c").write_text(result["raw_code"], encoding="utf-8")
+                (ann_dir / f"{idx}.c").write_text(result["annotated"], encoding="utf-8")
 
-        def chat_capture(user_input: str) -> str:
-            resp = original_chat(user_input)
-            if not captured["user_prompt"]:
-                captured["user_prompt"] = user_input
-                captured["raw_response"] = resp
-            return resp
+                accepted_records.append(
+                    {
+                        "id": f"loop_factory_{idx}",
+                        "attempt": attempt,
+                        "seed": result["seed"],
+                        "model": result["model"],
+                        "system_prompt": result["system_prompt"],
+                        "user_prompt": result["user_prompt"],
+                        "raw_model_output": result["raw_model_output"],
+                        "raw_c": result["raw_code"],
+                        "annotated_c": result["annotated"],
+                        "invariants": result["invariants"],
+                        "signature": sig,
+                        "raw_structure_key": raw_key,
+                        "first_pass": result["first_pass"],
+                        "token_stats": result["token_stats"],
+                        "loop_factory_hyperparams": result["loop_factory_hyperparams"],
+                        "augmentation": {"type": "none"},
+                    }
+                )
 
-        gen.llm.chat = chat_capture  # type: ignore[assignment]
+    # Clean up temp directories from this run and any previous incomplete runs.
+    for pat in [f"loop_factory_batch_tmp_{run_tag}_*", "loop_factory_batch_tmp_*"]:
+        for parent in ["input", "output", "loop", "unfold"]:
+            for d in sorted(SRC.joinpath(parent).glob(pat)):
+                if d.is_dir():
+                    shutil.rmtree(d, ignore_errors=True)
+    if tmp_loops.exists():
+        shutil.rmtree(tmp_loops, ignore_errors=True)
 
-        final_code = gen.generate_all(max_iterations=1)
-        gen.save_results(str(src_output_dir))
-        first_pass = gen.first_pass or {}
-        syntax_ok = first_pass.get("syntax") is not None
-        valid_ok = first_pass.get("valid") is not None
-        if not (syntax_ok and valid_ok):
-            reject_log.append({"attempt": attempt + 1, "seed": seed, "reason": "syntax/valid failed"})
-            continue
-
-        out_c = src_output_dir / f"{file_id}.c"
-        annotated = out_c.read_text(encoding="utf-8") if out_c.exists() else (final_code or "")
-        ok, reason = quality_gate(gen, raw_code, annotated)
-        if not ok:
-            reject_log.append({"attempt": attempt + 1, "seed": seed, "reason": reason})
-            continue
-
-        invariants = gen._extract_invariants_from_code(annotated)
-        sig = compute_signature(raw_code, invariants)
-        raw_key = compute_raw_structure_key(raw_code)
-        if raw_key in raw_structures:
-            reject_log.append({"attempt": attempt + 1, "seed": seed, "reason": "duplicate raw structure"})
-            continue
-        if sig in signatures:
-            reject_log.append({"attempt": attempt + 1, "seed": seed, "reason": "duplicate signature"})
-            continue
-
-        signatures.add(sig)
-        raw_structures.add(raw_key)
-        idx = len(accepted_records) + 1
-        (raw_dir / f"{idx}.c").write_text(raw_code, encoding="utf-8")
-        (ann_dir / f"{idx}.c").write_text(annotated, encoding="utf-8")
-
-        accepted_records.append(
-            {
-                "id": f"loop_factory_{idx}",
-                "seed": seed,
-                "model": "gpt-5-mini",
-                "system_prompt": system_prompt,
-                "user_prompt": captured["user_prompt"],
-                "raw_model_output": captured["raw_response"],
-                "raw_c": raw_code,
-                "annotated_c": annotated,
-                "invariants": invariants,
-                "signature": sig,
-                "raw_structure_key": raw_key,
-                "first_pass": first_pass,
-                "token_stats": get_token_stats(),
-                "augmentation": {"type": "none"},
-            }
-        )
-
-    # Augmentation pass.
-    augmented_records: List[Dict] = []
-    for rec in accepted_records:
-        augmented_records.extend(build_augments(rec, args.aug_per_sample, rng))
-
-    # Global dedup after augmentation (by signature then by i/o hash).
-    deduped: List[Dict] = []
-    seen_sig: Set[str] = set()
-    seen_iio: Set[str] = set()
-    seen_raw: Set[str] = set()
-    for item in accepted_records + augmented_records:
-        sig = item.get("signature", "")
-        iio_key = hashlib.sha256(
-            (item.get("system_prompt", "") + "##" + item.get("user_prompt", "") + "##" + item.get("raw_model_output", "")).encode("utf-8")
-        ).hexdigest()
-        if sig and sig in seen_sig:
-            continue
-        if iio_key in seen_iio:
-            continue
-        raw_key = item.get("raw_structure_key", "")
-        if raw_key and raw_key in seen_raw:
-            continue
-        if sig:
-            seen_sig.add(sig)
-        seen_iio.add(iio_key)
-        if raw_key:
-            seen_raw.add(raw_key)
-        deduped.append(item)
-
-    # Build final datasets.
-    full_items = deduped
-    iio_items = [
-        {
-            "instruction": item["system_prompt"],
-            "input": item["user_prompt"],
-            "output": item["raw_model_output"],
-        }
-        for item in full_items
-    ]
-
-    full_path = work_root / "dataset_full.jsonl"
-    iio_path = work_root / "dataset_train_iio.jsonl"
-    with full_path.open("w", encoding="utf-8") as f:
-        for item in full_items:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
-    with iio_path.open("w", encoding="utf-8") as f:
-        for item in iio_items:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
-
-    sig_file.write_text("\n".join(sorted(signatures)) + "\n", encoding="utf-8")
-    raw_struct_file.write_text("\n".join(sorted(raw_structures)) + "\n", encoding="utf-8")
-    (work_root / "reject_log.json").write_text(json.dumps(reject_log, ensure_ascii=False, indent=2), encoding="utf-8")
-    summary = {
-        "status": "ok",
-        "target_count": args.target_count,
-        "accepted_count": len(accepted_records),
-        "aug_per_sample": args.aug_per_sample,
-        "augmented_count": len(augmented_records),
-        "total_train_items": len(iio_items),
-        "work_root": str(work_root),
-        "dataset_full": str(full_path),
-        "dataset_train_iio": str(iio_path),
-        "reject_log": str(work_root / "reject_log.json"),
-    }
-    (work_root / "summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    # Rebuild dataset.jsonl from raw/annotated (single source of truth).
+    dataset_items = rebuild_dataset(work_root)
+    total = existing_count + len(accepted_records)
+    print(f"Done: {len(accepted_records)} new + {existing_count} existing = {total} total, dataset.jsonl has {len(dataset_items)} items")
     if len(accepted_records) < args.target_count:
         raise RuntimeError(
             f"Accepted {len(accepted_records)} samples, below target_count={args.target_count}. "

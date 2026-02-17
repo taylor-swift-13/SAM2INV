@@ -24,7 +24,7 @@ SUBDIR = "NLA_lipus"
 #   1. 不触发动态采样（跳过程序执行获取 traces）
 #   2. Prompt 中不包含 traces 信息
 #   3. 跳过基于 traces 的候选不变式筛选阶段
-USE_TRACES = False
+USE_TRACES = True
 
 # ==============================================================================
 # 采样策略配置 (Sampling Strategy Configuration)
@@ -80,7 +80,7 @@ MAX_STRENGTHEN_ITERATIONS = 0
 # 并行生成配置
 PARALLEL_GENERATION_CONFIG = {
     'enabled': True,              # 是否启用并行生成多组候选不变式
-    'num_candidates': 1,        # 并行生成的候选组数 (增加到10个以获得更多样化的候选)
+    'num_candidates': 5,        # 并行生成的候选组数 (增加到10个以获得更多样化的候选)
     'temperature': 1.0,           # 生成温度,控制多样性 (提高到1.0增加多样性)
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
     'use_houdini': True,          # 是否使用Houdini进一步筛选组合后的不变式
@@ -184,8 +184,8 @@ CACHE_CONFIG = {
 
 # 语法过滤配置 (Syntax Filter Configuration)
 SYNTAX_FILTER_CONFIG = {
-    'enabled': False,          # 是否启用语法过滤（基于 unified_filter.py）
-    'verbose': False        # 是否输出详细的过滤日志
+    'enabled': True,          # 是否启用语法过滤（基于 unified_filter.py）
+    'verbose': True        # 是否输出详细的过滤日志
 }
 
 # Filter is always enabled and uses variables from symbolic execution record
