@@ -570,7 +570,7 @@ def build_augments(base_item: Dict, aug_per_sample: int, rng: random.Random) -> 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Batch generate high-quality training data with simple augmentation.")
-    parser.add_argument("--target-count", type=int, default=100, help="Number of accepted base samples.")
+    parser.add_argument("--target-count", type=int, default=100, help="Total candidate attempts to run.")
     parser.add_argument("--aug-per-sample", type=int, default=0, help="(Deprecated, unused) Augmented copies per accepted sample.")
     parser.add_argument("--max-attempts", type=int, default=1200, help="Max generation attempts before stop.")
     parser.add_argument("--seed", type=int, default=2026, help="Base random seed.")
@@ -633,9 +633,12 @@ def main() -> None:
             loop_skeleton_counts[skey] = loop_skeleton_counts.get(skey, 0) + 1
             existing_count += 1
 
+    total_candidates = max(0, args.target_count)
+    if args.max_attempts > 0:
+        total_candidates = min(total_candidates, args.max_attempts)
+
     accepted_records: List[Dict] = []
     reject_log: List[Dict] = []
-    rng = random.Random(args.seed)
     workers = max(1, args.workers)
     run_tag = f"{os.getpid()}_{int(time.time())}"
     # In append mode, offset seeds to avoid regenerating loops already accepted.
@@ -645,8 +648,8 @@ def main() -> None:
     stop_event = threading.Event()
     with api_jsonl_path.open("a" if args.append else "w", encoding="utf-8") as api_jsonl_file:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            while (next_attempt <= args.max_attempts or pending) and len(accepted_records) < args.target_count:
-                while next_attempt <= args.max_attempts and len(pending) < workers and len(accepted_records) < args.target_count:
+            while next_attempt <= total_candidates or pending:
+                while next_attempt <= total_candidates and len(pending) < workers:
                     attempt = next_attempt
                     next_attempt += 1
                     seed = args.seed + seed_offset + (attempt - 1)
@@ -737,11 +740,6 @@ def main() -> None:
                     }
                     api_jsonl_file.write(json.dumps(api_item, ensure_ascii=False) + "\n")
                     api_jsonl_file.flush()
-                    if len(accepted_records) >= args.target_count:
-                        stop_event.set()
-                        for pf in list(pending.keys()):
-                            pf.cancel()
-                        break
 
     # Clean up temp directories from this run and any previous incomplete runs.
     for pat in [f"loop_factory_batch_tmp_{run_tag}_*", "loop_factory_batch_tmp_*"]:
@@ -759,13 +757,16 @@ def main() -> None:
         shutil.rmtree(tmp_loops, ignore_errors=True)
 
     total = existing_count + len(accepted_records)
-    print(f"Done: {len(accepted_records)} new + {existing_count} existing = {total} total")
+    reject_path = logs_dir / "reject_log.json"
+    reject_path.write_text(json.dumps(reject_log, ensure_ascii=False, indent=2), encoding="utf-8")
+    attempted = total_candidates
+    accept_rate = (len(accepted_records) / attempted * 100.0) if attempted > 0 else 0.0
+    print(
+        f"Done: attempted={attempted}, accepted={len(accepted_records)} ({accept_rate:.1f}%), "
+        f"new={len(accepted_records)}, existing={existing_count}, total={total}"
+    )
     print(f"JSONL (instruction/input/output): {api_jsonl_path}")
-    if len(accepted_records) < args.target_count:
-        raise RuntimeError(
-            f"Accepted {len(accepted_records)} samples, below target_count={args.target_count}. "
-            "No low-quality fallback will be written."
-        )
+    print(f"Reject log: {reject_path}")
 
 
 if __name__ == "__main__":
