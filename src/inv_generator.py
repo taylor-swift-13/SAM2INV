@@ -1558,7 +1558,6 @@ class InvariantGenerator:
         # Only include code structure and pre-condition
         state_before_entry = to_acsl_state_expr(pre_condition)
         loop_context_lines = [
-            "### Loop Context ###",
             "",
             "1. State Before Loop Entry:",
             f"   {state_before_entry if state_before_entry else 'No state-before-entry available'}",

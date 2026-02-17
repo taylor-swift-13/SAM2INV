@@ -13,12 +13,14 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
 ROOT = Path(__file__).resolve().parent
 SRC = (ROOT / "../src").resolve()
+VST_GOAL = (ROOT / "../VST/goal").resolve()
 sys.path.insert(0, str(SRC))
 
 import config  # type: ignore
@@ -387,20 +389,28 @@ def run_one_attempt(
     model_name: str,
     system_prompt: str,
     run_tag: str,
+    stop_event: threading.Event,
 ) -> Dict:
+    if stop_event.is_set():
+        return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
     attempt_tmp_loops = work_root / "tmp_loops" / f"a{attempt}"
     src_input_dir = SRC / "input" / f"loop_factory_batch_tmp_{run_tag}_{attempt}"
     src_output_dir = SRC / "output" / f"loop_factory_batch_tmp_{run_tag}_{attempt}"
+    src_outer_dir = SRC / "outer" / f"loop_factory_batch_tmp_{run_tag}_{attempt}"
     src_input_dir.mkdir(parents=True, exist_ok=True)
     src_output_dir.mkdir(parents=True, exist_ok=True)
+    file_id = ""
 
     try:
+        if stop_event.is_set():
+            return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
         src_c = generate_one_loop(attempt_tmp_loops, seed)
         raw_code = src_c.read_text(encoding="utf-8")
         if not has_no_assert(raw_code):
             return {"ok": False, "reason": "input has assert", "attempt": attempt, "seed": seed}
 
-        file_id = "1"
+        # Keep prompt generation path identical across workers, but isolate all per-attempt files.
+        file_id = f"{run_tag}_{attempt}"
         input_c = src_input_dir / f"{file_id}.c"
         input_c.write_text(raw_code, encoding="utf-8")
 
@@ -414,10 +424,13 @@ def run_one_attempt(
             input_subdir=src_input_dir.name,
         )
 
-        captured = {"user_prompt": "", "raw_response": ""}
+        captured = {"user_prompt": "", "raw_response": "", "prompt_count": 0}
         original_chat = gen.llm.chat
 
         def chat_capture(user_input: str) -> str:
+            if stop_event.is_set():
+                raise RuntimeError("cancelled")
+            captured["prompt_count"] += 1
             resp = original_chat(user_input)
             if not captured["user_prompt"]:
                 captured["user_prompt"] = user_input
@@ -426,8 +439,13 @@ def run_one_attempt(
 
         gen.llm.chat = chat_capture  # type: ignore[assignment]
 
+        if stop_event.is_set():
+            return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
         final_code = gen.generate_all(max_iterations=1)
         gen.save_results(str(src_output_dir))
+        # Hard guard: keep only samples with a real captured prompt from an actual LLM call.
+        if not captured["user_prompt"].strip():
+            return {"ok": False, "reason": "empty captured prompt", "attempt": attempt, "seed": seed}
         first_pass = gen.first_pass or {}
         syntax_ok = first_pass.get("syntax") is not None
         valid_ok = first_pass.get("valid") is not None
@@ -457,17 +475,24 @@ def run_one_attempt(
             "token_stats": get_token_stats(),
             "user_prompt": captured["user_prompt"],
             "raw_model_output": captured["raw_response"],
+            "prompt_count": captured["prompt_count"],
             "model": model_name,
             "system_prompt": system_prompt,
             "loop_factory_hyperparams": hparams,
         }
     finally:
-        for d in [src_input_dir, src_output_dir]:
+        for d in [src_input_dir, src_output_dir, src_outer_dir]:
             if d.exists():
                 shutil.rmtree(d, ignore_errors=True)
+        if file_id and VST_GOAL.exists():
+            for p in VST_GOAL.glob(f"{file_id}_*.v"):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
         # LoopSampler creates loop/ and unfold/ dirs as side effects
         subdir_name = src_input_dir.name
-        for parent in ["loop", "unfold"]:
+        for parent in ["loop", "unfold", "outer"]:
             side_dir = SRC / parent / subdir_name
             if side_dir.exists():
                 shutil.rmtree(side_dir, ignore_errors=True)
@@ -617,6 +642,7 @@ def main() -> None:
     seed_offset = existing_max_idx if args.append else 0
     next_attempt = 1
     pending: Dict[concurrent.futures.Future, Tuple[int, int]] = {}
+    stop_event = threading.Event()
     with api_jsonl_path.open("a" if args.append else "w", encoding="utf-8") as api_jsonl_file:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
             while (next_attempt <= args.max_attempts or pending) and len(accepted_records) < args.target_count:
@@ -624,7 +650,18 @@ def main() -> None:
                     attempt = next_attempt
                     next_attempt += 1
                     seed = args.seed + seed_offset + (attempt - 1)
-                    fut = ex.submit(run_one_attempt, attempt, seed, work_root, logs_dir, llm_cfg, args.model, system_prompt, run_tag)
+                    fut = ex.submit(
+                        run_one_attempt,
+                        attempt,
+                        seed,
+                        work_root,
+                        logs_dir,
+                        llm_cfg,
+                        args.model,
+                        system_prompt,
+                        run_tag,
+                        stop_event,
+                    )
                     pending[fut] = (attempt, seed)
 
                 if not pending:
@@ -681,6 +718,7 @@ def main() -> None:
                             "system_prompt": result["system_prompt"],
                             "user_prompt": result["user_prompt"],
                             "raw_model_output": result["raw_model_output"],
+                            "prompt_count": result.get("prompt_count", 0),
                             "raw_c": result["raw_code"],
                             "annotated_c": result["annotated"],
                             "invariants": result["invariants"],
@@ -699,13 +737,24 @@ def main() -> None:
                     }
                     api_jsonl_file.write(json.dumps(api_item, ensure_ascii=False) + "\n")
                     api_jsonl_file.flush()
+                    if len(accepted_records) >= args.target_count:
+                        stop_event.set()
+                        for pf in list(pending.keys()):
+                            pf.cancel()
+                        break
 
     # Clean up temp directories from this run and any previous incomplete runs.
     for pat in [f"loop_factory_batch_tmp_{run_tag}_*", "loop_factory_batch_tmp_*"]:
-        for parent in ["input", "output", "loop", "unfold"]:
+        for parent in ["input", "output", "loop", "unfold", "outer"]:
             for d in sorted(SRC.joinpath(parent).glob(pat)):
                 if d.is_dir():
                     shutil.rmtree(d, ignore_errors=True)
+    if VST_GOAL.exists():
+        for p in VST_GOAL.glob(f"{run_tag}_*_*.v"):
+            try:
+                p.unlink()
+            except OSError:
+                pass
     if tmp_loops.exists():
         shutil.rmtree(tmp_loops, ignore_errors=True)
 
