@@ -325,9 +325,9 @@ class LoopSampler:
     def process_loop(self,code):
 
         headers = '''
-        #include "../verification_stdlib.h"
-        #include "../verification_list.h"
-        #include "../int_array_def.h"
+        #include "../../input/verification_stdlib.h"
+        #include "../../input/verification_list.h"
+        #include "../../input/int_array_def.h"
 
         /*@ Extern Coq (Result: Assertion) */
         /*@ Extern Coq (Results: Z -> Assertion) */
@@ -667,9 +667,9 @@ class LoopSampler:
             
             # 生成代码
             code = f"""
-    #include "../verification_stdlib.h"
-    #include "../verification_list.h"
-    #include "../int_array_def.h"
+    #include "../../input/verification_stdlib.h"
+    #include "../../input/verification_list.h"
+    #include "../../input/int_array_def.h"
 
     /*@ Extern Coq (Result: Assertion) */
     /*@ Extern Coq (Results: Z -> Assertion) */
@@ -720,9 +720,9 @@ class LoopSampler:
         loop_body_indented = re.sub(r'unknown\d*\(\)','1', loop_body_indented)
 
         code = f"""
-    #include "../verification_stdlib.h"
-    #include "../verification_list.h"
-    #include "../int_array_def.h"
+    #include "../../input/verification_stdlib.h"
+    #include "../../input/verification_list.h"
+    #include "../../input/int_array_def.h"
 
     /*@ Extern Coq (Result: Assertion) */
     /*@ Extern Coq (Results: Z -> Assertion) */
@@ -910,6 +910,35 @@ class LoopSampler:
 
         return result
 
+    def _build_static_precondition_from_code(self, code: str, loop_content: str) -> Optional[str]:
+        """
+        Build a fallback precondition from code text when no explicit requires exists.
+        Strategy:
+        - Keep the last assignment to each variable before loop entry.
+        - Add parameter identity facts (p == p@pre).
+        """
+        if not code or not loop_content:
+            return None
+
+        loop_pos = code.find(loop_content)
+        if loop_pos < 0:
+            return None
+        prefix = code[:loop_pos]
+
+        last_assign: Dict[str, str] = {}
+        for lhs, rhs in re.findall(r'\b([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^;{}]+);', prefix):
+            last_assign[lhs.strip()] = rhs.strip()
+
+        clauses: List[str] = []
+        for var, expr in sorted(last_assign.items()):
+            clauses.append(f"({var} == {expr})")
+        for param in sorted(self.function_params):
+            clauses.append(f"({param} == {param}@pre)")
+
+        if not clauses:
+            return None
+        return " && ".join(clauses)
+
     def _fix_at_pre_on_non_params(self, code: str) -> str:
         """
         修复代码中错误使用 \\at(..., Pre) 在非参数变量上的问题。
@@ -968,7 +997,7 @@ class LoopSampler:
 
         if not begin_match or not end_match:
             print("错误: 输入字符串格式错误，未能找到 LoopEntry_begin 或 LoopEntry_end 块。")
-            return [], []
+            return [], [], []
 
         begin_block = begin_match.group(1).strip()
         end_block = end_match.group(1).strip()
@@ -1342,31 +1371,89 @@ class LoopSampler:
 
     def _merge_begin_map_to_pre_condition(self):
         """
-        将 begin_map 中的初始状态合并到 records 的 pre_condition 中。
-        这样可以确保局部变量的初始值（如 w=1, z=1）被包含在 pre_condition 中，
-        使得 _rewrite_at_pre 函数能够正确改写 \at(w, Pre) 和 \at(z, Pre)。
+        Persist begin_map into loop records.
         """
         if not hasattr(self, 'begin_map') or not self.begin_map:
             return
         
-        # begin_map 格式: "(w == 1) * (z == 1) * (y == y@pre) * (x == x@pre)"
         begin_condition = self.begin_map
         
         for record in self.records:
-            original_pre = record.get('pre_condition', '')
-            
-            # 合并 precondition：将 requires 子句和 begin_condition 结合
-            if original_pre and begin_condition:
-                # 将 begin_condition 中的 @pre 替换为 \at(v, Pre) 格式
-                # 但这里我们保持原样，因为 unified_filter.py 可以处理 @pre 格式
-                merged_pre = f"({original_pre}) && ({begin_condition})"
-            elif begin_condition:
-                merged_pre = begin_condition
+            record['begin_map'] = begin_condition
+            print(f"Updated begin_map for loop {record.get('loop_idx', '?')}: {begin_condition}")
+
+    def _enrich_records_with_symexec_begin_map(self):
+        """
+        Populate pre_condition/begin_map from symbolic execution.
+        - pre_condition: first reach of loop entry (LoopEntry_<idx>)
+        - begin_map: LoopEntry_begin from outer symexec path
+        """
+        try:
+            self.unfold_execute()
+            entry_map = {loop_id: cond for loop_id, cond in self.loop_entries}
+            record_by_idx = {record.get('loop_idx'): record for record in self.records}
+            for idx in self.sorted_indices:
+                entry_cond = entry_map.get(idx, '')
+                loop_content = self.loop_contents[idx]
+                if idx in record_by_idx and entry_cond:
+                    record_by_idx[idx]['pre_condition'] = entry_cond
+                self.save_outer_loop(loop_content, entry_cond, self.outer_file, idx=idx)
+                self.outer_execute(idx)
+                if idx in record_by_idx and self.begin_map:
+                    record_by_idx[idx]['begin_map'] = self.begin_map
+                if idx in record_by_idx and self.end_map:
+                    record_by_idx[idx]['end_map'] = self.end_map
+                if idx in record_by_idx:
+                    record_by_idx[idx]['transition_relation'] = self._build_nl_transition_relation(
+                        record_by_idx[idx].get('begin_map', ''),
+                        record_by_idx[idx].get('end_map', ''),
+                    )
+        except Exception as e:
+            print(f"Warning: symexec-based precondition enrichment failed: {e}")
+
+    def _to_conjuncts(self, expr: str) -> List[str]:
+        if not expr:
+            return []
+        text = expr.replace('*', '&&')
+        return [x.strip().strip('()') for x in text.split('&&') if x.strip()]
+
+    def _extract_eq_map(self, expr: str) -> Dict[str, str]:
+        out: Dict[str, str] = {}
+        for c in self._to_conjuncts(expr):
+            m = re.match(r'^([A-Za-z_]\w*(?:@(?:pre|last))?)\s*==\s*(.+)$', c)
+            if m:
+                out[m.group(1).strip()] = m.group(2).strip()
+        return out
+
+    def _build_nl_transition_relation(self, begin_expr: str, end_expr: str) -> str:
+        """
+        Build natural-language one-step transition summary from begin/end maps.
+        """
+        if not begin_expr or not end_expr:
+            return ""
+        bmap = self._extract_eq_map(begin_expr)
+        emap = self._extract_eq_map(end_expr)
+        end_conj = self._to_conjuncts(end_expr)
+        guard_parts = [c for c in end_conj if not re.search(r'==', c)]
+        guard_text = "; ".join(guard_parts) if guard_parts else "no explicit guard captured"
+
+        vars_all = sorted(set(bmap.keys()) | set(emap.keys()))
+        changed: List[str] = []
+        unchanged: List[str] = []
+        for v in vars_all:
+            b = bmap.get(v, "?")
+            e = emap.get(v, "?")
+            if b == e:
+                unchanged.append(f"{v} keeps {e}")
             else:
-                merged_pre = original_pre
-            
-            record['pre_condition'] = merged_pre
-            print(f"Updated pre_condition for loop {record.get('loop_idx', '?')}: {merged_pre}")
+                changed.append(f"{v}: {b} -> {e}")
+
+        parts: List[str] = [f"One-step transition under loop guard ({guard_text})."]
+        if changed:
+            parts.append("Changed: " + "; ".join(changed) + ".")
+        if unchanged:
+            parts.append("Unchanged: " + "; ".join(unchanged) + ".")
+        return " ".join(parts)
 
   
 #    def unfold(self, code) -> str:
@@ -1595,9 +1682,10 @@ class LoopSampler:
                 # The filter expects parameter names, not the full \\at(param, Pre) format
                 param_pre_vars = list(self.function_params)
 
-                # 提取 requires 子句
+                # 提取 requires 子句（函数级前置条件，仅保留作参考）
                 requires_match = re.search(r'(?:/\*@|//@)\s*requires\s+([^@]+?)(?:\*/|$)', code, re.DOTALL)
-                pre_condition = requires_match.group(1).strip() if requires_match else None
+                function_precondition = requires_match.group(1).strip() if requires_match else None
+                pre_condition = None
 
                 # 创建简化的 record
                 record = {
@@ -1605,9 +1693,13 @@ class LoopSampler:
                     'loop_content': loop_content,
                     'begin': {},
                     'end': {},
+                    'begin_map': '',
+                    'end_map': '',
+                    'transition_relation': '',
                     'common_vars': list(current_vars),
                     'unchanged_vars': [],
                     'non_inductive_vars': [],
+                    'function_precondition': function_precondition,
                     'pre_condition': pre_condition,
                     'loop_condition': loop_condition,
                     'updated_loop_conditions': [],
@@ -1628,6 +1720,9 @@ class LoopSampler:
             import traceback
             logger.error(traceback.format_exc())
             return
+
+        # Enrich loop-entry precondition from symbolic execution begin-map.
+        self._enrich_records_with_symexec_begin_map()
 
         # 2. 执行动态采样
         logger.info('Starting dynamic sampling...')
@@ -1692,9 +1787,10 @@ class LoopSampler:
                 # Extract function parameters
                 param_pre_vars = [f"\\at({param}, Pre)" for param in self.function_params]
 
-                # 提取 requires 子句
+                # 提取 requires 子句（函数级前置条件，仅保留作参考）
                 requires_match = re.search(r'(?:/\*@|//@)\s*requires\s+([^@]+?)(?:\*/|$)', code, re.DOTALL)
-                pre_condition = requires_match.group(1).strip() if requires_match else None
+                function_precondition = requires_match.group(1).strip() if requires_match else None
+                pre_condition = None
 
                 # 创建简化的 record
                 record = {
@@ -1702,9 +1798,13 @@ class LoopSampler:
                     'loop_content': loop_content,
                     'begin': {},
                     'end': {},
+                    'begin_map': '',
+                    'end_map': '',
+                    'transition_relation': '',
                     'common_vars': list(current_vars),
                     'unchanged_vars': [],
                     'non_inductive_vars': [],
+                    'function_precondition': function_precondition,
                     'pre_condition': pre_condition,
                     'loop_condition': loop_condition,
                     'updated_loop_conditions': [],
@@ -1720,6 +1820,7 @@ class LoopSampler:
                 print(f"Loop {idx}: extracted basic info (no traces)")
 
             print(f"Found {len(self.records)} loops (traces disabled)")
+            self._enrich_records_with_symexec_begin_map()
             print('----------------------------------------------------------------------------------------')
         except Exception as e:
             print(f"Error extracting loops: {e}")

@@ -582,6 +582,7 @@ def main() -> None:
     llm_cfg = LLMConfig()
     llm_cfg.api_model = args.model
     system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
+    api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
 
     # Build in-memory dedup sets from existing raw/annotated pairs.
     signatures: Set[str] = set()
@@ -616,80 +617,88 @@ def main() -> None:
     seed_offset = existing_max_idx if args.append else 0
     next_attempt = 1
     pending: Dict[concurrent.futures.Future, Tuple[int, int]] = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-        while (next_attempt <= args.max_attempts or pending) and len(accepted_records) < args.target_count:
-            while next_attempt <= args.max_attempts and len(pending) < workers and len(accepted_records) < args.target_count:
-                attempt = next_attempt
-                next_attempt += 1
-                seed = args.seed + seed_offset + (attempt - 1)
-                fut = ex.submit(run_one_attempt, attempt, seed, work_root, logs_dir, llm_cfg, args.model, system_prompt, run_tag)
-                pending[fut] = (attempt, seed)
+    with api_jsonl_path.open("a" if args.append else "w", encoding="utf-8") as api_jsonl_file:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+            while (next_attempt <= args.max_attempts or pending) and len(accepted_records) < args.target_count:
+                while next_attempt <= args.max_attempts and len(pending) < workers and len(accepted_records) < args.target_count:
+                    attempt = next_attempt
+                    next_attempt += 1
+                    seed = args.seed + seed_offset + (attempt - 1)
+                    fut = ex.submit(run_one_attempt, attempt, seed, work_root, logs_dir, llm_cfg, args.model, system_prompt, run_tag)
+                    pending[fut] = (attempt, seed)
 
-            if not pending:
-                break
+                if not pending:
+                    break
 
-            done, _ = concurrent.futures.wait(
-                pending.keys(),
-                return_when=concurrent.futures.FIRST_COMPLETED,
-            )
-            for fut in done:
-                attempt, seed = pending.pop(fut)
-                try:
-                    result = fut.result()
-                except Exception as e:
-                    reject_log.append({"attempt": attempt, "seed": seed, "reason": f"exception: {e}"})
-                    continue
+                done, _ = concurrent.futures.wait(
+                    pending.keys(),
+                    return_when=concurrent.futures.FIRST_COMPLETED,
+                )
+                for fut in done:
+                    attempt, seed = pending.pop(fut)
+                    try:
+                        result = fut.result()
+                    except Exception as e:
+                        reject_log.append({"attempt": attempt, "seed": seed, "reason": f"exception: {e}"})
+                        continue
 
-                if not result.get("ok"):
-                    reject_log.append(
+                    if not result.get("ok"):
+                        reject_log.append(
+                            {
+                                "attempt": result.get("attempt", attempt),
+                                "seed": result.get("seed", seed),
+                                "reason": result.get("reason", "unknown"),
+                            }
+                        )
+                        continue
+
+                    raw_key = result["raw_structure_key"]
+                    sig = result["signature"]
+                    skeleton_key = compute_loop_skeleton_key(result["raw_code"])
+                    if raw_key in raw_structures:
+                        reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate raw structure"})
+                        continue
+                    if sig in signatures:
+                        reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate signature"})
+                        continue
+                    if loop_skeleton_counts.get(skeleton_key, 0) >= max(1, args.max_skeleton_repeat):
+                        reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate loop skeleton"})
+                        continue
+
+                    signatures.add(sig)
+                    raw_structures.add(raw_key)
+                    loop_skeleton_counts[skeleton_key] = loop_skeleton_counts.get(skeleton_key, 0) + 1
+                    idx = existing_max_idx + len(accepted_records) + 1
+                    (raw_dir / f"{idx}.c").write_text(result["raw_code"], encoding="utf-8")
+                    (ann_dir / f"{idx}.c").write_text(result["annotated"], encoding="utf-8")
+
+                    accepted_records.append(
                         {
-                            "attempt": result.get("attempt", attempt),
-                            "seed": result.get("seed", seed),
-                            "reason": result.get("reason", "unknown"),
+                            "id": f"loop_factory_{idx}",
+                            "attempt": attempt,
+                            "seed": result["seed"],
+                            "model": result["model"],
+                            "system_prompt": result["system_prompt"],
+                            "user_prompt": result["user_prompt"],
+                            "raw_model_output": result["raw_model_output"],
+                            "raw_c": result["raw_code"],
+                            "annotated_c": result["annotated"],
+                            "invariants": result["invariants"],
+                            "signature": sig,
+                            "raw_structure_key": raw_key,
+                            "first_pass": result["first_pass"],
+                            "token_stats": result["token_stats"],
+                            "loop_factory_hyperparams": result["loop_factory_hyperparams"],
+                            "augmentation": {"type": "none"},
                         }
                     )
-                    continue
-
-                raw_key = result["raw_structure_key"]
-                sig = result["signature"]
-                skeleton_key = compute_loop_skeleton_key(result["raw_code"])
-                if raw_key in raw_structures:
-                    reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate raw structure"})
-                    continue
-                if sig in signatures:
-                    reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate signature"})
-                    continue
-                if loop_skeleton_counts.get(skeleton_key, 0) >= max(1, args.max_skeleton_repeat):
-                    reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate loop skeleton"})
-                    continue
-
-                signatures.add(sig)
-                raw_structures.add(raw_key)
-                loop_skeleton_counts[skeleton_key] = loop_skeleton_counts.get(skeleton_key, 0) + 1
-                idx = existing_max_idx + len(accepted_records) + 1
-                (raw_dir / f"{idx}.c").write_text(result["raw_code"], encoding="utf-8")
-                (ann_dir / f"{idx}.c").write_text(result["annotated"], encoding="utf-8")
-
-                accepted_records.append(
-                    {
-                        "id": f"loop_factory_{idx}",
-                        "attempt": attempt,
-                        "seed": result["seed"],
-                        "model": result["model"],
-                        "system_prompt": result["system_prompt"],
-                        "user_prompt": result["user_prompt"],
-                        "raw_model_output": result["raw_model_output"],
-                        "raw_c": result["raw_code"],
-                        "annotated_c": result["annotated"],
-                        "invariants": result["invariants"],
-                        "signature": sig,
-                        "raw_structure_key": raw_key,
-                        "first_pass": result["first_pass"],
-                        "token_stats": result["token_stats"],
-                        "loop_factory_hyperparams": result["loop_factory_hyperparams"],
-                        "augmentation": {"type": "none"},
+                    api_item = {
+                        "instruction": result["system_prompt"],
+                        "input": result["user_prompt"],
+                        "output": result["annotated"],
                     }
-                )
+                    api_jsonl_file.write(json.dumps(api_item, ensure_ascii=False) + "\n")
+                    api_jsonl_file.flush()
 
     # Clean up temp directories from this run and any previous incomplete runs.
     for pat in [f"loop_factory_batch_tmp_{run_tag}_*", "loop_factory_batch_tmp_*"]:
@@ -702,6 +711,7 @@ def main() -> None:
 
     total = existing_count + len(accepted_records)
     print(f"Done: {len(accepted_records)} new + {existing_count} existing = {total} total")
+    print(f"JSONL (instruction/input/output): {api_jsonl_path}")
     if len(accepted_records) < args.target_count:
         raise RuntimeError(
             f"Accepted {len(accepted_records)} samples, below target_count={args.target_count}. "

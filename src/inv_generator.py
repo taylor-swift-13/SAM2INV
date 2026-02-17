@@ -22,6 +22,21 @@ from config import SUBDIR, USE_TRACES, MAX_ITERATION, MAX_STRENGTHEN_ITERATIONS,
 from vector_cache_manager import VectorCacheManager
 from unified_filter import filter_invariants, validate_code_structure
 
+
+def to_acsl_state_expr(expr: str) -> str:
+    """Normalize sampler state text into ACSL-friendly expression syntax."""
+    if not expr:
+        return expr
+    out = expr.strip()
+    # Legacy separator in sampler output.
+    out = out.replace('*', ' && ')
+    # Convert x@pre / x@last to ACSL \at(x, Pre)
+    out = re.sub(r"\b([A-Za-z_]\w*)@(pre|last)\b", r"\\at(\1, Pre)", out, flags=re.IGNORECASE)
+    out = re.sub(r"\s*&&\s*", " && ", out)
+    out = re.sub(r"\s+", " ", out).strip()
+    return out
+
+
 class InvariantGenerator:
     """Loop invariant generator with iterative repair functionality"""
     
@@ -1541,11 +1556,12 @@ class InvariantGenerator:
         
         # Build loop context WITHOUT traces
         # Only include code structure and pre-condition
+        state_before_entry = to_acsl_state_expr(pre_condition)
         loop_context_lines = [
             "### Loop Context ###",
             "",
-            "1. Pre-Condition (Before Loop Entry):",
-            f"   {pre_condition if pre_condition else 'No pre-condition specified'}",
+            "1. State Before Loop Entry:",
+            f"   {state_before_entry if state_before_entry else 'No state-before-entry available'}",
             "",
             "2. Loop Code:",
             f"```c",
