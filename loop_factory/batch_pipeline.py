@@ -400,6 +400,7 @@ def run_one_attempt(
     src_input_dir.mkdir(parents=True, exist_ok=True)
     src_output_dir.mkdir(parents=True, exist_ok=True)
     file_id = ""
+    goal_prefix = ""
 
     try:
         if stop_event.is_set():
@@ -409,8 +410,9 @@ def run_one_attempt(
         if not has_no_assert(raw_code):
             return {"ok": False, "reason": "input has assert", "attempt": attempt, "seed": seed}
 
-        # Keep prompt generation path identical across workers, but isolate all per-attempt files.
-        file_id = f"{run_tag}_{attempt}"
+        # Keep function naming stable (main1) for invariant insertion compatibility.
+        file_id = "1"
+        goal_prefix = f"{src_input_dir.name}_{file_id}"
         input_c = src_input_dir / f"{file_id}.c"
         input_c.write_text(raw_code, encoding="utf-8")
 
@@ -426,6 +428,7 @@ def run_one_attempt(
 
         captured = {"user_prompt": "", "raw_response": "", "prompt_count": 0}
         original_chat = gen.llm.chat
+        original_select_prompt = getattr(gen, "_select_prompt_for_candidate", None)
 
         def chat_capture(user_input: str) -> str:
             if stop_event.is_set():
@@ -438,6 +441,14 @@ def run_one_attempt(
             return resp
 
         gen.llm.chat = chat_capture  # type: ignore[assignment]
+        if callable(original_select_prompt):
+            def select_prompt_capture(candidate_idx: int, loop_context: str, code_with_template: str):
+                prompt, prompt_name = original_select_prompt(candidate_idx, loop_context, code_with_template)
+                if not captured["user_prompt"] and isinstance(prompt, str) and prompt.strip():
+                    # In multi-candidate mode, real LLM calls may bypass gen.llm.chat.
+                    captured["user_prompt"] = prompt
+                return prompt, prompt_name
+            gen._select_prompt_for_candidate = select_prompt_capture  # type: ignore[assignment]
 
         if stop_event.is_set():
             return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
@@ -484,8 +495,8 @@ def run_one_attempt(
         for d in [src_input_dir, src_output_dir, src_outer_dir]:
             if d.exists():
                 shutil.rmtree(d, ignore_errors=True)
-        if file_id and VST_GOAL.exists():
-            for p in VST_GOAL.glob(f"{file_id}_*.v"):
+        if goal_prefix and VST_GOAL.exists():
+            for p in VST_GOAL.glob(f"{goal_prefix}_*.v"):
                 try:
                     p.unlink()
                 except OSError:
@@ -598,7 +609,7 @@ def main() -> None:
         d.mkdir(parents=True, exist_ok=True)
 
     # Keep one-candidate path; outer pipeline handles concurrency.
-    config.PARALLEL_GENERATION_CONFIG["num_candidates"] = 1
+    config.PARALLEL_GENERATION_CONFIG["num_candidates"] = 5
     config.PARALLEL_GENERATION_CONFIG["use_threading"] = False
     config.PARALLEL_GENERATION_CONFIG["max_workers"] = 1
     config.PARALLEL_GENERATION_CONFIG["temperature"] = 0.2
@@ -748,7 +759,7 @@ def main() -> None:
                 if d.is_dir():
                     shutil.rmtree(d, ignore_errors=True)
     if VST_GOAL.exists():
-        for p in VST_GOAL.glob(f"{run_tag}_*_*.v"):
+        for p in VST_GOAL.glob(f"loop_factory_batch_tmp_{run_tag}_*_1_*.v"):
             try:
                 p.unlink()
             except OSError:

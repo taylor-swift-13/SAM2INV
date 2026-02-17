@@ -57,12 +57,13 @@ class LoopSampler:
         self.llm_config = LLMConfig()
         self.llm = Chatbot(self.llm_config)
 
-        self.goal_file = f"../goal/{self.file_name}_goal.v"
-        self.proof_auto_file = f"../goal/{self.file_name}_proof_auto.v"
-        self.proof_manual_file = f"../goal/{self.file_name}_proof_manual.v"
-      
         # 使用全局配置的 subdir（如需覆盖可传入 input_subdir）
         resolved_subdir = self.input_subdir_config if self.input_subdir_config else SUBDIR
+        safe_subdir = re.sub(r"[^A-Za-z0-9_]+", "_", resolved_subdir)
+        goal_prefix = f"{safe_subdir}_{self.file_name}"
+        self.goal_file = f"../goal/{goal_prefix}_goal.v"
+        self.proof_auto_file = f"../goal/{goal_prefix}_proof_auto.v"
+        self.proof_manual_file = f"../goal/{goal_prefix}_proof_manual.v"
         
         self.input_file = f"../src/input/{resolved_subdir}/{self.file_name}.c"
         self.output_file = f"../src/output/{resolved_subdir}/{self.file_name}.c"
