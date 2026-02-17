@@ -360,17 +360,17 @@ def loop_factory_hyperparams(seed: int, out_dir: Path) -> Dict[str, object]:
         "out_dir": str(out_dir),
         "count": 1,
         "seed": seed,
-        "max_vars": 14,
+        "max_vars": 5,
         "params": 4,
         "min_loops": 1,
         "max_loops": 1,
-        "max_assign": 8,
-        "max_ifelse": 6,
+        "max_assign": 4,
+        "max_ifelse": 2,
         "max_depth": 1,
         "p_multi": 0.0,
         "q_nest": 0.0,
-        "p_nonlinear": 0.75,
-        "nonlinear_strength": 0.85,
+        "p_nonlinear": 0.30,
+        "nonlinear_strength": 0.50,
         "p_semantic_core": 0.30,
         "w_core_rel_guard": 1.0,
         "w_core_cond_fixed": 1.0,
@@ -492,194 +492,6 @@ def convert_for_to_while(code: str) -> str:
     return pattern.sub(lambda m: f"{m.group(1).strip()};\nwhile ({m.group(2).strip()}) {{", code)
 
 
-def _build_backfill_input(raw_c: str) -> str:
-    """
-    Reconstruct a training-compatible input prompt from raw C code.
-    Used for samples that lack LLM interaction data.
-    """
-    # Extract loop code snippet
-    loop_match = re.search(r'((?:while|for)\s*\([^)]*\)\s*\{)', raw_c)
-    if loop_match:
-        start = loop_match.start()
-        depth = 0
-        i = loop_match.end() - 1  # the opening brace
-        while i < len(raw_c):
-            if raw_c[i] == '{':
-                depth += 1
-            elif raw_c[i] == '}':
-                depth -= 1
-                if depth == 0:
-                    loop_snippet = raw_c[start:i + 1]
-                    break
-            i += 1
-        else:
-            loop_snippet = raw_c[loop_match.start():]
-    else:
-        loop_snippet = raw_c
-
-    # Extract function parameters
-    param_match = re.search(r'main\w*\s*\(([^)]*)\)', raw_c)
-    params = []
-    if param_match:
-        for p in param_match.group(1).split(','):
-            p = p.strip()
-            parts = p.split()
-            if len(parts) >= 2:
-                params.append(parts[-1])
-
-    # Extract all identifiers as available variables
-    all_ids = set(re.findall(r'\b([A-Za-z_]\w*)\b', raw_c))
-    avail_vars = sorted(v for v in all_ids if v not in CPP_KEYWORDS and not v.startswith("main"))
-
-    # Build prompt in same format as _prepare_prompt + _generate_initial_invariant
-    param_lines = []
-    for p in sorted(params):
-        param_lines.append(f"  - \\at({p}, Pre) (or \\at(\\at({p}, Pre), Pre) for initial value)")
-    if not param_lines:
-        param_lines.append("  - (none)")
-
-    # Insert placeholder template into raw code
-    code_with_template = raw_c
-    # Replace existing invariant comment with placeholder
-    code_with_template = re.sub(
-        r'/\*\s*>>>\s*LOOP INVARIANT TO FILL\s*<<<\s*\*/\s*',
-        '/* >>> LOOP INVARIANT TO FILL <<< */\n',
-        code_with_template,
-    )
-    if '/*@' not in code_with_template and 'LOOP INVARIANT TO FILL' not in code_with_template:
-        # Add placeholder before loop
-        code_with_template = re.sub(
-            r'((?:while|for)\s*\()',
-            '/* >>> LOOP INVARIANT TO FILL <<< */\n/*@\n  loop invariant PLACE_HOLDER_VERIFICATION_GOAL;\n  loop assigns PLACE_HOLDER_ASSIGNMENTS;\n*/\n\\1',
-            code_with_template,
-            count=1,
-        )
-
-    loop_context = "\n".join([
-        "### Loop Context ###",
-        "",
-        "1. Pre-Condition (Before Loop Entry):",
-        "   No pre-condition specified",
-        "",
-        "2. Loop Code:",
-        "```c",
-        loop_snippet,
-        "```",
-        "",
-        "### AVAILABLE VARIABLES AND PARAMETERS ###",
-        "",
-        f"**Available Variables:** {avail_vars}",
-        "",
-        "**Function Parameters:**",
-    ] + param_lines + [
-        "",
-        "IMPORTANT:",
-        "- You can ONLY use variables from the 'Available Variables' list",
-        "- For function parameters, you can use:",
-        "  * 'param' to refer to the current value",
-        "  * '\\at(param, Pre)' to refer to the initial value at function entry",
-        "- Using undefined variables or \\at() on non-parameters will cause validation errors",
-    ])
-
-    goal_guidance = (
-        "No explicit verification target is present.\n"
-        "- Focus on inductive, non-empty invariants derived from loop semantics.\n"
-        "- Prioritize transition/conservation relations and necessary bounds.\n"
-        "- Do not mention or optimize for post-loop assert."
-    )
-
-    prompt = (
-        "\n\nFollow the system prompt rules. This prompt adds only proof-oriented strategy.\n\n"
-        "Goal: produce a small, strong, inductive invariant set for the current loop.\n\n"
-        f"Goal-specific guidance:\n{goal_guidance}\n\n"
-        "Required construction order:\n"
-        "1. If a verification target is provided, map target terms to loop-preserved forms.\n"
-        "2. Add one core conservation/relational equality that explains loop updates (state transition law).\n"
-        "3. Add minimal progress bounds for loop counters and key arithmetic variables.\n"
-        "4. If a verification target is provided, ensure `invariants && !guard` can imply it.\n"
-        "5. Add complete and exact `loop assigns`.\n\n"
-        "Quality requirements:\n"
-        "- Prefer 3-6 strong invariants; avoid weak/tautological ones.\n"
-        "- Do not add unrelated invariants just to increase count.\n"
-        "- Reuse assert vocabulary/symbols directly whenever possible.\n"
-        "- Keep original code unchanged except loop annotations.\n\n"
-        f"Code:\n```c\n{code_with_template}\n```\n\n"
-        f"Loop context:\n{loop_context}\n\n"
-        "Return only complete C code with ACSL loop annotations.\n"
-    )
-    return prompt
-
-
-def rebuild_dataset(work_root: Path) -> List[Dict]:
-    """
-    Rebuild dataset.jsonl from raw/ and annotated/ directories (single source of truth).
-    Output format: {instruction, input, output} per sample, 1:1 with annotated files.
-    Merges LLM interaction fields from existing jsonl files when available;
-    reconstructs prompts for samples that lack them.
-    """
-    raw_dir = work_root / "raw"
-    ann_dir = work_root / "annotated"
-    dataset_path = work_root / "dataset.jsonl"
-
-    # Load system prompt.
-    system_prompt_path = SRC / "prompts" / "system_prompt.txt"
-    system_prompt = system_prompt_path.read_text(encoding="utf-8") if system_prompt_path.exists() else ""
-
-    # Load existing items keyed by raw_c hash for merging LLM interaction fields.
-    # Check dataset.jsonl, dataset_full.jsonl (legacy full), dataset_train_iio.jsonl (legacy iio).
-    existing_by_raw_hash: Dict[str, Dict] = {}
-    for candidate in [work_root / "dataset_full.jsonl"]:
-        if not candidate.exists():
-            continue
-        for line in candidate.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                item = json.loads(line)
-            except Exception:
-                continue
-            raw_c = item.get("raw_c", "")
-            if not raw_c:
-                continue
-            raw_hash = hashlib.sha256(raw_c.encode("utf-8")).hexdigest()
-            existing_by_raw_hash[raw_hash] = item
-
-    # Scan raw/annotated file pairs — the single source of truth.
-    raw_files = sorted(raw_dir.glob("*.c"), key=lambda p: int(p.stem))
-    items: List[Dict] = []
-    for rf in raw_files:
-        af = ann_dir / rf.name
-        if not af.exists():
-            continue
-        raw_c = rf.read_text(encoding="utf-8")
-        annotated_c = af.read_text(encoding="utf-8")
-        raw_hash = hashlib.sha256(raw_c.encode("utf-8")).hexdigest()
-        existing = existing_by_raw_hash.get(raw_hash, {})
-
-        # Determine the three training fields.
-        instruction = existing.get("system_prompt", system_prompt)
-        input_prompt = existing.get("user_prompt", "")
-        output_text = existing.get("raw_model_output", "")
-
-        # Backfill for samples without LLM interaction data.
-        if not input_prompt:
-            input_prompt = _build_backfill_input(raw_c)
-        if not output_text:
-            output_text = annotated_c
-
-        items.append({
-            "instruction": instruction,
-            "input": input_prompt,
-            "output": output_text,
-        })
-
-    # Write dataset.jsonl.
-    with dataset_path.open("w", encoding="utf-8") as f:
-        for item in items:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
-
-    return items
 
 
 def build_augments(base_item: Dict, aug_per_sample: int, rng: random.Random) -> List[Dict]:
@@ -888,10 +700,8 @@ def main() -> None:
     if tmp_loops.exists():
         shutil.rmtree(tmp_loops, ignore_errors=True)
 
-    # Rebuild dataset.jsonl from raw/annotated (single source of truth).
-    dataset_items = rebuild_dataset(work_root)
     total = existing_count + len(accepted_records)
-    print(f"Done: {len(accepted_records)} new + {existing_count} existing = {total} total, dataset.jsonl has {len(dataset_items)} items")
+    print(f"Done: {len(accepted_records)} new + {existing_count} existing = {total} total")
     if len(accepted_records) < args.target_count:
         raise RuntimeError(
             f"Accepted {len(accepted_records)} samples, below target_count={args.target_count}. "
