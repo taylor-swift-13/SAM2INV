@@ -25,94 +25,80 @@ Require Import int_array_strategy_proof.
 (*----- Function foo -----*)
 
 Definition foo_safety_wit_1 := 
-forall (a_pre: Z) (n_pre: Z) (x_pre: Z) (y_pre: Z) (z_pre: Z) ,
-  [| (n_pre <= a_pre) |]
+forall (a_pre: Z) (k_pre: Z) (n_pre: Z) (p_pre: Z) (l_pre: Z) (i_pre: Z) (v_pre: Z) (c_pre: Z) ,
+  [| (i_pre < l_pre) |]
   &&  ((( &( "a" ) )) # Int  |-> a_pre)
+  **  ((( &( "k" ) )) # Int  |-> k_pre)
   **  ((( &( "n" ) )) # Int  |-> n_pre)
-  **  ((( &( "x" ) )) # Int  |-> x_pre)
-  **  ((( &( "y" ) )) # Int  |-> y_pre)
-  **  ((( &( "z" ) )) # Int  |-> z_pre)
+  **  ((( &( "p" ) )) # Int  |-> p_pre)
+  **  ((( &( "l" ) )) # Int  |-> l_pre)
+  **  ((( &( "i" ) )) # Int  |-> i_pre)
+  **  ((( &( "v" ) )) # Int  |-> v_pre)
+  **  ((( &( "c" ) )) # Int  |-> c_pre)
 |--
-  [| ((n_pre + 1 ) <= INT_MAX) |] 
-  &&  [| ((INT_MIN) <= (n_pre + 1 )) |]
+  [| ((v_pre + 1 ) <= INT_MAX) |] 
+  &&  [| ((INT_MIN) <= (v_pre + 1 )) |]
 .
 
 Definition foo_safety_wit_2 := 
-forall (a_pre: Z) (n_pre: Z) (x_pre: Z) (y_pre: Z) (z_pre: Z) ,
-  [| (n_pre <= a_pre) |]
+forall (a_pre: Z) (k_pre: Z) (n_pre: Z) (p_pre: Z) (l_pre: Z) (i_pre: Z) (v_pre: Z) (c_pre: Z) ,
+  [| (i_pre < l_pre) |]
   &&  ((( &( "a" ) )) # Int  |-> a_pre)
+  **  ((( &( "k" ) )) # Int  |-> k_pre)
   **  ((( &( "n" ) )) # Int  |-> n_pre)
-  **  ((( &( "x" ) )) # Int  |-> x_pre)
-  **  ((( &( "y" ) )) # Int  |-> y_pre)
-  **  ((( &( "z" ) )) # Int  |-> z_pre)
+  **  ((( &( "p" ) )) # Int  |-> p_pre)
+  **  ((( &( "l" ) )) # Int  |-> l_pre)
+  **  ((( &( "i" ) )) # Int  |-> i_pre)
+  **  ((( &( "v" ) )) # Int  |-> v_pre)
+  **  ((( &( "c" ) )) # Int  |-> c_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_3 := 
-forall (a_pre: Z) (n_pre: Z) (x_pre: Z) (y_pre: Z) (z_pre: Z) ,
-  [| (n_pre <= a_pre) |]
+forall (a_pre: Z) (k_pre: Z) (n_pre: Z) (p_pre: Z) (l_pre: Z) (i_pre: Z) (v_pre: Z) (c_pre: Z) ,
+  [| (i_pre < l_pre) |]
   &&  ((( &( "a" ) )) # Int  |-> a_pre)
-  **  ((( &( "n" ) )) # Int  |-> (n_pre + 1 ))
-  **  ((( &( "x" ) )) # Int  |-> x_pre)
-  **  ((( &( "y" ) )) # Int  |-> y_pre)
-  **  ((( &( "z" ) )) # Int  |-> z_pre)
+  **  ((( &( "k" ) )) # Int  |-> k_pre)
+  **  ((( &( "n" ) )) # Int  |-> n_pre)
+  **  ((( &( "p" ) )) # Int  |-> p_pre)
+  **  ((( &( "l" ) )) # Int  |-> l_pre)
+  **  ((( &( "i" ) )) # Int  |-> i_pre)
+  **  ((( &( "v" ) )) # Int  |-> (v_pre + 1 ))
+  **  ((( &( "c" ) )) # Int  |-> c_pre)
 |--
-  [| ((x_pre + y_pre ) <= INT_MAX) |] 
-  &&  [| ((INT_MIN) <= (x_pre + y_pre )) |]
+  [| ((c_pre + 1 ) <= INT_MAX) |] 
+  &&  [| ((INT_MIN) <= (c_pre + 1 )) |]
 .
 
 Definition foo_safety_wit_4 := 
-forall (a_pre: Z) (n_pre: Z) (x_pre: Z) (y_pre: Z) (z_pre: Z) ,
-  [| (n_pre <= a_pre) |]
+forall (a_pre: Z) (k_pre: Z) (n_pre: Z) (p_pre: Z) (l_pre: Z) (i_pre: Z) (v_pre: Z) (c_pre: Z) ,
+  [| (i_pre < l_pre) |]
   &&  ((( &( "a" ) )) # Int  |-> a_pre)
-  **  ((( &( "n" ) )) # Int  |-> (n_pre + 1 ))
-  **  ((( &( "x" ) )) # Int  |-> (x_pre + y_pre ))
-  **  ((( &( "y" ) )) # Int  |-> y_pre)
-  **  ((( &( "z" ) )) # Int  |-> z_pre)
+  **  ((( &( "k" ) )) # Int  |-> k_pre)
+  **  ((( &( "n" ) )) # Int  |-> n_pre)
+  **  ((( &( "p" ) )) # Int  |-> p_pre)
+  **  ((( &( "l" ) )) # Int  |-> l_pre)
+  **  ((( &( "i" ) )) # Int  |-> i_pre)
+  **  ((( &( "v" ) )) # Int  |-> (v_pre + 1 ))
+  **  ((( &( "c" ) )) # Int  |-> c_pre)
 |--
-  [| ((y_pre + z_pre ) <= INT_MAX) |] 
-  &&  [| ((INT_MIN) <= (y_pre + z_pre )) |]
-.
-
-Definition foo_safety_wit_5 := 
-forall (a_pre: Z) (n_pre: Z) (x_pre: Z) (y_pre: Z) (z_pre: Z) ,
-  [| (n_pre <= a_pre) |]
-  &&  ((( &( "a" ) )) # Int  |-> a_pre)
-  **  ((( &( "n" ) )) # Int  |-> (n_pre + 1 ))
-  **  ((( &( "x" ) )) # Int  |-> (x_pre + y_pre ))
-  **  ((( &( "y" ) )) # Int  |-> (y_pre + z_pre ))
-  **  ((( &( "z" ) )) # Int  |-> z_pre)
-|--
-  [| ((z_pre + 6 ) <= INT_MAX) |] 
-  &&  [| ((INT_MIN) <= (z_pre + 6 )) |]
-.
-
-Definition foo_safety_wit_6 := 
-forall (a_pre: Z) (n_pre: Z) (x_pre: Z) (y_pre: Z) (z_pre: Z) ,
-  [| (n_pre <= a_pre) |]
-  &&  ((( &( "a" ) )) # Int  |-> a_pre)
-  **  ((( &( "n" ) )) # Int  |-> (n_pre + 1 ))
-  **  ((( &( "x" ) )) # Int  |-> (x_pre + y_pre ))
-  **  ((( &( "y" ) )) # Int  |-> (y_pre + z_pre ))
-  **  ((( &( "z" ) )) # Int  |-> z_pre)
-|--
-  [| (6 <= INT_MAX) |] 
-  &&  [| ((INT_MIN) <= 6) |]
+  [| (1 <= INT_MAX) |] 
+  &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_return_wit_1_1 := 
-forall (a_pre: Z) (n_pre: Z) ,
-  [| (n_pre > a_pre) |]
+forall (l_pre: Z) (i_pre: Z) ,
+  [| (i_pre >= l_pre) |]
   &&  emp
 |--
   TT && emp 
 .
 
 Definition foo_return_wit_1_2 := 
-forall (a_pre: Z) (n_pre: Z) ,
-  [| (n_pre <= a_pre) |]
+forall (l_pre: Z) (i_pre: Z) ,
+  [| (i_pre < l_pre) |]
   &&  emp
 |--
   TT && emp 
@@ -127,8 +113,6 @@ Axiom proof_of_foo_safety_wit_1 : foo_safety_wit_1.
 Axiom proof_of_foo_safety_wit_2 : foo_safety_wit_2.
 Axiom proof_of_foo_safety_wit_3 : foo_safety_wit_3.
 Axiom proof_of_foo_safety_wit_4 : foo_safety_wit_4.
-Axiom proof_of_foo_safety_wit_5 : foo_safety_wit_5.
-Axiom proof_of_foo_safety_wit_6 : foo_safety_wit_6.
 Axiom proof_of_foo_return_wit_1_1 : foo_return_wit_1_1.
 Axiom proof_of_foo_return_wit_1_2 : foo_return_wit_1_2.
 

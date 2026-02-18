@@ -22,7 +22,7 @@ Local Open Scope sac.
 Lemma proof_of_foo_safety_wit_2 : foo_safety_wit_2.
 Proof. Admitted. 
 
-Lemma proof_of_foo_safety_wit_6 : foo_safety_wit_6.
+Lemma proof_of_foo_safety_wit_4 : foo_safety_wit_4.
 Proof. Admitted. 
 
 Lemma proof_of_foo_return_wit_1_1 : foo_return_wit_1_1.

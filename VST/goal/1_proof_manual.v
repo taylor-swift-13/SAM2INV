@@ -19,6 +19,6 @@ Import naive_C_Rules.
 Require Import int_array_lib.
 Local Open Scope sac.
 
-Lemma proof_of_main1_safety_wit_4 : main1_safety_wit_4.
+Lemma proof_of_main1_safety_wit_1 : main1_safety_wit_1.
 Proof. Admitted. 
 
