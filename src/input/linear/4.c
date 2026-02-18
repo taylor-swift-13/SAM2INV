@@ -1,17 +1,16 @@
-void foo(){
-    int x = 1;
-    int y = 0;
-    int z = 0;
-    
-    while (y < 100000) {
-        x = x + y;
-        y = y + 1;
-    }
+void foo4(int y,int z) {
+    int x = 0;   
 
-    while (z < 100000) {
     
-        z = z + 1;
-    }
+    
+while(x < 500) {
+   x += 1;
+   if( z <= y) {
+      y = z;
+   }
+}
 
-    /*@ assert x >= y; */
+
+   
+    /*@ assert z >= y; */
 }

@@ -1,12 +1,14 @@
+void foo3(int y,int z) {
 
-int test(int x) {
-    int a = x;
-    int y = 0;
-
-    while(a != 0) {
-        y = y + 1;
-        a = a - 1;
-    }
-    return y;
-}
+    int x = 0;
     
+    
+    while(x < 5) {
+       x += 1;
+       if( z <= y) {
+          y = z;
+       }
+    }
+   
+   /*@ assert z >= y; */
+}

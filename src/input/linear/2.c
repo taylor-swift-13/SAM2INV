@@ -1,16 +1,15 @@
-int unknown();
-/*@ requires x >= 0 && x <= 10 && y <= 10 && y >= 0; */
-void foo8(int x, int y) {
+void foo2() {
+
+    int x = 1;
+    int y = 0;
   
-  
-    while (unknown()) {
+    
+    while (y < 1000) {
       
-        x = x + 10;
-        y = y + 10;
-        
+       x  = x + y;
+       y  = y + 1;
       
     }
-
-    /*@ assert (y == 0) ==>  (x != 20); */
     
+    /*@ assert x >= y; */
   }
