@@ -205,6 +205,34 @@ class InvariantGenerator:
         
         return updated_code
 
+    def _extract_primary_function_name(self, code: str) -> Optional[str]:
+        """
+        Extract the primary function name from C code.
+        Assumes one input file has one target function.
+        """
+        if not code:
+            return None
+        func_pat = re.compile(
+            r'^\s*(?:[A-Za-z_]\w*[\s\*]+)+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*\{',
+            re.MULTILINE,
+        )
+        blocked = {"if", "for", "while", "switch"}
+        for m in func_pat.finditer(code):
+            name = m.group(1)
+            if name not in blocked:
+                return name
+        return None
+
+    def _prefer_code_block_by_function(self, blocks: List[str], function_name: Optional[str]) -> Optional[str]:
+        """Pick code block containing target function name, fallback to first block."""
+        if not blocks:
+            return None
+        if function_name:
+            for block in blocks:
+                if function_name in block:
+                    return block
+        return blocks[0]
+
     def _extract_loop_segment_with_optional_annotation(self, code: str, loop_idx: int) -> Optional[str]:
         """
         Extract loop segment by index and include the nearest ACSL block right before it.
@@ -604,19 +632,19 @@ class InvariantGenerator:
         
         # 使用候选的代码作为基础,插入组合后的不变式
         # 优先选择包含正确函数名且结构完整（括号匹配）的候选
-        expected_func_name = f"main{self.file_name}"
+        expected_func_name = self._extract_primary_function_name(original_code)
         base_code = None
         # First pass: prefer structurally valid candidates with correct function name
         for candidate in all_candidates:
             code = candidate.get('code', '')
-            if code and expected_func_name in code and code.count('{') == code.count('}'):
+            if code and code.count('{') == code.count('}') and (not expected_func_name or expected_func_name in code):
                 base_code = code
                 break
         # Second pass: correct function name, any structure
         if not base_code:
             for candidate in all_candidates:
                 code = candidate.get('code', '')
-                if code and expected_func_name in code:
+                if code and (not expected_func_name or expected_func_name in code):
                     base_code = code
                     break
 
@@ -633,7 +661,7 @@ class InvariantGenerator:
             base_code = all_candidates[0]['code']
 
         # 验证base_code是完整的函数
-        if not base_code or expected_func_name not in base_code:
+        if not base_code or (expected_func_name and expected_func_name not in base_code):
             self.logger.error(f"ERROR: base_code does not contain expected function '{expected_func_name}'!")
             self.logger.error(f"First 500 chars of base_code: {base_code[:500] if base_code else 'None'}")
             return None
@@ -642,7 +670,7 @@ class InvariantGenerator:
         current_invariants = combined_invariants
         
         # 验证current_code是完整的函数
-        if not current_code or expected_func_name not in current_code:
+        if not current_code or (expected_func_name and expected_func_name not in current_code):
             self.logger.error(f"ERROR: current_code does not contain '{expected_func_name}' after rebuild!")
             self.logger.error(f"First 500 chars of current_code: {current_code[:500] if current_code else 'None'}")
             self.logger.error(f"First 500 chars of base_code: {base_code[:500]}")
@@ -1257,19 +1285,14 @@ class InvariantGenerator:
             
             # Extract code from response: prefer block containing target function name
             extracted_code = None
-            expected_func = f"main{self.file_name}"
+            expected_func = self._extract_primary_function_name(current_code)
 
             all_code_blocks = re.findall(r'```c\n(.*?)\n```', response, re.DOTALL)
             if not all_code_blocks:
                 all_code_blocks = re.findall(r'```\n(.*?)\n```', response, re.DOTALL)
 
             if all_code_blocks:
-                for block in all_code_blocks:
-                    if expected_func in block:
-                        extracted_code = block
-                        break
-                if extracted_code is None:
-                    extracted_code = all_code_blocks[0]
+                extracted_code = self._prefer_code_block_by_function(all_code_blocks, expected_func)
 
             # Fallback: return response if it looks like code
             if extracted_code is None and ('/*@' in response or '#include' in response or '{' in response):
@@ -1697,7 +1720,7 @@ class InvariantGenerator:
         
         # Extract code from response: prefer block containing target function name
         extracted_code = None
-        expected_func = f"main{self.file_name}"
+        expected_func = self._extract_primary_function_name(code_with_template)
 
         # 找所有 ```c ... ``` 代码块
         all_code_blocks = re.findall(r'```c\n(.*?)\n```', response, re.DOTALL)
@@ -1705,14 +1728,7 @@ class InvariantGenerator:
             all_code_blocks = re.findall(r'```\n(.*?)\n```', response, re.DOTALL)
 
         if all_code_blocks:
-            # 优先选包含目标函数名的代码块
-            for block in all_code_blocks:
-                if expected_func in block:
-                    extracted_code = block
-                    break
-            # 回退：取第一个块
-            if extracted_code is None:
-                extracted_code = all_code_blocks[0]
+            extracted_code = self._prefer_code_block_by_function(all_code_blocks, expected_func)
 
         # Fallback: return response if it looks like code
         if extracted_code is None and ('/*@' in response or '#include' in response or '{' in response):
@@ -1894,7 +1910,7 @@ class InvariantGenerator:
                         
                         # 提取代码：优先选包含目标函数名的代码块
                         extracted_code = None
-                        expected_func = f"main{self.file_name}"
+                        expected_func = self._extract_primary_function_name(code_with_template)
 
                         # 找所有 ```c ... ``` 代码块
                         all_code_blocks = re.findall(r'```c\n(.*?)\n```', response, re.DOTALL)
@@ -1902,14 +1918,7 @@ class InvariantGenerator:
                             all_code_blocks = re.findall(r'```\n(.*?)\n```', response, re.DOTALL)
 
                         if all_code_blocks:
-                            # 优先选包含目标函数名的代码块
-                            for block in all_code_blocks:
-                                if expected_func in block:
-                                    extracted_code = block
-                                    break
-                            # 回退：取第一个块
-                            if extracted_code is None:
-                                extracted_code = all_code_blocks[0]
+                            extracted_code = self._prefer_code_block_by_function(all_code_blocks, expected_func)
                         elif '/*@' in response or '#include' in response:
                             extracted_code = response.strip()
                         
@@ -1970,19 +1979,14 @@ class InvariantGenerator:
                     
                     # 提取代码：优先选包含目标函数名的代码块
                     extracted_code = None
-                    expected_func = f"main{self.file_name}"
+                    expected_func = self._extract_primary_function_name(code_with_template)
 
                     all_code_blocks = re.findall(r'```c\n(.*?)\n```', response, re.DOTALL)
                     if not all_code_blocks:
                         all_code_blocks = re.findall(r'```\n(.*?)\n```', response, re.DOTALL)
 
                     if all_code_blocks:
-                        for block in all_code_blocks:
-                            if expected_func in block:
-                                extracted_code = block
-                                break
-                        if extracted_code is None:
-                            extracted_code = all_code_blocks[0]
+                        extracted_code = self._prefer_code_block_by_function(all_code_blocks, expected_func)
                     elif '/*@' in response or '#include' in response:
                         extracted_code = response.strip()
                     
@@ -3121,8 +3125,8 @@ class InvariantGenerator:
                 strengthen_prompt,
                 error_type='assertion'
             )
-            expected_func = f"main{self.file_name}"
-            if not repaired_code or expected_func not in repaired_code:
+            expected_func = self._extract_primary_function_name(current_code)
+            if not repaired_code or (expected_func and expected_func not in repaired_code):
                 self.logger.warning("Strengthening stage: repair output is not valid C code, keeping previous code")
                 repaired_code = previous_code
 
