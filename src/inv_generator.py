@@ -204,6 +204,44 @@ class InvariantGenerator:
         )
         
         return updated_code
+
+    def _extract_loop_segment_with_optional_annotation(self, code: str, loop_idx: int) -> Optional[str]:
+        """
+        Extract loop segment by index and include the nearest ACSL block right before it.
+
+        Args:
+            code: Full C source code
+            loop_idx: Loop index (0-based)
+
+        Returns:
+            Loop segment text, or None if not found
+        """
+        loop_pattern = r'\b(for|while)\s*\([^)]*\)\s*{'
+        matches = list(re.finditer(loop_pattern, code))
+        if loop_idx >= len(matches):
+            return None
+
+        match = matches[loop_idx]
+        loop_start = match.start()
+        loop_end = match.end()
+
+        brace_count = 0
+        end_index = loop_end
+        code_list = list(code)
+        while end_index < len(code_list) and brace_count >= 0:
+            if code_list[end_index] == '{':
+                brace_count += 1
+            elif code_list[end_index] == '}':
+                brace_count -= 1
+            end_index += 1
+
+        segment_start = loop_start
+        prefix = code[:loop_start]
+        acsl_match = re.search(r'/\*@[\s\S]*?\*/\s*$', prefix)
+        if acsl_match:
+            segment_start = acsl_match.start()
+
+        return code[segment_start:end_index]
     
     def generate_invariant_for_loop(self, record: Dict, loop_idx: int, base_code: Optional[str] = None) -> Optional[str]:
         """Generate invariant for a single loop - check cache first, then use LLM with self-checking"""
@@ -2839,6 +2877,7 @@ class InvariantGenerator:
             # Reset invariants for this pass
             self.invariants = []
             current_code = original_code
+            loop_results = []
             
             # Try to generate invariants for all loops in this pass
             all_loops_success = True
@@ -2863,8 +2902,10 @@ class InvariantGenerator:
                     except Exception as e:
                         self.logger.debug(f"Could not load loop analysis: {e}")
                 
-                # Generate annotated code for this loop
-                annotated_code = self.generate_invariant_for_loop(record, loop_idx, base_code=current_code)
+                # Generate each loop invariant from the same base code in this pass.
+                # This avoids cross-loop interference and effectively handles multi-loop
+                # programs as a "simultaneous generation then merge" flow.
+                annotated_code = self.generate_invariant_for_loop(record, loop_idx, base_code=original_code)
 
                 # Track first_pass metrics from verifier state (regardless of success/failure)
                 if first_syntax_round is None and self.verifier.syntax_correct:
@@ -2875,7 +2916,15 @@ class InvariantGenerator:
                     first_satisfy_round = iteration + 1
 
                 if annotated_code:
-                    current_code = annotated_code
+                    loop_segment = self._extract_loop_segment_with_optional_annotation(annotated_code, loop_idx)
+                    if loop_segment:
+                        loop_results.append((loop_idx, loop_segment))
+                    else:
+                        self.logger.warning(
+                            f"Loop {loop_idx}: generated code found, but could not extract loop segment for merge."
+                        )
+                        all_loops_success = False
+
                     self.invariants.append({
                         'loop_idx': loop_idx,
                         'code': annotated_code
@@ -2899,6 +2948,14 @@ class InvariantGenerator:
                         'code': current_code
                     })
                     continue
+
+            # Merge all loop results into one final code for this pass.
+            # Apply by ascending loop index to keep target loop mapping stable.
+            if loop_results:
+                merged_code = original_code
+                for loop_idx, loop_segment in sorted(loop_results, key=lambda x: x[0]):
+                    merged_code = self._replace_loop_content(merged_code, loop_segment, loop_idx)
+                current_code = merged_code
 
             covered_loops, total_loops = self._count_loops_with_invariants(current_code)
             if total_loops > 0 and covered_loops < total_loops:

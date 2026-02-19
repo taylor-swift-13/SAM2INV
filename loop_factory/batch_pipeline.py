@@ -62,6 +62,33 @@ def count_loops_with_invariants(code: str) -> Tuple[int, int]:
     return covered, len(loop_matches)
 
 
+def extract_per_loop_invariants(code: str) -> List[List[str]]:
+    """
+    Extract invariants for each loop in order.
+    A loop gets invariants only from the immediately attached ACSL block.
+    """
+    loop_matches = list(re.finditer(r"\b(?:while|for)\s*\(", code))
+    if not loop_matches:
+        return []
+
+    ann_pat = re.compile(r"/\*[\s\S]*?\*/")
+    per_loop: List[List[str]] = []
+    for lm in loop_matches:
+        prefix = code[: lm.start()]
+        blocks = list(ann_pat.finditer(prefix))
+        if not blocks:
+            per_loop.append([])
+            continue
+        last = blocks[-1]
+        if prefix[last.end() :].strip():
+            per_loop.append([])
+            continue
+        block = last.group(0)
+        invs = [m.strip() for m in re.findall(r"loop invariant\s+([^;]+);", block)]
+        per_loop.append(invs)
+    return per_loop
+
+
 def canonicalize_identifiers(text: str) -> str:
     """
     Canonicalize identifiers to make signature invariant to variable renaming.
@@ -282,62 +309,75 @@ def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) ->
     invariants = gen._extract_invariants_from_code(annotated_code)
     if not invariants:
         return False, "empty invariants"
-    if len(invariants) < 2:
-        return False, "too few invariants"
     if any(is_tautological(inv) for inv in invariants):
         return False, "contains tautology"
-    useful_invs = [inv for inv in invariants if is_nontrivial_inv(inv)]
-    if not useful_invs:
+    if not [inv for inv in invariants if is_nontrivial_inv(inv)]:
         return False, "no nontrivial invariants"
 
-    loop_content = ""
-    if gen.sampler.records:
-        loop_content = gen.sampler.records[0].get("loop_content", "")
-    if has_repetitive_loop_updates(loop_content):
-        return False, "repetitive loop updates"
-    updated_vars = extract_updated_vars(loop_content)
-    if not updated_vars:
-        return False, "no updated vars extracted from loop"
-    loop_var = gen._extract_loop_variable(loop_content) if loop_content else None
-    non_loop_updated = [v for v in sorted(updated_vars) if v != loop_var]
-    if not non_loop_updated:
-        return False, "counter-only loop body"
+    per_loop_invs = extract_per_loop_invariants(annotated_code)
+    if len(per_loop_invs) < input_loops:
+        return False, f"per-loop invariant extraction mismatch: {len(per_loop_invs)}/{input_loops}"
 
-    vars_to_cover = set(updated_vars)
-    if loop_var:
-        vars_to_cover.add(loop_var)
+    if not gen.sampler.records or len(gen.sampler.records) < input_loops:
+        return False, f"loop records missing: {len(gen.sampler.records) if gen.sampler.records else 0}/{input_loops}"
 
-    for v in sorted(vars_to_cover):
-        if not any(re.search(rf"\b{re.escape(v)}\b", inv) for inv in useful_invs):
-            return False, f"var lacks nontrivial invariant: {v}"
+    for i in range(input_loops):
+        loop_content = gen.sampler.records[i].get("loop_content", "")
+        loop_invs = per_loop_invs[i]
 
-    # Prefer equality constraints for changed non-loop variables (soft ratio).
-    eq_covered = 0
-    for v in sorted(updated_vars):
-        if v == loop_var:
-            continue
-        has_eq = any(("==" in inv) and re.search(rf"\b{re.escape(v)}\b", inv) for inv in useful_invs)
-        if has_eq:
-            eq_covered += 1
-    if non_loop_updated:
-        need_eq = max(1, math.ceil(0.7 * len(non_loop_updated)))
-        if eq_covered < need_eq:
-            return False, f"insufficient equality coverage: {eq_covered}/{len(non_loop_updated)}"
+        if len(loop_invs) < 2:
+            return False, f"loop {i}: too few invariants"
+        if any(is_tautological(inv) for inv in loop_invs):
+            return False, f"loop {i}: contains tautology"
+        useful_invs = [inv for inv in loop_invs if is_nontrivial_inv(inv)]
+        if not useful_invs:
+            return False, f"loop {i}: no nontrivial invariants"
 
-    # Loop variable should have explicit lower + upper bound.
-    if loop_var:
-        lo_ok = any(
-            re.search(rf"\b{re.escape(loop_var)}\b\s*(>=|>)", inv)
-            or re.search(rf"(<=|<)\s*\b{re.escape(loop_var)}\b", inv)
-            for inv in useful_invs
-        )
-        hi_ok = any(
-            re.search(rf"\b{re.escape(loop_var)}\b\s*(<=|<)", inv)
-            or re.search(rf"(>=|>)\s*\b{re.escape(loop_var)}\b", inv)
-            for inv in useful_invs
-        )
-        if not (lo_ok and hi_ok):
-            return False, f"loop var lacks explicit bounds: {loop_var}"
+        if has_repetitive_loop_updates(loop_content):
+            return False, f"loop {i}: repetitive loop updates"
+        updated_vars = extract_updated_vars(loop_content)
+        if not updated_vars:
+            return False, f"loop {i}: no updated vars extracted from loop"
+        loop_var = gen._extract_loop_variable(loop_content) if loop_content else None
+        non_loop_updated = [v for v in sorted(updated_vars) if v != loop_var]
+        if not non_loop_updated:
+            return False, f"loop {i}: counter-only loop body"
+
+        vars_to_cover = set(updated_vars)
+        if loop_var:
+            vars_to_cover.add(loop_var)
+
+        for v in sorted(vars_to_cover):
+            if not any(re.search(rf"\b{re.escape(v)}\b", inv) for inv in useful_invs):
+                return False, f"loop {i}: var lacks nontrivial invariant: {v}"
+
+        # Prefer equality constraints for changed non-loop variables (soft ratio).
+        eq_covered = 0
+        for v in sorted(updated_vars):
+            if v == loop_var:
+                continue
+            has_eq = any(("==" in inv) and re.search(rf"\b{re.escape(v)}\b", inv) for inv in useful_invs)
+            if has_eq:
+                eq_covered += 1
+        if non_loop_updated:
+            need_eq = max(1, math.ceil(0.7 * len(non_loop_updated)))
+            if eq_covered < need_eq:
+                return False, f"loop {i}: insufficient equality coverage: {eq_covered}/{len(non_loop_updated)}"
+
+        # Loop variable should have explicit lower + upper bound.
+        if loop_var:
+            lo_ok = any(
+                re.search(rf"\b{re.escape(loop_var)}\b\s*(>=|>)", inv)
+                or re.search(rf"(<=|<)\s*\b{re.escape(loop_var)}\b", inv)
+                for inv in useful_invs
+            )
+            hi_ok = any(
+                re.search(rf"\b{re.escape(loop_var)}\b\s*(<=|<)", inv)
+                or re.search(rf"(>=|>)\s*\b{re.escape(loop_var)}\b", inv)
+                for inv in useful_invs
+            )
+            if not (lo_ok and hi_ok):
+                return False, f"loop {i}: loop var lacks explicit bounds: {loop_var}"
 
     if not has_no_assert(raw_code):
         return False, "input unexpectedly contains assert"
@@ -781,16 +821,22 @@ def main() -> None:
                             "augmentation": {"type": "none"},
                         }
                     )
-                    prompt_list = [p for p in result.get("all_prompts", []) if isinstance(p, str) and p.strip()]
-                    if not prompt_list and isinstance(result.get("user_prompt", ""), str) and result["user_prompt"].strip():
-                        prompt_list = [result["user_prompt"]]
-                    for p in prompt_list:
-                        api_item = {
-                            "instruction": result["system_prompt"],
-                            "input": p,
-                            "output": result["annotated"],
-                        }
-                        api_jsonl_file.write(json.dumps(api_item, ensure_ascii=False) + "\n")
+                    # One accepted program -> exactly one JSONL item.
+                    # Even for multi-loop programs, keep a single (instruction, input, output) row.
+                    prompt_text = ""
+                    if isinstance(result.get("user_prompt", ""), str) and result["user_prompt"].strip():
+                        prompt_text = result["user_prompt"]
+                    else:
+                        prompt_list = [p for p in result.get("all_prompts", []) if isinstance(p, str) and p.strip()]
+                        if prompt_list:
+                            prompt_text = prompt_list[0]
+
+                    api_item = {
+                        "instruction": result["system_prompt"],
+                        "input": prompt_text,
+                        "output": result["annotated"],
+                    }
+                    api_jsonl_file.write(json.dumps(api_item, ensure_ascii=False) + "\n")
                     api_jsonl_file.flush()
 
     # Clean up temp directories from this run and any previous incomplete runs.
