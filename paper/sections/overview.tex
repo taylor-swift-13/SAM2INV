@@ -1,0 +1,100 @@
+%% ============================================================
+\section{System Overview}\label{sec:overview}
+%% ============================================================
+
+Figure~\ref{fig:pipeline} illustrates the end-to-end \textsc{SAM2INV} pipeline.
+The system takes as input a C function containing a \texttt{while} loop,
+a precondition (\texttt{requires}), and a postcondition (\texttt{assert}).
+It outputs the same function annotated with ACSL loop invariants and a
+\texttt{loop assigns} clause, such that Frama-C/WP can fully verify the
+postcondition.
+
+\begin{figure}[t]
+\centering
+\fbox{\parbox{0.95\columnwidth}{%
+\small
+\begin{center}\textbf{\textsc{SAM2INV} Pipeline}\end{center}
+\vspace{-0.5em}
+\begin{enumerate}\setlength{\itemsep}{0pt}
+\item[\ding{182}] \textbf{Smart Sampling} --- Execute the program with tiered inputs; collect execution traces.
+\item[\ding{183}] \textbf{Vector Cache Lookup} --- Query a vector database for previously solved similar programs.
+\item[\ding{184}] \textbf{Parallel LLM Generation} --- Issue $N$ parallel LLM calls with diverse prompts and temperatures; parse candidate invariants.
+\item[\ding{185}] \textbf{Trace-Based Filtering} --- Validate each candidate against the collected traces; discard inconsistent ones.
+\item[\ding{186}] \textbf{Houdini Pruning} --- Iteratively remove non-inductive invariants via Frama-C/WP verification.
+\item[\ding{187}] \textbf{Iterative Repair} --- If verification fails, feed error messages back to the LLM to strengthen invariants; repeat up to $K$ iterations.
+\item[\ding{188}] \textbf{Output} --- Return annotated C code (or report failure).
+\end{enumerate}
+}}
+\caption{High-level pipeline of \textsc{SAM2INV}. Steps \ding{186}--\ding{187} form
+a feedback loop that is guaranteed to terminate.}
+\label{fig:pipeline}
+\end{figure}
+
+The pipeline operates in three broad phases:
+
+\paragraph{Phase~I: Trace Collection (Steps \ding{182}--\ding{183}).}
+The target program is compiled and executed under a set of
+carefully chosen inputs produced by the \emph{smart sampler}
+(Section~\ref{sec:sampling}).
+Execution traces---recording variable values at every loop
+iteration---are collected and formatted into structured text.
+Before invoking the LLM, the system also queries a vector
+database (ChromaDB) to retrieve solutions for similar programs
+seen in prior runs, providing few-shot context.
+
+\paragraph{Phase~II: Generation and Filtering (Steps \ding{184}--\ding{185}).}
+Multiple LLM instances are queried in parallel, each receiving
+a prompt assembled from the source code, the execution traces,
+a system prompt encoding ACSL rules, and (optionally) cached
+examples.
+Prompt diversity is achieved by varying the template and the
+sampling temperature.
+The resulting candidate invariants are first checked for ACSL
+syntax compliance, then validated against the execution traces:
+any invariant that is falsified by at least one observed state
+is immediately discarded.
+
+\paragraph{Phase~III: Verification and Repair (Steps \ding{186}--\ding{188}).}
+Surviving candidates are combined and verified by Frama-C/WP.
+If some invariants fail, the Houdini pruner removes the failing
+subset and re-verifies; this process is guaranteed to terminate
+because at least one invariant is removed per iteration.
+If the pruned set is still insufficient to prove the postcondition,
+the system enters an \emph{iterative repair} loop:
+verification error messages are sent to the LLM, which proposes
+strengthened or additional invariants.
+The repair loop runs for at most $K$ iterations
+(configurable; default $K{=}10$).
+
+\paragraph{Running Example.}
+Consider the following program that computes the cube of~$n$:
+
+\begin{lstlisting}
+/*@ requires a>=n && n==0; */
+int main1(int a, int n){
+  int x, y, z;
+  x=0; y=1; z=6;
+  while(n <= a){
+    n=n+1; x=x+y; y=y+z; z=z+6;
+  }
+  /*@ assert (n==a+1) && (y==3*n*n+3*n+1)
+          && (x==n*n*n) && (z==6*n+6); */
+}
+\end{lstlisting}
+
+The smart sampler executes this program with $a \in \{0,1,\ldots,10\}$
+and collects traces such as:
+\[
+\small
+\begin{array}{cccc}
+\text{iter} & n & x & y \\
+\hline
+0 & 0 & 0 & 1 \\
+1 & 1 & 1 & 7 \\
+2 & 2 & 8 & 25 \\
+\end{array}
+\]
+From these traces, the LLM discovers the relationships
+$x = n^3$, $y = 3n^2+3n+1$, $z = 6n+6$, and $n \le a+1$.
+After Houdini pruning confirms all four invariants are inductive,
+Frama-C/WP verifies the postcondition in a single pass.

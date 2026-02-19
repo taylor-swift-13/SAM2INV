@@ -41,6 +41,27 @@ def count_loops(code: str) -> int:
     return len(re.findall(r"\bwhile\s*\(", code)) + len(re.findall(r"\bfor\s*\(", code))
 
 
+def count_loops_with_invariants(code: str) -> Tuple[int, int]:
+    loop_matches = list(re.finditer(r"\b(?:while|for)\s*\(", code))
+    if not loop_matches:
+        return 0, 0
+
+    ann_pat = re.compile(r"/\*[\s\S]*?\*/")
+    covered = 0
+    for lm in loop_matches:
+        prefix = code[: lm.start()]
+        blocks = list(ann_pat.finditer(prefix))
+        if not blocks:
+            continue
+        last = blocks[-1]
+        # Only treat as loop annotation if directly attached (except whitespace).
+        if prefix[last.end() :].strip():
+            continue
+        if "loop invariant" in last.group(0):
+            covered += 1
+    return covered, len(loop_matches)
+
+
 def canonicalize_identifiers(text: str) -> str:
     """
     Canonicalize identifiers to make signature invariant to variable renaming.
@@ -249,8 +270,14 @@ def is_nontrivial_inv(inv: str) -> bool:
 
 
 def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) -> Tuple[bool, str]:
-    if count_loops(raw_code) != 1:
-        return False, "not single-loop input"
+    input_loops = count_loops(raw_code)
+    if input_loops < 1:
+        return False, "no loop in input"
+    covered_loops, total_loops = count_loops_with_invariants(annotated_code)
+    if total_loops < input_loops:
+        return False, f"loop count mismatch after generation: {total_loops}/{input_loops}"
+    if covered_loops < input_loops:
+        return False, f"missing loop invariants: {covered_loops}/{input_loops}"
 
     invariants = gen._extract_invariants_from_code(annotated_code)
     if not invariants:
@@ -364,14 +391,14 @@ def loop_factory_hyperparams(seed: int, out_dir: Path) -> Dict[str, object]:
         "seed": seed,
         "max_vars": 3,
         "params": 2,
-        "min_loops": 1,
-        "max_loops": 1,
+        "min_loops": 2,
+        "max_loops": 2,
         "max_assign": 3,
-        "max_ifelse": 6,
-        "max_depth": 1,
+        "max_ifelse": 0,
+        "max_depth": 2,
         "p_multi": 0.0,
         "q_nest": 0.0,
-        "p_nonlinear": 0.80,
+        "p_nonlinear": 0.00,
         "nonlinear_strength": 0.50,
         "p_semantic_core": 0.30,
         "w_core_rel_guard": 1.0,
@@ -426,7 +453,12 @@ def run_one_attempt(
             input_subdir=src_input_dir.name,
         )
 
-        captured = {"user_prompt": "", "raw_response": "", "prompt_count": 0}
+        captured = {
+            "user_prompt": "",
+            "raw_response": "",
+            "prompt_count": 0,
+            "all_prompts": [],
+        }
         original_chat = gen.llm.chat
         original_select_prompt = getattr(gen, "_select_prompt_for_candidate", None)
 
@@ -434,6 +466,8 @@ def run_one_attempt(
             if stop_event.is_set():
                 raise RuntimeError("cancelled")
             captured["prompt_count"] += 1
+            if isinstance(user_input, str) and user_input.strip():
+                captured["all_prompts"].append(user_input)
             resp = original_chat(user_input)
             if not captured["user_prompt"]:
                 captured["user_prompt"] = user_input
@@ -444,9 +478,11 @@ def run_one_attempt(
         if callable(original_select_prompt):
             def select_prompt_capture(candidate_idx: int, loop_context: str, code_with_template: str):
                 prompt, prompt_name = original_select_prompt(candidate_idx, loop_context, code_with_template)
-                if not captured["user_prompt"] and isinstance(prompt, str) and prompt.strip():
+                if isinstance(prompt, str) and prompt.strip():
                     # In multi-candidate mode, real LLM calls may bypass gen.llm.chat.
-                    captured["user_prompt"] = prompt
+                    captured["all_prompts"].append(prompt)
+                    if not captured["user_prompt"]:
+                        captured["user_prompt"] = prompt
                 return prompt, prompt_name
             gen._select_prompt_for_candidate = select_prompt_capture  # type: ignore[assignment]
 
@@ -487,6 +523,7 @@ def run_one_attempt(
             "user_prompt": captured["user_prompt"],
             "raw_model_output": captured["raw_response"],
             "prompt_count": captured["prompt_count"],
+            "all_prompts": captured["all_prompts"],
             "model": model_name,
             "system_prompt": system_prompt,
             "loop_factory_hyperparams": hparams,
@@ -744,12 +781,16 @@ def main() -> None:
                             "augmentation": {"type": "none"},
                         }
                     )
-                    api_item = {
-                        "instruction": result["system_prompt"],
-                        "input": result["user_prompt"],
-                        "output": result["annotated"],
-                    }
-                    api_jsonl_file.write(json.dumps(api_item, ensure_ascii=False) + "\n")
+                    prompt_list = [p for p in result.get("all_prompts", []) if isinstance(p, str) and p.strip()]
+                    if not prompt_list and isinstance(result.get("user_prompt", ""), str) and result["user_prompt"].strip():
+                        prompt_list = [result["user_prompt"]]
+                    for p in prompt_list:
+                        api_item = {
+                            "instruction": result["system_prompt"],
+                            "input": p,
+                            "output": result["annotated"],
+                        }
+                        api_jsonl_file.write(json.dumps(api_item, ensure_ascii=False) + "\n")
                     api_jsonl_file.flush()
 
     # Clean up temp directories from this run and any previous incomplete runs.

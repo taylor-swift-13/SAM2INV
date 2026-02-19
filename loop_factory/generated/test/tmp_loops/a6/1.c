@@ -1,13 +1,19 @@
-int main1(int m,int p){
-  int l, i, v, j;
+int main1(int n,int q){
+  int l, i, v;
 
-  l=68;
-  i=1;
-  v=p;
-  j=-5;
+  l=q+8;
+  i=0;
+  v=2;
 
   while (i<l) {
-      i = i*3;
+      v = v+1;
+      v = q-v;
+      i = i+1;
+  }
+
+  while (l>0) {
+      i = i+1;
+      l = l-1;
   }
 
 }

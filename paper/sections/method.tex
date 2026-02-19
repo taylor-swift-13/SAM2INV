@@ -1,0 +1,222 @@
+%% ============================================================
+\section{Method}\label{sec:method}
+%% ============================================================
+
+We now describe each component of \textsc{SAM2INV} in detail.
+
+%% ------------------------------------------------------------
+\subsection{Smart Dynamic Sampling}\label{sec:sampling}
+%% ------------------------------------------------------------
+
+The purpose of dynamic sampling is to collect execution traces that
+expose the mathematical relationships maintained by the loop.
+Naive random sampling often produces inputs that are either too
+simple (all zeros) or too large (causing integer overflow or
+time-outs).
+We therefore adopt a \emph{tiered} sampling strategy that
+prioritises simple, informative values while gradually introducing
+diversity.
+
+\begin{definition}[Value Tiers]
+Given a parameter variable $v$ with domain $[l, u]$, we define
+four value tiers:
+\begin{align*}
+\mathcal{T}_0 &= \{0, 1, -1\} \cap [l,u] && \text{(special values)} \\
+\mathcal{T}_1 &= \{2,3,\ldots,10\} \cap [l,u] && \text{(small integers)} \\
+\mathcal{T}_2 &\subseteq \{11,\ldots,50\} \cap [l,u] && \text{(medium, sampled)} \\
+\mathcal{T}_3 &\subseteq \{51,\ldots,100\} \cap [l,u] && \text{(large, sampled)}
+\end{align*}
+\end{definition}
+
+Sampling proceeds in phases:
+\begin{enumerate}
+\item \textbf{Phase~1:} Generate the Cartesian product over $\mathcal{T}_0$
+      for all parameters.  These ``corner cases'' are ideal for fitting
+      low-degree polynomials.
+\item \textbf{Phase~2:} Mix $\mathcal{T}_0$ and $\mathcal{T}_1$ to add
+      coverage of small positive integers.
+\item \textbf{Phase~3:} Include all tiers, prioritising combinations with
+      lower total tier index.
+\item \textbf{Phase~4:} Fill remaining quota with biased random sampling
+      (80\% probability of choosing values $\le 20$).
+\end{enumerate}
+
+Each input is executed, and the variable state at every loop iteration
+is recorded.  To keep prompts within LLM context limits, we retain
+only the first and last $k$ iterations per run (default $k{=}3$)
+and group traces into at most $G$ groups (default $G{=}10$).
+
+%% ------------------------------------------------------------
+\subsection{LLM-Based Invariant Generation}\label{sec:generation}
+%% ------------------------------------------------------------
+
+\paragraph{Prompt Design.}
+Each LLM prompt is assembled from four components:
+\begin{enumerate}
+\item A \emph{system prompt} that defines the task (loop invariant
+      synthesis for Frama-C/WP), lists allowed and forbidden ACSL
+      constructs, and encodes the assertion-driven synthesis strategy
+      (decompose postcondition conjuncts, add boundary invariants,
+      preserve unmodified parameters).
+\item The \emph{source code} of the target function.
+\item \emph{Execution traces} formatted as structured variable--value
+      tables (Section~\ref{sec:sampling}).
+\item (Optional) \emph{Cached examples} retrieved from a ChromaDB
+      vector store, providing few-shot demonstrations of similar
+      solved programs.
+\end{enumerate}
+
+\paragraph{Assertion-Driven Strategy.}
+A key insight is that the postcondition assertion directly suggests
+invariant candidates:
+\begin{enumerate}
+\item Each conjunct of the assertion (split on \texttt{\&\&}) is a
+      candidate invariant.
+\item For a loop guard of the form \lstinline|i < n|, the weakened
+      form \lstinline|i <= n| is an inductive boundary invariant.
+\item Function parameters not modified in the loop body are preserved:
+      \lstinline|v == \at(v, Pre)|.
+\end{enumerate}
+
+\paragraph{Parallel Diverse Generation.}
+To maximise the chance of finding the correct invariant set, we issue
+$N$ parallel LLM calls (default $N{=}5$) using a thread pool.
+Diversity is introduced along two axes:
+\begin{itemize}
+\item \textbf{Temperature.}  We use $\tau \ge 1.0$ to encourage
+      diverse completions.
+\item \textbf{Prompt variation.}  Different calls may use different
+      prompt templates or include/exclude cached examples.
+\end{itemize}
+All $N$ responses are parsed, and the union of candidate invariants
+forms the initial candidate pool.
+
+%% ------------------------------------------------------------
+\subsection{Trace-Based Filtering}\label{sec:filtering}
+%% ------------------------------------------------------------
+
+Before invoking the expensive Frama-C verifier, we apply lightweight
+filters to eliminate clearly incorrect candidates.
+
+\paragraph{Syntax Filter.}
+Each candidate is checked against ACSL syntax rules:
+\begin{itemize}
+\item No quantifiers (\lstinline|\forall|, \lstinline|\exists|).
+\item No custom definitions (\texttt{predicate}, \texttt{logic}, \texttt{lemma}).
+\item No ternary operator (\texttt{? :}).
+\item \lstinline|\at(v, Pre)| only on function parameters.
+\item No exponentiation (\texttt{\^{}} is bitwise XOR in ACSL);
+      use repeated multiplication instead.
+\end{itemize}
+
+\paragraph{Semantic Filter.}
+Each candidate invariant is evaluated against the collected execution
+traces.  A candidate that is \emph{falsified} by any observed loop
+state is discarded.  While this does not guarantee inductiveness
+(the traces are finite), it eliminates a large fraction of
+incorrect candidates cheaply.
+
+%% ------------------------------------------------------------
+\subsection{Houdini Pruning}\label{sec:houdini}
+%% ------------------------------------------------------------
+
+After filtering, the surviving candidate set is verified by
+Frama-C/WP.  Typically, some candidates fail because they are
+not inductive (they hold at every observed state but are not
+preserved by one more iteration from an arbitrary state).
+
+We apply the Houdini algorithm~\cite{flanagan2001houdini}:
+
+\begin{figure}[t]
+\centering
+\fbox{\parbox{0.92\columnwidth}{\small
+\textbf{Algorithm: Houdini Pruning}\label{alg:houdini}\\[2pt]
+\textbf{Input:} Candidate set $C$, verifier $\mathcal{V}$\\
+\textbf{Output:} Maximal inductive subset $C^* \subseteq C$\\[2pt]
+1: $C^* \leftarrow C$\\
+2: \textbf{repeat}\\
+3: \quad $R \leftarrow \mathcal{V}(C^*)$ \hfill\textit{// verify each invariant}\\
+4: \quad $F \leftarrow \{c \in C^* \mid R(c) = \textit{fail}\}$\\
+5: \quad $C^* \leftarrow C^* \setminus F$\\
+6: \textbf{until} $F = \emptyset$ \textbf{or} $C^* = \emptyset$\\
+7: \textbf{return} $C^*$
+}}
+\caption{Houdini-style pruning algorithm.}
+\end{figure}
+
+\begin{theorem}[Termination]
+Algorithm~\ref{alg:houdini} terminates in at most $|C|$ iterations,
+since each iteration removes at least one candidate.
+\end{theorem}
+
+The Houdini pruner is implemented as a standalone module that depends
+only on Frama-C, not on the LLM.  It can therefore be applied to
+\emph{any} set of candidate invariants, regardless of their source.
+
+%% ------------------------------------------------------------
+\subsection{Iterative Repair}\label{sec:repair}
+%% ------------------------------------------------------------
+
+If the Houdini-pruned set is non-empty but insufficient to prove
+the postcondition (i.e., Frama-C/WP reports \textsc{Unknown} for
+the assertion goal), the system enters an iterative repair loop:
+
+\begin{enumerate}
+\item Extract the Frama-C error messages, identifying which
+      proof obligations failed and why.
+\item Construct a \emph{repair prompt} containing the current
+      annotated code, the error messages, and instructions to
+      strengthen or add invariants.
+\item Send the repair prompt to the LLM and parse the response.
+\item Apply the updated invariants and re-run Houdini pruning
+      and verification.
+\end{enumerate}
+
+This loop runs for at most $K$ iterations (default $K{=}10$).
+Each iteration either makes progress (by adding or strengthening
+invariants) or exhausts the budget, at which point the system
+reports failure.
+
+%% ------------------------------------------------------------
+\subsection{Generation Modes}\label{sec:modes}
+%% ------------------------------------------------------------
+
+\textsc{SAM2INV} supports three generation modes, selectable via
+configuration:
+
+\begin{description}
+\item[\texttt{code\_only}:]
+  The LLM receives only the source code and system prompt.
+  Execution traces are not used.
+\item[\texttt{fit\_only}:]
+  The LLM receives only execution traces and is asked to discover
+  mathematical relationships (the \textsc{LLMFit} module).
+  The source code is not shown.
+\item[\texttt{hybrid} (default):]
+  The LLM first analyses traces via \textsc{LLMFit} to discover
+  candidate relationships.  These are injected as hints into the
+  code-generation prompt, combining trace-based insight with
+  code-level context.
+\end{description}
+
+The \texttt{hybrid} mode consistently outperforms the other two
+(Section~\ref{sec:experiments}), confirming that traces and code
+provide complementary signals.
+
+%% ------------------------------------------------------------
+\subsection{Vector Cache}\label{sec:cache}
+%% ------------------------------------------------------------
+
+To amortise effort across runs, \textsc{SAM2INV} maintains a
+ChromaDB vector store that indexes solved programs by their
+code embeddings.
+When a new program arrives, the system queries the store for the
+$k$ most similar programs (by cosine similarity) and includes
+their invariant annotations in the prompt as few-shot examples.
+After a successful verification, the new program--invariant pair
+is added to the store.
+This simple caching mechanism provides two benefits:
+(1)~it reduces LLM query cost for programs similar to previously
+solved ones, and
+(2)~it provides the LLM with concrete, verified examples that
+improve generation accuracy.

@@ -37,6 +37,17 @@ def to_acsl_state_expr(expr: str) -> str:
     return out
 
 
+def to_nl_transition_text(text: str) -> str:
+    """Normalize transition text into natural language (no @last/@pre markers)."""
+    if not text:
+        return ""
+    out = text.strip()
+    out = re.sub(r"\b([A-Za-z_]\w*)@last\b", r"\1 at loop-step start", out, flags=re.IGNORECASE)
+    out = re.sub(r"\b([A-Za-z_]\w*)@pre\b", r"initial \1", out, flags=re.IGNORECASE)
+    out = re.sub(r"\s+", " ", out).strip()
+    return out
+
+
 class InvariantGenerator:
     """Loop invariant generator with iterative repair functionality"""
     
@@ -194,7 +205,7 @@ class InvariantGenerator:
         
         return updated_code
     
-    def generate_invariant_for_loop(self, record: Dict, loop_idx: int) -> Optional[str]:
+    def generate_invariant_for_loop(self, record: Dict, loop_idx: int, base_code: Optional[str] = None) -> Optional[str]:
         """Generate invariant for a single loop - check cache first, then use LLM with self-checking"""
         self.logger.info(f"Generating invariant for loop {loop_idx}...")
 
@@ -252,8 +263,10 @@ class InvariantGenerator:
                     self.logger.warning(f"Error during cache lookup: {e}")
                     # Continue with normal generation if cache fails
 
-        # 1. Get original input code
-        original_code = self._get_full_source_code()
+        # 1. Get base code for this loop.
+        # In multi-loop cases, caller should pass progressively annotated code
+        # so previously generated invariants are preserved.
+        original_code = base_code if isinstance(base_code, str) and base_code.strip() else self._get_full_source_code()
         if not original_code:
             self.logger.error("Could not read original input code")
             return None
@@ -1534,7 +1547,7 @@ class InvariantGenerator:
         # Extract loop information (without traces)
         loop_code_snippet = record.get('loop_content', '')
         pre_condition = record.get('pre_condition', '')
-        transition_relation = record.get('transition_relation', '')
+        transition_relation = to_nl_transition_text(record.get('transition_relation', ''))
         
         # Extract variable information from record
         known_vars = set()
@@ -2330,6 +2343,27 @@ class InvariantGenerator:
         # Clean up invariants (remove extra whitespace)
         invariants = [inv.strip() for inv in matches]
         return invariants
+
+    def _count_loops_with_invariants(self, code: str) -> tuple:
+        """Count total loops and loops directly preceded by a loop-invariant block."""
+        loop_matches = list(re.finditer(r'\b(?:while|for)\s*\(', code))
+        if not loop_matches:
+            return 0, 0
+
+        ann_pat = re.compile(r'/\*[\s\S]*?\*/')
+        covered = 0
+        for lm in loop_matches:
+            prefix = code[:lm.start()]
+            blocks = list(ann_pat.finditer(prefix))
+            if not blocks:
+                continue
+            last = blocks[-1]
+            # Annotation must be adjacent to loop except whitespace.
+            if prefix[last.end():].strip():
+                continue
+            if 'loop invariant' in last.group(0):
+                covered += 1
+        return covered, len(loop_matches)
     
     def _rebuild_code_with_invariants(self, code: str, invariants: List[str]) -> str:
         """
@@ -2830,7 +2864,7 @@ class InvariantGenerator:
                         self.logger.debug(f"Could not load loop analysis: {e}")
                 
                 # Generate annotated code for this loop
-                annotated_code = self.generate_invariant_for_loop(record, loop_idx)
+                annotated_code = self.generate_invariant_for_loop(record, loop_idx, base_code=current_code)
 
                 # Track first_pass metrics from verifier state (regardless of success/failure)
                 if first_syntax_round is None and self.verifier.syntax_correct:
@@ -2853,6 +2887,7 @@ class InvariantGenerator:
                         f"Failed to generate invariant for loop {loop_idx} in pass {iteration + 1}; "
                         f"falling back to original loop code."
                     )
+                    all_loops_success = False
                     # Fallback code has no loop invariants to establish/preserve.
                     # Treat syntax/valid as passed for first-pass bookkeeping.
                     if first_syntax_round is None:
@@ -2864,6 +2899,13 @@ class InvariantGenerator:
                         'code': current_code
                     })
                     continue
+
+            covered_loops, total_loops = self._count_loops_with_invariants(current_code)
+            if total_loops > 0 and covered_loops < total_loops:
+                self.logger.warning(
+                    f"Pass {iteration + 1}: missing loop invariants ({covered_loops}/{total_loops}), retrying..."
+                )
+                all_loops_success = False
 
             # If any loop failed, try next pass
             if not all_loops_success:
@@ -2917,7 +2959,14 @@ class InvariantGenerator:
         
         # Return the final code if we have invariants
         if self.invariants:
-            return self.invariants[-1]['code']
+            final_code = self.invariants[-1]['code']
+            covered_loops, total_loops = self._count_loops_with_invariants(final_code)
+            if total_loops > 0 and covered_loops < total_loops:
+                self.logger.error(
+                    f"Generation failed: some loops have no invariants ({covered_loops}/{total_loops})"
+                )
+                return None
+            return final_code
         return None
     
     def _strengthen_invariants_iterative(self, code: str, c_file_path: str, record: Dict, loop_idx: int, max_iterations: int = MAX_STRENGTHEN_ITERATIONS) -> Optional[str]:

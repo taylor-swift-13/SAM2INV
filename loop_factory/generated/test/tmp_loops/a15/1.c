@@ -1,14 +1,17 @@
-int main1(int m,int p){
-  int l, i, v;
+int main1(int b,int m){
+  int l, i, v, j;
 
-  l=p+11;
-  i=l;
-  v=5;
+  l=(b%29)+5;
+  i=0;
+  v=m;
+  j=l;
 
-  while (i>0) {
-      v = v*v+v;
-      v = v*v;
-      i = i-1;
+  while (i<l) {
+      i = i+1;
+  }
+
+  while (v<j) {
+      v = v+1;
   }
 
 }

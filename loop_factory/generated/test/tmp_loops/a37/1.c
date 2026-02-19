@@ -1,14 +1,19 @@
-int main1(int n,int q){
+int main1(int b,int n){
   int l, i, v;
 
-  l=q+8;
+  l=74;
   i=0;
   v=2;
 
   while (i<l) {
-      if (i+1<=q+l) {
-          v = v*2;
-      }
+      v = v-v;
+      v = v+i;
+      i = i+2;
+  }
+
+  while (i<l) {
+      v = v*i;
+      v = v-v;
       i = i+1;
   }
 

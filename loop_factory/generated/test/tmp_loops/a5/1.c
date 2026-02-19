@@ -1,18 +1,21 @@
-int main1(int m,int q){
-  int l, i, v;
+int main1(int a,int q){
+  int l, i, v, b;
 
-  l=m;
-  i=l;
-  v=-3;
+  l=q;
+  i=0;
+  v=q;
+  b=a;
 
-  while (i>0) {
-      if (m<v+1) {
-          v = v+v;
-      }
-      else {
-          v = m+m;
-      }
-      i = i/2;
+  while (i<l) {
+      v = v+1;
+      b = b+v;
+      i = i+1;
+  }
+
+  while (v<i) {
+      b = b+1;
+      b = b+b;
+      v = v+1;
   }
 
 }

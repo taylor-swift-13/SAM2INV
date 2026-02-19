@@ -1,13 +1,17 @@
 int main1(int k,int m){
   int l, i, v;
 
-  l=m;
+  l=73;
   i=l;
-  v=2;
+  v=k;
 
   while (i>0) {
-      v = v%6;
       i = i/2;
+  }
+
+  while (l<v) {
+      i = i+l;
+      l = l+1;
   }
 
 }

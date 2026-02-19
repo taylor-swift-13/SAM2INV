@@ -1,15 +1,20 @@
-int main1(int a,int n){
+int main1(int k,int m){
   int l, i, v;
 
-  l=n;
-  i=0;
-  v=l;
+  l=m;
+  i=l;
+  v=8;
 
-  while (i<l) {
-      if ((i%3)==0) {
-          v = v*v;
-      }
-      i = i+1;
+  while (i>0) {
+      v = v-(-5);
+      v = v+3;
+      i = i-1;
+  }
+
+  while (l<i) {
+      v = v+l;
+      v = v+2;
+      l = l+4;
   }
 
 }

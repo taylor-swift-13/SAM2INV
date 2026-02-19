@@ -1,15 +1,18 @@
-int main1(int m,int p){
-  int l, i, v;
+int main1(int b,int k){
+  int l, i, v, f;
 
-  l=56;
+  l=b;
   i=1;
-  v=p;
+  v=b;
+  f=-2;
 
   while (i<l) {
-      if (m*m<=l+2) {
-          v = v*2;
-      }
       i = i*3;
+  }
+
+  while (v<i) {
+      f = f+1;
+      v = v+1;
   }
 
 }

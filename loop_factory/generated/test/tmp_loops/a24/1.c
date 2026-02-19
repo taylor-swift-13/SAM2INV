@@ -1,15 +1,17 @@
-int main1(int k,int m){
-  int l, i, v, o;
+int main1(int m,int q){
+  int l, i, v;
 
-  l=77;
+  l=(q%22)+10;
   i=l;
-  v=-3;
-  o=-3;
+  v=-5;
 
   while (i>0) {
-      v = v*3;
-      o = o/3;
-      v = v*v+v;
+      i = i-1;
+  }
+
+  while (i>0) {
+      v = v+1;
+      i = i-1;
   }
 
 }

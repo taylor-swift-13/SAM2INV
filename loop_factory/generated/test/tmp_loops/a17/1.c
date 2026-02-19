@@ -1,15 +1,19 @@
-int main1(int n,int q){
-  int l, i, v;
+int main1(int k,int n){
+  int l, i, v, y;
 
-  l=21;
+  l=k+19;
   i=0;
-  v=q;
+  v=4;
+  y=n;
 
   while (i<l) {
-      if ((i%9)==0) {
-          v = v+v;
-      }
-      i = i+1;
+      v = v*2;
+      y = y/2;
+      v = v+1;
+  }
+
+  while (v<i) {
+      v = v+1;
   }
 
 }

@@ -1,14 +1,18 @@
-int main1(int k,int m){
-  int l, i, v;
+int main1(int n,int p){
+  int l, i, v, g;
 
-  l=(k%14)+7;
+  l=n-4;
   i=0;
   v=l;
+  g=l;
 
   while (i<l) {
-      if (i+6<=v+l) {
-          v = v*v;
-      }
+      v = v+1;
+      g = g+1;
+  }
+
+  while (i<g) {
+      l = n*(-1);
       i = i+1;
   }
 

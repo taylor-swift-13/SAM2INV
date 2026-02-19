@@ -1,12 +1,17 @@
-int main1(int m,int n){
+int main1(int a,int b){
   int l, i, v;
 
-  l=m;
-  i=1;
-  v=l;
+  l=a-2;
+  i=l;
+  v=-5;
 
-  while (i<l) {
-      i = i*3;
+  while (i>0) {
+      v = v+v;
+      i = i-1;
+  }
+
+  while (v<i) {
+      v = v+1;
   }
 
 }

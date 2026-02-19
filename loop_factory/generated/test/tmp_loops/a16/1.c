@@ -1,14 +1,17 @@
-int main1(int b,int n){
-  int l, i, v, e;
+int main1(int a,int k){
+  int l, i, v;
 
-  l=62;
-  i=l;
-  v=l;
-  e=n;
+  l=(k%13)+18;
+  i=0;
+  v=-3;
 
-  while (i>0) {
-      v = v*4+3;
-      e = e*v+3;
+  while (i<l) {
+      i = i+1;
+  }
+
+  while (v<l) {
+      i = i-i;
+      v = v+1;
   }
 
 }

@@ -1,13 +1,19 @@
-int main1(int b,int q){
-  int l, i, v, y;
+int main1(int m,int n){
+  int l, i, v, r;
 
-  l=(q%35)+10;
-  i=l;
-  v=b;
-  y=l;
+  l=67;
+  i=0;
+  v=n;
+  r=l;
 
-  while (i>0) {
-      i = i/2;
+  while (i<l) {
+      i = i+1;
+  }
+
+  while (v<l) {
+      i = i+i;
+      i = i+r;
+      v = v+1;
   }
 
 }

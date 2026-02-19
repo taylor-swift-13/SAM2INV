@@ -1,17 +1,21 @@
-int main1(int k,int m){
-  int l, i, v, p;
+int main1(int n,int p){
+  int l, i, v, a;
 
-  l=27;
+  l=n-4;
   i=0;
-  v=l;
-  p=k;
+  v=i;
+  a=p;
 
-  while (v<l) {
-      if (v<l) {
-          v = v+1;
-      }
-      v = v+4;
-      p = p+1;
+  while (i<l) {
+      v = v*4;
+      a = a/4;
+      v = v+a+a;
+  }
+
+  while (a>0) {
+      i = i-i;
+      i = i+a;
+      a = a-1;
   }
 
 }

@@ -1,16 +1,17 @@
-int main1(int a,int k){
-  int l, i, v, c;
+int main1(int k,int p){
+  int l, i, v;
 
-  l=(a%16)+9;
-  i=1;
-  v=l;
-  c=a;
+  l=(p%38)+5;
+  i=0;
+  v=i;
+
+  while (i<l) {
+      v = v+4;
+      i = i+1;
+  }
 
   while (v<l) {
-      if (v<l) {
-          v = v+1;
-      }
-      v = v+c;
+      v = v+4;
   }
 
 }

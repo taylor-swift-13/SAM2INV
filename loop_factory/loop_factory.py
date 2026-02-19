@@ -395,21 +395,38 @@ class ProbabilisticLoopFactory:
         src = self.rng.choice(list(params)) if params else "1"
         nla_family = self.rng.random() < self.hp.p_nonlinear
 
-        if remaining_local_budget < 3:
-            raise ValueError("remaining_local_budget must be at least 3")
+        # Allow loops to share existing locals when new-local budget is tight.
+        reusable = [v for v in dict.fromkeys(universe) if v not in params]
+        use_shared_locals = remaining_local_budget < 3 and len(reusable) >= 3
 
-        ctr = alloc.alloc("i")
-        lim = alloc.alloc("l")
-        # Reserve 2 locals for loop control (ctr/lim), others for state vars.
-        state_cap = max(1, remaining_local_budget - 2)
-        state_vars = self._sample_state_vars(alloc, nla_family, state_cap)
+        if use_shared_locals:
+            ctr = self.rng.choice(reusable)
+            lim_candidates = [v for v in reusable if v != ctr]
+            lim = self.rng.choice(lim_candidates) if lim_candidates else ctr
+            state_pool = [v for v in reusable if v not in {ctr, lim}] or [ctr]
+            max_state = max(1, min(len(state_pool), 6))
+            if nla_family:
+                lo = 2 if max_state >= 2 else 1
+                state_n = self.rng.randint(lo, max_state)
+            else:
+                state_n = self.rng.randint(1, max_state)
+            state_vars = self.rng.sample(state_pool, k=min(state_n, len(state_pool)))
+        else:
+            ctr = alloc.alloc("i")
+            lim = alloc.alloc("l")
+            # Reserve 2 locals for loop control (ctr/lim), others for state vars.
+            state_cap = max(1, remaining_local_budget - 2)
+            state_vars = self._sample_state_vars(alloc, nla_family, state_cap)
 
         ctrl_inits, guard, step_stmt = self._sample_loop_control(src, ctr, lim, nla_family)
         init_pool = universe + list(params) + [ctr, lim]
 
-        inits: List[Tuple[str, str]] = list(ctrl_inits)
+        inits: List[Tuple[str, str]] = []
+        if not use_shared_locals:
+            inits.extend(ctrl_inits)
         for sv in state_vars:
-            inits.append((sv, self._sample_operand(init_pool, allow_const=True)))
+            if not use_shared_locals or sv not in reusable:
+                inits.append((sv, self._sample_operand(init_pool, allow_const=True)))
 
         vars_pool = list(dict.fromkeys(universe + list(params) + state_vars + [ctr, lim]))
 
@@ -669,8 +686,6 @@ class ProbabilisticLoopFactory:
         max_local_vars = max(3, self.hp.m)
         for _ in range(self._sample_loop_count()):
             remaining = max_local_vars - len(seen)
-            if remaining < 3:
-                break
             inits, loop, produced = self._sample_core_loop(alloc, params, universe, remaining)
             for v, e in inits:
                 if v not in seen:

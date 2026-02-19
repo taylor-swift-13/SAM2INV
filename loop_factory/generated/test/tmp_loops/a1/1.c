@@ -1,18 +1,19 @@
-int main1(int k,int q){
-  int l, i, v;
+int main1(int k,int p){
+  int l, i, v, b;
 
-  l=(q%12)+5;
-  i=0;
-  v=q;
+  l=k-10;
+  i=1;
+  v=-8;
+  b=-5;
 
   while (i<l) {
-      if (v+4<l) {
-          v = v*v+v;
-      }
-      else {
-          v = v*v;
-      }
-      i = i+1;
+      v = v+2;
+      i = i*2;
+  }
+
+  while (v<i) {
+      b = p;
+      v = v+1;
   }
 
 }

@@ -1,12 +1,18 @@
-int main1(int a,int n){
-  int l, i, v, j;
+int main1(int a,int p){
+  int l, i, v, z;
 
-  l=n;
+  l=a+16;
   i=0;
-  v=l;
-  j=6;
+  v=p;
+  z=3;
 
   while (i<l) {
+      v = v+1;
+      i = i+3;
+  }
+
+  while (z<l) {
+      v = v+1;
       i = i+1;
   }
 

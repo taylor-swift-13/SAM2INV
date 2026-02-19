@@ -1,0 +1,162 @@
+%% ============================================================
+\section{Probabilistic Loop Synthesis}\label{sec:loop-factory}
+%% ============================================================
+
+Existing benchmarks for loop invariant synthesis (e.g., the NLA suite)
+contain only a few dozen programs, making it difficult to evaluate
+invariant synthesis tools at scale or to study the effect of program
+complexity on synthesis success.
+To address this, we design \textsc{LoopFactory}, a probabilistic
+domain-specific language (DSL) for generating structured numeric
+loop programs with controllable complexity.
+
+%% ------------------------------------------------------------
+\subsection{Hyperparameters}
+%% ------------------------------------------------------------
+
+The generator is parameterised by:
+\[
+\theta = (m,\; p,\; n,\; k,\; D_{\max},\;
+          \pi_{\text{op}},\;
+          \pi_{\text{cmp}},\;
+          \pi_{\text{const}},\;
+          \pi_{\text{self}},\;
+          \pi_{\text{nest}})
+\]
+where $m$ is the maximum number of variables, $p$ the number of
+(immutable) parameter variables, $n$ the number of top-level loops,
+$k$ the maximum assignments per loop body, $D_{\max}$ the maximum
+nesting depth, and the remaining symbols are probability distributions
+governing operator choice, constant injection, self-update assignment,
+and loop nesting (Table~\ref{tab:hyperparams}).
+
+\begin{table}[t]
+\caption{Hyperparameters of the \textsc{LoopFactory} DSL.}
+\label{tab:hyperparams}
+\centering\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+Symbol & Meaning \\
+\midrule
+$m$ & Max variables \\
+$p$ & Parameter (immutable) variables \\
+$n$ & Top-level loops \\
+$k$ & Max assignments per loop body \\
+$D_{\max}$ & Max nesting depth \\
+$\pi_{\text{op}}$ & Distribution over $\{+,-,\times,/,\bmod\}$ \\
+$\pi_{\text{cmp}}$ & Distribution over $\{<,\le,>,\ge,=,\ne\}$ \\
+$\pi_{\text{const}}$ & Prob.\ of sampling a constant operand \\
+$\pi_{\text{self}}$ & Prob.\ of self-update ($v_i := v_i \;\texttt{op}\; x$) \\
+$\pi_{\text{nest}}$ & Prob.\ of generating a nested sub-loop \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%% ------------------------------------------------------------
+\subsection{DSL Syntax}
+%% ------------------------------------------------------------
+
+\paragraph{Expressions.}
+Arithmetic expressions are of the form:
+\[
+e \;::=\; v \;\mid\; c \;\mid\; v \;\texttt{op}\; x
+\]
+where $v \in \mathcal{V}$ is a variable, $c \in \mathbb{Z}$ is an
+integer constant, $x \in \mathcal{V} \cup \mathbb{Z}$, and
+$\texttt{op} \in \{+,-,\times,/,\bmod\}$.
+If $\texttt{op} = \bmod$, the right operand must be a positive
+integer constant.
+
+\paragraph{Boolean Guards.}
+Loop guards are comparisons $e_1 \;\texttt{cmp}\; e_2$ with
+$\texttt{cmp} \in \{<,\le,>,\ge,=,\ne\}$.
+
+\paragraph{Assignments.}
+An assignment $v := e$ requires $v \in \mathcal{L}$, where
+$\mathcal{L} = \mathcal{V} \setminus \mathcal{P}$ is the set
+of writable (non-parameter) variables.
+
+%% ------------------------------------------------------------
+\subsection{Program Structure}
+%% ------------------------------------------------------------
+
+A generated program has the form:
+\[
+\textbf{Prog} \;::=\; \textbf{Init} \;;\; \textbf{LoopForest}
+\]
+
+The \textbf{Init} block assigns every writable variable exactly once,
+using expressions that depend only on parameter variables,
+ensuring a well-defined initial state.
+
+The \textbf{LoopForest} is a sequence of loop trees
+$\mathcal{F} = [T_1, \ldots, T_n]$, where each tree node
+\[
+T = \langle\, b,\; S,\; \mathcal{C} \,\rangle
+\]
+consists of a guard~$b$, an assignment list~$S$ with $|S| \le k$,
+and a (possibly empty) list of child loops~$\mathcal{C}$.
+Nesting depth is bounded by $D_{\max}$.
+
+%% ------------------------------------------------------------
+\subsection{Semantic Loop Templates}
+%% ------------------------------------------------------------
+
+To ensure that generated loops exhibit mathematically interesting
+behaviour (rather than trivial or divergent patterns), the DSL
+includes twelve \emph{semantic templates} that encode common
+loop idioms:
+
+\begin{enumerate}\setlength{\itemsep}{1pt}
+\item Cubic growth recursion ($x, y, z$ coupled updates)
+\item Geometric recursion ($x = x \cdot z + 1$)
+\item Cumulative sum / dot product
+\item Power-sum accumulation
+\item Quotient--remainder counting
+\item Binary multiplication style
+\item Linear dual-variable shifting
+\item Linear decrement to zero
+\item Modulo bucket counting
+\item Euclidean-style subtraction
+\item Nested triangular sums
+\item Nested affine updates
+\end{enumerate}
+
+Each template defines a fixed update pattern but allows the
+generator to sample concrete operators and constants from the
+probabilistic model, yielding a family of programs per template.
+
+%% ------------------------------------------------------------
+\subsection{Generative Distribution}
+%% ------------------------------------------------------------
+
+The probability of a complete program factorises as:
+\begin{equation}\label{eq:joint}
+\Pr(\textbf{Prog}) =
+  \prod_{v \in \mathcal{L}} \Pr(v := e_v)
+  \;\cdot\;
+  \prod_{T \in \mathcal{F}} \Pr(T)
+\end{equation}
+where, recursively,
+\[
+\Pr(T) = \Pr(b) \cdot \prod_{s \in S} \Pr(s) \cdot
+          \prod_{T' \in \mathcal{C}} \Pr(T').
+\]
+
+This factorisation ensures that the generator defines a proper
+probability distribution over the space of well-formed loop programs,
+enabling statistical analysis of benchmark difficulty and ablation
+over individual hyperparameters.
+
+\paragraph{Expected Properties.}
+Under the Bernoulli nesting model, the expected nesting depth is:
+\[
+\mathbb{E}[\text{depth}] =
+  \sum_{d=0}^{D_{\max}} d \cdot (1 - \pi_{\text{nest}})
+  \,\pi_{\text{nest}}^d
+\]
+and the expected number of loop nodes is
+$\sum_{d=0}^{D_{\max}} \pi_{\text{nest}}^d$.
+These closed-form expressions allow practitioners to tune
+$\pi_{\text{nest}}$ and $D_{\max}$ to obtain a desired distribution
+of benchmark difficulty.

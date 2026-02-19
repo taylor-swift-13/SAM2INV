@@ -1,0 +1,14 @@
+int main1(int b,int n){
+  int l, i, v;
+
+  l=46;
+  i=0;
+  v=2;
+
+  while (i<l) {
+      v = l*(-6);
+      v = v-v;
+      i = i+1;
+  }
+
+}
