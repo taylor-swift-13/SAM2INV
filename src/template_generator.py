@@ -383,7 +383,7 @@ class TemplateGenerator:
         
         return annotations
     
-    def process_record(self, record: Dict) -> Dict:
+    def process_record(self, record: Dict, simplified: bool = True) -> Dict:
         """
         处理单个 record，添加 template 字段
         
@@ -393,11 +393,11 @@ class TemplateGenerator:
         Returns:
             添加了 template 字段的 record
         """
-        template = self.generate_template(record)
+        template = self.generate_template(record, simplified=simplified)
         record['template'] = template
         return record
     
-    def process_records(self, records: List[Dict]) -> List[Dict]:
+    def process_records(self, records: List[Dict], simplified: bool = True) -> List[Dict]:
         """
         批量处理多个 records
         
@@ -407,7 +407,7 @@ class TemplateGenerator:
         Returns:
             处理后的 record 列表
         """
-        return [self.process_record(record) for record in records]
+        return [self.process_record(record, simplified=simplified) for record in records]
 
 
 def get_test_record():
@@ -503,4 +503,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

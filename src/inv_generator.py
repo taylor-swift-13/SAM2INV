@@ -18,7 +18,7 @@ from output_verify import OutputVerifier
 from syntax_checker import SyntaxChecker
 from inv_repairer import InvariantRepairer
 from houdini_pruner import HoudiniPruner
-from config import SUBDIR, USE_TRACES, MAX_ITERATION, MAX_STRENGTHEN_ITERATIONS, SYNTAX_FILTER_CONFIG
+from config import SUBDIR, USE_TRACES, MAX_ITERATION, MAX_STRENGTHEN_ITERATIONS, SYNTAX_FILTER_CONFIG, TEMPLATE_CONFIG
 from vector_cache_manager import VectorCacheManager
 from unified_filter import filter_invariants, validate_code_structure
 
@@ -68,6 +68,7 @@ class InvariantGenerator:
         # 初始化组件
         self.sampler = LoopSampler(file_name, input_subdir=self.resolved_subdir)
         self.template_gen = TemplateGenerator()
+        self.template_simplified = TEMPLATE_CONFIG.get('simplified', True)
 
         # 根据配置决定是否初始化LLM相关组件
         self.generation_mode = self.config.get('invariant_generation', {}).get('mode', 'hybrid')
@@ -369,7 +370,7 @@ class InvariantGenerator:
         max_workers = PARALLEL_GENERATION_CONFIG.get('max_workers', 5)
         
         # 1. Generate template with PLACE_HOLDER
-        template_code = self.template_gen.generate_template(record)
+        template_code = self.template_gen.generate_template(record, simplified=self.template_simplified)
         
         # 2. Insert template into original code
         try:
@@ -1317,7 +1318,7 @@ class InvariantGenerator:
             return None
         
         # 3. Generate template with PLACE_HOLDER (only if polynomial fitting failed)
-        template_code = self.template_gen.generate_template(record)
+        template_code = self.template_gen.generate_template(record, simplified=self.template_simplified)
         
         # 4. Insert template into original code using ASGSE-style replacement
         try:
@@ -2859,7 +2860,10 @@ class InvariantGenerator:
         self.logger.info(f"Found {len(self.sampler.records)} loops")
         
         # Process records to add template-related fields using TemplateGenerator
-        processed_records = self.template_gen.process_records(self.sampler.records)
+        processed_records = self.template_gen.process_records(
+            self.sampler.records,
+            simplified=self.template_simplified
+        )
         
         # Get original source code
         original_code = self._get_full_source_code()

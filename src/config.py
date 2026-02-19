@@ -5,8 +5,8 @@ from dataclasses import dataclass
 class LLMConfig:
     # API model configuration
     use_api_model = True # Control whether to use API model or local Transformers model
-    api_model:str = "gpt-5-mini" # model name, e.g., "gpt-4o"
-    api_key:str = "sk-9dnxPHHwjlTiAlH0u_______qUSRj9DvZurLZx1R"
+    api_model:str = "gpt-5-nano" # model name, e.g., "gpt-4o"
+    api_key:str = "sk-9dnxPHHwjlTiAlH0uUoKwiW79Hs51AGpqUSRj9DvZurLZx1R"
     base_url:str = "https://yunwu.ai/v1"
     api_temperature = 1.0 # Temperature parameter for API calls
     api_top_p= 1.0
@@ -24,7 +24,7 @@ SUBDIR = "NLA_lipus"
 #   1. 不触发动态采样（跳过程序执行获取 traces）
 #   2. Prompt 中不包含 traces 信息
 #   3. 跳过基于 traces 的候选不变式筛选阶段
-USE_TRACES = True
+USE_TRACES = False
 
 # ==============================================================================
 # 采样策略配置 (Sampling Strategy Configuration)
@@ -80,7 +80,7 @@ MAX_STRENGTHEN_ITERATIONS = 0
 # 并行生成配置
 PARALLEL_GENERATION_CONFIG = {
     'enabled': True,              # 是否启用并行生成多组候选不变式
-    'num_candidates': 5,        # 并行生成的候选组数 (增加到10个以获得更多样化的候选)
+    'num_candidates': 10,        # 并行生成的候选组数 (增加到10个以获得更多样化的候选)
     'temperature': 1.0,           # 生成温度,控制多样性 (提高到1.0增加多样性)
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
     'use_houdini': True,          # 是否使用Houdini进一步筛选组合后的不变式
@@ -94,6 +94,13 @@ PARALLEL_GENERATION_CONFIG = {
 PROMPT_CONFIG = {
     'max_samples': 5,              # 最大执行组数（避免 token 超限）
     'max_traces_per_sample': 10,   # 每个执行组最大 traces 数量
+}
+
+# 模板生成配置
+# simplified=True: 使用简化模板（默认）
+# simplified=False: 使用复杂模板（结合 var_maps/path_conds/updated_loop_conditions）
+TEMPLATE_CONFIG = {
+    'simplified': True,
 }
 
 # ==============================================================================
