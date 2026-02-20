@@ -31,6 +31,14 @@ from llm import LLMConfig, reset_token_stats, get_token_stats  # type: ignore
 USER_CFG = getattr(config, "LOOP_FACTORY_USER_CONFIG", {})
 
 
+def _lf_cfg(name: str, default):
+    """Read shared loop_factory config key, with backward-compatible lf_* fallback."""
+    if name in USER_CFG:
+        return USER_CFG[name]
+    legacy = f"lf_{name}"
+    return USER_CFG.get(legacy, default)
+
+
 CPP_KEYWORDS = {
     "if", "else", "while", "for", "int", "return", "break", "continue", "char", "float",
     "double", "void", "do", "switch", "case", "sizeof", "struct", "union", "enum", "typedef",
@@ -682,17 +690,17 @@ def main() -> None:
     )
     parser.add_argument("--work-dir", type=str, default=str(USER_CFG.get("work_dir", "")), help="Optional work dir under loop_factory/generated.")
     # Exposed loop_factory complexity controls.
-    parser.add_argument("--lf-max-vars", type=int, default=int(USER_CFG.get("lf_max_vars", 6)), help="Loop-factory max variable count.")
-    parser.add_argument("--lf-params", type=int, default=int(USER_CFG.get("lf_params", 2)), help="Loop-factory parameter count.")
-    parser.add_argument("--lf-min-loops", type=int, default=int(USER_CFG.get("lf_min_loops", 1)), help="Loop-factory min loop count.")
-    parser.add_argument("--lf-max-loops", type=int, default=int(USER_CFG.get("lf_max_loops", 1)), help="Loop-factory max loop count.")
-    parser.add_argument("--lf-max-assign", type=int, default=int(USER_CFG.get("lf_max_assign", 6)), help="Loop-factory max assignments per loop.")
-    parser.add_argument("--lf-max-ifelse", type=int, default=int(USER_CFG.get("lf_max_ifelse", 3)), help="Loop-factory max if/else blocks per loop.")
-    parser.add_argument("--lf-max-depth", type=int, default=int(USER_CFG.get("lf_max_depth", 1)), help="Loop-factory max loop nesting depth.")
-    parser.add_argument("--lf-p-multi", type=float, default=float(USER_CFG.get("lf_p_multi", 0.0)), help="Loop-factory p_multi.")
-    parser.add_argument("--lf-q-nest", type=float, default=float(USER_CFG.get("lf_q_nest", 0.0)), help="Loop-factory q_nest.")
-    parser.add_argument("--lf-p-nonlinear", type=float, default=float(USER_CFG.get("lf_p_nonlinear", 0.75)), help="Loop-factory nonlinear family probability.")
-    parser.add_argument("--lf-p-semantic-core", type=float, default=float(USER_CFG.get("lf_p_semantic_core", 0.78)), help="Loop-factory semantic core probability.")
+    parser.add_argument("--max-vars", "--lf-max-vars", dest="max_vars", type=int, default=int(_lf_cfg("max_vars", 6)), help="Loop-factory max variable count.")
+    parser.add_argument("--params", "--lf-params", dest="params", type=int, default=int(_lf_cfg("params", 2)), help="Loop-factory parameter count.")
+    parser.add_argument("--min-loops", "--lf-min-loops", dest="min_loops", type=int, default=int(_lf_cfg("min_loops", 1)), help="Loop-factory min loop count.")
+    parser.add_argument("--max-loops", "--lf-max-loops", dest="max_loops", type=int, default=int(_lf_cfg("max_loops", 1)), help="Loop-factory max loop count.")
+    parser.add_argument("--max-assign", "--lf-max-assign", dest="max_assign", type=int, default=int(_lf_cfg("max_assign", 6)), help="Loop-factory max assignments per loop.")
+    parser.add_argument("--max-ifelse", "--lf-max-ifelse", dest="max_ifelse", type=int, default=int(_lf_cfg("max_ifelse", 3)), help="Loop-factory max if/else blocks per loop.")
+    parser.add_argument("--max-depth", "--lf-max-depth", dest="max_depth", type=int, default=int(_lf_cfg("max_depth", 1)), help="Loop-factory max loop nesting depth.")
+    parser.add_argument("--p-multi", "--lf-p-multi", dest="p_multi", type=float, default=float(_lf_cfg("p_multi", 0.0)), help="Loop-factory p_multi.")
+    parser.add_argument("--q-nest", "--lf-q-nest", dest="q_nest", type=float, default=float(_lf_cfg("q_nest", 0.0)), help="Loop-factory q_nest.")
+    parser.add_argument("--p-nonlinear", "--lf-p-nonlinear", dest="p_nonlinear", type=float, default=float(_lf_cfg("p_nonlinear", 0.75)), help="Loop-factory nonlinear family probability.")
+    parser.add_argument("--p-semantic-core", "--lf-p-semantic-core", dest="p_semantic_core", type=float, default=float(_lf_cfg("p_semantic_core", 0.78)), help="Loop-factory semantic core probability.")
     args = parser.parse_args()
 
     # LoopSampler uses relative paths assuming CWD is src/
@@ -718,17 +726,17 @@ def main() -> None:
     system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
     api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
     lf_overrides: Dict[str, object] = {
-        "max_vars": args.lf_max_vars,
-        "params": args.lf_params,
-        "min_loops": args.lf_min_loops,
-        "max_loops": args.lf_max_loops,
-        "max_assign": args.lf_max_assign,
-        "max_ifelse": args.lf_max_ifelse,
-        "max_depth": args.lf_max_depth,
-        "p_multi": args.lf_p_multi,
-        "q_nest": args.lf_q_nest,
-        "p_nonlinear": args.lf_p_nonlinear,
-        "p_semantic_core": args.lf_p_semantic_core,
+        "max_vars": args.max_vars,
+        "params": args.params,
+        "min_loops": args.min_loops,
+        "max_loops": args.max_loops,
+        "max_assign": args.max_assign,
+        "max_ifelse": args.max_ifelse,
+        "max_depth": args.max_depth,
+        "p_multi": args.p_multi,
+        "q_nest": args.q_nest,
+        "p_nonlinear": args.p_nonlinear,
+        "p_semantic_core": args.p_semantic_core,
     }
 
     # Build in-memory dedup sets from existing raw/annotated pairs.

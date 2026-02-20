@@ -132,18 +132,19 @@ LOOP_FACTORY_USER_CONFIG = {
     'append': True,
     'work_dir': '',
 
-    # loop_factory complexity knobs
-    'lf_max_vars': 6,
-    'lf_params': 2,
-    'lf_min_loops': 1,
-    'lf_max_loops': 1,
-    'lf_max_assign': 6,
-    'lf_max_ifelse': 3,
-    'lf_max_depth': 1,
-    'lf_p_multi': 0.0,
-    'lf_q_nest': 0.0,
-    'lf_p_nonlinear': 0.75,
-    'lf_p_semantic_core': 0.78,
+    # loop_factory complexity knobs (shared names with loop_factory.py)
+    'max_vars': 6,
+    'params': 2,
+    'min_loops': 1,
+    'max_loops': 1,
+    'max_assign': 6,
+    'max_ifelse': 3,
+    'max_depth': 1,
+    'p_multi': 0.0,
+    'q_nest': 0.0,
+    'p_nonlinear': 0.0,
+    'p_semantic_core': 0.50
+    ,
 }
 
 
