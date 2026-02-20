@@ -113,16 +113,10 @@ def build_prompt_input(gen: InvariantGenerator, prompt_name: str) -> str:
     original_code = gen._get_full_source_code()
     code_with_template = gen._replace_loop_content(original_code, template_code, loop_idx)
 
-    cache_reference = gen._format_cache_reference()
-    if "{{cache_reference}}" in selected_template:
-        selected_template = selected_template.replace("{{cache_reference}}", cache_reference)
-
     if "{{pre_cond}}" in selected_template:
         prompt = selected_template.replace("{{pre_cond}}", loop_context).replace("{{content}}", code_with_template)
     else:
         prompt = selected_template.replace("{{content}}", code_with_template)
-        if cache_reference and "{{cache_reference}}" not in selected_template:
-            prompt = prompt.replace("```c", f"{cache_reference}\n\n```c", 1)
     return prompt
 
 

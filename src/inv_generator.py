@@ -19,7 +19,6 @@ from syntax_checker import SyntaxChecker
 from inv_repairer import InvariantRepairer
 from houdini_pruner import HoudiniPruner
 from config import SUBDIR, USE_TRACES, MAX_ITERATION, MAX_STRENGTHEN_ITERATIONS, SYNTAX_FILTER_CONFIG, TEMPLATE_CONFIG
-from vector_cache_manager import VectorCacheManager
 from unified_filter import filter_invariants, validate_code_structure
 
 
@@ -109,36 +108,12 @@ class InvariantGenerator:
             self.llmfit = None
             self.logger.info("LLM fitting disabled for code-only mode")
 
-        # 初始化向量缓存管理器
-        try:
-            # 检查主配置文件中是否启用缓存
-            from config import CACHE_CONFIG
-            cache_enabled = CACHE_CONFIG.get('enabled', True)
-            
-            if cache_enabled:
-                self.cache_manager = VectorCacheManager(logger=self.logger)
-                if self.cache_manager.enabled:
-                    self.logger.info("Vector cache manager initialized and enabled")
-                else:
-                    self.logger.warning("Vector cache manager initialization failed (check cache_config.yaml)")
-                    self.cache_manager = None
-            else:
-                self.logger.info("Vector cache is disabled in config.py")
-                self.cache_manager = None
-                self.logger.info("Vector cache manager disabled")
-        except Exception as e:
-            self.logger.warning(f"Failed to initialize vector cache manager: {e}")
-            self.cache_manager = None
-        
         # 存储结果
         self.invariants = []
         
         # 存储 first_pass 指标(记录第几次生成正确的不变量并通过验证)
         self.first_pass = None
         
-        # 存储检索到的相似问题（用于插入 prompt）
-        self._cached_similar_problems = []
-
     def _load_config(self, config_path: Optional[str] = None) -> Dict:
         """加载配置文件"""
         if config_path is None:
@@ -273,62 +248,8 @@ class InvariantGenerator:
         return code[segment_start:end_index]
     
     def generate_invariant_for_loop(self, record: Dict, loop_idx: int, base_code: Optional[str] = None) -> Optional[str]:
-        """Generate invariant for a single loop - check cache first, then use LLM with self-checking"""
+        """Generate invariant for a single loop with self-checking."""
         self.logger.info(f"Generating invariant for loop {loop_idx}...")
-
-        # 0. Check vector cache first (if enabled)
-        # 存储检索到的相似问题，用于后续插入 prompt
-        self._cached_similar_problems = []
-        
-        if self.cache_manager and self.cache_manager.enabled:
-            # 从主配置文件读取缓存设置
-            from config import CACHE_CONFIG
-            use_in_prompt = CACHE_CONFIG.get('use_in_prompt', True)
-            prompt_top_k = CACHE_CONFIG.get('prompt_top_k', 3)
-            
-            if use_in_prompt:
-                self.logger.info(f"\n{'='*60}")
-                self.logger.info(f"Loop {loop_idx} - Checking vector cache for similar problems...")
-                self.logger.info(f"{'='*60}")
-
-                try:
-                    similar_problems = self.cache_manager.search_similar_problems(record, loop_idx)
-
-                    if similar_problems:
-                        # 使用主配置文件中的 k 值
-                        top_k_results = similar_problems[:prompt_top_k]
-                        
-                        self.logger.info(f"Found {len(similar_problems)} similar problems in cache")
-                        self.logger.info(f"Using top {len(top_k_results)} results for prompt (k={prompt_top_k})")
-                        
-                        # 存储用于 prompt
-                        self._cached_similar_problems = top_k_results
-                        
-                        # 打印缓存到的结果
-                        for idx, result in enumerate(top_k_results, 1):
-                            self.logger.info(f"\n  [{idx}] Similarity: {result.similarity_score:.4f}")
-                            invariants = result.entry.solution_invariants
-                            if isinstance(invariants, str):
-                                try:
-                                    import json
-                                    invariants = json.loads(invariants)
-                                except:
-                                    invariants = [invariants] if invariants else []
-                            
-                            if invariants and isinstance(invariants, list):
-                                self.logger.info(f"      Invariants ({len(invariants)}):")
-                                for i, inv in enumerate(invariants[:3], 1):  # 只显示前3个
-                                    inv_str = str(inv)[:80] + "..." if len(str(inv)) > 80 else str(inv)
-                                    self.logger.info(f"        [{i}] {inv_str}")
-                        
-                        self.logger.info(f"{'='*60}\n")
-                    else:
-                        self.logger.info("No similar problems found in cache")
-                        self.logger.info(f"{'='*60}\n")
-
-                except Exception as e:
-                    self.logger.warning(f"Error during cache lookup: {e}")
-                    # Continue with normal generation if cache fails
 
         # 1. Get base code for this loop.
         # In multi-loop cases, caller should pass progressively annotated code
@@ -716,17 +637,6 @@ class InvariantGenerator:
                 if final_invariants:
                     for i, inv in enumerate(final_invariants, 1):
                         self.logger.info(f"  [{i}] {inv}")
-
-                # Store successful generation result in cache
-                if self.cache_manager and self.cache_manager.enabled:
-                    try:
-                        cache_satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else True
-                        self.cache_manager.store_problem_solution(
-                            record, loop_idx, final_code, final_invariants,
-                            {'syntax': True, 'valid': True, 'satisfy': cache_satisfy, 'source': 'parallel_generation_houdini_strengthen'}
-                        )
-                    except Exception as e:
-                        self.logger.warning(f"Failed to store result in cache: {e}")
 
                 self.logger.info(f"\nOK Successfully generated invariant for loop {loop_idx}")
                 return final_code
@@ -1396,16 +1306,6 @@ class InvariantGenerator:
                     for i, inv in enumerate(final_invariants, 1):
                         self.logger.info(f"  [{i}] {inv}")
                 
-                # Store successful LLM generation result in cache
-                if self.cache_manager and self.cache_manager.enabled:
-                    try:
-                        self.cache_manager.store_problem_solution(
-                            record, loop_idx, final_code, final_invariants,
-                            {'syntax': True, 'valid': True, 'satisfy': True, 'source': 'llm_generation'}
-                        )
-                    except Exception as e:
-                        self.logger.warning(f"Failed to store LLM generation result in cache: {e}")
-
                 self.logger.info(f"\nOK Successfully generated invariant for loop {loop_idx}")
                 return final_code
             else:
@@ -1681,19 +1581,10 @@ class InvariantGenerator:
             "- Using undefined variables or \\at() on non-parameters will cause validation errors",
         ])
         
-        # 注意：缓存参考不再插入到 loop_context 中
-        # 而是在 prompt 模板中通过 {{cache_reference}} 占位符或自动插入
         loop_context = "\n".join(loop_context_lines)
         
         # Load template from prompts/ (single-generation path)
         prompt_template = self._get_gen_template()
-
-        # Inject cache reference for single-generation path as well.
-        cache_reference = self._format_cache_reference()
-        if '{{cache_reference}}' in prompt_template:
-            prompt_template = prompt_template.replace('{{cache_reference}}', cache_reference)
-        elif cache_reference and '```c' in prompt_template:
-            prompt_template = prompt_template.replace('```c', f"{cache_reference}\n\n```c", 1)
         
         return prompt_template, loop_context
     
@@ -1750,7 +1641,7 @@ class InvariantGenerator:
         Args:
             candidate_idx: 候选索引
             prompt_templates: 所有可用的 prompt 模板列表
-            loop_context: 循环上下文（包含缓存参考）
+            loop_context: 循环上下文
             code_with_template: 代码模板
             
         Returns:
@@ -1761,10 +1652,6 @@ class InvariantGenerator:
         selected_template_name = 'simple'
         
         # 替换占位符
-        # 1. 首先替换 {{cache_reference}}（如果存在）
-        cache_reference = self._format_cache_reference()
-        if '{{cache_reference}}' in selected_template:
-            selected_template = selected_template.replace('{{cache_reference}}', cache_reference)
         if '{{goal_guidance}}' in selected_template:
             selected_template = selected_template.replace('{{goal_guidance}}', self._build_goal_guidance(code_with_template))
         
@@ -1773,53 +1660,10 @@ class InvariantGenerator:
             prompt = selected_template.replace('{{pre_cond}}', loop_context).replace('{{content}}', code_with_template)
         else:
             # 如果 prompt 中没有 {{pre_cond}}，只替换 {{content}}
-            # 但需要确保缓存参考被插入（如果没有 {{cache_reference}} 占位符）
             prompt = selected_template.replace('{{content}}', code_with_template)
-            # 如果模板中没有 {{cache_reference}} 占位符，但有缓存结果，插入到合适位置
-            if cache_reference and '{{cache_reference}}' not in selected_template:
-                # 在 {{content}} 之前插入缓存参考
-                prompt = prompt.replace('```c', f"{cache_reference}\n\n```c", 1)
         
         self.logger.info(f"  Candidate {candidate_idx+1} selected prompt: {selected_template_name}")
         return prompt, selected_template_name
-    
-    def _format_cache_reference(self) -> str:
-        """
-        格式化缓存参考信息，用于插入到 prompt 中
-        
-        Returns:
-            格式化的缓存参考字符串，如果没有缓存结果则返回空字符串
-        """
-        if not hasattr(self, '_cached_similar_problems') or not self._cached_similar_problems:
-            return ""
-        
-        reference_lines = [
-            "### Reference: Similar Problems Found in Cache ###",
-        ]
-        
-        for idx, result in enumerate(self._cached_similar_problems, 1):
-            invariants = result.entry.solution_invariants
-            if isinstance(invariants, str):
-                try:
-                    import json
-                    invariants = json.loads(invariants)
-                except:
-                    invariants = [invariants] if invariants else []
-            
-            if invariants and isinstance(invariants, list) and len(invariants) > 0:
-                reference_lines.append(f"\nSimilar Problem {idx} (Similarity: {result.similarity_score:.3f}):")
-                reference_lines.append("Similar invariants found:")
-                for inv in invariants:
-                    if isinstance(inv, str):
-                        reference_lines.append(f"  - {inv}")
-                    else:
-                        reference_lines.append(f"  - {str(inv)}")
-        
-        if len(reference_lines) > 1:  # 有实际内容
-            reference_lines.append("\nNote: Use these as reference, but adapt them to the current problem's variables and context.")
-            return "\n".join(reference_lines)
-        
-        return ""
     
     def _create_llm_client_for_thread(self, model_name: str) -> 'Chatbot':
         """
@@ -3386,167 +3230,6 @@ class InvariantGenerator:
             else:
                 self.logger.error("Could not read original input code to save")
 
-    def _adapt_cached_solution(self, cached_solution: Dict, current_record: Dict, loop_idx: int) -> Optional[str]:
-        """
-        Adapt a cached solution to the current problem context.
-
-        This method takes a cached solution and adapts it to work with the current
-        loop by adjusting variable names, conditions, and other context-specific elements.
-
-        Args:
-            cached_solution: Dictionary containing cached solution data
-            current_record: Current loop record containing context
-            loop_idx: Current loop index
-
-        Returns:
-            Adapted code string, or None if adaptation fails
-        """
-        try:
-            cached_code = cached_solution.get('code', '')
-            cached_invariants = cached_solution.get('invariants', [])
-
-            if not cached_code or not cached_invariants:
-                self.logger.warning("Cached solution missing code or invariants")
-                return None
-
-            self.logger.info(f"Adapting cached solution with {len(cached_invariants)} invariants")
-
-            # Extract variable mappings between cached and current contexts
-            variable_mapping = self._extract_variable_mapping(cached_solution, current_record)
-
-            if not variable_mapping:
-                self.logger.info("No variable mapping needed, using cached solution directly")
-                adapted_code = cached_code
-            else:
-                self.logger.info(f"Applying variable mapping: {variable_mapping}")
-                adapted_code = self._apply_variable_mapping(cached_code, variable_mapping)
-
-            # Verify the adapted solution works with current context
-            if self._verify_adapted_solution(adapted_code, current_record):
-                self.logger.info("OK Successfully adapted cached solution")
-                return adapted_code
-            else:
-                self.logger.warning("Adapted solution failed verification")
-                return None
-
-        except Exception as e:
-            self.logger.warning(f"Failed to adapt cached solution: {e}")
-            return None
-
-    def _extract_variable_mapping(self, cached_solution: Dict, current_record: Dict) -> Dict[str, str]:
-        """
-        Extract variable name mappings between cached and current contexts.
-
-        Args:
-            cached_solution: Cached solution data
-            current_record: Current loop record
-
-        Returns:
-            Dictionary mapping cached variable names to current variable names
-        """
-        mapping = {}
-
-        try:
-            # Get variable names from both contexts
-            cached_metadata = cached_solution.get('metadata', {})
-            cached_vars = set()
-            current_vars = set()
-
-            # Extract variables from loop content using simple regex
-            import re
-
-            # Get cached variables
-            cached_loop_content = cached_metadata.get('loop_content', '')
-            if cached_loop_content:
-                cached_vars.update(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', cached_loop_content))
-
-            # Get current variables
-            current_loop_content = current_record.get('loop_content', '')
-            if current_loop_content:
-                current_vars.update(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', current_loop_content))
-
-            # Filter out common keywords and create simple mapping
-            keywords = {'for', 'while', 'if', 'else', 'int', 'float', 'double', 'char', 'void', 'return'}
-            cached_vars = {v for v in cached_vars if v not in keywords and len(v) > 1}
-            current_vars = {v for v in current_vars if v not in keywords and len(v) > 1}
-
-            # Simple heuristic: map variables of similar patterns
-            cached_list = sorted(cached_vars)
-            current_list = sorted(current_vars)
-
-            if len(cached_list) == len(current_list):
-                for cached_var, current_var in zip(cached_list, current_list):
-                    if cached_var != current_var:
-                        mapping[cached_var] = current_var
-
-        except Exception as e:
-            self.logger.warning(f"Failed to extract variable mapping: {e}")
-
-        return mapping
-
-    def _apply_variable_mapping(self, code: str, mapping: Dict[str, str]) -> str:
-        """
-        Apply variable name mapping to code.
-
-        Args:
-            code: Original code string
-            mapping: Dictionary mapping old names to new names
-
-        Returns:
-            Code with variable names replaced
-        """
-        adapted_code = code
-
-        try:
-            import re
-
-            for old_var, new_var in mapping.items():
-                # Use word boundaries to avoid partial replacements
-                pattern = r'\b' + re.escape(old_var) + r'\b'
-                adapted_code = re.sub(pattern, new_var, adapted_code)
-
-        except Exception as e:
-            self.logger.warning(f"Failed to apply variable mapping: {e}")
-            return code
-
-        return adapted_code
-
-    def _verify_adapted_solution(self, adapted_code: str, current_record: Dict) -> bool:
-        """
-        Verify that the adapted solution is syntactically correct and contextually appropriate.
-
-        Args:
-            adapted_code: Adapted code to verify
-            current_record: Current loop record for context
-
-        Returns:
-            True if verification passes, False otherwise
-        """
-        try:
-            # Basic syntax check - ensure the code contains expected elements
-            if not adapted_code or '/*@' not in adapted_code or '@*/' not in adapted_code:
-                return False
-
-            # Check that the adapted code contains relevant variables from current context
-            current_loop_content = current_record.get('loop_content', '')
-            if current_loop_content:
-                import re
-                current_vars = set(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', current_loop_content))
-                adapted_vars = set(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', adapted_code))
-
-                # Check if there's reasonable overlap
-                common_vars = current_vars.intersection(adapted_vars)
-                if len(common_vars) == 0 and len(current_vars) > 2:
-                    self.logger.warning("No common variables found between adapted solution and current context")
-                    return False
-
-            return True
-
-        except Exception as e:
-            self.logger.warning(f"Failed to verify adapted solution: {e}")
-            return False
-
-
         # If we reach here, max iterations reached without success
         # Store first_pass metrics even if not fully satisfied (round number if passed, None if not)
         if self.first_pass is None:
@@ -3648,163 +3331,3 @@ class InvariantGenerator:
                 self.logger.info(f"Original C code saved to {output_file}")
             else:
                 self.logger.error("Could not read original input code to save")
-
-    def _adapt_cached_solution(self, cached_solution: Dict, current_record: Dict, loop_idx: int) -> Optional[str]:
-        """
-        Adapt a cached solution to the current problem context.
-
-        This method takes a cached solution and adapts it to work with the current
-        loop by adjusting variable names, conditions, and other context-specific elements.
-
-        Args:
-            cached_solution: Dictionary containing cached solution data
-            current_record: Current loop record containing context
-            loop_idx: Current loop index
-
-        Returns:
-            Adapted code string, or None if adaptation fails
-        """
-        try:
-            cached_code = cached_solution.get('code', '')
-            cached_invariants = cached_solution.get('invariants', [])
-
-            if not cached_code or not cached_invariants:
-                self.logger.warning("Cached solution missing code or invariants")
-                return None
-
-            self.logger.info(f"Adapting cached solution with {len(cached_invariants)} invariants")
-
-            # Extract variable mappings between cached and current contexts
-            variable_mapping = self._extract_variable_mapping(cached_solution, current_record)
-
-            if not variable_mapping:
-                self.logger.info("No variable mapping needed, using cached solution directly")
-                adapted_code = cached_code
-            else:
-                self.logger.info(f"Applying variable mapping: {variable_mapping}")
-                adapted_code = self._apply_variable_mapping(cached_code, variable_mapping)
-
-            # Verify the adapted solution works with current context
-            if self._verify_adapted_solution(adapted_code, current_record):
-                self.logger.info("OK Successfully adapted cached solution")
-                return adapted_code
-            else:
-                self.logger.warning("Adapted solution failed verification")
-                return None
-
-        except Exception as e:
-            self.logger.warning(f"Failed to adapt cached solution: {e}")
-            return None
-
-    def _extract_variable_mapping(self, cached_solution: Dict, current_record: Dict) -> Dict[str, str]:
-        """
-        Extract variable name mappings between cached and current contexts.
-
-        Args:
-            cached_solution: Cached solution data
-            current_record: Current loop record
-
-        Returns:
-            Dictionary mapping cached variable names to current variable names
-        """
-        mapping = {}
-
-        try:
-            # Get variable names from both contexts
-            cached_metadata = cached_solution.get('metadata', {})
-            cached_vars = set()
-            current_vars = set()
-
-            # Extract variables from loop content using simple regex
-            import re
-
-            # Get cached variables
-            cached_loop_content = cached_metadata.get('loop_content', '')
-            if cached_loop_content:
-                cached_vars.update(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', cached_loop_content))
-
-            # Get current variables
-            current_loop_content = current_record.get('loop_content', '')
-            if current_loop_content:
-                current_vars.update(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', current_loop_content))
-
-            # Filter out common keywords and create simple mapping
-            keywords = {'for', 'while', 'if', 'else', 'int', 'float', 'double', 'char', 'void', 'return'}
-            cached_vars = {v for v in cached_vars if v not in keywords and len(v) > 1}
-            current_vars = {v for v in current_vars if v not in keywords and len(v) > 1}
-
-            # Simple heuristic: map variables of similar patterns
-            cached_list = sorted(cached_vars)
-            current_list = sorted(current_vars)
-
-            if len(cached_list) == len(current_list):
-                for cached_var, current_var in zip(cached_list, current_list):
-                    if cached_var != current_var:
-                        mapping[cached_var] = current_var
-
-        except Exception as e:
-            self.logger.warning(f"Failed to extract variable mapping: {e}")
-
-        return mapping
-
-    def _apply_variable_mapping(self, code: str, mapping: Dict[str, str]) -> str:
-        """
-        Apply variable name mapping to code.
-
-        Args:
-            code: Original code string
-            mapping: Dictionary mapping old names to new names
-
-        Returns:
-            Code with variable names replaced
-        """
-        adapted_code = code
-
-        try:
-            import re
-
-            for old_var, new_var in mapping.items():
-                # Use word boundaries to avoid partial replacements
-                pattern = r'\b' + re.escape(old_var) + r'\b'
-                adapted_code = re.sub(pattern, new_var, adapted_code)
-
-        except Exception as e:
-            self.logger.warning(f"Failed to apply variable mapping: {e}")
-            return code
-
-        return adapted_code
-
-    def _verify_adapted_solution(self, adapted_code: str, current_record: Dict) -> bool:
-        """
-        Verify that the adapted solution is syntactically correct and contextually appropriate.
-
-        Args:
-            adapted_code: Adapted code to verify
-            current_record: Current loop record for context
-
-        Returns:
-            True if verification passes, False otherwise
-        """
-        try:
-            # Basic syntax check - ensure the code contains expected elements
-            if not adapted_code or '/*@' not in adapted_code or '@*/' not in adapted_code:
-                return False
-
-            # Check that the adapted code contains relevant variables from current context
-            current_loop_content = current_record.get('loop_content', '')
-            if current_loop_content:
-                import re
-                current_vars = set(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', current_loop_content))
-                adapted_vars = set(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', adapted_code))
-
-                # Check if there's reasonable overlap
-                common_vars = current_vars.intersection(adapted_vars)
-                if len(common_vars) == 0 and len(current_vars) > 2:
-                    self.logger.warning("No common variables found between adapted solution and current context")
-                    return False
-
-            return True
-
-        except Exception as e:
-            self.logger.warning(f"Failed to verify adapted solution: {e}")
-            return False

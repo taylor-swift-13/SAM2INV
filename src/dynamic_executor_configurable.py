@@ -81,8 +81,6 @@ class DynamicExecutorConfigurable:
         
         # 用于跟踪每次调用的采样索引，确保多样性
         self._call_counter = 0
-        self._cached_samples = {}  # 缓存已生成的样本，key: (param_name, min_val, max_val), value: list of samples
-        self._param_counters = {}  # 每个参数的独立计数器，key: (param_name, min_val, max_val), value: counter
 
     def _get_constraints(self, pre_condition_str: str, post_condition_template: str) -> Dict:
         """
@@ -376,43 +374,13 @@ int main() {
 
                     # 使用智能采样策略生成参数值（如果可用）
                     if self.sampling_strategy == 'smart' and hasattr(self, 'smart_sampler'):
-                        # 使用智能采样器生成多样化的值
-                        # 为每个参数缓存多个样本，按顺序使用以确保多样性
-                        cache_key = (param, min_val, max_val)
-
-                        if cache_key not in self._cached_samples:
-                            # 生成多个样本（至少50个以确保多样性）
-                            param_constraints = {param: {'min': min_val, 'max': max_val}}
-                            num_cache_samples = max(50, max_val - min_val + 1)  # 至少50个，或覆盖整个范围
-                            samples = self.smart_sampler.generate_samples(param_constraints, num_samples=num_cache_samples)
-
-                            if samples:
-                                # 提取该参数的所有值
-                                self._cached_samples[cache_key] = [s[param] for s in samples]
-                            else:
-                                # 如果智能采样失败，生成随机值列表
-                                self._cached_samples[cache_key] = [random.randint(min_val, max_val) for _ in range(num_cache_samples)]
-
-                            # 初始化该参数的计数器
-                            self._param_counters[cache_key] = 0
-
-                        # 使用该参数的独立计数器选择不同的样本
-                        # FIX: 为不同参数添加偏移量，避免相同约束范围的参数总是取到相同的值
-                        # 例如 x>0 和 y>0 有相同的 cache_key (min=1, max=100)
-                        # 但第二个参数使用不同的偏移，确保 x 和 y 取到不同值
-                        cached_values = self._cached_samples[cache_key]
-                        param_counter = self._param_counters[cache_key]
-                        # 添加基于参数位置的偏移量来打破参数间的同步
-                        param_offset = param_idx * max(len(cached_values) // len(param_names), 1)
-                        sample_idx = (param_counter + param_offset) % len(cached_values)
-                        param_value = cached_values[sample_idx]
-
-                        # 只为第一个参数增加计数器（避免同一次调用内多次递增）
-                        if param_idx == 0:
-                            self._param_counters[cache_key] += 1
-
-                        if self.sampling_debug:
-                            print(f"  Parameter {param}: using cached sample[{sample_idx}] = {param_value} (from {len(cached_values)} cached samples, counter={param_counter}, offset={param_offset})")
+                        # 使用智能采样器生成当前参数值（不做缓存）
+                        param_constraints = {param: {'min': min_val, 'max': max_val}}
+                        samples = self.smart_sampler.generate_samples(param_constraints, num_samples=1)
+                        if samples:
+                            param_value = samples[0][param]
+                        else:
+                            param_value = random.randint(min_val, max_val)
                     else:
                         # 随机生成（确保满足约束）
                         param_value = random.randint(min_val, max_val)
