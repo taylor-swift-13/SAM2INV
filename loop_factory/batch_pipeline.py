@@ -28,6 +28,8 @@ import inv_generator as invgen_mod  # type: ignore
 from inv_generator import InvariantGenerator  # type: ignore
 from llm import LLMConfig, reset_token_stats, get_token_stats  # type: ignore
 
+USER_CFG = getattr(config, "LOOP_FACTORY_USER_CONFIG", {})
+
 
 CPP_KEYWORDS = {
     "if", "else", "while", "for", "int", "return", "break", "continue", "char", "float",
@@ -384,11 +386,11 @@ def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) ->
     return True, "ok"
 
 
-def generate_one_loop(out_dir: Path, seed: int) -> Path:
+def generate_one_loop(out_dir: Path, seed: int, lf_overrides: Dict[str, object]) -> Path:
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    hp = loop_factory_hyperparams(seed, out_dir)
+    hp = loop_factory_hyperparams(seed, out_dir, lf_overrides)
     cmd = [
         sys.executable,
         str(ROOT / "loop_factory.py"),
@@ -419,32 +421,38 @@ def generate_one_loop(out_dir: Path, seed: int) -> Path:
     return c_files[0]
 
 
-def loop_factory_hyperparams(seed: int, out_dir: Path) -> Dict[str, object]:
+def loop_factory_hyperparams(seed: int, out_dir: Path, overrides: Dict[str, object] | None = None) -> Dict[str, object]:
     """
     Fully materialized loop_factory configuration for one generation call.
     Keep this aligned with loop_factory.py defaults + this pipeline constraints.
     """
-    return {
+    hp = {
         "profile": "benchmark",
         "out_dir": str(out_dir),
         "count": 1,
         "seed": seed,
-        "max_vars": 3,
+        # Bias generator toward harder, benchmark-like loops seen in src/input.
+        "max_vars": 6,
         "params": 2,
-        "min_loops": 2,
-        "max_loops": 2,
-        "max_assign": 3,
-        "max_ifelse": 0,
-        "max_depth": 2,
+        "min_loops": 1,
+        "max_loops": 1,
+        "max_assign": 6,
+        "max_ifelse": 3,
+        "max_depth": 1,
         "p_multi": 0.0,
         "q_nest": 0.0,
-        "p_nonlinear": 0.00,
-        "nonlinear_strength": 0.50,
-        "p_semantic_core": 0.30,
-        "w_core_rel_guard": 1.0,
-        "w_core_cond_fixed": 1.0,
-        "w_core_linear_state": 1.0,
+        "p_nonlinear": 0.75,
+        "nonlinear_strength": 0.82,
+        "p_semantic_core": 0.78,
+        "w_core_rel_guard": 1.4,
+        "w_core_cond_fixed": 1.5,
+        "w_core_linear_state": 1.1,
     }
+    if overrides:
+        for k, v in overrides.items():
+            if v is not None and k in hp:
+                hp[k] = v
+    return hp
 
 
 def run_one_attempt(
@@ -457,6 +465,7 @@ def run_one_attempt(
     system_prompt: str,
     run_tag: str,
     stop_event: threading.Event,
+    lf_overrides: Dict[str, object],
 ) -> Dict:
     if stop_event.is_set():
         return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
@@ -472,7 +481,7 @@ def run_one_attempt(
     try:
         if stop_event.is_set():
             return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
-        src_c = generate_one_loop(attempt_tmp_loops, seed)
+        src_c = generate_one_loop(attempt_tmp_loops, seed, lf_overrides)
         raw_code = src_c.read_text(encoding="utf-8")
         if not has_no_assert(raw_code):
             return {"ok": False, "reason": "input has assert", "attempt": attempt, "seed": seed}
@@ -548,7 +557,7 @@ def run_one_attempt(
         invariants = gen._extract_invariants_from_code(annotated)
         sig = compute_signature(raw_code, invariants)
         raw_key = compute_raw_structure_key(raw_code)
-        hparams = loop_factory_hyperparams(seed, attempt_tmp_loops)
+        hparams = loop_factory_hyperparams(seed, attempt_tmp_loops, lf_overrides)
         return {
             "ok": True,
             "attempt": attempt,
@@ -658,20 +667,32 @@ def build_augments(base_item: Dict, aug_per_sample: int, rng: random.Random) -> 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Batch generate high-quality training data with simple augmentation.")
-    parser.add_argument("--target-count", type=int, default=100, help="Total candidate attempts to run.")
+    parser.add_argument("--target-count", type=int, default=int(USER_CFG.get("target_count", 100)), help="Total candidate attempts to run.")
     parser.add_argument("--aug-per-sample", type=int, default=0, help="(Deprecated, unused) Augmented copies per accepted sample.")
-    parser.add_argument("--max-attempts", type=int, default=1200, help="Max generation attempts before stop.")
-    parser.add_argument("--seed", type=int, default=2026, help="Base random seed.")
-    parser.add_argument("--workers", type=int, default=20, help="Number of concurrent workers.")
-    parser.add_argument("--model", type=str, default="gpt-5-mini", help="LLM model name for invariant generation.")
-    parser.add_argument("--max-skeleton-repeat", type=int, default=3, help="Maximum accepted samples per loop skeleton key.")
+    parser.add_argument("--max-attempts", type=int, default=int(USER_CFG.get("max_attempts", 1200)), help="Max generation attempts before stop.")
+    parser.add_argument("--seed", type=int, default=int(USER_CFG.get("seed", 2026)), help="Base random seed.")
+    parser.add_argument("--workers", type=int, default=int(USER_CFG.get("workers", 20)), help="Number of concurrent workers.")
+    parser.add_argument("--model", type=str, default=str(USER_CFG.get("model", "gpt-5-mini")), help="LLM model name for invariant generation.")
+    parser.add_argument("--max-skeleton-repeat", type=int, default=int(USER_CFG.get("max_skeleton_repeat", 3)), help="Maximum accepted samples per loop skeleton key.")
     parser.add_argument(
         "--append",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=bool(USER_CFG.get("append", True)),
         help="Append to existing work-dir data and dedup against existing samples (default: true).",
     )
-    parser.add_argument("--work-dir", type=str, default="", help="Optional work dir under loop_factory/generated.")
+    parser.add_argument("--work-dir", type=str, default=str(USER_CFG.get("work_dir", "")), help="Optional work dir under loop_factory/generated.")
+    # Exposed loop_factory complexity controls.
+    parser.add_argument("--lf-max-vars", type=int, default=int(USER_CFG.get("lf_max_vars", 6)), help="Loop-factory max variable count.")
+    parser.add_argument("--lf-params", type=int, default=int(USER_CFG.get("lf_params", 2)), help="Loop-factory parameter count.")
+    parser.add_argument("--lf-min-loops", type=int, default=int(USER_CFG.get("lf_min_loops", 1)), help="Loop-factory min loop count.")
+    parser.add_argument("--lf-max-loops", type=int, default=int(USER_CFG.get("lf_max_loops", 1)), help="Loop-factory max loop count.")
+    parser.add_argument("--lf-max-assign", type=int, default=int(USER_CFG.get("lf_max_assign", 6)), help="Loop-factory max assignments per loop.")
+    parser.add_argument("--lf-max-ifelse", type=int, default=int(USER_CFG.get("lf_max_ifelse", 3)), help="Loop-factory max if/else blocks per loop.")
+    parser.add_argument("--lf-max-depth", type=int, default=int(USER_CFG.get("lf_max_depth", 1)), help="Loop-factory max loop nesting depth.")
+    parser.add_argument("--lf-p-multi", type=float, default=float(USER_CFG.get("lf_p_multi", 0.0)), help="Loop-factory p_multi.")
+    parser.add_argument("--lf-q-nest", type=float, default=float(USER_CFG.get("lf_q_nest", 0.0)), help="Loop-factory q_nest.")
+    parser.add_argument("--lf-p-nonlinear", type=float, default=float(USER_CFG.get("lf_p_nonlinear", 0.75)), help="Loop-factory nonlinear family probability.")
+    parser.add_argument("--lf-p-semantic-core", type=float, default=float(USER_CFG.get("lf_p_semantic_core", 0.78)), help="Loop-factory semantic core probability.")
     args = parser.parse_args()
 
     # LoopSampler uses relative paths assuming CWD is src/
@@ -696,6 +717,19 @@ def main() -> None:
     llm_cfg.api_model = args.model
     system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
     api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
+    lf_overrides: Dict[str, object] = {
+        "max_vars": args.lf_max_vars,
+        "params": args.lf_params,
+        "min_loops": args.lf_min_loops,
+        "max_loops": args.lf_max_loops,
+        "max_assign": args.lf_max_assign,
+        "max_ifelse": args.lf_max_ifelse,
+        "max_depth": args.lf_max_depth,
+        "p_multi": args.lf_p_multi,
+        "q_nest": args.lf_q_nest,
+        "p_nonlinear": args.lf_p_nonlinear,
+        "p_semantic_core": args.lf_p_semantic_core,
+    }
 
     # Build in-memory dedup sets from existing raw/annotated pairs.
     signatures: Set[str] = set()
@@ -752,6 +786,7 @@ def main() -> None:
                         system_prompt,
                         run_tag,
                         stop_event,
+                        lf_overrides,
                     )
                     pending[fut] = (attempt, seed)
 

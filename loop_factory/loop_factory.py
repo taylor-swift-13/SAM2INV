@@ -124,7 +124,15 @@ class NameAllocator:
         available = [x for x in self.letters if x not in self.used]
         if not available:
             raise RuntimeError("No available single-letter variable names remain")
-        if hint and len(hint) == 1 and hint in available:
+        # Do not overfit variable naming to hints (e.g. bound always named `l`).
+        # Keep names diverse to avoid bias in synthesized datasets.
+        use_hint = (
+            hint
+            and len(hint) == 1
+            and hint in available
+            and self.rng.random() < 0.35
+        )
+        if use_hint:
             name = hint
         else:
             name = self.rng.choice(available)
@@ -167,7 +175,8 @@ class ProbabilisticLoopFactory:
         if nla_family:
             op = self.rng.choices(["+", "-", "*", "%"], weights=[0.25, 0.17, 0.46, 0.12], k=1)[0]
         else:
-            op = self.rng.choices(["+", "-", "*", "%"], weights=[0.54, 0.34, 0.09, 0.03], k=1)[0]
+            # Linear family: forbid '*' and '/' in loop-body updates.
+            op = self.rng.choices(["+", "-", "%"], weights=[0.62, 0.34, 0.04], k=1)[0]
 
         if op == "%":
             rhs = str(self.rng.randint(2, 11))
@@ -205,7 +214,8 @@ class ProbabilisticLoopFactory:
         if nla_family:
             weights = [0.25, 0.15, 0.15, 0.25, 0.20]  # more mul/div styles
         else:
-            weights = [0.48, 0.24, 0.20, 0.05, 0.03]  # mostly linear counters
+            # Linear family: disable mul/div loop controls.
+            weights = [0.56, 0.24, 0.20, 0.0, 0.0]
 
         mode = self.rng.choices(["inc1", "dec1", "inc_step", "mul_up", "div_down"], weights=weights, k=1)[0]
 
@@ -412,8 +422,10 @@ class ProbabilisticLoopFactory:
                 state_n = self.rng.randint(1, max_state)
             state_vars = self.rng.sample(state_pool, k=min(state_n, len(state_pool)))
         else:
-            ctr = alloc.alloc("i")
-            lim = alloc.alloc("l")
+            ctr_hint = self.rng.choice(["i", "j", "k", "t", "u", "v"])
+            lim_hint = self.rng.choice(["l", "h", "n", "m", "r", "b"])
+            ctr = alloc.alloc(ctr_hint)
+            lim = alloc.alloc(lim_hint)
             # Reserve 2 locals for loop control (ctr/lim), others for state vars.
             state_cap = max(1, remaining_local_budget - 2)
             state_vars = self._sample_state_vars(alloc, nla_family, state_cap)
@@ -485,9 +497,12 @@ class ProbabilisticLoopFactory:
             allow("monotone_bound", lin_w, 1, 1, 2)                            # (6)
             allow("phase_switch", cond_w, 1, 2, 2)                             # (7)
             allow("saturation", cond_w, 1, 1, 2)                               # (8)
-            allow("scaling_pair", cond_w if nla_family else lin_w, 0, 2, 2)    # (9)
+            allow("scaling_pair", cond_w if nla_family else 0.0, 0, 2, 2)      # (9): nonlinear-only
             allow("counter_decomp", lin_w, 0, 4, 4)                            # (12)
             allow("gcd_compare", cond_w if nla_family else lin_w, 1, 1, 2)     # (10)
+            # Generic complex paradigms (dataset-agnostic).
+            allow("nested_guarded_transitions", lin_w + cond_w, 2, 5, 4)
+            allow("piecewise_recurrence", (cond_w + rel_w) if nla_family else 0.0, 2, 6, 5)
 
             chosen = self.rng.choices(candidates, weights=weights, k=1)[0] if candidates else ""
 
@@ -596,6 +611,91 @@ class ProbabilisticLoopFactory:
                 body.append(IfElse(cond=f"{a}>{b}", then_body=[Assign(a, f"{a}-{b}")], else_body=[Assign(b, f"{b}-{a}")]))
                 used_if += 1
                 used_assign += 1
+                core_applied = True
+            elif chosen == "nested_guarded_transitions":
+                # Generic nested guarded state transitions:
+                # - outer compare guard
+                # - nested reset/advance branch
+                # - affine accumulator drift
+                # - explicit progress update
+                x1, x2, x3, x4 = self.rng.sample(state_vars, k=4)
+                set_init(x1, str(self.rng.randint(0, 2)))
+                set_init(x2, str(self.rng.randint(0, 2)))
+                set_init(x3, f"({src}%{self.rng.randint(20, 50)})+{self.rng.randint(1, 6)}")
+                set_init(x4, f"({src}%{self.rng.randint(15, 40)})+{self.rng.randint(1, 6)}")
+                guard = f"{ctr}<{lim}"
+                step1 = self.rng.randint(1, 2)
+                step2 = self.rng.randint(1, 2)
+                drift = self.rng.choice([f"{x2}-{x1}", f"{x2}+{x1}", f"{x2}+{step1}"])
+                body.append(
+                    IfElse(
+                        cond=f"{x1}>{x3}",
+                        then_body=[
+                            Assign(x1, f"{x1}+{step1}"),
+                            Assign(x2, f"{x2}+{x1}"),
+                        ],
+                        else_body=[
+                            IfElse(
+                                cond=f"{x3}=={lim}",
+                                then_body=[Assign(x3, str(self.rng.randint(1, 4)))],
+                                else_body=[Assign(x3, f"{x3}+{step2}")],
+                            )
+                        ],
+                    )
+                )
+                body.append(Assign(x4, f"{x4}+{drift}"))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_if += 2
+                used_assign += 5
+                core_applied = True
+            elif chosen == "piecewise_recurrence":
+                # Generic piecewise nonlinear recurrence:
+                # - predicate built from linear form over state
+                # - branch-dependent affine/nonlinear updates
+                # - monotone progress on one control variable
+                pool = state_vars[:]
+                if len(pool) < 5:
+                    pool = (pool * 5)[:5]
+                u, v, w, t, extra = self.rng.sample(pool, k=5)
+
+                denom = self.rng.randint(3, 9)
+                set_init(u, f"{src}*{src}")
+                set_init(v, f"({src}%{denom})+{self.rng.randint(2, 5)}")
+                set_init(w, f"{u}%{v}")
+                set_init(t, f"{self.rng.randint(2, 5)}*({u}/{v}+1)")
+                set_init(extra, f"{u}%({v}-1)")
+
+                guard = f"{ctr}<{lim}&&{w}!=0"
+                k1 = self.rng.randint(1, 3)
+                k2 = self.rng.randint(1, 3)
+                c1 = self.rng.randint(1, 3)
+                c2 = self.rng.randint(1, 3)
+                body.append(
+                    IfElse(
+                        cond=f"{k1}*{w}+{t}<{extra}",
+                        then_body=[
+                            Assign(w, f"{k2}*{w}-{extra}+{t}+{v}+{c1}"),
+                            Assign(t, f"{t}+{self.rng.choice([2,4,6])}"),
+                            Assign(extra, w),
+                        ],
+                        else_body=[
+                            IfElse(
+                                cond=f"{k1}*{w}+{t}<{v}+{extra}+{c2}",
+                                then_body=[
+                                    Assign(w, f"{k2}*{w}-{extra}+{t}"),
+                                    Assign(v, f"{v}+{self.rng.choice([1,2])}"),
+                                ],
+                                else_body=[
+                                    Assign(w, f"{k2}*{w}-{extra}+{t}-{v}-{c2}"),
+                                    Assign(t, f"{t}-{self.rng.choice([2,4,6])}"),
+                                ],
+                            )
+                        ],
+                    )
+                )
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_if += 2
+                used_assign += 6
                 core_applied = True
 
         if core_applied:

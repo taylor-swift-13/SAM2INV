@@ -24,7 +24,7 @@ SUBDIR = "NLA_lipus"
 #   1. 不触发动态采样（跳过程序执行获取 traces）
 #   2. Prompt 中不包含 traces 信息
 #   3. 跳过基于 traces 的候选不变式筛选阶段
-USE_TRACES = False
+USE_TRACES = True
 
 # ==============================================================================
 # 采样策略配置 (Sampling Strategy Configuration)
@@ -80,7 +80,7 @@ MAX_STRENGTHEN_ITERATIONS = 0
 # 并行生成配置
 PARALLEL_GENERATION_CONFIG = {
     'enabled': True,              # 是否启用并行生成多组候选不变式
-    'num_candidates': 10,        # 并行生成的候选组数 (增加到10个以获得更多样化的候选)
+    'num_candidates': 5,        # 并行生成的候选组数 (增加到10个以获得更多样化的候选)
     'temperature': 1.0,           # 生成温度,控制多样性 (提高到1.0增加多样性)
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
     'use_houdini': True,          # 是否使用Houdini进一步筛选组合后的不变式
@@ -100,7 +100,7 @@ PROMPT_CONFIG = {
 # simplified=True: 使用简化模板（默认）
 # simplified=False: 使用复杂模板（结合 var_maps/path_conds/updated_loop_conditions）
 TEMPLATE_CONFIG = {
-    'simplified': True,
+    'simplified': False,
 }
 
 # ==============================================================================
@@ -197,6 +197,36 @@ SYNTAX_FILTER_CONFIG = {
 
 # Filter is always enabled and uses variables from symbolic execution record
 # Variables are extracted from record dynamically
+
+
+# ==============================================================================
+# Loop Factory User Config (for loop_factory/batch_pipeline.py)
+# ==============================================================================
+# 用户可在此统一调节 batch pipeline 与 loop_factory 复杂度参数。
+LOOP_FACTORY_USER_CONFIG = {
+    # batch pipeline runtime
+    'target_count': 100,
+    'max_attempts': 1200,
+    'seed': 2026,
+    'workers': 20,
+    'model': 'gpt-5-mini',
+    'max_skeleton_repeat': 3,
+    'append': True,
+    'work_dir': '',
+
+    # loop_factory complexity knobs
+    'lf_max_vars': 6,
+    'lf_params': 2,
+    'lf_min_loops': 1,
+    'lf_max_loops': 1,
+    'lf_max_assign': 6,
+    'lf_max_ifelse': 3,
+    'lf_max_depth': 1,
+    'lf_p_multi': 0.0,
+    'lf_q_nest': 0.0,
+    'lf_p_nonlinear': 0.75,
+    'lf_p_semantic_core': 0.78,
+}
 
 
 
