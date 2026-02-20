@@ -1,54 +1,37 @@
 # loop_factory
 
-基于 `DESIGN.md` 的 DSL 循环合成器，输出风格对齐 `src/input/NLA_lipus`，并去掉 `requires/assert`。
+`loop_factory` synthesizes C loop programs using a DSL-based generator and provides pipelines to batch-generate verification tasks.
 
-## 特点
+## What It Produces
 
-- 与 `src/input` 对齐的 C 代码风格：
-  - `int mainX(int a,int b,...)`
-  - 局部变量声明后初始化
-  - 以 `while` 为核心控制流，可含 `if`
-- 不生成 `requires` 和 `assert`
-- 循环有明确语义模板（非纯随机更新）
-- 基于 DSL AST 构建，支持扩展到多层循环
+- C programs formatted for the SAM2INV pipeline input style.
+- Single-loop or multi-loop programs (based on configuration).
+- Linear and nonlinear loop families controlled by probability parameters.
 
-## 概率模型（你定义的 p/q）
+The generated programs are intended to be consumed by `src/loop_inv.py` and batch pipelines.
 
-- 每次生成都只有一棵循环树（单根 `while`）
-- 额外循环概率 `p`：`P(L>=2)=p`, `P(L>=3)=p^2`（`L` 为树中循环节点数）
-- 链式嵌套概率 `q`：按生成顺序，第 `i` 个循环以概率 `q` 嵌套到第 `i-1` 个循环中，否则挂到根循环下
-- 硬约束：
-  - 最大循环节点数：`--max-loops`
-  - 最大嵌套深度：`--max-depth`
-  - 当 `--max-depth 1` 时，始终只有一个循环节点
+## Main Scripts
 
-## 语义模板
+- `loop_factory.py`: core program generator.
+- `batch_pipeline.py`: end-to-end generation + invariant generation + quality gating.
+- `one_sample_pipeline.py`: single-sample workflow.
+- `sft_pipeline.py`: prompt evaluation and dataset-style workflow.
 
-- 三次增长递推（`x,y,z` 联动）
-- 几何递推（`x = x*z + 1`, `y = y*z`）
-- 累加型平方和/内积
-- 幂和累加（`x += y^d`, `d in [1..5]`）
-- 商余计数（`while (x > y*q + r)`）
-- 二进制乘法风格（`while + if`）
-- 线性双变量平移（`x += c, y += c`）
-- 线性减到零（`while (x>0) x--`）
-- 模分桶计数（按 `%2..%6` 条件链计数）
-- 减法版 Euclid 循环（`while(x!=0 && y!=0)`）
-- 嵌套三角和（两层 `while`）
-- 嵌套仿射更新（两层 `while`）
+## Quick Start
 
-## 使用
+Generate 50 programs:
 
 ```bash
-python3 loop_factory.py --profile benchmark --out-dir generated/NLA_prob --count 50 --seed 2026
+cd loop_factory
+python3 loop_factory.py --profile benchmark --out-dir generated/demo --count 50 --seed 2026
 ```
 
-## 生成更复杂的多层循环
+Generate richer programs:
 
 ```bash
 python3 loop_factory.py \
   --profile rich \
-  --out-dir generated/NLA_prob_rich \
+  --out-dir generated/rich_demo \
   --count 100 \
   --seed 2026 \
   --params 3 \
@@ -58,4 +41,45 @@ python3 loop_factory.py \
   --q-nest 0.15
 ```
 
-输出为 `1.c`, `2.c`, ...，每个文件一个程序。
+## `loop_factory.py` Key Parameters
+
+- `--profile`: `benchmark` or `rich`
+- `--out-dir`: output directory
+- `--count`: number of C files
+- `--seed`: random seed
+- `--max-vars`: maximum variable count
+- `--params`: function parameter count
+- `--min-loops`, `--max-loops`: while-loop count bounds
+- `--max-assign`: max assignments per loop
+- `--max-ifelse`: max if/else blocks per loop
+- `--max-depth`: max nesting depth
+- `--p-multi`: loop continuation probability
+- `--q-nest`: loop nesting probability
+- `--p-nonlinear`: probability of nonlinear loop family
+- `--p-semantic-core`: probability of semantic-core injection
+
+Note: advanced semantic-core weight options exist in `loop_factory.py`, but higher-level workflows can hide them.
+
+## `batch_pipeline.py` Configuration
+
+`batch_pipeline.py` reads defaults from `src/config.py` under `LOOP_FACTORY_USER_CONFIG`.
+
+User-facing knobs include:
+
+- Runtime: `target_count`, `max_attempts`, `seed`, `workers`, `model`, `max_skeleton_repeat`
+- Complexity: `lf_max_vars`, `lf_params`, `lf_min_loops`, `lf_max_loops`, `lf_max_assign`, `lf_max_ifelse`, `lf_max_depth`, `lf_p_multi`, `lf_q_nest`, `lf_p_nonlinear`, `lf_p_semantic_core`
+
+Equivalent CLI flags are available with `--lf-*` names for these exposed fields.
+
+## Output
+
+Typical outputs include:
+
+- Generated C files (`1.c`, `2.c`, ...)
+- Logs and intermediate artifacts under `loop_factory/generated/`
+- Accepted samples that can be copied into `src/input/<subdir>/` for verification runs
+
+## Notes
+
+- Current repository state removes cache-based prompt/reference logic from the invariant generation path.
+- Keep `src/config.py` and `loop_factory` parameters aligned when tuning generation complexity.
