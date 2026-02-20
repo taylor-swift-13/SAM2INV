@@ -266,6 +266,32 @@ class InvariantGenerator:
         
         return self._generate_with_llm_self_check(original_code, record, loop_idx)
 
+    @staticmethod
+    def _normalize_inv_text(inv: str) -> str:
+        return re.sub(r"\s+", " ", (inv or "").strip())
+
+    def _save_loop_dpo_record(self, loop_idx: int, chosen_code: Optional[str], candidates: List[Dict]) -> None:
+        """Save loop-level DPO artifacts: chosen final code + rejected original candidates."""
+        chosen_text = (chosen_code or "").strip()
+        rejected_items: List[Dict[str, str]] = []
+        for cand in candidates or []:
+            if not cand.get("dpo_reject", False):
+                continue
+            code_text = (cand.get("code", "") or "").strip()
+            if not code_text:
+                continue
+            if chosen_text and code_text == chosen_text:
+                continue
+            reasons = cand.get("dpo_reject_reasons", []) or []
+            reason_text = ",".join([str(x) for x in reasons if isinstance(x, str) and x.strip()]) or "filtered"
+            rejected_items.append({"reason": reason_text, "code": code_text})
+
+        self.loop_dpo_records[loop_idx] = {
+            "loop_idx": loop_idx,
+            "chosen_code": chosen_code or "",
+            "rejected_items": rejected_items,
+        }
+
     def _generate_with_llm_self_check(self, original_code: str, record, loop_idx: int, max_self_iterations: int = 5) -> Optional[str]:
         """
         使用LLM生成不变量,并通过采样数据过滤
@@ -343,12 +369,19 @@ class InvariantGenerator:
         self.logger.info(f"{'='*60}")
         
         all_candidates = []
+        def _mark_candidate_reject(candidate: Dict, reason: str) -> None:
+            candidate["dpo_reject"] = True
+            reasons = candidate.setdefault("dpo_reject_reasons", [])
+            if isinstance(reasons, list) and reason not in reasons:
+                reasons.append(reason)
         for idx, code in enumerate(candidate_codes, 1):
             invariants = self._extract_invariants_from_code(code)
             all_candidates.append({
                 'code': code,
                 'invariants': invariants,
-                'index': idx
+                'index': idx,
+                'dpo_reject': False,
+                'dpo_reject_reasons': [],
             })
             self.logger.info(f"\nCandidate {idx}: {len(invariants)} invariants")
             for i, inv in enumerate(invariants, 1):
@@ -400,8 +433,11 @@ class InvariantGenerator:
                 if removed_pow_like:
                     for bad_inv in removed_pow_like:
                         self.logger.info(f"  Removed non-ACSL-safe invariant: {bad_inv}")
+                    _mark_candidate_reject(candidate, "syntax_gate")
                 candidate['syntax_filtered_invariants'] = safe_invariants
                 candidate['syntax_rejected'] = filter_result.rejected
+                if filter_result.rejected:
+                    _mark_candidate_reject(candidate, "syntax_gate")
                 
                 self.logger.info(f"\nCandidate {candidate['index']}: {len(filter_result.valid)}/{len(candidate['invariants'])} invariants passed syntax filter")
                 
@@ -440,6 +476,10 @@ class InvariantGenerator:
                 )
                 candidate['filtered_invariants'] = filtered_invs
                 candidate['pass_rate'] = len(filtered_invs) / len(candidate['invariants']) if candidate['invariants'] else 0
+                kept_norm = {self._normalize_inv_text(x) for x in filtered_invs}
+                for inv in candidate['syntax_filtered_invariants']:
+                    if self._normalize_inv_text(inv) not in kept_norm:
+                        _mark_candidate_reject(candidate, "sampling_gate")
                 
                 self.logger.info(f"\nCandidate {candidate['index']}: {len(filtered_invs)}/{len(candidate['syntax_filtered_invariants'])} invariants passed sampling filter (pass rate: {candidate['pass_rate']:.1%})")
         else:
@@ -482,16 +522,19 @@ class InvariantGenerator:
             return re.sub(r'\\at\((\w+),\s*Pre\)', _at_repl, inv_text)
         
         for candidate in all_candidates:
+            candidate['combined_contrib'] = []
             for inv in candidate['filtered_invariants']:
                 inv = _sanitize_invariant(inv)
                 if not inv:
                     self.logger.info(f"  Removed non-ACSL-safe invariant before merge")
+                    _mark_candidate_reject(candidate, "merge_gate")
                     continue
                 # 标准化不变式用于去重(去除空格差异)
                 normalized_inv = ' '.join(inv.split())
                 if normalized_inv not in seen_invariants:
                     seen_invariants.add(normalized_inv)
                     combined_invariants.append(inv)
+                    candidate['combined_contrib'].append(normalized_inv)
                     self.logger.info(f"  Added from Candidate {candidate['index']}: {inv}")
 
         # Heuristic seed invariants are disabled for compliance.
@@ -536,6 +579,11 @@ class InvariantGenerator:
                 removed_count = len(combined_invariants) - len(non_conflicting_invariants)
                 self.logger.info(f"Removed {removed_count} conflicting invariants")
                 self.logger.info(f"Remaining: {len(non_conflicting_invariants)} invariants")
+                kept_norm = {' '.join(x.split()) for x in non_conflicting_invariants}
+                for candidate in all_candidates:
+                    contrib = candidate.get('combined_contrib', []) or []
+                    if any(x not in kept_norm for x in contrib):
+                        _mark_candidate_reject(candidate, "conflict_gate")
                 combined_invariants = non_conflicting_invariants
             else:
                 self.logger.info("No conflicts detected")
@@ -627,6 +675,7 @@ class InvariantGenerator:
                     )
                     if strengthened_code is None:
                         self.logger.warning(f"Loop {loop_idx} - Strengthening failed to satisfy assertions")
+                        self._save_loop_dpo_record(loop_idx, "", all_candidates)
                         return None
                     final_code = strengthened_code
 
@@ -638,6 +687,7 @@ class InvariantGenerator:
                     for i, inv in enumerate(final_invariants, 1):
                         self.logger.info(f"  [{i}] {inv}")
 
+                self._save_loop_dpo_record(loop_idx, final_code, all_candidates)
                 self.logger.info(f"\nOK Successfully generated invariant for loop {loop_idx}")
                 return final_code
             elif pruned_code:
@@ -654,8 +704,10 @@ class InvariantGenerator:
                     pruned_code, temp_file, record, loop_idx, max_iterations=MAX_STRENGTHEN_ITERATIONS
                 )
                 if strengthened_code is not None:
+                    self._save_loop_dpo_record(loop_idx, strengthened_code, all_candidates)
                     return strengthened_code
                 self.logger.warning(f"\nX Failed to generate invariant for loop {loop_idx} (Houdini validation incomplete + strengthening failed)")
+                self._save_loop_dpo_record(loop_idx, "", all_candidates)
                 self._print_full_loop_on_error(pruned_code, record, loop_idx, "Houdini Validation Failed")
                 return None
             else:
@@ -665,8 +717,10 @@ class InvariantGenerator:
                     current_code, temp_file, record, loop_idx, max_iterations=MAX_STRENGTHEN_ITERATIONS
                 )
                 if strengthened_code is not None:
+                    self._save_loop_dpo_record(loop_idx, strengthened_code, all_candidates)
                     return strengthened_code
                 self.logger.warning(f"\nX Failed to generate invariant for loop {loop_idx} (Houdini removed all invariants + strengthening failed)")
+                self._save_loop_dpo_record(loop_idx, "", all_candidates)
                 self._print_full_loop_on_error(current_code if 'current_code' in locals() else "", record, loop_idx, "Houdini Removed All Invariants")
                 return None
                 
@@ -2676,6 +2730,48 @@ class InvariantGenerator:
             return ' && '.join(f'({inv})' for inv in invariants)
         
         return ""
+
+    def _extract_per_loop_inv_assigns(self, code: str) -> List[Dict[str, object]]:
+        """Extract per-loop invariants and loop-assigns from loop-adjacent ACSL blocks."""
+        loop_matches = list(re.finditer(r'\b(?:while|for)\s*\(', code))
+        ann_pat = re.compile(r'/\*[\s\S]*?\*/')
+        out: List[Dict[str, object]] = []
+        for lm in loop_matches:
+            prefix = code[: lm.start()]
+            blocks = list(ann_pat.finditer(prefix))
+            invs: List[str] = []
+            assigns = ""
+            if blocks:
+                last = blocks[-1]
+                if not prefix[last.end() :].strip():
+                    block = last.group(0)
+                    invs = [m.strip() for m in re.findall(r'loop invariant\s+([^;]+);', block)]
+                    am = re.search(r'loop assigns\s+([^;]+);', block)
+                    if am:
+                        assigns = am.group(1).strip()
+            out.append({"invariants": invs, "assigns": assigns})
+        return out
+
+    def _build_code_with_per_loop_invariants(
+        self,
+        original_code: str,
+        records: List[Dict],
+        per_loop_invariants: List[List[str]],
+        per_loop_assigns: List[str],
+    ) -> str:
+        """Rebuild full code by filling each loop template with its invariants."""
+        code = original_code
+        for idx, record in enumerate(records):
+            template_code = self.template_gen.generate_template(record, simplified=self.template_simplified)
+            inv_lines = "\n".join([f"loop invariant {x};" for x in (per_loop_invariants[idx] if idx < len(per_loop_invariants) else [])])
+            assigns = per_loop_assigns[idx] if idx < len(per_loop_assigns) else ""
+            if assigns:
+                if inv_lines:
+                    inv_lines += "\n"
+                inv_lines += f"loop assigns {assigns};"
+            filled = template_code.replace("PLACE_HOLDER", inv_lines)
+            code = self._replace_loop_content(code, filled, idx)
+        return code
     
     def generate_all(self, max_iterations: int = MAX_ITERATION) -> Optional[str]:
         """
@@ -2715,137 +2811,197 @@ class InvariantGenerator:
             self.logger.error("Could not read original input code")
             return None
         
-        # Initialize first_pass tracking
-        first_syntax_round = None
-        first_valid_round = None
-        first_satisfy_round = None
-        
-        # Multi-pass iteration (SESpec style)
-        for iteration in range(max_iterations):
-            self.logger.info(f"\n{'='*60}")
-            self.logger.info(f"Generation Pass {iteration + 1}/{max_iterations}")
-            self.logger.info(f"{'='*60}")
-            
-            # Reset invariants for this pass
-            self.invariants = []
-            current_code = original_code
-            loop_results = []
-            
-            # Try to generate invariants for all loops in this pass
-            all_loops_success = True
-            
-            for idx, record in enumerate(processed_records):
-                loop_idx = record.get('loop_idx', idx)
-                
-                # Ensure record has all fields needed for template generation
-                if 'var_maps' not in record or not record['var_maps']:
-                    try:
-                        from loop_analysis import LoopAnalysis
-                        subdir = getattr(self, "resolved_subdir", None) or SUBDIR
-                        loop_json = Path(f"loop/{subdir}/{self.file_name}.json")
-                        if loop_json.exists():
-                            analysis = LoopAnalysis(str(loop_json), idx)
-                            analysis.run()
-                            record['var_maps'] = getattr(analysis, 'var_maps', [])
-                            record['path_conds'] = getattr(analysis, 'path_conds', [])
-                            record['updated_loop_conditions'] = getattr(analysis, 'updated_loop_conditions', [])
-                            record['unchanged_vars'] = getattr(analysis, 'global_unchanged_vars', [])
-                            record['non_inductive_vars'] = getattr(analysis, 'non_inductive_vars', [])
-                    except Exception as e:
-                        self.logger.debug(f"Could not load loop analysis: {e}")
-                
-                # Generate each loop invariant from the same base code in this pass.
-                # This avoids cross-loop interference and effectively handles multi-loop
-                # programs as a "simultaneous generation then merge" flow.
-                annotated_code = self.generate_invariant_for_loop(record, loop_idx, base_code=original_code)
+        # Ensure records have fields needed for template generation/filtering.
+        for idx, record in enumerate(processed_records):
+            if 'var_maps' not in record or not record['var_maps']:
+                try:
+                    from loop_analysis import LoopAnalysis
+                    subdir = getattr(self, "resolved_subdir", None) or SUBDIR
+                    loop_json = Path(f"loop/{subdir}/{self.file_name}.json")
+                    if loop_json.exists():
+                        analysis = LoopAnalysis(str(loop_json), idx)
+                        analysis.run()
+                        record['var_maps'] = getattr(analysis, 'var_maps', [])
+                        record['path_conds'] = getattr(analysis, 'path_conds', [])
+                        record['updated_loop_conditions'] = getattr(analysis, 'updated_loop_conditions', [])
+                        record['unchanged_vars'] = getattr(analysis, 'global_unchanged_vars', [])
+                        record['non_inductive_vars'] = getattr(analysis, 'non_inductive_vars', [])
+                except Exception as e:
+                    self.logger.debug(f"Could not load loop analysis: {e}")
 
-                # Track first_pass metrics from verifier state (regardless of success/failure)
-                if first_syntax_round is None and self.verifier.syntax_correct:
-                    first_syntax_round = iteration + 1
-                if first_valid_round is None and self.verifier.validate_result and all(self.verifier.validate_result):
-                    first_valid_round = iteration + 1
-                if first_satisfy_round is None and self.verifier.validate_result and all(self.verifier.validate_result) and self.verifier.verify_result and all(self.verifier.verify_result):
-                    first_satisfy_round = iteration + 1
+        # Build one function-level template with placeholders for all loops.
+        template_all = original_code
+        loop_contexts: List[str] = []
+        for idx, record in enumerate(processed_records):
+            loop_idx = record.get('loop_idx', idx)
+            template_code = self.template_gen.generate_template(record, simplified=self.template_simplified)
+            template_all = self._replace_loop_content(template_all, template_code, loop_idx)
+            _, ctx = self._prepare_prompt(record, loop_idx)
+            loop_contexts.append(f"### Loop {loop_idx} Context ###\n{ctx}")
 
-                if annotated_code:
-                    loop_segment = self._extract_loop_segment_with_optional_annotation(annotated_code, loop_idx)
-                    if loop_segment:
-                        loop_results.append((loop_idx, loop_segment))
-                    else:
-                        self.logger.warning(
-                            f"Loop {loop_idx}: generated code found, but could not extract loop segment for merge."
-                        )
-                        all_loops_success = False
+        from config import PARALLEL_GENERATION_CONFIG
+        num_candidates = PARALLEL_GENERATION_CONFIG.get('num_candidates', 10)
+        temperature = PARALLEL_GENERATION_CONFIG.get('temperature', 0.9)
+        use_threading = PARALLEL_GENERATION_CONFIG.get('use_threading', True)
+        max_workers = PARALLEL_GENERATION_CONFIG.get('max_workers', 5)
+        filter_by_sampling = PARALLEL_GENERATION_CONFIG.get('filter_by_sampling', True) and USE_TRACES
+        detect_conflicts = PARALLEL_GENERATION_CONFIG.get('detect_conflicts', True)
 
-                    self.invariants.append({
-                        'loop_idx': loop_idx,
-                        'code': annotated_code
-                    })
+        prompt_template = self._get_gen_template()
+        function_context = "\n\n".join(loop_contexts)
+        candidate_codes = self._generate_multiple_candidates(
+            template_all,
+            (prompt_template, function_context),
+            num_candidates=num_candidates,
+            temperature=temperature,
+            use_threading=use_threading,
+            max_workers=max_workers,
+        )
+        if not candidate_codes:
+            self.first_pass = {"syntax": None, "valid": None, "satisfy": None}
+            return None
+
+        loop_n = len(processed_records)
+        combined_per_loop: List[List[str]] = [[] for _ in range(loop_n)]
+        assigns_per_loop: List[str] = ["" for _ in range(loop_n)]
+        seen_per_loop: List[set] = [set() for _ in range(loop_n)]
+        candidate_meta: List[Dict] = []
+
+        def _mark_reject(meta: Dict, reason: str) -> None:
+            meta["dpo_reject"] = True
+            rs = meta.setdefault("dpo_reject_reasons", [])
+            if isinstance(rs, list) and reason not in rs:
+                rs.append(reason)
+
+        for code in candidate_codes:
+            meta = {"code": code, "dpo_reject": False, "dpo_reject_reasons": [], "contrib": [set() for _ in range(loop_n)]}
+            parsed = self._extract_per_loop_inv_assigns(code)
+            for i in range(min(loop_n, len(parsed))):
+                invs = list((parsed[i].get("invariants", []) if isinstance(parsed[i], dict) else []) or [])
+                if not assigns_per_loop[i]:
+                    assigns_per_loop[i] = str((parsed[i].get("assigns", "") if isinstance(parsed[i], dict) else "") or "")
+
+                if SYNTAX_FILTER_CONFIG.get('enabled', True):
+                    fr = filter_invariants(invs, processed_records[i], verbose=False)
+                    syntax_kept = list(fr.valid or [])
+                    if fr.rejected:
+                        _mark_reject(meta, "syntax_gate")
                 else:
-                    # Degrade gracefully: keep original loop code without invariants
-                    # so the run is reported as generated (syntax/valid can still be checked).
-                    self.logger.warning(
-                        f"Failed to generate invariant for loop {loop_idx} in pass {iteration + 1}; "
-                        f"falling back to original loop code."
-                    )
-                    all_loops_success = False
-                    # Fallback code has no loop invariants to establish/preserve.
-                    # Treat syntax/valid as passed for first-pass bookkeeping.
-                    if first_syntax_round is None:
-                        first_syntax_round = iteration + 1
-                    if first_valid_round is None:
-                        first_valid_round = iteration + 1
-                    self.invariants.append({
-                        'loop_idx': loop_idx,
-                        'code': current_code
-                    })
+                    syntax_kept = invs
+
+                safe_kept: List[str] = []
+                function_params = set(processed_records[i].get('function_params', []) or [])
+                for inv in syntax_kept:
+                    if '^' in inv or '\\pow' in inv:
+                        _mark_reject(meta, "syntax_gate")
+                        continue
+                    inv2 = re.sub(r'\\at\((\w+),\s*Pre\)', lambda m: m.group(0) if m.group(1) in function_params else m.group(1), inv)
+                    if inv2 != inv:
+                        _mark_reject(meta, "merge_gate")
+                    safe_kept.append(inv2)
+
+                if filter_by_sampling:
+                    sampled_kept = self._filter_invariants_by_sampling(safe_kept, processed_records[i], i)
+                    kept_norm = {self._normalize_inv_text(x) for x in sampled_kept}
+                    for inv in safe_kept:
+                        if self._normalize_inv_text(inv) not in kept_norm:
+                            _mark_reject(meta, "sampling_gate")
+                    safe_kept = sampled_kept
+
+                for inv in safe_kept:
+                    norm = ' '.join(inv.split())
+                    if norm not in seen_per_loop[i]:
+                        seen_per_loop[i].add(norm)
+                        combined_per_loop[i].append(inv)
+                    meta["contrib"][i].add(norm)
+            candidate_meta.append(meta)
+
+        if detect_conflicts:
+            for i in range(loop_n):
+                if len(combined_per_loop[i]) <= 1:
                     continue
+                non_conf = self._remove_conflicting_invariants(combined_per_loop[i])
+                if len(non_conf) < len(combined_per_loop[i]):
+                    combined_per_loop[i] = non_conf
 
-            # Merge all loop results into one final code for this pass.
-            # Apply by ascending loop index to keep target loop mapping stable.
-            if loop_results:
-                merged_code = original_code
-                for loop_idx, loop_segment in sorted(loop_results, key=lambda x: x[0]):
-                    merged_code = self._replace_loop_content(merged_code, loop_segment, loop_idx)
-                current_code = merged_code
+        pre_houdini_norm_per_loop: List[set] = []
+        for i in range(loop_n):
+            pre_houdini_norm_per_loop.append({' '.join(x.split()) for x in combined_per_loop[i]})
 
-            covered_loops, total_loops = self._count_loops_with_invariants(current_code)
-            if total_loops > 0 and covered_loops < total_loops:
-                self.logger.warning(
-                    f"Pass {iteration + 1}: missing loop invariants ({covered_loops}/{total_loops}), retrying..."
-                )
-                all_loops_success = False
+        combined_code = self._build_code_with_per_loop_invariants(
+            original_code, processed_records, combined_per_loop, assigns_per_loop
+        )
 
-            # If any loop failed, try next pass
-            if not all_loops_success:
-                self.logger.warning(f"Pass {iteration + 1}: Some loops failed, trying next pass...")
+        final_code = combined_code
+        syntax = False
+        valid = False
+        satisfy = False
+        temp_file = self._create_temp_file(combined_code)
+        try:
+            pruned_code, houdini_valid = self.houdini_pruner.hudini(combined_code, self.verifier, temp_file)
+            if pruned_code:
+                final_code = pruned_code
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                f.write(final_code)
+            self.verifier.run(temp_file)
+            syntax = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
+            valid = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
+            satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else True
+            if not houdini_valid:
+                for meta in candidate_meta:
+                    _mark_reject(meta, "houdini_gate")
+        finally:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+
+        # Mark candidate as rejected if its pre-Houdini contribution was removed by Houdini.
+        final_parsed = self._extract_per_loop_inv_assigns(final_code)
+        final_norm_per_loop: List[set] = []
+        for i in range(loop_n):
+            invs = []
+            if i < len(final_parsed) and isinstance(final_parsed[i], dict):
+                invs = list(final_parsed[i].get("invariants", []) or [])
+            final_norm_per_loop.append({' '.join(x.split()) for x in invs})
+        for meta in candidate_meta:
+            contrib = meta.get("contrib", []) or []
+            for i in range(min(loop_n, len(contrib))):
+                effective = set(contrib[i]).intersection(pre_houdini_norm_per_loop[i])
+                if any(x not in final_norm_per_loop[i] for x in effective):
+                    _mark_reject(meta, "houdini_gate")
+                    break
+
+        self.invariants = [{'loop_idx': 0, 'code': final_code}]
+        rejected_items: List[Dict[str, str]] = []
+        for meta in candidate_meta:
+            if not meta.get("dpo_reject", False):
                 continue
-
-            # All loops generated successfully with Houdini validation
-            # Skip global verification and directly save results
-            self.logger.info(f"\n{'='*60}")
-            self.logger.info(f"✓ All loops passed Houdini validation in pass {iteration + 1}")
-            self.logger.info(f"  Skipping global verification, directly saving results...")
-            self.logger.info(f"{'='*60}")
-
-            # Save results immediately
-            self.save_results()
-
-            # Break out of the iteration loop
-            break
-        
-        # Store first_pass results (round number if passed, None if not)
-        self.first_pass = {
-            "syntax": first_syntax_round if first_syntax_round is not None else None,
-            "valid": first_valid_round if first_valid_round is not None else None,
-            "satisfy": first_satisfy_round if first_satisfy_round is not None else None
+            c = (meta.get("code", "") or "").strip()
+            if not c or c == final_code.strip():
+                continue
+            reasons = meta.get("dpo_reject_reasons", []) or []
+            rejected_items.append({"reason": ",".join(reasons) if reasons else "filtered", "code": c})
+        self.loop_dpo_records = {
+            0: {
+                "loop_idx": 0,
+                "chosen_code": final_code,
+                "chosen_invariants": self._extract_invariants_from_code(final_code),
+                "rejected_items": rejected_items,
+            }
         }
+
+        self.first_pass = {
+            "syntax": 1 if syntax else None,
+            "valid": 1 if valid else None,
+            "satisfy": 1 if (syntax and valid and satisfy) else None,
+        }
+
+        self.save_results()
         
         self.logger.info(f"\n{'='*60}")
         self.logger.info("Final first_pass results:")
-        self.logger.info(f"  syntax={self.first_pass['syntax']} (first passed at round {first_syntax_round})")
-        self.logger.info(f"  valid={self.first_pass['valid']} (first passed at round {first_valid_round})")
-        self.logger.info(f"  satisfy={self.first_pass['satisfy']} (first passed at round {first_satisfy_round})")
+        self.logger.info(f"  syntax={self.first_pass['syntax']}")
+        self.logger.info(f"  valid={self.first_pass['valid']}")
+        self.logger.info(f"  satisfy={self.first_pass['satisfy']}")
         self.logger.info(f"{'='*60}")
         
         # Output token usage statistics
@@ -2866,17 +3022,7 @@ class InvariantGenerator:
             self.logger.info(f"    Total: {avg_total:.1f} tokens")
         self.logger.info(f"{'='*60}")
         
-        # Return the final code if we have invariants
-        if self.invariants:
-            final_code = self.invariants[-1]['code']
-            covered_loops, total_loops = self._count_loops_with_invariants(final_code)
-            if total_loops > 0 and covered_loops < total_loops:
-                self.logger.error(
-                    f"Generation failed: some loops have no invariants ({covered_loops}/{total_loops})"
-                )
-                return None
-            return final_code
-        return None
+        return final_code
     
     def _strengthen_invariants_iterative(self, code: str, c_file_path: str, record: Dict, loop_idx: int, max_iterations: int = MAX_STRENGTHEN_ITERATIONS) -> Optional[str]:
         """
