@@ -263,17 +263,11 @@ class TemplateGenerator:
         if simplified:
             # 简化模板：只生成基本的占位符，让 LLM 自由发挥
             tag = "/* >>> LOOP INVARIANT TO FILL <<< */"
-            
-            # 添加 pfit 部分有效的不变量（如果有）
-            pfit_partial = record.get('pfit_partial_valid', [])
-            pfit_section = ""
-            if pfit_partial:
-                for inv in pfit_partial:
-                    pfit_section += f"      {inv}\n"
-            
+
             annotations = f"""{tag}
 /*@
-{pfit_section}  loop invariant PLACE_HOLDER_VERIFICATION_GOAL;
+  loop invariant PLACE_HOLDER;
+  loop invariant PLACE_HOLDER_VERIFICATION_GOAL;
   loop assigns PLACE_HOLDER_ASSIGNMENTS;
 */
 {loop_content}"""
@@ -311,18 +305,11 @@ class TemplateGenerator:
         
         # 创建基础注释模板
         tag = "/* >>> LOOP INVARIANT TO FILL <<< */"
-        
-        # 添加 pfit 部分有效的不变量作为第一行（如果有）
-        pfit_partial = record.get('pfit_partial_valid', [])
-        pfit_section = ""
-        if pfit_partial:
-            for inv in pfit_partial:
-                pfit_section += f"      {inv}\n"
-        
+
         annotations = f'''
         {tag}
         /*@
-{pfit_section}        */
+        */
         {loop_content}
         '''
         

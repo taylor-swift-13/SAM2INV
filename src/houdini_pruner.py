@@ -101,6 +101,10 @@ class HoudiniPruner:
         current_code = code
         valid = False
         iteration = 0
+        # Upper bound: invariant count can only decrease each round, so this
+        # is generous. Also guards against the hudini_annotations count-mismatch
+        # early-return path which leaves the code unchanged and would loop forever.
+        MAX_HOUDINI_ITERATIONS = 500
 
         while True:
             # 在写入文件前验证代码结构
@@ -141,6 +145,7 @@ class HoudiniPruner:
 
             # 使用 Houdini 删除失败的不变量
             before_invariants = self._extract_invariants_from_code(current_code)
+            prev_code = current_code
             current_code = self.hudini_annotations(validate_result, current_code)
             after_invariants = self._extract_invariants_from_code(current_code)
 
@@ -148,6 +153,19 @@ class HoudiniPruner:
             self.logger.info(f"Houdini iteration {iteration + 1}: Removed {failed_count} failed invariants")
             self.logger.info(f"  Before: {len(before_invariants)} invariants")
             self.logger.info(f"  After: {len(after_invariants)} invariants")
+
+            # Detect when hudini_annotations returned the code unchanged.
+            # This happens when validate_result count != annotation count
+            # (e.g. a malformed invariant with an embedded 'loop invariant' keyword
+            # causes Frama-C to count differently than our regex).
+            # Without this guard the loop runs forever.
+            if current_code == prev_code:
+                self.logger.error(
+                    "Houdini: code unchanged after annotation removal "
+                    "(validate_result / invariant count mismatch, likely a malformed invariant). "
+                    "Aborting to prevent infinite loop."
+                )
+                return None, False
 
             # 检查是否所有不变量都被删除
             if len(after_invariants) == 0:
@@ -160,6 +178,12 @@ class HoudiniPruner:
                     self.logger.info(f"    [{i}] {inv}")
 
             iteration += 1
+            if iteration >= MAX_HOUDINI_ITERATIONS:
+                self.logger.error(
+                    f"Houdini: reached maximum iteration limit ({MAX_HOUDINI_ITERATIONS}). "
+                    "Aborting to prevent infinite loop."
+                )
+                return None, False
 
         return current_code, valid
     

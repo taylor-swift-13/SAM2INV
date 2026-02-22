@@ -6,19 +6,17 @@ import os
 import re
 import logging
 import tempfile
-import yaml
 from pathlib import Path
 from typing import Optional, List, Dict
 from loop_sampler import LoopSampler
 from template_generator import TemplateGenerator
 from prompt import PromptFormatter
-from llmfit import LLMInvariantFitter, llmfit_discover_invariants
 from llm import Chatbot, LLMConfig, get_token_stats
 from output_verify import OutputVerifier
 from syntax_checker import SyntaxChecker
 from inv_repairer import InvariantRepairer
 from houdini_pruner import HoudiniPruner
-from config import SUBDIR, USE_TRACES, MAX_ITERATION, MAX_STRENGTHEN_ITERATIONS, SYNTAX_FILTER_CONFIG, TEMPLATE_CONFIG
+from config import SUBDIR, USE_TRACES, MAX_ITERATION, MAX_STRENGTHEN_ITERATIONS, SYNTAX_FILTER_CONFIG, TEMPLATE_CONFIG, INVARIANT_DEDUP_CONFIG
 from unified_filter import filter_invariants, validate_code_structure
 
 
@@ -50,7 +48,15 @@ def to_nl_transition_text(text: str) -> str:
 class InvariantGenerator:
     """Loop invariant generator with iterative repair functionality"""
     
-    def __init__(self, file_name: str, llm_config: Optional[LLMConfig] = None, logger: Optional[logging.Logger] = None, output_dir: Optional[str] = None, input_subdir: Optional[str] = None, config_path: Optional[str] = None):
+    def __init__(
+        self,
+        file_name: str,
+        llm_config: Optional[LLMConfig] = None,
+        logger: Optional[logging.Logger] = None,
+        output_dir: Optional[str] = None,
+        input_subdir: Optional[str] = None,
+        collect_dpo: bool = True,
+    ):
         # Remove .c extension if present to ensure consistent file_name format
         if file_name.endswith('.c'):
             file_name = file_name[:-2]
@@ -60,79 +66,65 @@ class InvariantGenerator:
         self.input_subdir = input_subdir  # Requested input subdirectory
         self.resolved_subdir = input_subdir if input_subdir else SUBDIR
         self._output_dir = output_dir  # 初始化输出目录
-
-        # 加载配置
-        self.config = self._load_config(config_path)
+        self.collect_dpo = bool(collect_dpo)
 
         # 初始化组件
         self.sampler = LoopSampler(file_name, input_subdir=self.resolved_subdir)
         self.template_gen = TemplateGenerator()
         self.template_simplified = TEMPLATE_CONFIG.get('simplified', True)
 
-        # 根据配置决定是否初始化LLM相关组件
-        self.generation_mode = self.config.get('invariant_generation', {}).get('mode', 'hybrid')
-
-        # 验证模式配置
-        # fit_only: 只用 llmfit(LLM 接收 traces)
-        # code_only: 只用代码生成(LLM 直接从 code 生成)
-        # hybrid: llmfit 先尝试,保留结果插入模板继续生成
-        valid_modes = ['fit_only', 'code_only', 'hybrid']
-        if self.generation_mode not in valid_modes:
-            self.logger.warning(f"Invalid generation mode '{self.generation_mode}', defaulting to 'hybrid'")
-            self.generation_mode = 'hybrid'
-
-        self.logger.info(f"Invariant generation mode: {self.generation_mode}")
-
         # Houdini 剪枝器(所有模式都可用,不依赖 LLM)
         self.houdini_pruner = HoudiniPruner(logger=self.logger)
 
-        # 根据模式初始化组件
-        # fit_only: 只用 llmfit(LLM 接收 traces)
-        # code_only: 只用代码生成(LLM 直接从 code 生成)
-        # hybrid: llmfit 先尝试,保留结果插入模板继续生成
-        if self.generation_mode in ['fit_only', 'code_only', 'hybrid']:
-            self.llm = Chatbot(self.llm_config)
-            self.repairer = InvariantRepairer(self.llm_config, self.logger)
-        else:
-            self.llm = None
-            self.repairer = None
-            self.logger.warning(f"Unknown generation mode '{self.generation_mode}', LLM components disabled")
+        # Always use code-generation pipeline.
+        self.llm = Chatbot(self.llm_config)
+        self.repairer = InvariantRepairer(self.llm_config, self.logger)
 
         self.verifier = OutputVerifier(logger=self.logger, output=True)
 
-        # 初始化 llmfit(fit_only 和 hybrid 模式使用)
-        if self.generation_mode in ['fit_only', 'hybrid']:
-            self.llmfit = LLMInvariantFitter(self.llm_config, self.logger)
-            self.logger.info("LLM fitting initialized for invariant discovery from traces")
-        else:
-            self.llmfit = None
-            self.logger.info("LLM fitting disabled for code-only mode")
-
         # 存储结果
         self.invariants = []
+        self.loop_dpo_records: Dict[int, Dict[str, object]] = {}
+        self.dedup_removed = 0
+        self.pre_dedup_final_code = ""
         
         # 存储 first_pass 指标(记录第几次生成正确的不变量并通过验证)
         self.first_pass = None
         
-    def _load_config(self, config_path: Optional[str] = None) -> Dict:
-        """加载配置文件"""
-        if config_path is None:
-            config_path = os.path.join(os.path.dirname(__file__), 'cache_config.yaml')
+    def _find_loop_headers(self, code: str) -> List[tuple]:
+        """
+        Find while/for loop headers robustly by matching parentheses depth.
+        Returns a list of (start_index, header_end_index) where header_end_index
+        points right after the opening '{'.
+        """
+        headers: List[tuple] = []
+        kw_pat = re.compile(r'\b(?:for|while)\s*\(')
+        n = len(code)
+        for m in kw_pat.finditer(code):
+            start = m.start()
+            open_paren = code.find('(', m.start())
+            if open_paren < 0:
+                continue
+            depth = 0
+            i = open_paren
+            while i < n:
+                ch = code[i]
+                if ch == '(':
+                    depth += 1
+                elif ch == ')':
+                    depth -= 1
+                    if depth == 0:
+                        break
+                i += 1
+            if i >= n or depth != 0:
+                continue
+            j = i + 1
+            while j < n and code[j].isspace():
+                j += 1
+            if j < n and code[j] == '{':
+                headers.append((start, j + 1))
+        return headers
 
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-                self.logger.info(f"Loaded configuration from {config_path}")
-                return config
-        except Exception as e:
-            # Config file is optional, cache configuration is in config.py
-            self.logger.debug(f"Config file not found: {config_path}, using defaults from config.py")
-            return {}
-        
-        # 确定 output_dir:如果未指定,则根据 input 路径自动对齐
-        # 延迟初始化,在第一次使用时再确定
-        self._output_dir = output_dir
-    
     def _replace_loop_content(self, code: str, new_loop_content: str, loop_idx: int) -> str:
         """
         Replace loop content in code (aligned with ASGSE's update_loop_content)
@@ -148,21 +140,18 @@ class InvariantGenerator:
         # Split code into single character list (like ASGSE)
         code_list = list(code)
         
-        # Find all for or while loop positions
-        loop_pattern = r'\b(for|while)\s*\([^)]*\)\s*{'
-        matches = list(re.finditer(loop_pattern, code))
+        # Find all for/while loop headers robustly (supports nested parens like unknown())
+        matches = self._find_loop_headers(code)
         
         if loop_idx >= len(matches):
             self.logger.warning(f"Loop index {loop_idx} out of range (found {len(matches)} loops)")
             return code
         
         # Get the target loop match
-        match = matches[loop_idx]
-        loop_start = match.start()
+        loop_start, loop_end = matches[loop_idx]
         
         # Find the matching closing brace for the loop
         brace_count = 0
-        loop_end = match.end()
         end_index = loop_end
         
         while end_index < len(code_list) and brace_count >= 0:
@@ -220,14 +209,11 @@ class InvariantGenerator:
         Returns:
             Loop segment text, or None if not found
         """
-        loop_pattern = r'\b(for|while)\s*\([^)]*\)\s*{'
-        matches = list(re.finditer(loop_pattern, code))
+        matches = self._find_loop_headers(code)
         if loop_idx >= len(matches):
             return None
 
-        match = matches[loop_idx]
-        loop_start = match.start()
-        loop_end = match.end()
+        loop_start, loop_end = matches[loop_idx]
 
         brace_count = 0
         end_index = loop_end
@@ -272,6 +258,8 @@ class InvariantGenerator:
 
     def _save_loop_dpo_record(self, loop_idx: int, chosen_code: Optional[str], candidates: List[Dict]) -> None:
         """Save loop-level DPO artifacts: chosen final code + rejected original candidates."""
+        if not self.collect_dpo:
+            return
         chosen_text = (chosen_code or "").strip()
         rejected_items: List[Dict[str, str]] = []
         for cand in candidates or []:
@@ -2528,199 +2516,6 @@ class InvariantGenerator:
   
   
     
-    def _try_llm_fitting(self, record: Dict, loop_idx: int) -> Optional[List[str]]:
-        """
-        Try to discover invariants using LLM fitting (llmfit) in parallel with pfit.
-        
-        Unlike pfit which uses Z3 solver, llmfit uses LLM to analyze sample traces
-        and discover various mathematical relationships (not limited to polynomials).
-        
-        This method ONLY uses sample traces, NOT the program code itself.
-        
-        Args:
-            record: Loop record containing var_maps, current_vars, etc.
-            loop_idx: Loop index
-            
-        Returns:
-            List of valid invariant statements (e.g., ["loop invariant x >= 0;", ...])
-            or None if discovery failed or no valid invariants found.
-        """
-        if not self.llmfit:
-            self.logger.info("LLM fitting not initialized, skipping")
-            return None
-        
-        try:
-            loop_idx_str = str(loop_idx)
-            
-            self.logger.info(f"\n{'='*60}")
-            self.logger.info(f"Loop {loop_idx} - Attempting LLM fitting (parallel to pfit)...")
-            self.logger.info(f"{'='*60}")
-            
-            if not self.sampler.sample_contents:
-                self.logger.warning("No sample contents available for LLM fitting")
-                return None
-            
-            # Extract data points (similar to pfit)
-            current_vars = set(record.get('current_vars', []))
-            param_pre_vars = set(record.get('param_pre_vars', []))
-            loop_related_vars = current_vars | param_pre_vars
-            
-            if not loop_related_vars:
-                self.logger.warning("No loop related variables found for LLM fitting")
-                return None
-            
-            # Get loop bound
-            loop_bound = record.get('loop_bound')
-            
-            # Extract assignments from sample traces
-            assignments_list = []
-            required_vars = current_vars
-            
-            for sample_dict in self.sampler.sample_contents:
-                if loop_idx_str in sample_dict:
-                    conditions = sample_dict[loop_idx_str]
-                    for cond in conditions:
-                        parts = cond.split('&&')
-                        assignment_parts = []
-                        var_values = {}
-                        
-                        for part in parts:
-                            part = part.strip()
-                            match = re.match(r'(\w+(?:@pre)?)\s*==\s*(-?\d+)', part)
-                            if match:
-                                var_name, value = match.groups()
-                                if var_name in loop_related_vars or var_name in current_vars:
-                                    var_values[var_name] = value
-                                    assignment_parts.append(f"{var_name}=={value}")
-                        
-                        if required_vars.issubset(set(var_values.keys())):
-                            assignments_list.append(" && ".join(assignment_parts))
-            
-            if len(assignments_list) < 2:
-                self.logger.warning(f"Not enough data points ({len(assignments_list)}) for LLM fitting")
-                return None
-            
-            # Get loop content for context (but don't give it to LLM directly)
-            loop_content = record.get('loop_content', '')
-            variables = list(current_vars)
-            
-            self.logger.info(f"LLM fitting analyzing {len(assignments_list)} traces for variables: {variables}")
-            
-            # Call llmfit to discover invariants
-            llm_invariants = self.llmfit.discover_invariants(
-                assignments_list=assignments_list,
-                variables=variables,
-                loop_bound=loop_bound,
-                max_invariants=15
-            )
-            
-            if not llm_invariants:
-                self.logger.info("LLM fitting discovered no invariants")
-                return None
-            
-            self.logger.info(f"LLM fitting discovered {len(llm_invariants)} candidate invariants")
-            
-            # Houdini-style pruning: start with all invariants and iteratively remove failed ones
-            loop_content_for_insert = record.get('loop_content', '')
-            
-            # Format all invariants as ACSL statements
-            candidate_invariants = []
-            for inv_expr, source in llm_invariants:
-                inv_statement = f"loop invariant {inv_expr};"
-                candidate_invariants.append((inv_expr, inv_statement))
-            
-            if loop_bound:
-                candidate_invariants.insert(0, (loop_bound, f"loop invariant {loop_bound};"))
-            
-            # Iterative Houdini pruning
-            remaining_invariants = [stmt for _, stmt in candidate_invariants]
-            remaining_exprs = [expr for expr, _ in candidate_invariants]
-            iteration = 0
-            max_iterations = len(candidate_invariants) + 1
-            
-            while remaining_invariants and iteration < max_iterations:
-                iteration += 1
-                self.logger.info(f"  Houdini iteration {iteration}: Testing {len(remaining_invariants)} invariants")
-                
-                # Test all remaining invariants together
-                test_code = self._insert_invariants_into_code(
-                    self._get_full_source_code(),
-                    remaining_invariants,
-                    loop_content_for_insert
-                )
-                
-                if not test_code:
-                    break
-                
-                temp_file = self._create_temp_file(test_code)
-                try:
-                    self.verifier.run(temp_file)
-                    
-                    syntax = self.verifier.syntax_correct
-                    
-                    # If syntax error, we can't proceed
-                    if not syntax:
-                        self.logger.warning(f"  Syntax error with current invariants, stopping Houdini")
-                        break
-                    
-                    # Check validation results
-                    if self.verifier.validate_result:
-                        all_valid = all(self.verifier.validate_result)
-                        
-                        if all_valid:
-                            # All invariants pass, we're done
-                            self.logger.info(f"  OK All {len(remaining_invariants)} invariants are valid")
-                            break
-                        else:
-                            # Remove failed invariants
-                            new_remaining = []
-                            new_exprs = []
-                            removed_count = 0
-                            
-                            for i, (is_valid, stmt, expr) in enumerate(zip(self.verifier.validate_result, remaining_invariants, remaining_exprs)):
-                                if is_valid:
-                                    new_remaining.append(stmt)
-                                    new_exprs.append(expr)
-                                else:
-                                    removed_count += 1
-                                    if i < len(llm_invariants):  # Don't log loop bound removal as loudly
-                                        self.logger.info(f"    X Removing invalid invariant: {expr}")
-                            
-                            remaining_invariants = new_remaining
-                            remaining_exprs = new_exprs
-                            
-                            if removed_count > 0:
-                                self.logger.info(f"  Removed {removed_count} failed invariants, {len(remaining_invariants)} remaining")
-                    else:
-                        # No validation results, assume all pass
-                        break
-                        
-                finally:
-                    if os.path.exists(temp_file):
-                        os.remove(temp_file)
-            
-            # Filter out loop bound from final results (it was just for validation context)
-            valid_invariants = []
-            for stmt in remaining_invariants:
-                if loop_bound and stmt == f"loop invariant {loop_bound};":
-                    continue
-                valid_invariants.append(stmt)
-            
-            if valid_invariants:
-                self.logger.info(f"OKOKOK LLM fitting produced {len(valid_invariants)} valid invariants after Houdini pruning")
-                for inv in valid_invariants:
-                    self.logger.info(f"    {inv}")
-                return valid_invariants
-            else:
-                self.logger.info("LLM fitting: no invariants passed Houdini pruning")
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"Error in LLM fitting: {e}")
-            import traceback
-            self.logger.debug(traceback.format_exc())
-            return None
-    
     def _extract_invariant(self, code: str) -> str:
         """Extract invariant expression from code (merged format)"""
         invariants = self._extract_invariants_from_code(code)
@@ -2759,19 +2554,147 @@ class InvariantGenerator:
         per_loop_invariants: List[List[str]],
         per_loop_assigns: List[str],
     ) -> str:
-        """Rebuild full code by filling each loop template with its invariants."""
+        """Rebuild full code by filling each loop template with its invariants.
+
+        The template may contain PLACE_HOLDER_* tokens inside ``loop invariant``
+        lines (e.g. ``loop invariant (cond) ==> (PLACE_HOLDER_x);``).  Replacing
+        the PLACE_HOLDER substring directly with a multi-line ``loop invariant``
+        statement string produces malformed ACSL (nested keyword, stray suffixes).
+
+        Instead we build a fresh ``/*@ ... */`` block from the filtered invariant
+        *expressions* and substitute the entire ACSL annotation block in the
+        template, discarding the PLACE_HOLDER scaffolding entirely.
+        """
+        acsl_block_pat = re.compile(r'/\*@[\s\S]*?\*/')
         code = original_code
         for idx, record in enumerate(records):
             template_code = self.template_gen.generate_template(record, simplified=self.template_simplified)
-            inv_lines = "\n".join([f"loop invariant {x};" for x in (per_loop_invariants[idx] if idx < len(per_loop_invariants) else [])])
+            invs = per_loop_invariants[idx] if idx < len(per_loop_invariants) else []
             assigns = per_loop_assigns[idx] if idx < len(per_loop_assigns) else ""
+
+            # Build a clean ACSL block from the filtered *expressions* (no PLACE_HOLDER).
+            ann_lines: List[str] = [f"  loop invariant {inv};" for inv in invs]
             if assigns:
-                if inv_lines:
-                    inv_lines += "\n"
-                inv_lines += f"loop assigns {assigns};"
-            filled = template_code.replace("PLACE_HOLDER", inv_lines)
+                ann_lines.append(f"  loop assigns {assigns};")
+            acsl_block = ("/*@\n" + "\n".join(ann_lines) + "\n*/") if ann_lines else ""
+
+            # Replace the entire /*@ ... */ block in the template.
+            # Use a callable replacement so backslashes in ACSL (e.g. "\at")
+            # are preserved verbatim instead of being interpreted as escapes.
+            filled, n_subs = acsl_block_pat.subn(lambda _m: acsl_block, template_code, count=1)
+            if n_subs == 0 and acsl_block:
+                # Template has no existing ACSL block; prepend before the loop keyword.
+                loop_m = re.search(r'^\s*(?:while|for)\s*\(', template_code, re.MULTILINE)
+                if loop_m:
+                    filled = template_code[:loop_m.start()] + acsl_block + "\n" + template_code[loop_m.start():]
+                else:
+                    filled = template_code
             code = self._replace_loop_content(code, filled, idx)
         return code
+
+    @staticmethod
+    def _split_top_level_conjuncts(expr: str) -> List[str]:
+        """Split by top-level && only (ignore nested parentheses)."""
+        parts: List[str] = []
+        cur: List[str] = []
+        depth = 0
+        i = 0
+        while i < len(expr):
+            ch = expr[i]
+            if ch == '(':
+                depth += 1
+                cur.append(ch)
+                i += 1
+                continue
+            if ch == ')':
+                depth = max(0, depth - 1)
+                cur.append(ch)
+                i += 1
+                continue
+            if depth == 0 and i + 1 < len(expr) and expr[i:i+2] == '&&':
+                part = ''.join(cur).strip()
+                if part:
+                    parts.append(part)
+                cur = []
+                i += 2
+                continue
+            cur.append(ch)
+            i += 1
+        tail = ''.join(cur).strip()
+        if tail:
+            parts.append(tail)
+        return parts
+
+    @staticmethod
+    def _safe_split_for_dedup(expr: str) -> List[str]:
+        """
+        Conservative splitter used by final dedup.
+        Only split conjunctions when semantics are unambiguous.
+        """
+        text = (expr or "").strip()
+        if not text:
+            return []
+        # Do not split if implication/disjunction/ternary appears: splitting could change meaning.
+        if "==>" in text or "||" in text or "?" in text:
+            return [text]
+        parts = InvariantGenerator._split_top_level_conjuncts(text)
+        return parts if parts else [text]
+
+    def _dedup_loop_invariants_in_attached_blocks(self, code: str) -> tuple[str, int]:
+        """
+        For each loop-adjacent annotation block:
+        1) split `A && B` invariants into multiple lines
+        2) deduplicate by invariant text normalized with whitespace removal.
+        """
+        loop_matches = list(re.finditer(r'\b(?:while|for)\s*\(', code))
+        if not loop_matches:
+            return code, 0
+
+        ann_pat = re.compile(r'/\*[\s\S]*?\*/')
+        updated = code
+        total_removed = 0
+
+        for lm in reversed(loop_matches):
+            prefix = updated[: lm.start()]
+            blocks = list(ann_pat.finditer(prefix))
+            if not blocks:
+                continue
+            last = blocks[-1]
+            if prefix[last.end():].strip():
+                continue
+
+            block = last.group(0)
+            lines = block.splitlines()
+            seen = set()
+            new_lines: List[str] = []
+            removed_here = 0
+
+            for line in lines:
+                m = re.match(r'^(\s*)loop\s+invariant\s+(.+?)\s*;\s*$', line)
+                if not m:
+                    new_lines.append(line)
+                    continue
+
+                indent = m.group(1)
+                raw_expr = m.group(2)
+                conjuncts = self._safe_split_for_dedup(raw_expr)
+                if len(conjuncts) > 1:
+                    removed_here += 1
+
+                for c in conjuncts:
+                    key = re.sub(r'\s+', '', c)
+                    if key in seen:
+                        removed_here += 1
+                        continue
+                    seen.add(key)
+                    new_lines.append(f"{indent}loop invariant {c};")
+
+            if removed_here > 0:
+                new_block = '\n'.join(new_lines)
+                updated = updated[: last.start()] + new_block + updated[last.end():]
+                total_removed += removed_here
+
+        return updated, total_removed
     
     def generate_all(self, max_iterations: int = MAX_ITERATION) -> Optional[str]:
         """
@@ -2970,24 +2893,61 @@ class InvariantGenerator:
                     _mark_reject(meta, "houdini_gate")
                     break
 
+        # Optional final invariant dedup (split top-level && + remove duplicates).
+        self.pre_dedup_final_code = final_code
+        self.dedup_removed = 0
+        if INVARIANT_DEDUP_CONFIG.get("enabled", True):
+            dedup_code, dedup_removed = self._dedup_loop_invariants_in_attached_blocks(final_code)
+            self.dedup_removed = int(dedup_removed)
+            if dedup_removed > 0:
+                self.logger.info(f"Deduplicated {dedup_removed} loop invariants in final code")
+                dedup_temp = self._create_temp_file(dedup_code)
+                try:
+                    self.verifier.run(dedup_temp)
+                    syntax2 = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
+                    valid2 = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
+                    satisfy2 = all(self.verifier.verify_result) if self.verifier.verify_result else True
+                    if syntax2 and valid2 and satisfy2:
+                        final_code = dedup_code
+                    else:
+                        self.logger.warning(
+                            f"Dedup result failed verification, keeping original final code: "
+                            f"syntax={syntax2}, valid={valid2}, satisfy={satisfy2}"
+                        )
+                finally:
+                    if os.path.exists(dedup_temp):
+                        os.remove(dedup_temp)
+
         self.invariants = [{'loop_idx': 0, 'code': final_code}]
         rejected_items: List[Dict[str, str]] = []
+        final_code_strip = final_code.strip()
         for meta in candidate_meta:
-            if not meta.get("dpo_reject", False):
-                continue
             c = (meta.get("code", "") or "").strip()
-            if not c or c == final_code.strip():
+            if not c or c == final_code_strip:
                 continue
             reasons = meta.get("dpo_reject_reasons", []) or []
-            rejected_items.append({"reason": ",".join(reasons) if reasons else "filtered", "code": c})
-        self.loop_dpo_records = {
-            0: {
-                "loop_idx": 0,
-                "chosen_code": final_code,
-                "chosen_invariants": self._extract_invariants_from_code(final_code),
-                "rejected_items": rejected_items,
+            if reasons:
+                reason_str = ",".join(reasons)
+            elif not meta.get("dpo_reject", False):
+                # Candidate passed all gates individually but is still incomplete
+                # relative to the merged final_code (fewer/different invariants).
+                reason_str = "incomplete"
+            else:
+                reason_str = "filtered"
+            rejected_items.append({"reason": reason_str, "code": c})
+        if self.collect_dpo:
+            self.loop_dpo_records = {
+                0: {
+                    "loop_idx": 0,
+                    "chosen_code": final_code,
+                    "chosen_invariants": self._extract_invariants_from_code(final_code),
+                    "pre_dedup_code": self.pre_dedup_final_code,
+                    "dedup_removed": self.dedup_removed,
+                    "rejected_items": rejected_items,
+                }
             }
-        }
+        else:
+            self.loop_dpo_records = {}
 
         self.first_pass = {
             "syntax": 1 if syntax else None,

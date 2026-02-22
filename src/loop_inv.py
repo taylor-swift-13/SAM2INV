@@ -92,7 +92,13 @@ def main():
     start_time = time.time()
     
     # 创建不变量生成器（传入 input_subdir 配置）
-    generator = InvariantGenerator(args.file_name, LLMConfig(), logger, input_subdir=INPUT_SUBDIR)
+    generator = InvariantGenerator(
+        args.file_name,
+        LLMConfig(),
+        logger,
+        input_subdir=INPUT_SUBDIR,
+        collect_dpo=False,
+    )
     
     # 设置最大迭代次数（仅在 repairer 存在时）
     if generator.repairer is not None:

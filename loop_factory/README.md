@@ -81,5 +81,4 @@ Typical outputs include:
 
 ## Notes
 
-- Current repository state removes cache-based prompt/reference logic from the invariant generation path.
 - Keep `src/config.py` and `loop_factory` parameters aligned when tuning generation complexity.

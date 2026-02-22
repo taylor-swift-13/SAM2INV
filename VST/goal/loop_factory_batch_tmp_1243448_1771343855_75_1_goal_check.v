@@ -1,8 +1,0 @@
-From  Require Import loop_factory_batch_tmp_1243448_1771343855_75_1_goal loop_factory_batch_tmp_1243448_1771343855_75_1_proof_auto loop_factory_batch_tmp_1243448_1771343855_75_1_proof_manual.
-
-Module VC_Correctness : VC_Correct.
-  Include common_strategy_proof.
-  Include int_array_strategy_proof.
-  Include loop_factory_batch_tmp_1243448_1771343855_75_1_proof_auto.
-  Include loop_factory_batch_tmp_1243448_1771343855_75_1_proof_manual.
-End VC_Correctness.

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import concurrent.futures
 import os
 import math
@@ -15,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import signal
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
@@ -99,6 +101,7 @@ def extract_per_loop_invariants(code: str) -> List[List[str]]:
     return per_loop
 
 
+
 def canonicalize_identifiers(text: str) -> str:
     """
     Canonicalize identifiers to make signature invariant to variable renaming.
@@ -128,6 +131,28 @@ def make_logger(log_path: Path) -> logging.Logger:
     fh.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
     logger.addHandler(fh)
     return logger
+
+
+def cleanup_transient_artifacts(run_tag: str | None = None) -> None:
+    """Best-effort cleanup for temporary directories/files created outside generated/."""
+    patterns = []
+    if run_tag:
+        patterns.append(f"loop_factory_batch_tmp_{run_tag}_*")
+    patterns.append("loop_factory_batch_tmp_*")
+
+    for pat in patterns:
+        for parent in ["input", "output", "loop", "unfold", "outer"]:
+            for d in sorted(SRC.joinpath(parent).glob(pat)):
+                if d.is_dir():
+                    shutil.rmtree(d, ignore_errors=True)
+
+    if VST_GOAL.exists():
+        for pat in patterns:
+            for p in VST_GOAL.glob(f"{pat}_1_*.v"):
+                try:
+                    p.unlink()
+                except OSError:
+                    pass
 
 
 def normalize_code(s: str) -> str:
@@ -515,6 +540,7 @@ def run_one_attempt(
             "raw_response": "",
             "prompt_count": 0,
             "all_prompts": [],
+            "all_responses": [],  # raw LLM response per candidate call
         }
         original_chat = gen.llm.chat
         original_select_prompt = getattr(gen, "_select_prompt_for_candidate", None)
@@ -526,8 +552,14 @@ def run_one_attempt(
             if isinstance(user_input, str) and user_input.strip():
                 captured["all_prompts"].append(user_input)
             resp = original_chat(user_input)
-            if not captured["user_prompt"]:
+            if isinstance(resp, str) and resp.strip():
+                captured["all_responses"].append(resp)
+            # Fix: capture prompt and response independently so that
+            # select_prompt_capture setting user_prompt does not block
+            # raw_response from being recorded on the first actual LLM call.
+            if not captured["user_prompt"] and isinstance(user_input, str) and user_input.strip():
                 captured["user_prompt"] = user_input
+            if not captured["raw_response"] and isinstance(resp, str) and resp.strip():
                 captured["raw_response"] = resp
             return resp
 
@@ -558,6 +590,7 @@ def run_one_attempt(
 
         out_c = src_output_dir / f"{file_id}.c"
         annotated = out_c.read_text(encoding="utf-8") if out_c.exists() else (final_code or "")
+
         ok, reason = quality_gate(gen, raw_code, annotated)
         if not ok:
             return {"ok": False, "reason": reason, "attempt": attempt, "seed": seed}
@@ -566,6 +599,7 @@ def run_one_attempt(
         sig = compute_signature(raw_code, invariants)
         raw_key = compute_raw_structure_key(raw_code)
         hparams = loop_factory_hyperparams(seed, attempt_tmp_loops, lf_overrides)
+        loop_dpo_records = getattr(gen, "loop_dpo_records", {})
         return {
             "ok": True,
             "attempt": attempt,
@@ -584,6 +618,7 @@ def run_one_attempt(
             "model": model_name,
             "system_prompt": system_prompt,
             "loop_factory_hyperparams": hparams,
+            "loop_dpo_records": loop_dpo_records,
         }
     finally:
         for d in [src_input_dir, src_output_dir, src_outer_dir]:
@@ -725,6 +760,7 @@ def main() -> None:
     llm_cfg.api_model = args.model
     system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
     api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
+    dpo_jsonl_path = work_root / "llama_factory_train_dpo.jsonl"
     lf_overrides: Dict[str, object] = {
         "max_vars": args.max_vars,
         "params": args.params,
@@ -771,12 +807,24 @@ def main() -> None:
     reject_log: List[Dict] = []
     workers = max(1, args.workers)
     run_tag = f"{os.getpid()}_{int(time.time())}"
+    cleanup_transient_artifacts()
+    atexit.register(lambda: cleanup_transient_artifacts(run_tag))
+
+    def _cleanup_on_signal(_signum, _frame):
+        cleanup_transient_artifacts(run_tag)
+        raise SystemExit(1)
+
+    signal.signal(signal.SIGTERM, _cleanup_on_signal)
+    signal.signal(signal.SIGINT, _cleanup_on_signal)
+
     # In append mode, offset seeds to avoid regenerating loops already accepted.
     seed_offset = existing_max_idx if args.append else 0
     next_attempt = 1
     pending: Dict[concurrent.futures.Future, Tuple[int, int]] = {}
     stop_event = threading.Event()
-    with api_jsonl_path.open("a" if args.append else "w", encoding="utf-8") as api_jsonl_file:
+    file_mode = "a" if args.append else "w"
+    with api_jsonl_path.open(file_mode, encoding="utf-8") as api_jsonl_file, \
+         dpo_jsonl_path.open(file_mode, encoding="utf-8") as dpo_jsonl_file:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
             while next_attempt <= total_candidates or pending:
                 while next_attempt <= total_candidates and len(pending) < workers:
@@ -864,15 +912,9 @@ def main() -> None:
                             "augmentation": {"type": "none"},
                         }
                     )
-                    # One accepted program -> exactly one JSONL item.
-                    # Even for multi-loop programs, keep a single (instruction, input, output) row.
-                    prompt_text = ""
-                    if isinstance(result.get("user_prompt", ""), str) and result["user_prompt"].strip():
-                        prompt_text = result["user_prompt"]
-                    else:
-                        prompt_list = [p for p in result.get("all_prompts", []) if isinstance(p, str) and p.strip()]
-                        if prompt_list:
-                            prompt_text = prompt_list[0]
+                    # SFT: one accepted program -> exactly one JSONL item.
+                    # user_prompt is guaranteed non-empty by the hard guard above.
+                    prompt_text = result["user_prompt"]
 
                     api_item = {
                         "instruction": result["system_prompt"],
@@ -882,18 +924,50 @@ def main() -> None:
                     api_jsonl_file.write(json.dumps(api_item, ensure_ascii=False) + "\n")
                     api_jsonl_file.flush()
 
-    # Clean up temp directories from this run and any previous incomplete runs.
-    for pat in [f"loop_factory_batch_tmp_{run_tag}_*", "loop_factory_batch_tmp_*"]:
-        for parent in ["input", "output", "loop", "unfold", "outer"]:
-            for d in sorted(SRC.joinpath(parent).glob(pat)):
-                if d.is_dir():
-                    shutil.rmtree(d, ignore_errors=True)
-    if VST_GOAL.exists():
-        for p in VST_GOAL.glob(f"loop_factory_batch_tmp_{run_tag}_*_1_*.v"):
-            try:
-                p.unlink()
-            except OSError:
-                pass
+                    # DPO: one accepted program -> one row per rejected candidate.
+                    # chosen aligns with SFT output; rejected comes from inv_generator's
+                    # loop_dpo_records, which tracks every candidate marked dpo_reject=True
+                    # (failed syntax filter, sampling filter, or Houdini pruning).
+                    loop_dpo_records = result.get("loop_dpo_records", {})
+                    dpo_written = 0
+                    # Keep DPO chosen exactly aligned with SFT output, with invariant dedup applied.
+                    chosen_code = (result["annotated"] or "").strip()
+                    seen_rejected = set()
+                    for _loop_idx, loop_rec in sorted(loop_dpo_records.items()):
+                        pre_dedup_code = (loop_rec.get("pre_dedup_code", "") or "").strip()
+                        dedup_removed = int(loop_rec.get("dedup_removed", 0) or 0)
+                        if chosen_code and dedup_removed > 0 and pre_dedup_code and pre_dedup_code != chosen_code:
+                            if pre_dedup_code not in seen_rejected:
+                                seen_rejected.add(pre_dedup_code)
+                                dpo_item = {
+                                    "instruction": result["system_prompt"],
+                                    "input": prompt_text,
+                                    "chosen": chosen_code,
+                                    "rejected": pre_dedup_code,
+                                }
+                                dpo_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
+                                dpo_written += 1
+                        if not chosen_code:
+                            continue
+                        for rej in loop_rec.get("rejected_items", []):
+                            rej_code = (rej.get("code", "") or "").strip()
+                            if not rej_code or rej_code == chosen_code or rej_code in seen_rejected:
+                                continue
+                            seen_rejected.add(rej_code)
+                            dpo_item = {
+                                "instruction": result["system_prompt"],
+                                "input": prompt_text,
+                                "chosen": chosen_code,
+                                "rejected": rej_code,
+                            }
+                            dpo_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
+                            dpo_written += 1
+                    if dpo_written:
+                        dpo_jsonl_file.flush()
+                    else:
+                        reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has no dpo rejects"})
+
+    cleanup_transient_artifacts(run_tag)
     if tmp_loops.exists():
         shutil.rmtree(tmp_loops, ignore_errors=True)
 
@@ -906,7 +980,8 @@ def main() -> None:
         f"Done: attempted={attempted}, accepted={len(accepted_records)} ({accept_rate:.1f}%), "
         f"new={len(accepted_records)}, existing={existing_count}, total={total}"
     )
-    print(f"JSONL (instruction/input/output): {api_jsonl_path}")
+    print(f"JSONL SFT (instruction/input/output): {api_jsonl_path}")
+    print(f"JSONL DPO (instruction/input/chosen/rejected): {dpo_jsonl_path}")
     print(f"Reject log: {reject_path}")
 
 

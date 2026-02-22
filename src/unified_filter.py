@@ -103,6 +103,32 @@ class SyntaxFilter:
             ))
             return violations
 
+        # 检查是否含有非法字符。Frama-C 只接受可打印 ASCII（0x20–0x7E）及普通空白。
+        # LLM 有时生成 Unicode 数学符号（≤ ≥ ≠）或不可见控制字符（BEL \a = 0x07）。
+        # str.isascii() 无法捕获控制字符（它们仍属 ASCII 范围 0–127），因此需要额外检查。
+        bad_chars = [c for c in stripped
+                     if not (0x20 <= ord(c) <= 0x7E) and c not in ('\t', '\n', '\r')]
+        if bad_chars:
+            violations.append(Violation(
+                ViolationType.VALIDATION_ERROR,
+                f"Invariant contains illegal character(s) {[repr(c) for c in bad_chars[:3]]}: "
+                "Frama-C requires printable ASCII only. "
+                "Use '<=' instead of '≤', '!=' instead of '≠', and remove any control characters."
+            ))
+            return violations
+
+        # 检查表达式内部是否嵌套了 'loop invariant' 关键字。
+        # 这通常是 LLM 把模板里的 PLACE_HOLDER 填成了完整的 "loop invariant expr"
+        # 而不是纯表达式，导致 Frama-C 无法解析并使 Houdini 进入死循环。
+        if re.search(r'\bloop\s+invariant\b', stripped, re.IGNORECASE):
+            violations.append(Violation(
+                ViolationType.VALIDATION_ERROR,
+                "Invariant expression must not contain the 'loop invariant' keyword. "
+                "The keyword belongs only at the start of an annotation line, "
+                "never inside a sub-expression or implication (e.g. 'cond ==> (loop invariant ...)')."
+            ))
+            return violations
+
         # 0. 检查括号平衡（必须最先检查，因为不平衡的括号会导致后续检查失败）
         paren_balance = 0
         bracket_balance = 0
@@ -517,7 +543,23 @@ def validate_code_structure(code: str) -> List[Violation]:
         List of violations found (empty if code is valid)
     """
     violations = []
-    
+
+    # 0. 检查整段代码中是否含有非法字符（控制字符或非 ASCII）。
+    # Frama-C 只接受可打印 ASCII（0x20–0x7E）以及普通空白（0x09 TAB, 0x0A LF, 0x0D CR）。
+    # 扫描所有行，精确定位第一个非法字符出现的位置。
+    for lineno, line in enumerate(code.splitlines(), 1):
+        bad = [(col, c) for col, c in enumerate(line, 1)
+               if not (0x20 <= ord(c) <= 0x7E) and c not in ('\t',)]
+        if bad:
+            col, ch = bad[0]
+            violations.append(Violation(
+                ViolationType.VALIDATION_ERROR,
+                f"Code contains illegal character {repr(ch)} (ord={ord(ch)}) "
+                f"at line {lineno}, column {col}. "
+                "Frama-C requires printable ASCII only."
+            ))
+            return violations  # 一个错误就足够了，立即返回
+
     # 1. 检查 ACSL 注释是否正确闭合
     # 统计 /*@ 和 */ 的数量
     acsl_open_count = len(re.findall(r'/\*@', code))

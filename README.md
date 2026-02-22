@@ -106,7 +106,6 @@ Common fields:
 
 Notes:
 
-- Cache-related logic has been removed from the current pipeline.
 - Avoid hardcoding API keys in committed files.
 
 ## Run One File
