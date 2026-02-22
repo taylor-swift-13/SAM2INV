@@ -22,7 +22,34 @@ class HoudiniPruner:
         """
         self.logger = logger or logging.getLogger(__name__)
     
-    def hudini_annotations(self, validate_result: List[bool], annotations: str) -> str:
+    @staticmethod
+    def _extract_line_from_location(location: str) -> Optional[int]:
+        if not location:
+            return None
+        m = re.search(r'line[:\s]+(\d+)', location)
+        if m:
+            return int(m.group(1))
+        return None
+
+    def _build_line_map_from_errors(self, verifier) -> dict:
+        """
+        Build fallback line->bool map from verifier.valid_error_list.
+        Failed lines are set to False; other lines are left unspecified.
+        """
+        line_map = {}
+        errors = getattr(verifier, "valid_error_list", []) or []
+        for _desc, location, _content in errors:
+            line_no = self._extract_line_from_location(location or "")
+            if line_no is not None:
+                line_map[line_no] = False
+        return line_map
+
+    def hudini_annotations(
+        self,
+        validate_result: List[bool],
+        annotations: str,
+        validate_result_by_line: Optional[dict] = None,
+    ) -> str:
         """
         根据验证结果删除失败的不变量 (Houdini-style pruning)
         
@@ -43,20 +70,34 @@ class HoudiniPruner:
         # 找到所有不变量
         matches = list(pattern.finditer(annotations))
         
-        # 验证 validate_result 与不变量数量是否匹配
-        if len(validate_result) != len(matches):
-            self.logger.warning(f"validate_result count ({len(validate_result)}) doesn't match invariants count ({len(matches)})")
-            return annotations
+        # If no line-based results are available, fall back to positional mapping.
+        has_line_map = isinstance(validate_result_by_line, dict) and len(validate_result_by_line) > 0
+        positional_results = list(validate_result)
+        if (not has_line_map) and len(validate_result) != len(matches):
+            self.logger.warning(
+                f"validate_result count ({len(validate_result)}) doesn't match invariants count ({len(matches)}); "
+                "using conservative positional fallback"
+            )
+            # Conservative fallback: only trust overlap region; keep extra invariants.
+            n = min(len(validate_result), len(matches))
+            positional_results = list(validate_result[:n]) + [True] * (len(matches) - n)
         
         # 使用索引跟踪当前匹配项
         current_index = [0]  # 使用列表以便在闭包中修改值
         
         # 替换处理函数
         def replacer(match):
-            # 获取当前匹配项的验证结果（一一对应）
-            should_keep = validate_result[current_index[0]]
+            idx = current_index[0]
             current_index[0] += 1
-            
+
+            # Prefer line-based mapping to avoid ordering mismatch between
+            # Frama-C goals and source invariant order.
+            if has_line_map:
+                line_no = annotations.count('\n', 0, match.start()) + 1
+                should_keep = validate_result_by_line.get(line_no, True)
+            else:
+                should_keep = positional_results[idx]
+
             # 返回空字符串删除 False 项，保留 True 项
             return '' if not should_keep else match.group(0)
         
@@ -146,7 +187,14 @@ class HoudiniPruner:
             # 使用 Houdini 删除失败的不变量
             before_invariants = self._extract_invariants_from_code(current_code)
             prev_code = current_code
-            current_code = self.hudini_annotations(validate_result, current_code)
+            validate_result_by_line = getattr(verifier, "validate_result_by_line", None)
+            if not validate_result_by_line:
+                validate_result_by_line = self._build_line_map_from_errors(verifier)
+            current_code = self.hudini_annotations(
+                validate_result,
+                current_code,
+                validate_result_by_line=validate_result_by_line,
+            )
             after_invariants = self._extract_invariants_from_code(current_code)
 
             failed_count = sum(1 for v in validate_result if not v)
@@ -160,12 +208,11 @@ class HoudiniPruner:
             # causes Frama-C to count differently than our regex).
             # Without this guard the loop runs forever.
             if current_code == prev_code:
-                self.logger.error(
-                    "Houdini: code unchanged after annotation removal "
-                    "(validate_result / invariant count mismatch, likely a malformed invariant). "
-                    "Aborting to prevent infinite loop."
+                self.logger.warning(
+                    "Houdini: code unchanged after annotation removal; "
+                    "stopping pruning and keeping current invariants."
                 )
-                return None, False
+                break
 
             # 检查是否所有不变量都被删除
             if len(after_invariants) == 0:

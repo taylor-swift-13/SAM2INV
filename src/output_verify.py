@@ -170,6 +170,7 @@ class OutputVerifier:
         self.verify_error_list = []
         self.verify_result = []
         self.validate_result = []
+        self.validate_result_by_line = {}
 
     def print_errors(self, error_list):
         for error in error_list:
@@ -229,6 +230,10 @@ class OutputVerifier:
         match = re.search(r'Goal\s+(Establishment|Preservation)\s+of\s+Invariant\s+\(file\s+.*,\s+line\s+(\d+)\)', content)
         if match:
             return int(match.group(2)), match.group(1)
+        # Fallback: tolerate minor Frama-C output format drift.
+        match = re.search(r'Goal\s+(Establishment|Preservation)\s+of\s+Invariant[\s\S]*?line\s+(\d+)', content)
+        if match:
+            return int(match.group(2)), match.group(1)
         return None, None
 
     def _is_content_valid(self, content):
@@ -266,17 +271,17 @@ class OutputVerifier:
             else:
                 inv_status[line][g_type] = False
 
-        # 2. 生成结果列表
+        # 2. 生成结果列表 + 按行号映射
         results = []
+        line_results = {}
         for line in original_order:
             status = inv_status[line]
             # 严格成对检查：必须 Establishment 和 Preservation 都是 True
-            if status['Establishment'] and status['Preservation']:
-                results.append(True)
-            else:
-                results.append(False)
+            ok = bool(status['Establishment'] and status['Preservation'])
+            results.append(ok)
+            line_results[line] = ok
         
-        return results
+        return results, line_results
 
     def check_verify_target(self, filter_contents):
         results = []
@@ -329,15 +334,18 @@ class OutputVerifier:
                 num_invariants = len(inv_matches)
                 # 根据不变量数量设置 validate_result
                 self.validate_result = [False] * num_invariants if num_invariants > 0 else [False]
+                self.validate_result_by_line = {}
             except:
                 # 如果提取失败，使用默认值
                 self.validate_result = [False]
+                self.validate_result_by_line = {}
         else:
             self.syntax_correct = True
             frama_c_command = "frama-c"
             # 确保使用绝对路径
             abs_file_path = os.path.abspath(file_path) if not os.path.isabs(file_path) else file_path
-            wp_command = [frama_c_command, "-wp", "-wp-print", "-wp-timeout", "10", "-wp-prover", "z3", "-wp-model", "Typed", abs_file_path]
+            # Use a longer timeout to reduce false negatives on nonlinear VCs.
+            wp_command = [frama_c_command, "-wp", "-wp-print", "-wp-timeout", "30", "-wp-prover", "z3", "-wp-model", "Typed", abs_file_path]
             try:
                 result = subprocess.run(wp_command, capture_output=True, text=True, check=True)
                 spliter = '------------------------------------------------------------'
@@ -348,7 +356,7 @@ class OutputVerifier:
                 filter_invs = self.filter_invariant(contents)
                 
                 # 使用新的精准配对逻辑
-                self.validate_result = self.check_valid_pairs(filter_invs)
+                self.validate_result, self.validate_result_by_line = self.check_valid_pairs(filter_invs)
 
                 self.valid_error_list = []
                 for item in filter_invs:
@@ -385,6 +393,7 @@ class OutputVerifier:
                 self.syntax_error = f"Frama-C execution error: {e.stdout}"
                 self.logger.error(self.syntax_error)
                 self.validate_result = [False]
+                self.validate_result_by_line = {}
                 self.verify_result = [False]
 
 if __name__ == "__main__":
