@@ -221,6 +221,28 @@ def extract_updated_vars(loop_content: str) -> Set[str]:
     return {v for v in updated if v not in CPP_KEYWORDS}
 
 
+def is_canonical_infinite_loop(loop_content: str) -> bool:
+    text = loop_content or ""
+
+    mw = re.search(r"\bwhile\s*\(([^)]*)\)", text)
+    if mw:
+        cond = re.sub(r"\s+", "", mw.group(1) or "")
+        # Treat canonical infinite while as special: while(1)
+        if cond in {"1", "(1)"}:
+            return True
+
+    # Also accept canonical infinite for-loop: for(;;)
+    mf = re.search(r"\bfor\s*\(([^;]*);([^;]*);([^)]*)\)", text)
+    if mf:
+        init = re.sub(r"\s+", "", mf.group(1) or "")
+        cond = re.sub(r"\s+", "", mf.group(2) or "")
+        step = re.sub(r"\s+", "", mf.group(3) or "")
+        if init == "" and cond == "" and step == "":
+            return True
+
+    return False
+
+
 def has_repetitive_loop_updates(loop_content: str) -> bool:
     """
     Detect low-value repetitive assignment patterns in loop body, e.g.:
@@ -375,8 +397,7 @@ def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) ->
             return False, f"loop {i}: no updated vars extracted from loop"
         loop_var = gen._extract_loop_variable(loop_content) if loop_content else None
         non_loop_updated = [v for v in sorted(updated_vars) if v != loop_var]
-        if not non_loop_updated:
-            return False, f"loop {i}: counter-only loop body"
+        # Allow counter-only loops as long as loop-variable invariants remain sound.
 
         vars_to_cover = set(updated_vars)
         if loop_var:
@@ -400,7 +421,8 @@ def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) ->
                 return False, f"loop {i}: insufficient equality coverage: {eq_covered}/{len(non_loop_updated)}"
 
         # Loop variable should have explicit lower + upper bound.
-        if loop_var:
+        # Exception: canonical infinite loop `while(1)` does not require this bound pair.
+        if loop_var and not is_canonical_infinite_loop(loop_content):
             lo_ok = any(
                 re.search(rf"\b{re.escape(loop_var)}\b\s*(>=|>)", inv)
                 or re.search(rf"(<=|<)\s*\b{re.escape(loop_var)}\b", inv)
@@ -596,7 +618,6 @@ def run_one_attempt(
             return {"ok": False, "reason": reason, "attempt": attempt, "seed": seed}
 
         invariants = gen._extract_invariants_from_code(annotated)
-        sig = compute_signature(raw_code, invariants)
         raw_key = compute_raw_structure_key(raw_code)
         hparams = loop_factory_hyperparams(seed, attempt_tmp_loops, lf_overrides)
         loop_dpo_records = getattr(gen, "loop_dpo_records", {})
@@ -607,7 +628,6 @@ def run_one_attempt(
             "raw_code": raw_code,
             "annotated": annotated,
             "invariants": invariants,
-            "signature": sig,
             "raw_structure_key": raw_key,
             "first_pass": first_pass,
             "token_stats": get_token_stats(),
@@ -776,7 +796,6 @@ def main() -> None:
     }
 
     # Build in-memory dedup sets from existing raw/annotated pairs.
-    signatures: Set[str] = set()
     raw_structures: Set[str] = set()
     loop_skeleton_counts: Dict[str, int] = {}
     existing_max_idx = 0
@@ -789,12 +808,8 @@ def main() -> None:
             if not af.exists():
                 continue
             raw_code = rf.read_text(encoding="utf-8")
-            ann_code = af.read_text(encoding="utf-8")
-            invariants = [m.strip() for m in re.findall(r"loop invariant\s+([^;]+);", ann_code)]
-            sig = compute_signature(raw_code, invariants)
             raw_key = compute_raw_structure_key(raw_code)
             skey = compute_loop_skeleton_key(raw_code)
-            signatures.add(sig)
             raw_structures.add(raw_key)
             loop_skeleton_counts[skey] = loop_skeleton_counts.get(skey, 0) + 1
             existing_count += 1
@@ -872,19 +887,14 @@ def main() -> None:
                         continue
 
                     raw_key = result["raw_structure_key"]
-                    sig = result["signature"]
                     skeleton_key = compute_loop_skeleton_key(result["raw_code"])
                     if raw_key in raw_structures:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate raw structure"})
-                        continue
-                    if sig in signatures:
-                        reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate signature"})
                         continue
                     if loop_skeleton_counts.get(skeleton_key, 0) >= max(1, args.max_skeleton_repeat):
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate loop skeleton"})
                         continue
 
-                    signatures.add(sig)
                     raw_structures.add(raw_key)
                     loop_skeleton_counts[skeleton_key] = loop_skeleton_counts.get(skeleton_key, 0) + 1
                     idx = existing_max_idx + len(accepted_records) + 1
@@ -904,7 +914,6 @@ def main() -> None:
                             "raw_c": result["raw_code"],
                             "annotated_c": result["annotated"],
                             "invariants": result["invariants"],
-                            "signature": sig,
                             "raw_structure_key": raw_key,
                             "first_pass": result["first_pass"],
                             "token_stats": result["token_stats"],

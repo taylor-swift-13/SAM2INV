@@ -210,26 +210,60 @@ class ProbabilisticLoopFactory:
 
     def _sample_loop_control(self, src: str, ctr: str, lim: str, nla_family: bool) -> Tuple[List[Tuple[str, str]], str, Assign]:
         lim_expr = self._sample_limit_expr(src)
+        # Small chance to deliberately sample a non-progressing loop.
+        if self.rng.random() < 0.03:
+            dead_guard = self.rng.choice(["1", f"{ctr}>={ctr}", f"{lim}>={lim}"])
+            dead_step = Assign(ctr, ctr) if self.rng.random() < 0.6 else Assign(ctr, f"{ctr}+0")
+            return [(lim, lim_expr), (ctr, "0")], dead_guard, dead_step
 
         if nla_family:
-            weights = [0.25, 0.15, 0.15, 0.25, 0.20]  # more mul/div styles
+            # Mix linear and nonlinear controls for richer guard shapes.
+            weights = [0.24, 0.14, 0.12, 0.13, 0.17, 0.12, 0.08]
         else:
             # Linear family: disable mul/div loop controls.
-            weights = [0.56, 0.24, 0.20, 0.0, 0.0]
+            weights = [0.38, 0.18, 0.22, 0.22, 0.0, 0.0, 0.0]
 
-        mode = self.rng.choices(["inc1", "dec1", "inc_step", "mul_up", "div_down"], weights=weights, k=1)[0]
+        mode = self.rng.choices(
+            ["inc1", "dec1", "inc_step", "dec_step", "mul_up", "div_down", "dist_to_limit"],
+            weights=weights,
+            k=1,
+        )[0]
 
         if mode == "inc1":
-            return [(lim, lim_expr), (ctr, "0")], f"{ctr}<{lim}", Assign(ctr, f"{ctr}+1")
+            start = "0" if self.rng.random() < 0.75 else str(self.rng.randint(1, 4))
+            g = self.rng.choice([f"{ctr}<{lim}", f"{ctr}<={lim}-1", f"{ctr}+1<={lim}"])
+            return [(lim, lim_expr), (ctr, start)], g, Assign(ctr, f"{ctr}+1")
+
         if mode == "dec1":
-            return [(lim, lim_expr), (ctr, lim)], f"{ctr}>0", Assign(ctr, f"{ctr}-1")
+            g = self.rng.choice([f"{ctr}>0", f"{ctr}>=1", f"{ctr}-1>=0"])
+            return [(lim, lim_expr), (ctr, lim)], g, Assign(ctr, f"{ctr}-1")
+
         if mode == "inc_step":
             d = self.rng.randint(2, 5)
-            return [(lim, lim_expr), (ctr, "0")], f"{ctr}<{lim}", Assign(ctr, f"{ctr}+{d}")
+            start = "0" if self.rng.random() < 0.8 else str(self.rng.randint(1, d))
+            g = self.rng.choice([f"{ctr}<{lim}", f"{ctr}+{d}<={lim}", f"{ctr}<={lim}-{d}"])
+            return [(lim, lim_expr), (ctr, start)], g, Assign(ctr, f"{ctr}+{d}")
+
+        if mode == "dec_step":
+            d = self.rng.randint(2, 4)
+            g = self.rng.choice([f"{ctr}>{d-1}", f"{ctr}>={d}", f"{ctr}-{d}>=0"])
+            return [(lim, lim_expr), (ctr, lim)], g, Assign(ctr, f"{ctr}-{d}")
+
         if mode == "mul_up":
             mul = self.rng.randint(2, 3)
-            return [(lim, lim_expr), (ctr, "1")], f"{ctr}<{lim}", Assign(ctr, f"{ctr}*{mul}")
-        return [(lim, lim_expr), (ctr, lim)], f"{ctr}>0", Assign(ctr, f"{ctr}/2")
+            g = self.rng.choice([f"{ctr}<{lim}", f"{ctr}*{mul}<={lim}", f"{ctr}<={lim}/{mul}"])
+            return [(lim, lim_expr), (ctr, "1")], g, Assign(ctr, f"{ctr}*{mul}")
+
+        if mode == "div_down":
+            start = f"{lim}+{self.rng.randint(1, 6)}" if self.rng.random() < 0.5 else lim
+            g = self.rng.choice([f"{ctr}>0", f"{ctr}>=1", f"{ctr}>1"])
+            return [(lim, lim_expr), (ctr, start)], g, Assign(ctr, f"{ctr}/2")
+
+        # ctr tracks distance-to-limit; guard references both ctr and lim explicitly.
+        d = self.rng.randint(1, 3)
+        init = f"{lim}+{self.rng.randint(2, 7)}"
+        g = self.rng.choice([f"{ctr}>{lim}", f"{ctr}>={lim}+1", f"{ctr}-{lim}>0"])
+        return [(lim, lim_expr), (ctr, init)], g, Assign(ctr, f"{ctr}-{d}")
 
     def _semantic_assign(self, tgt: str, peer: str, ctr: str, lim: str, vars_pool: Sequence[str], nla_family: bool) -> Assign:
         p = self.rng.random()
@@ -500,6 +534,14 @@ class ProbabilisticLoopFactory:
             allow("scaling_pair", cond_w if nla_family else 0.0, 0, 2, 2)      # (9): nonlinear-only
             allow("counter_decomp", lin_w, 0, 4, 4)                            # (12)
             allow("gcd_compare", cond_w if nla_family else lin_w, 1, 1, 2)     # (10)
+
+            # Extra linear cores inspired by src/input/linear motifs.
+            allow("snapshot_step", lin_w + 0.4 * cond_w, 0, 2, 2)               # m=x; x=x+c
+            allow("complement_step", lin_w + 0.5 * cond_w, 0, 2, 2)             # y=n-x; x=x+1
+            allow("guarded_snapshot", lin_w + cond_w, 1, 2, 3)                  # if (..) m=x; x=x+1
+            allow("triple_decrease", lin_w + cond_w, 2, 3, 3)                   # if(a>0) if(b>0) x-=1,y-=1,z-=1
+            allow("stride_progress", lin_w, 0, 1, 1)                            # x=x+2 / x=x+3
+
             # Generic complex paradigms (dataset-agnostic).
             allow("nested_guarded_transitions", lin_w + cond_w, 2, 5, 4)
             allow("piecewise_recurrence", (cond_w + rel_w) if nla_family else 0.0, 2, 6, 5)
@@ -610,6 +652,49 @@ class ProbabilisticLoopFactory:
                 guard = f"{a}!=0&&{b}!=0"
                 body.append(IfElse(cond=f"{a}>{b}", then_body=[Assign(a, f"{a}-{b}")], else_body=[Assign(b, f"{b}-{a}")]))
                 used_if += 1
+                used_assign += 1
+                core_applied = True
+            elif chosen == "snapshot_step":
+                # linear motif: m=x; x=x+c
+                step = self.rng.randint(1, 3)
+                body.extend([Assign(b, a), Assign(a, f"{a}+{step}")])
+                used_assign += 2
+                core_applied = True
+            elif chosen == "complement_step":
+                # linear motif: y=n-x; x=x+1
+                set_init(a, "0")
+                body.extend([Assign(b, f"{lim}-{a}"), Assign(a, f"{a}+1")])
+                used_assign += 2
+                core_applied = True
+            elif chosen == "guarded_snapshot":
+                # linear motif: if (cond) m=x; x=x+1
+                guard_var = c
+                body.append(IfOnly(cond=f"{guard_var}<{lim}", then_body=[Assign(b, a)]))
+                body.append(Assign(a, f"{a}+1"))
+                used_if += 1
+                used_assign += 2
+                core_applied = True
+            elif chosen == "triple_decrease":
+                # linear motif: nested guards + synchronized decreases
+                set_init(a, f"({src}%20)+5")
+                set_init(b, f"({src}%20)+5")
+                set_init(c, f"({src}%20)+5")
+                guard = f"{a}>0"
+                body.append(
+                    IfOnly(
+                        cond=f"{b}>0",
+                        then_body=[
+                            IfOnly(cond=f"{c}>0", then_body=[Assign(a, f"{a}-1"), Assign(b, f"{b}-1"), Assign(c, f"{c}-1")])
+                        ],
+                    )
+                )
+                used_if += 2
+                used_assign += 3
+                core_applied = True
+            elif chosen == "stride_progress":
+                # linear motif: x increases by fixed stride > 1
+                step = self.rng.randint(2, 4)
+                body.append(Assign(a, f"{a}+{step}"))
                 used_assign += 1
                 core_applied = True
             elif chosen == "nested_guarded_transitions":
