@@ -1,8 +1,14 @@
 import openai
 import re
+import threading
 from config import LLMConfig
 from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple, Any, Optional
+
+# 本地模型推理锁：GPU 同一时刻只能跑一个推理，防止 OOM
+_local_inference_lock = threading.Lock()
+# 模型缓存：path -> (model, tokenizer)，避免多线程重复加载
+_local_model_cache: Dict[str, Any] = {}
 
 # 全局 token 统计追踪器
 class TokenTracker:
@@ -139,26 +145,111 @@ class OpenAILLM(BaseChatModel):
                 self.messages.pop()
             return f"生成响应失败: {e}"
 
+# 本地 Transformers 模型（单 GPU，推理串行执行）
+class LocalLLM(BaseChatModel):
+    """
+    使用 HuggingFace Transformers 加载本地模型。
+
+    设计要点：
+    - 模型/tokenizer 以 local_model_path 为 key 缓存在模块级 _local_model_cache 中，
+      多个 LocalLLM 实例（来自不同线程）共享同一份权重，不会重复占用显存。
+    - 所有推理调用通过 _local_inference_lock 串行化，GPU 同一时刻只执行一个前向传播。
+    - local_max_workers 控制线程池大小，决定同时"准备 prompt"的并发度，
+      但实际 GPU 计算始终是串行的。
+    """
+
+    def __init__(self, config: LLMConfig):
+        super().__init__(config)
+        if not config.local_model_path:
+            raise ValueError("local_model_path is empty; cannot initialize LocalLLM.")
+        self._model, self._tokenizer = self._get_or_load_model(config.local_model_path)
+
+    @staticmethod
+    def _get_or_load_model(path: str):
+        """线程安全地加载或复用已缓存的模型。"""
+        if path in _local_model_cache:
+            return _local_model_cache[path]
+        with _local_inference_lock:
+            # 二次检查：防止等锁期间其他线程已完成加载
+            if path in _local_model_cache:
+                return _local_model_cache[path]
+            try:
+                import torch
+                from transformers import AutoModelForCausalLM, AutoTokenizer
+            except ImportError as e:
+                raise ImportError(
+                    "transformers and torch are required for local model inference. "
+                    f"Install them with: pip install transformers torch\n{e}"
+                )
+            print(f"[LocalLLM] Loading model from {path} ...")
+            tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+            model = AutoModelForCausalLM.from_pretrained(
+                path,
+                torch_dtype=torch.float16,
+                device_map="auto",
+                trust_remote_code=True,
+            )
+            model.eval()
+            _local_model_cache[path] = (model, tokenizer)
+            print(f"[LocalLLM] Model loaded.")
+            return _local_model_cache[path]
+
+    def generate_response(self, user_input: str) -> str:
+        self.messages.append({"role": "user", "content": user_input})
+
+        with _local_inference_lock:
+            import torch
+            # 优先使用 apply_chat_template（支持 ChatML / Llama3 等格式）
+            try:
+                input_ids = self._tokenizer.apply_chat_template(
+                    self.messages,
+                    add_generation_prompt=True,
+                    return_tensors="pt",
+                ).to(self._model.device)
+            except Exception:
+                # 回退：简单拼接角色文本
+                prompt = "\n".join(
+                    f"{m['role']}: {m['content']}" for m in self.messages
+                )
+                input_ids = self._tokenizer(
+                    prompt, return_tensors="pt"
+                ).input_ids.to(self._model.device)
+
+            with torch.no_grad():
+                output_ids = self._model.generate(
+                    input_ids,
+                    max_new_tokens=self.config.local_max_new_tokens,
+                    temperature=self.config.local_temperature,
+                    top_p=self.config.local_top_p,
+                    do_sample=True,
+                )
+
+            new_tokens = output_ids[0][input_ids.shape[-1]:]
+            raw_response = self._tokenizer.decode(new_tokens, skip_special_tokens=True)
+
+        processed = self._process_response_think_tags(raw_response)
+        self.messages.append({"role": "assistant", "content": raw_response})
+        return processed
+
+
 # 主控制类，根据配置选择使用哪种 LLM 实现
 class Chatbot:
     def __init__(self, config: LLMConfig):
         self.config = config
-        if self.config.use_api_model :
-            # print("API Mode LLM Init...")
+        if config.use_api_model:
             self.llm_instance = OpenAILLM(config)
-            # print(f"Using Model: {self.config.api_model}")
-            # print(f"LLM Init Done")
+        elif config.local_model_path:
+            self.llm_instance = LocalLLM(config)
         else:
-            print("Warning: use_api_model is False, no LLM instance created")
+            print("Warning: use_api_model is False and local_model_path is empty; "
+                  "no LLM instance created.")
             self.llm_instance = None
-        
 
     def chat(self, user_input: str) -> str:
         if self.llm_instance is None:
             print("Error: LLM instance is None, cannot generate response")
             return "Error: LLM instance not initialized"
-        response = self.llm_instance.generate_response(user_input)
-        return response
+        return self.llm_instance.generate_response(user_input)
 
 
 
