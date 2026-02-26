@@ -4,9 +4,45 @@ from __future__ import annotations
 import argparse
 import random
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
+
+DEFAULT_CORE_KNOBS = {
+    "w_core_rel_guard": 1.3,
+    "w_core_cond_fixed": 1.7,
+    "w_core_linear_state": 1.5,
+    "w_core_min_update": 2.0,
+    "w_core_qr_division": 2.3,
+    "w_core_euclid_matrix": 1.2,
+}
+
+def _load_user_cfg() -> Dict[str, object]:
+    """Best-effort load of src/config.py LOOP_FACTORY_USER_CONFIG."""
+    src_dir = (Path(__file__).resolve().parent / "../src").resolve()
+    if not src_dir.exists():
+        return {}
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+    try:
+        import config as user_config  # type: ignore
+        cfg = getattr(user_config, "LOOP_FACTORY_USER_CONFIG", {})
+        return cfg if isinstance(cfg, dict) else {}
+    except Exception:
+        return {}
+
+
+USER_CFG = _load_user_cfg()
+
+
+def _cfg_or_default(name: str, default: float) -> float:
+    if name in USER_CFG:
+        return float(USER_CFG[name])
+    legacy = f"lf_{name}"
+    if legacy in USER_CFG:
+        return float(USER_CFG[legacy])
+    return float(default)
 
 
 @dataclass(frozen=True)
@@ -22,14 +58,14 @@ class HyperParams:
     q_nest: float = 0.12
     p_nonlinear: float = 0.55   # probability a loop is NLA-like family
     nonlinear_strength: float = 0.60
-    p_semantic_core: float = 0.20
-    p_while_one: float = 0.18
-    w_core_rel_guard: float = 1.0
-    w_core_cond_fixed: float = 1.0
-    w_core_linear_state: float = 1.0
-    w_core_min_update: float = 2.0
-    w_core_qr_division: float = 2.2
-    w_core_euclid_matrix: float = 0.8
+    p_semantic_core: float = 0.88
+    p_while_one: float = 0.22
+    w_core_rel_guard: float = DEFAULT_CORE_KNOBS["w_core_rel_guard"]
+    w_core_cond_fixed: float = DEFAULT_CORE_KNOBS["w_core_cond_fixed"]
+    w_core_linear_state: float = DEFAULT_CORE_KNOBS["w_core_linear_state"]
+    w_core_min_update: float = DEFAULT_CORE_KNOBS["w_core_min_update"]
+    w_core_qr_division: float = DEFAULT_CORE_KNOBS["w_core_qr_division"]
+    w_core_euclid_matrix: float = DEFAULT_CORE_KNOBS["w_core_euclid_matrix"]
 
 
 class Stmt:
@@ -1185,14 +1221,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--p-nonlinear", type=float, default=0.58, help="Probability of NLA-like loop family")
     parser.add_argument("--nonlinear-strength", type=float, default=0.70, help="Strength of nonlinear updates in NLA-like loops")
-    parser.add_argument("--p-semantic-core", type=float, default=0.20, help="Probability to inject one semantic core rule in a loop")
-    parser.add_argument("--p-while-one", type=float, default=0.18, help="Probability to sample while(1) style control")
-    parser.add_argument("--w-core-rel-guard", type=float, default=1.0, help="Weight of relational-guard core rule")
-    parser.add_argument("--w-core-cond-fixed", type=float, default=1.0, help="Weight of conditional+fixed-update core rule")
-    parser.add_argument("--w-core-linear-state", type=float, default=1.0, help="Weight of linear state-machine core rule")
-    parser.add_argument("--w-core-min-update", type=float, default=2.0, help="Weight of min-update guarded core rule")
-    parser.add_argument("--w-core-qr-division", type=float, default=2.2, help="Weight of quotient-remainder core rule")
-    parser.add_argument("--w-core-euclid-matrix", type=float, default=0.8, help="Weight of Euclid matrix-style core rule")
+    parser.add_argument("--p-semantic-core", type=float, default=_cfg_or_default("p_semantic_core", 0.88), help="Probability to inject one semantic core rule in a loop")
     return parser
 
 
@@ -1213,13 +1242,12 @@ def main() -> None:
         p_nonlinear=max(0.0, min(1.0, args.p_nonlinear)),
         nonlinear_strength=max(0.0, min(1.0, args.nonlinear_strength)),
         p_semantic_core=max(0.0, min(1.0, args.p_semantic_core)),
-        p_while_one=max(0.0, min(1.0, args.p_while_one)),
-        w_core_rel_guard=max(0.0, args.w_core_rel_guard),
-        w_core_cond_fixed=max(0.0, args.w_core_cond_fixed),
-        w_core_linear_state=max(0.0, args.w_core_linear_state),
-        w_core_min_update=max(0.0, args.w_core_min_update),
-        w_core_qr_division=max(0.0, args.w_core_qr_division),
-        w_core_euclid_matrix=max(0.0, args.w_core_euclid_matrix),
+        w_core_rel_guard=DEFAULT_CORE_KNOBS["w_core_rel_guard"],
+        w_core_cond_fixed=DEFAULT_CORE_KNOBS["w_core_cond_fixed"],
+        w_core_linear_state=DEFAULT_CORE_KNOBS["w_core_linear_state"],
+        w_core_min_update=DEFAULT_CORE_KNOBS["w_core_min_update"],
+        w_core_qr_division=DEFAULT_CORE_KNOBS["w_core_qr_division"],
+        w_core_euclid_matrix=DEFAULT_CORE_KNOBS["w_core_euclid_matrix"],
     )
 
     rng = random.Random(args.seed)

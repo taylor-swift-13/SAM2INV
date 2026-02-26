@@ -484,13 +484,6 @@ def generate_one_loop(out_dir: Path, seed: int, lf_overrides: Dict[str, object])
         "--p-nonlinear", str(hp["p_nonlinear"]),
         "--nonlinear-strength", str(hp["nonlinear_strength"]),
         "--p-semantic-core", str(hp["p_semantic_core"]),
-        "--p-while-one", str(hp["p_while_one"]),
-        "--w-core-rel-guard", str(hp["w_core_rel_guard"]),
-        "--w-core-cond-fixed", str(hp["w_core_cond_fixed"]),
-        "--w-core-linear-state", str(hp["w_core_linear_state"]),
-        "--w-core-min-update", str(hp["w_core_min_update"]),
-        "--w-core-qr-division", str(hp["w_core_qr_division"]),
-        "--w-core-euclid-matrix", str(hp["w_core_euclid_matrix"]),
     ]
     subprocess.run(cmd, check=True)
     c_files = sorted(out_dir.glob("*.c"), key=lambda p: int(p.stem))
@@ -521,14 +514,7 @@ def loop_factory_hyperparams(seed: int, out_dir: Path, overrides: Dict[str, obje
         "q_nest": 0.0,
         "p_nonlinear": 0.75,
         "nonlinear_strength": 0.82,
-        "p_semantic_core": 0.78,
-        "p_while_one": 0.18,
-        "w_core_rel_guard": 1.4,
-        "w_core_cond_fixed": 1.5,
-        "w_core_linear_state": 1.1,
-        "w_core_min_update": 2.0,
-        "w_core_qr_division": 2.2,
-        "w_core_euclid_matrix": 0.8,
+        "p_semantic_core": 0.88,
     }
     if overrides:
         for k, v in overrides.items():
@@ -782,11 +768,7 @@ def main() -> None:
     parser.add_argument("--p-multi", "--lf-p-multi", dest="p_multi", type=float, default=float(_lf_cfg("p_multi", 0.0)), help="Loop-factory p_multi.")
     parser.add_argument("--q-nest", "--lf-q-nest", dest="q_nest", type=float, default=float(_lf_cfg("q_nest", 0.0)), help="Loop-factory q_nest.")
     parser.add_argument("--p-nonlinear", "--lf-p-nonlinear", dest="p_nonlinear", type=float, default=float(_lf_cfg("p_nonlinear", 0.75)), help="Loop-factory nonlinear family probability.")
-    parser.add_argument("--p-semantic-core", "--lf-p-semantic-core", dest="p_semantic_core", type=float, default=float(_lf_cfg("p_semantic_core", 0.78)), help="Loop-factory semantic core probability.")
-    parser.add_argument("--p-while-one", "--lf-p-while-one", dest="p_while_one", type=float, default=float(_lf_cfg("p_while_one", 0.18)), help="Loop-factory while(1) sampling probability.")
-    parser.add_argument("--w-core-min-update", "--lf-w-core-min-update", dest="w_core_min_update", type=float, default=float(_lf_cfg("w_core_min_update", 2.0)), help="Loop-factory min-update semantic-core weight.")
-    parser.add_argument("--w-core-qr-division", "--lf-w-core-qr-division", dest="w_core_qr_division", type=float, default=float(_lf_cfg("w_core_qr_division", 2.2)), help="Loop-factory quotient-remainder semantic-core weight.")
-    parser.add_argument("--w-core-euclid-matrix", "--lf-w-core-euclid-matrix", dest="w_core_euclid_matrix", type=float, default=float(_lf_cfg("w_core_euclid_matrix", 0.8)), help="Loop-factory Euclid-matrix semantic-core weight.")
+    parser.add_argument("--p-semantic-core", "--lf-p-semantic-core", dest="p_semantic_core", type=float, default=float(_lf_cfg("p_semantic_core", 0.88)), help="Loop-factory semantic core probability.")
     args = parser.parse_args()
 
     # LoopSampler uses relative paths assuming CWD is src/
@@ -824,10 +806,6 @@ def main() -> None:
         "q_nest": args.q_nest,
         "p_nonlinear": args.p_nonlinear,
         "p_semantic_core": args.p_semantic_core,
-        "p_while_one": args.p_while_one,
-        "w_core_min_update": args.w_core_min_update,
-        "w_core_qr_division": args.w_core_qr_division,
-        "w_core_euclid_matrix": args.w_core_euclid_matrix,
     }
 
     # Build in-memory dedup sets from existing raw/annotated pairs.
