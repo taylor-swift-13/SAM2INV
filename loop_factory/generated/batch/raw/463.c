@@ -1,0 +1,15 @@
+int main1(int a,int p){
+  int n, j, y;
+
+  n=58;
+  j=n;
+  y=j;
+
+  while (j>3) {
+      if (j+2<=n+n) {
+          y = y-4;
+      }
+      j = j-4;
+  }
+
+}

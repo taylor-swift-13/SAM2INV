@@ -697,15 +697,33 @@ class LoopSampler:
 
     def save_outer_loop(self,loop_body: str, entry_cond: str, out_path: str, idx: int = 0, func_name: str = "foo"):
 
-        # 1) 从 '(y == 0) * (x == 1)' 提取变量名 -> ['y', 'x']
-        # 规则：找形如 (name == const) 的 name
-        vars_found = re.findall(r'\(\s*([A-Za-z_]\w*)\s*==', entry_cond)
-        # 去重并保持顺序（按出现顺序）
+        # 1) 优先从 entry_cond 提取变量名；若为空则回退到 loop_body/函数参数，
+        #    避免生成无参 foo() 但函数体使用自由变量导致 undeclared identifier。
+        vars_found = re.findall(r'\(\s*([A-Za-z_]\w*)\s*==', entry_cond or "")
         seen, params = set(), []
         for v in vars_found:
             if v not in seen:
                 seen.add(v)
                 params.append(v)
+
+        if not params:
+            body_vars = re.findall(r'\b([A-Za-z_]\w*)\b', loop_body or "")
+            keywords = {
+                'for', 'while', 'if', 'else', 'int', 'return', 'break', 'continue',
+                'printf', 'scanf', 'void', 'char', 'float', 'double', 'long', 'short'
+            }
+            for v in body_vars:
+                if v in keywords:
+                    continue
+                if v not in seen:
+                    seen.add(v)
+                    params.append(v)
+
+        if not params and getattr(self, 'function_params', None):
+            for v in self.function_params:
+                if v not in seen:
+                    seen.add(v)
+                    params.append(v)
 
         # 2) 组装形参列表：int x, int y
         param_list = ", ".join([f"int {v}" for v in params]) if params else ""
@@ -1167,19 +1185,22 @@ class LoopSampler:
                     self.global_unchanged_vars = self.extract_common_vars(result.stderr)
                 #elif input_file == f'../{self.outer_file}':
                 elif 'outer' in input_file:
-                    begin_end_maps = self.get_loop_begin_end_maps(result.stderr)
-                    # print(f"begin: {begin_end_maps['begin']}")
-                    self.begin_map = begin_end_maps['begin']
-                    # print(f"end: {begin_end_maps['end']}")
-                    self.end_map = begin_end_maps['end']
-                    # print('extracted unchanged and non inductive vars')
-                    common_vars, unchanged_vars, non_inductive_vars  = self.get_unchaned_non_inductive_vars(result.stderr)
-                    # print(f"common_vars: {common_vars}")
-                    self.common_vars = common_vars
-                    # print(f"unchanged_vars: {unchanged_vars}")
-                    self.unchanged_vars = unchanged_vars
-                    # print(f"non_inductive_vars: {non_inductive_vars}")
-                    self.non_inductive_vars = non_inductive_vars
+                    has_begin_end = ("LoopEntry_begin:" in result.stderr) and ("LoopEntry_end:" in result.stderr)
+                    if has_begin_end:
+                        begin_end_maps = self.get_loop_begin_end_maps(result.stderr)
+                        self.begin_map = begin_end_maps['begin']
+                        self.end_map = begin_end_maps['end']
+                        common_vars, unchanged_vars, non_inductive_vars  = self.get_unchaned_non_inductive_vars(result.stderr)
+                        self.common_vars = common_vars
+                        self.unchanged_vars = unchanged_vars
+                        self.non_inductive_vars = non_inductive_vars
+                    else:
+                        # 外层路径若仅返回编译/类型错误，不再触发 begin/end 解析报错噪音
+                        self.begin_map = ''
+                        self.end_map = ''
+                        self.common_vars = []
+                        self.unchanged_vars = []
+                        self.non_inductive_vars = []
                 else:
                     print('start sample static')
                     print(result.stderr)

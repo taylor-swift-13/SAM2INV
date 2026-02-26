@@ -6,6 +6,7 @@ import atexit
 import concurrent.futures
 import os
 import math
+import hashlib
 import json
 import logging
 import random
