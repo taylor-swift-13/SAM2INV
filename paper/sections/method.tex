@@ -2,7 +2,8 @@
 \section{Method}\label{sec:method}
 %% ============================================================
 
-We now describe each component of \textsc{SAM2INV} in detail.
+We now describe each component of \textsc{SAM2INV} in detail,
+following the pipeline order introduced in Section~\ref{sec:overview}.
 
 %% ------------------------------------------------------------
 \subsection{Smart Dynamic Sampling}\label{sec:sampling}
@@ -47,11 +48,11 @@ only the first and last $k$ iterations per run (default $k{=}3$)
 and group traces into at most $G$ groups (default $G{=}10$).
 
 %% ------------------------------------------------------------
-\subsection{LLM-Based Invariant Generation}\label{sec:generation}
+\subsection{Parallel LLM Generation}\label{sec:generation}
 %% ------------------------------------------------------------
 
 \paragraph{Prompt Design.}
-Each LLM prompt is assembled from four components:
+Each LLM prompt is assembled from three components:
 \begin{enumerate}
 \item A \emph{system prompt} that defines the task (loop invariant
       synthesis for Frama-C/WP), lists allowed and forbidden ACSL
@@ -61,9 +62,6 @@ Each LLM prompt is assembled from four components:
 \item The \emph{source code} of the target function.
 \item \emph{Execution traces} formatted as structured variable--value
       tables (Section~\ref{sec:sampling}).
-\item (Optional) \emph{Cached examples} retrieved from a ChromaDB
-      vector store, providing few-shot demonstrations of similar
-      solved programs.
 \end{enumerate}
 
 \paragraph{Assertion-Driven Strategy.}
@@ -78,59 +76,110 @@ invariant candidates:
       \lstinline|v == \at(v, Pre)|.
 \end{enumerate}
 
-\paragraph{Parallel Diverse Generation.}
-To maximise the chance of finding the correct invariant set, we issue
-$N$ parallel LLM calls (default $N{=}5$) using a thread pool.
-Diversity is introduced along two axes:
-\begin{itemize}
-\item \textbf{Temperature.}  We use $\tau \ge 1.0$ to encourage
-      diverse completions.
-\item \textbf{Prompt variation.}  Different calls may use different
-      prompt templates or include/exclude cached examples.
-\end{itemize}
-All $N$ responses are parsed, and the union of candidate invariants
-forms the initial candidate pool.
+\paragraph{Parallel Diverse Generation and Union Assembly.}
+To maximise the probability of finding the correct invariant set, we
+issue $N$ parallel LLM calls (default $N{=}5$) using a thread pool,
+with temperatures $\tau_j$ sampled from $\{0.8, 1.0, 1.1, 1.2\}$
+to encourage diverse outputs.
+Each call $j$ produces a set of ACSL expression strings $C_j$.
+These sets are \emph{unioned}, not voted upon:
+\[
+C_{\text{pool}} = \bigcup_{j=1}^{N} C_j \quad
+(\text{whitespace-normalised deduplication}).
+\]
+The union $C_{\text{pool}}$ is then passed as a single flat set to
+the three-stage filter (Section~\ref{sec:filtering}).
+
+The union-then-filter design is motivated by a structural property
+of loop invariants: the correct annotation is a \emph{conjunction}
+of multiple clauses, and different clauses tend to be discovered by
+different calls.
+After Houdini pruning, the certified output $C^*$ is assembled from
+whichever clauses in $C_{\text{pool}}$ survive---it is a post-hoc
+collective result, not a selection from any individual response.
+This \emph{non-attributability} property has direct consequences for
+training signal design; see Section~\ref{sec:offline} and
+Appendix~\ref{app:nonattrib} for the formal analysis.
 
 %% ------------------------------------------------------------
-\subsection{Trace-Based Filtering}\label{sec:filtering}
+\subsection{Three-Stage Filter Pipeline}\label{sec:filtering}
 %% ------------------------------------------------------------
 
-Before invoking the expensive Frama-C verifier, we apply lightweight
-filters to eliminate clearly incorrect candidates.
+The three-stage filter pipeline is the core engine of \textsc{SAM2INV}.
+It improves invariant generation in two independent ways.
 
-\paragraph{Syntax Filter.}
-Each candidate is checked against ACSL syntax rules:
+First, \emph{union assembly strengthens the invariant.}
+By pooling candidates from $N$ parallel calls, the union contains
+conjuncts that no individual call would produce on its own.
+After Houdini pruning, the certified $C^*$ is the strongest
+inductive conjunction the union supports---strictly stronger, in
+general, than the output of any single call
+(Section~\ref{sec:generation}, Appendix~\ref{app:nonattrib}).
+
+Second, \emph{the lightweight filters ensure Houdini can work
+correctly and efficiently.}
+The syntax filter removes expressions that are syntactically
+malformed ACSL---parse errors, forbidden constructs, unbalanced
+brackets---which would cause Frama-C to fail entirely rather
+than returning a per-invariant result.
+The trace filter removes candidates that are \emph{semantically
+contradicted} by observed execution states: any candidate falsified
+by at least one recorded loop state cannot be inductive and need
+never be sent to Frama-C.
+Together, these two stages deliver a pre-screened candidate set
+to Houdini, eliminating the risk of Frama-C parse failures and
+substantially reducing the number of formal verification calls.
+
+Crucially, both improvements are \emph{intrinsic to the pipeline
+itself}---they hold for any base LLM, before any fine-tuning.
+The offline training data collection (Section~\ref{sec:offline}) is
+a separate improvement layer built on top of this already-strong baseline.
+
+The design principle across stages is to discard as many
+incorrect candidates as possible \emph{before} invoking the
+more expensive stage that follows.
+
+\paragraph{Stage~1: ACSL Syntax Filter.}
+Each candidate is checked against a set of structural ACSL rules
+before any execution or verification is attempted:
 \begin{itemize}
-\item No quantifiers (\lstinline|\forall|, \lstinline|\exists|).
-\item No custom definitions (\texttt{predicate}, \texttt{logic}, \texttt{lemma}).
+\item No quantifiers (\lstinline|\forall|, \lstinline|\exists|),
+      which are unsupported by Frama-C/WP for loop invariants.
+\item No custom definitions (\texttt{predicate}, \texttt{logic},
+      \texttt{lemma}).
 \item No ternary operator (\texttt{? :}).
-\item \lstinline|\at(v, Pre)| only on function parameters.
-\item No exponentiation (\texttt{\^{}} is bitwise XOR in ACSL);
-      use repeated multiplication instead.
+\item \lstinline|\at(v, Pre)| permitted only on function parameters,
+      not on local variables.
+\item No exponentiation (\texttt{\^{}} is bitwise XOR in C/ACSL;
+      repeated multiplication must be used instead).
 \end{itemize}
+Candidates failing any rule are discarded immediately.
+This filter runs in microseconds per candidate and eliminates a
+substantial fraction of the pool before any program execution is
+needed.
 
-\paragraph{Semantic Filter.}
-Each candidate invariant is evaluated against the collected execution
-traces.  A candidate that is \emph{falsified} by any observed loop
-state is discarded.  While this does not guarantee inductiveness
-(the traces are finite), it eliminates a large fraction of
-incorrect candidates cheaply.
+\paragraph{Stage~2: Execution-Trace Semantic Filter.}
+Each surviving candidate is evaluated as a boolean expression over
+every recorded loop state in the collected execution traces.
+A candidate that evaluates to \texttt{false} on any observed state
+is \emph{inconsistent} with the program's actual behaviour and is
+discarded.
+While trace evaluation does not guarantee inductiveness---the
+traces are finite and cannot cover all reachable states---it
+eliminates candidates with grossly incorrect arithmetic relationships
+cheaply, without invoking Frama-C.
+In practice, this stage reduces the candidate pool by a further
+significant fraction before the formal verifier is engaged.
 
-%% ------------------------------------------------------------
-\subsection{Houdini Pruning}\label{sec:houdini}
-%% ------------------------------------------------------------
-
-After filtering, the surviving candidate set is verified by
-Frama-C/WP.  Typically, some candidates fail because they are
-not inductive (they hold at every observed state but are not
-preserved by one more iteration from an arbitrary state).
-
+\paragraph{Stage~3: Houdini Formal Pruning.}
+After the two lightweight filters, the surviving candidates are
+submitted to Frama-C/WP for formal verification.
 We apply the Houdini algorithm~\cite{flanagan2001houdini}:
 
 \begin{figure}[t]
 \centering
 \fbox{\parbox{0.92\columnwidth}{\small
-\textbf{Algorithm: Houdini Pruning}\label{alg:houdini}\\[2pt]
+\textbf{Algorithm: Houdini Pruning}\\[2pt]
 \textbf{Input:} Candidate set $C$, verifier $\mathcal{V}$\\
 \textbf{Output:} Maximal inductive subset $C^* \subseteq C$\\[2pt]
 1: $C^* \leftarrow C$\\
@@ -141,82 +190,75 @@ We apply the Houdini algorithm~\cite{flanagan2001houdini}:
 6: \textbf{until} $F = \emptyset$ \textbf{or} $C^* = \emptyset$\\
 7: \textbf{return} $C^*$
 }}
-\caption{Houdini-style pruning algorithm.}
+\caption{Houdini-style pruning algorithm used in Stage~3 of the filter pipeline.}
+\label{alg:houdini}
 \end{figure}
 
-\begin{theorem}[Termination]
+\begin{theorem}[Termination]\label{thm:termination}
 Algorithm~\ref{alg:houdini} terminates in at most $|C|$ iterations,
 since each iteration removes at least one candidate.
 \end{theorem}
 
-The Houdini pruner is implemented as a standalone module that depends
-only on Frama-C, not on the LLM.  It can therefore be applied to
-\emph{any} set of candidate invariants, regardless of their source.
+The output $C^*$ is the maximal subset of the pre-screened candidates
+that is simultaneously inductive and collectively sufficient to
+discharge the Frama-C/WP verification conditions.
+Every invariant in $C^*$ is formally certified.
+If $C^*$ is non-empty and sufficient to prove the postcondition,
+the pipeline reports success.
+If the pruned set is non-empty but insufficient, the system may
+optionally enter a brief iterative repair loop (at most $K$ iterations;
+default $K{=}3$) in which verification error messages are fed back
+to the LLM for targeted strengthening; this repair step is not the
+primary mechanism and is not counted as part of the three-stage filter.
 
 %% ------------------------------------------------------------
-\subsection{Iterative Repair}\label{sec:repair}
+\subsection{Offline Policy Exploration}\label{sec:offline}
 %% ------------------------------------------------------------
 
-If the Houdini-pruned set is non-empty but insufficient to prove
-the postcondition (i.e., Frama-C/WP reports \textsc{Unknown} for
-the assertion goal), the system enters an iterative repair loop:
+A distinctive property of the \textsc{SAM2INV} pipeline is that it
+produces not only a certified invariant annotation but also
+high-quality training data for an invariant-generation policy---as
+a byproduct of every pipeline run.
 
-\begin{enumerate}
-\item Extract the Frama-C error messages, identifying which
-      proof obligations failed and why.
-\item Construct a \emph{repair prompt} containing the current
-      annotated code, the error messages, and instructions to
-      strengthen or add invariants.
-\item Send the repair prompt to the LLM and parse the response.
-\item Apply the updated invariants and re-run Houdini pruning
-      and verification.
-\end{enumerate}
+\paragraph{Why not GRPO.}
+A natural baseline is group-relative policy
+optimisation~(GRPO)~\cite{deepseekr1}, which scores each individual
+completion via binary verifier feedback.
+Two structural properties make this unsuitable here.
+First, \emph{non-attributability} (Section~\ref{sec:generation},
+Appendix~\ref{app:nonattrib}): the correct annotation $C^*$ is
+assembled post-hoc from the union of $N$ calls, so a call that
+contributes only one essential conjunct will fail binary verification
+on its own yet be indispensable to the final answer---penalising it
+degrades the diversity that makes the union effective.
+Second, \emph{binary reward hackability}: trivially weak annotations
+such as \lstinline|loop invariant true;| can formally pass the
+verifier on programs with loose postconditions, making binary
+pass/fail an unreliable quality signal.
 
-This loop runs for at most $K$ iterations (default $K{=}10$).
-Each iteration either makes progress (by adding or strengthening
-invariants) or exhausts the budget, at which point the system
-reports failure.
+\paragraph{DPO data collection.}
+Both problems are avoided by \emph{offline} preference optimisation.
+The pipeline logs every candidate and the stage at which it was
+filtered; this log is converted into DPO training records at no
+extra cost.
+Let $C^*$ be the certified set and $P^+$ the annotated program
+obtained by inserting $C^*$.
+For each rejected candidate $r$ eliminated at stage
+$k \in \{1,2,3\}$, we form the record $(P,\, P^+,\, P^-_r,\, k)$
+where $P^-_r$ inserts $\{r\}$ as the sole annotation.
+The preference label is ground-truth correct by construction.
+Rejected candidates are weighted by stage: syntax failures ($k{=}1$)
+receive lower weight than inductiveness failures ($k{=}3$), since
+the latter represent the hardest and most informative contrasts.
+The SFT record $(P,\, P^+)$ is generated alongside each successful
+pipeline run.
+Formal definitions and the stage-stratified loss are given in
+Appendix~\ref{app:dpo}.
 
-%% ------------------------------------------------------------
-\subsection{Generation Modes}\label{sec:modes}
-%% ------------------------------------------------------------
-
-\textsc{SAM2INV} supports three generation modes, selectable via
-configuration:
-
-\begin{description}
-\item[\texttt{code\_only}:]
-  The LLM receives only the source code and system prompt.
-  Execution traces are not used.
-\item[\texttt{fit\_only}:]
-  The LLM receives only execution traces and is asked to discover
-  mathematical relationships (the \textsc{LLMFit} module).
-  The source code is not shown.
-\item[\texttt{hybrid} (default):]
-  The LLM first analyses traces via \textsc{LLMFit} to discover
-  candidate relationships.  These are injected as hints into the
-  code-generation prompt, combining trace-based insight with
-  code-level context.
-\end{description}
-
-The \texttt{hybrid} mode consistently outperforms the other two
-(Section~\ref{sec:experiments}), confirming that traces and code
-provide complementary signals.
-
-%% ------------------------------------------------------------
-\subsection{Vector Cache}\label{sec:cache}
-%% ------------------------------------------------------------
-
-To amortise effort across runs, \textsc{SAM2INV} maintains a
-ChromaDB vector store that indexes solved programs by their
-code embeddings.
-When a new program arrives, the system queries the store for the
-$k$ most similar programs (by cosine similarity) and includes
-their invariant annotations in the prompt as few-shot examples.
-After a successful verification, the new program--invariant pair
-is added to the store.
-This simple caching mechanism provides two benefits:
-(1)~it reduces LLM query cost for programs similar to previously
-solved ones, and
-(2)~it provides the LLM with concrete, verified examples that
-improve generation accuracy.
+\paragraph{Policy improvement cycle.}
+Fine-tuning on the accumulated SFT and DPO data produces a model
+that is deployed in place of the base LLM in Step~\ding{183}.
+The filter pipeline certifies every output regardless of model
+quality---a weaker model yields a smaller $C^*$ but never an
+uncertified one---so the system remains sound throughout the
+improvement cycle.

@@ -6,8 +6,9 @@ Figure~\ref{fig:pipeline} illustrates the end-to-end \textsc{SAM2INV} pipeline.
 The system takes as input a C function containing a \texttt{while} loop,
 a precondition (\texttt{requires}), and a postcondition (\texttt{assert}).
 It outputs the same function annotated with ACSL loop invariants and a
-\texttt{loop assigns} clause, such that Frama-C/WP can fully verify the
-postcondition.
+\texttt{loop assigns} clause such that Frama-C/WP can fully verify the
+postcondition, together with SFT and DPO training records for offline
+policy fine-tuning.
 
 \begin{figure}[t]
 \centering
@@ -15,56 +16,71 @@ postcondition.
 \small
 \begin{center}\textbf{\textsc{SAM2INV} Pipeline}\end{center}
 \vspace{-0.5em}
-\begin{enumerate}\setlength{\itemsep}{0pt}
-\item[\ding{182}] \textbf{Smart Sampling} --- Execute the program with tiered inputs; collect execution traces.
-\item[\ding{183}] \textbf{Vector Cache Lookup} --- Query a vector database for previously solved similar programs.
-\item[\ding{184}] \textbf{Parallel LLM Generation} --- Issue $N$ parallel LLM calls with diverse prompts and temperatures; parse candidate invariants.
-\item[\ding{185}] \textbf{Trace-Based Filtering} --- Validate each candidate against the collected traces; discard inconsistent ones.
-\item[\ding{186}] \textbf{Houdini Pruning} --- Iteratively remove non-inductive invariants via Frama-C/WP verification.
-\item[\ding{187}] \textbf{Iterative Repair} --- If verification fails, feed error messages back to the LLM to strengthen invariants; repeat up to $K$ iterations.
-\item[\ding{188}] \textbf{Output} --- Return annotated C code (or report failure).
+\begin{enumerate}\setlength{\itemsep}{2pt}
+\item[\ding{182}] \textbf{Smart Sampling} --- Execute the program with tiered inputs;
+      collect execution traces recording variable values at every loop iteration.
+\item[\ding{183}] \textbf{Parallel LLM Generation} --- Issue $N$ parallel LLM calls
+      with diverse prompts and temperatures; parse and union all candidate invariants
+      into a single pool.
+\item[\ding{184}] \textbf{Stage~1 -- ACSL Syntax Filter} --- Reject candidates that
+      violate ACSL syntax rules (unsupported quantifiers, forbidden operators, etc.).
+\item[\ding{185}] \textbf{Stage~2 -- Execution-Trace Semantic Filter} --- Discard
+      candidates falsified by any observed loop state without invoking the verifier.
+\item[\ding{186}] \textbf{Stage~3 -- Houdini Formal Pruning} --- Iteratively remove
+      non-inductive invariants via Frama-C/WP; the surviving set is \emph{certified}.
+\item[\ding{187}] \textbf{Offline Data Collection} --- Record verified candidates as
+      SFT data; pair them with rejected candidates as DPO preference pairs.
+      Output annotated C code (or report failure).
 \end{enumerate}
 }}
-\caption{High-level pipeline of \textsc{SAM2INV}. Steps \ding{186}--\ding{187} form
-a feedback loop that is guaranteed to terminate.}
+\caption{The \textsc{SAM2INV} sampling-and-filtering pipeline.
+Steps \ding{182}--\ding{183} form Phase~I (Sampling \& Generation);
+steps \ding{184}--\ding{186} form Phase~II (Three-Stage Filtering);
+step \ding{187} constitutes Phase~III (Certification \& Offline Data Collection).
+Houdini pruning in step~\ding{186} is guaranteed to terminate.}
 \label{fig:pipeline}
 \end{figure}
 
-The pipeline operates in three broad phases:
+The pipeline operates in three broad phases.
 
-\paragraph{Phase~I: Trace Collection (Steps \ding{182}--\ding{183}).}
-The target program is compiled and executed under a set of
-carefully chosen inputs produced by the \emph{smart sampler}
-(Section~\ref{sec:sampling}).
-Execution traces---recording variable values at every loop
-iteration---are collected and formatted into structured text.
-Before invoking the LLM, the system also queries a vector
-database (ChromaDB) to retrieve solutions for similar programs
-seen in prior runs, providing few-shot context.
+\paragraph{Phase~I: Sampling and Generation (Steps \ding{182}--\ding{183}).}
+The target program is compiled and executed under a set of carefully chosen inputs
+produced by the \emph{smart tiered sampler} (Section~\ref{sec:sampling}).
+Execution traces---recording variable values at every loop iteration---are collected and
+formatted into structured text that exposes the mathematical relationships maintained
+by the loop.
+Multiple LLM instances are then queried in parallel, each receiving a prompt assembled
+from the source code, execution traces, and a system prompt encoding ACSL rules and an
+assertion-driven synthesis strategy.
+Prompt diversity is achieved by varying the template and the sampling temperature.
+The union of all parsed responses forms the initial candidate pool.
 
-\paragraph{Phase~II: Generation and Filtering (Steps \ding{184}--\ding{185}).}
-Multiple LLM instances are queried in parallel, each receiving
-a prompt assembled from the source code, the execution traces,
-a system prompt encoding ACSL rules, and (optionally) cached
-examples.
-Prompt diversity is achieved by varying the template and the
-sampling temperature.
-The resulting candidate invariants are first checked for ACSL
-syntax compliance, then validated against the execution traces:
-any invariant that is falsified by at least one observed state
-is immediately discarded.
+\paragraph{Phase~II: Three-Stage Filtering (Steps \ding{184}--\ding{186}).}
+The candidate pool is subjected to three progressively more expensive filters.
+The \emph{ACSL syntax filter} checks each candidate against a set of structural
+rules---no unsupported quantifiers, no forbidden operators, correct use of
+\lstinline|\at| expressions---and discards violators immediately.
+The \emph{execution-trace semantic filter} evaluates each surviving candidate against
+every recorded loop state; any candidate falsified by at least one observed state is
+discarded without invoking the verifier.
+Finally, \emph{Houdini formal pruning} passes the pre-screened set to Frama-C/WP,
+iteratively removing candidates whose verification conditions fail until the remaining
+set is fully inductive.
+Because at least one candidate is removed per Houdini iteration, termination is
+guaranteed (Theorem~\ref{thm:termination}).
+Every candidate that exits Phase~II is formally certified by Frama-C/WP.
 
-\paragraph{Phase~III: Verification and Repair (Steps \ding{186}--\ding{188}).}
-Surviving candidates are combined and verified by Frama-C/WP.
-If some invariants fail, the Houdini pruner removes the failing
-subset and re-verifies; this process is guaranteed to terminate
-because at least one invariant is removed per iteration.
-If the pruned set is still insufficient to prove the postcondition,
-the system enters an \emph{iterative repair} loop:
-verification error messages are sent to the LLM, which proposes
-strengthened or additional invariants.
-The repair loop runs for at most $K$ iterations
-(configurable; default $K{=}10$).
+\paragraph{Phase~III: Certification and Offline Data Collection (Step \ding{187}).}
+The certified invariant set is written back into the source file as the verified output.
+Simultaneously, the pipeline records two complementary training signals.
+Candidates accepted through all three filter stages are recorded as \emph{chosen}
+examples for supervised fine-tuning~(SFT) of an invariant-generation policy.
+Candidates rejected at any earlier stage are paired with the corresponding chosen
+examples to form \emph{direct preference optimisation}~(DPO) training pairs, providing
+ground-truth preference labels derived entirely from formal verification---no human
+annotation required.
+This offline data collection adds negligible overhead: no extra LLM calls are made,
+and the records are produced as a natural byproduct of pipeline execution.
 
 \paragraph{Running Example.}
 Consider the following program that computes the cube of~$n$:
@@ -94,7 +110,12 @@ and collects traces such as:
 2 & 2 & 8 & 25 \\
 \end{array}
 \]
-From these traces, the LLM discovers the relationships
-$x = n^3$, $y = 3n^2+3n+1$, $z = 6n+6$, and $n \le a+1$.
-After Houdini pruning confirms all four invariants are inductive,
-Frama-C/WP verifies the postcondition in a single pass.
+The parallel LLM generation step produces a pool of candidate invariants.
+Ill-formed candidates (e.g., those using exponentiation \texttt{\^{}})
+are eliminated by the syntax filter; candidates that evaluate to \texttt{false}
+on any observed row are eliminated by the trace filter.
+Houdini pruning then confirms the four inductive invariants
+$x = n^3$, $y = 3n^2{+}3n{+}1$, $z = 6n{+}6$, and $n \le a{+}1$,
+and Frama-C/WP verifies the postcondition in a single pass.
+The verified invariants are stored as SFT data; every rejected candidate is
+paired with this verified set to form a DPO training record.

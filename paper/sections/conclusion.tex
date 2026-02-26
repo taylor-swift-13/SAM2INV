@@ -2,33 +2,48 @@
 \section{Conclusion}\label{sec:conclusion}
 %% ============================================================
 
-We have presented \textsc{SAM2INV}, an end-to-end system for automatic
-loop invariant synthesis that tightly integrates large language models
-with dynamic sampling and formal verification.
-The three pillars of our approach---smart tiered sampling, parallel
-diverse generation, and Houdini-style iterative pruning---address
-complementary weaknesses of prior LLM-based methods:
-sampling grounds the LLM in concrete program behaviour,
-diversity increases the probability of generating the correct invariant,
-and Houdini pruning provides monotonic progress guarantees within the
-verification loop.
+We have presented \textsc{SAM2INV}, a three-contribution system for certified loop
+invariant generation.
 
-Our probabilistic loop synthesis DSL, \textsc{LoopFactory}, enables
-controlled large-scale evaluation beyond the small existing benchmarks,
-and its factorised generative distribution allows principled ablation
-over program complexity dimensions.
+\textsc{LoopFactory}, our probabilistic DSL, serves as the \emph{task input generator}:
+it generates structured numeric loop programs with controllable arithmetic complexity,
+nesting depth, and variable count, supplying the programs that the pipeline annotates
+and that populate the offline training corpora.
+Its factorised generative distribution also supports principled ablation over program
+complexity dimensions, making it possible to characterise synthesis performance as a
+function of program structure.
 
-%% TODO: Summarise experimental findings once available.
+The \emph{three-stage sampling-and-filtering pipeline} is the core engine.
+It assembles a diverse candidate pool through smart tiered sampling and parallel LLM
+generation, then eliminates incorrect candidates through three successive filters: an
+ACSL syntax filter, an execution-trace semantic filter, and Houdini formal pruning via
+Frama-C/WP.
+Every invariant that exits the pipeline is formally certified.
+Crucially, the pipeline delivers substantial improvements even before any fine-tuning:
+union assembly of $N$ parallel calls produces a stronger certified invariant than any
+single call, and the lightweight filters ensure that Houdini receives only well-formed,
+semantically consistent candidates, eliminating parse failures and reducing formal
+verification cost.
+
+The \emph{offline SFT and DPO data generation} is a byproduct of ordinary pipeline
+runs at no extra cost.
+Every certified annotation becomes an SFT record; every rejected candidate---annotated
+by the stage at which it was filtered---forms a DPO preference pair.
+This stage-stratified labelling avoids the reward hacking that plagues binary
+pass/fail signals, provides a richer training signal than online RL methods such as
+GRPO, and requires no human annotation or learned reward model.
+The preference labels are ground-truth correct by construction, making this setting
+particularly well suited to offline preference optimisation.
 
 Several directions remain for future work.
-First, extending the system to handle pointer-manipulating programs
-and separation-logic invariants (via Coq/VST integration, which our
-codebase already partially supports) would broaden the applicability
-of the approach.
-Second, replacing the prompt-based LLM interaction with fine-tuned
-models trained on verified invariant datasets may improve both
-accuracy and efficiency.
-Third, integrating symbolic techniques---such as abstract
-interpretation for computing initial bounds or interpolation for
-strengthening failing invariants---could provide a hybrid
-symbolic--neural architecture with stronger guarantees.
+Most directly, the accumulated SFT and DPO datasets should be used to conduct
+systematic fine-tuning experiments, measuring how much the success rate of the filter
+pipeline improves as the policy model is updated over successive training rounds.
+A second priority is extending the system to heap-manipulating programs, where
+invariants must express separation-logic properties; our codebase already partially
+supports Coq/VST verification, and connecting this to the filter pipeline is a natural
+next step.
+Finally, integrating symbolic techniques---such as abstract interpretation for
+computing initial invariant bounds or interpolation for strengthening failing
+candidates---could provide a hybrid symbolic--neural architecture with stronger
+guarantees on programs that lie outside the current system's success region.

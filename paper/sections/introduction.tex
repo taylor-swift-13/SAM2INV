@@ -5,69 +5,134 @@
 Loop invariants are the cornerstone of deductive program verification.
 Given a loop annotated with an appropriate invariant, a verification condition generator
 such as Frama-C/WP~\cite{framac} can reduce the correctness of the entire program to
-a set of first-order proof obligations that can be discharged automatically.
+a set of first-order proof obligations dischargeable automatically.
 In practice, however, \emph{finding} the right invariant is the bottleneck:
 even expert users spend substantial effort crafting invariants that are simultaneously
 \emph{inductive} (preserved by each iteration), \emph{sufficient} (strong enough to
 imply the postcondition), and \emph{syntactically admissible} (expressible in the
 annotation language).
 
-Classical approaches to invariant synthesis fall into two broad camps.
+Classical approaches fall into two broad camps.
 \emph{Static} techniques such as abstract interpretation~\cite{cousot1977abstract},
 template-based constraint solving~\cite{colon2003linear}, and
 Houdini-style iterative weakening~\cite{flanagan2001houdini}
-offer soundness guarantees but are limited to fixed abstract domains or templates.
-\emph{Dynamic} techniques infer candidate invariants from execution traces
-using polynomial fitting~\cite{daikon}, machine learning~\cite{si2018learning},
-or data-driven enumerative search~\cite{garg2016learning}, but must still close
-the gap between empirical observation and formal proof.
+offer soundness guarantees but are confined to fixed abstract domains or templates.
+\emph{Dynamic} techniques infer candidates from execution traces using polynomial
+fitting~\cite{daikon}, machine learning~\cite{si2018learning}, or data-driven
+enumerative search~\cite{garg2016learning}, but must still close the gap between
+empirical observation and formal proof.
 
-Recently, large language models (LLMs) have shown remarkable ability in
-code understanding and generation tasks.
-Several studies have explored using LLMs to generate loop
-invariants~\cite{chakraborty2024towards,pei2023can,kamath2023finding},
-demonstrating that LLMs can produce plausible candidates even for non-trivial programs.
-However, existing approaches typically rely on a single LLM call or a simple
-repair loop, and do not systematically exploit execution traces or
-diversified generation strategies.
+Recently, large language models~(LLMs) have demonstrated remarkable ability at code
+understanding and generation.
+Several studies have explored LLM-driven invariant
+synthesis~\cite{chakraborty2024towards,pei2023can,kamath2023finding},
+showing that LLMs can produce plausible candidates even for non-trivial programs.
+However, existing approaches suffer from two structural weaknesses.
+First, they rely on a single LLM call or a simple repair loop without \emph{systematic
+multi-stage filtering}, so many returned candidates are syntactically ill-formed,
+semantically inconsistent with program behaviour, or formally non-inductive.
+Second, the verification signal produced by these systems is discarded after each
+run; no mechanism exists for using that signal to \emph{improve} the LLM policy
+that generates the candidates.
+The result is that each new program is treated as if the model had learned nothing
+from prior successes and failures.
 
-In this paper we present \textsc{SAM2INV} (\textbf{Sam}pling \textbf{to} \textbf{Inv}ariant),
-an end-to-end system that combines the strengths of dynamic sampling, LLM-based generation,
-and formal verification into a tightly integrated pipeline.
-Our key contributions are:
+\paragraph{Why invariant quality is hard to learn from.}
+A fundamental obstacle to improving LLM-based invariant generation
+through reinforcement learning is that
+\emph{evaluating candidate quality is structurally different here
+from other code generation tasks}.
+The correct annotation for a loop is not a single program but a
+\emph{conjunction} of multiple invariant clauses, each capturing a
+different arithmetic relationship.
+This has two consequences.
+First, the binary verifier signal is \emph{non-attributable}:
+the final correct annotation is typically assembled from contributions
+of several parallel LLM calls, so no individual call can be scored
+as simply correct or incorrect.
+Second, the binary signal is susceptible to \emph{reward hacking}:
+trivially weak annotations (e.g., \lstinline|loop invariant true;|)
+can formally pass a checker on programs with loose postconditions
+yet carry no mathematical insight about the loop.
+These two properties together explain why online reinforcement
+learning methods such as
+GRPO~\cite{deepseekr1}---which score individual completions against
+each other via binary verifier feedback---are poorly suited to this
+domain.
 
-\begin{enumerate}
-\item \textbf{Smart Dynamic Sampling.}
-  We propose a tiered sampling strategy that executes the target program with
-  carefully ordered inputs---from special boundary values through small, medium,
-  and large integers---to collect execution traces that expose loop behaviour
-  at different scales.
-  The traces are formatted into structured prompts that guide the LLM
-  toward discovering mathematical relationships among loop variables.
+\paragraph{Our approach.}
+We present \textsc{SAM2INV} (\textbf{Sam}pling \textbf{to}
+\textbf{Inv}ariant), a system that addresses both problems through a
+two-stage pipeline: first generate a large, diverse corpus of loop
+programs; then for each program, generate, filter, and certify
+invariant candidates---logging every accepted and rejected expression
+as structured training data.
 
-\item \textbf{Parallel Diverse Generation.}
-  Rather than relying on a single LLM query, we issue multiple parallel requests
-  with varied prompt templates and elevated sampling temperatures.
-  This produces a diverse candidate pool from which invariants are selected
-  through trace-based filtering and Houdini-style pruning.
+\textbf{Contribution~1: \textsc{LoopFactory}---a Probabilistic DSL for Task Input Generation.}
+Existing benchmarks contain only a few dozen loop programs, which
+is insufficient for training.
+We design \textsc{LoopFactory}, a probabilistic domain-specific
+language~(DSL) that generates structured numeric loop programs with
+tunable arithmetic complexity (linear vs.\ nonlinear), nesting depth,
+variable count, and loop-control mode.
+\textsc{LoopFactory} is the \emph{task input generator}: it produces
+the programs that the invariant-generation pipeline annotates, and
+hence the programs that ultimately populate the SFT and DPO training
+corpora.
+Without a scalable supply of programs with known structure, offline
+training data cannot be generated at the scale needed for fine-tuning.
 
-\item \textbf{Iterative Verification--Repair Loop.}
-  Candidates that survive initial filtering are verified with Frama-C/WP.
-  Failing invariants are pruned in a Houdini fashion (guaranteed to terminate),
-  and verification error messages are fed back to the LLM for targeted
-  strengthening, closing the loop between generation and formal proof.
+\textbf{Contribution~2: A Three-Stage Sampling-and-Filtering Pipeline.}
+Given a program (from \textsc{LoopFactory} or any source),
+\textsc{SAM2INV} issues $N$ parallel LLM calls and \emph{unions} all
+returned candidate invariant expressions into a single pool, rather
+than selecting among them.
+The pool is then filtered through three progressively more expensive
+stages:
+(i)~an ACSL \emph{syntax filter} that rejects ill-formed expressions
+without running any code;
+(ii)~an \emph{execution-trace semantic filter} that discards candidates
+falsified by any observed loop state;
+and (iii)~\emph{Houdini formal pruning} that uses Frama-C/WP to
+remove non-inductive candidates, converging to the strongest
+inductive conjunction the union supports.
+Every survivor is \emph{certified} by Frama-C/WP.
+Importantly, \emph{the filtering pipeline alone---before any
+fine-tuning---already yields substantial improvements in both
+success rate and invariant quality} over a single-call baseline.
+Union assembly makes the final annotation stronger by combining
+conjuncts that different calls discover independently;
+the syntax and trace filters ensure that only well-formed,
+semantically consistent candidates reach Frama-C, eliminating
+parse failures and reducing the cost of Houdini pruning;
+and Houdini finds the maximal inductive conjunction the
+pre-screened union can support.
+The pipeline is therefore a strong standalone tool for invariant
+generation, and the offline training data collection is an
+additional improvement layer built on top of it.
+Running \textsc{LoopFactory} and this pipeline together at scale
+constitutes the training data generation workflow: each program
+yields one certified annotation and a set of stage-labelled rejected
+candidates.
 
-\item \textbf{Probabilistic Loop Synthesis DSL.}
-  To enable controlled, large-scale evaluation beyond existing benchmarks,
-  we design a probabilistic domain-specific language (DSL) that generates
-  structured numeric loop programs with tunable arithmetic complexity,
-  nesting depth, and variable counts.
-\end{enumerate}
+\textbf{Contribution~3: Offline SFT and DPO Data from Pipeline Logs.}
+The union-then-filter design makes online RL inapplicable for the
+reasons above, but it naturally produces structured training data
+\emph{at no extra cost}: the pipeline already logs every candidate
+and the stage at which it was filtered.
+\textsc{SAM2INV} turns these logs into SFT records (program paired
+with its certified annotation) and DPO preference pairs (certified
+annotation as chosen; each rejected candidate as rejected, labelled
+by its rejection stage).
+This stage-stratified labelling provides a richer signal than binary
+pass/fail, avoids reward hacking, and requires no human annotation
+or online reward model.
 
+\medskip
 The remainder of this paper is organised as follows.
 Section~\ref{sec:related} surveys related work.
 Section~\ref{sec:overview} gives a high-level overview of the \textsc{SAM2INV} pipeline.
 Section~\ref{sec:method} details each component.
-Section~\ref{sec:loop-factory} describes the loop synthesis DSL.
+Section~\ref{sec:loop-factory} describes \textsc{LoopFactory}.
 Section~\ref{sec:experiments} presents experimental evaluation.
 Section~\ref{sec:conclusion} concludes.

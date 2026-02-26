@@ -4,13 +4,19 @@ from dataclasses import dataclass
 @dataclass
 class LLMConfig:
     # API model configuration
-    use_api_model = True # Control whether to use API model or local Transformers model
-    api_model:str = "gpt-5-nano" # model name, e.g., "gpt-4o"
-    api_key:str = "sk-9dnxPHHwjlTiAlH0uUoKwiW79Hs51AGpqUSRj9DvZurLZx1R"
-    base_url:str = "https://yunwu.ai/v1"
-    api_temperature = 1.0 # Temperature parameter for API calls
-    api_top_p= 1.0
-    think_mode_enabled = False
+    use_api_model = True  # True → OpenAI-compatible API；False → 本地 Transformers 模型
+    api_model: str = "gpt-5-nano"
+    api_key: str = "sk-9dnxPHHwjlTiAlH0u————————pqUSRj9DvZurLZx1R"
+    base_url: str = "https://yunwu.ai/v1"
+    api_temperature: float = 1.0
+    api_top_p: float = 1.0
+    think_mode_enabled: bool = False
+
+    # Local model configuration (use_api_model=False 时生效)
+    local_model_path: str = ""        # 本地模型路径，留空表示暂不启用
+    local_max_new_tokens: int = 2048  # 单次推理最大生成 token 数
+    local_temperature: float = 1.0    # 采样温度
+    local_top_p: float = 1.0          # nucleus sampling
 
 # 通用输入子目录配置：替代之前写死的 'linear'
 SUBDIR = "NLA_lipus"
@@ -80,13 +86,14 @@ MAX_STRENGTHEN_ITERATIONS = 0
 # 并行生成配置
 PARALLEL_GENERATION_CONFIG = {
     'enabled': True,              # 是否启用并行生成多组候选不变式
-    'num_candidates': 5,        # 并行生成的候选组数 (增加到10个以获得更多样化的候选)
-    'temperature': 1.0,           # 生成温度,控制多样性 (提高到1.0增加多样性)
+    'num_candidates': 5,          # 并行生成的候选组数
+    'temperature': 1.0,           # 生成温度，控制多样性
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
-    'use_houdini': True,          # 是否使用Houdini进一步筛选组合后的不变式
+    'use_houdini': True,          # 是否使用 Houdini 进一步筛选组合后的不变式
     'detect_conflicts': True,     # 是否检测并去除冲突的不变式
     'use_threading': True,        # 是否使用线程池实现真正的并行生成
-    'max_workers': 20,             # 线程池最大工作线程数
+    'max_workers': 20,            # API 模型：线程池最大并发数
+    'local_max_workers': 1,       # 本地模型：受显存限制的最大并发采样数
 }
 
 # Prompt 构建配置 (Prompt Construction Configuration)
@@ -100,7 +107,14 @@ PROMPT_CONFIG = {
 # simplified=True: 使用简化模板（默认）
 # simplified=False: 使用复杂模板（结合 var_maps/path_conds/updated_loop_conditions）
 TEMPLATE_CONFIG = {
-    'simplified': False,
+    'simplified': True,
+}
+
+# Invariant dedup configuration
+# enabled=True: split top-level && invariants and deduplicate by text ignoring whitespace.
+# enabled=False: keep Houdini output as-is.
+INVARIANT_DEDUP_CONFIG = {
+    'enabled': True,
 }
 
 # ==============================================================================
@@ -127,24 +141,23 @@ LOOP_FACTORY_USER_CONFIG = {
     'max_attempts': 1200,
     'seed': 2026,
     'workers': 20,
-    'model': 'gpt-5-mini',
-    'max_skeleton_repeat': 3,
+    'model': 'gpt-5-nano',
+    'max_skeleton_repeat': 10,
     'append': True,
     'work_dir': '',
 
     # loop_factory complexity knobs (shared names with loop_factory.py)
-    'max_vars': 6,
+    'max_vars': 4,
     'params': 2,
     'min_loops': 1,
     'max_loops': 1,
-    'max_assign': 6,
-    'max_ifelse': 3,
+    'max_assign': 4,
+    'max_ifelse': 2,
     'max_depth': 1,
     'p_multi': 0.0,
     'q_nest': 0.0,
-    'p_nonlinear': 0.0,
-    'p_semantic_core': 0.50
-    ,
+    'p_nonlinear': 0.00,
+    'p_semantic_core': 0.80
 }
 
 
