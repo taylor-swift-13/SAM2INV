@@ -66,55 +66,6 @@ def convert_precondition_to_acsl(pre_condition: str) -> str:
     return result
 
 
-def convert_assignment_to_acsl(assignment_str: str) -> str:
-    """
-    将赋值字符串转换为 ACSL 格式。
-    
-    示例：
-    - 输入: "x == 1 && y == x@pre + 1"
-    - 输出: "x == 1 && y == \at(x, Pre) + 1"
-    
-    Args:
-        assignment_str: 赋值字符串
-        
-    Returns:
-        ACSL 格式的赋值字符串
-    """
-    if not assignment_str:
-        return ""
-    
-    # Replace var@pre with \at(var, Pre)
-    result = re.sub(r'(\w+)@pre', r'\\at(\1, Pre)', assignment_str)
-    
-    return result
-
-
-def format_loop_invariant(invariant_expr: str) -> str:
-    """
-    格式化循环不变量为标准 ACSL loop invariant 语句。
-    
-    Args:
-        invariant_expr: 不变量表达式，如 "x >= 0"
-        
-    Returns:
-        完整的 ACSL 语句，如 "loop invariant x >= 0;"
-    """
-    if not invariant_expr:
-        return ""
-    
-    expr = invariant_expr.strip()
-    
-    # Remove trailing semicolon if present
-    if expr.endswith(';'):
-        expr = expr[:-1].strip()
-    
-    # Remove "loop invariant" prefix if already present
-    if expr.lower().startswith('loop invariant'):
-        expr = expr[14:].strip()
-    
-    return f"loop invariant {expr};"
-
-
 if __name__ == "__main__":
     # Test cases
     test_cases = [

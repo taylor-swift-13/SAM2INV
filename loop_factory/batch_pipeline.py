@@ -6,7 +6,6 @@ import atexit
 import concurrent.futures
 import os
 import math
-import hashlib
 import json
 import logging
 import random
@@ -336,34 +335,6 @@ def is_tautological(inv: str) -> bool:
     return False
 
 
-def is_relational(inv: str) -> bool:
-    vars_found = set(re.findall(r"\b([A-Za-z_]\w*)\b", inv))
-    vars_found = {v for v in vars_found if v not in CPP_KEYWORDS}
-    has_rel_op = any(op in inv for op in ["==", "!=", "<=", ">=", "<", ">"])
-    return len(vars_found) >= 2 and has_rel_op
-
-
-def inv_identifiers(inv: str) -> Set[str]:
-    ids = set(re.findall(r"\b([A-Za-z_]\w*)\b", inv))
-    return {x for x in ids if x not in CPP_KEYWORDS and x != "Pre"}
-
-
-def has_arith_expr(inv: str) -> bool:
-    return any(op in inv for op in ["+", "-", "*", "/", "%"])
-
-
-def is_prestate_copy_only(inv: str) -> bool:
-    """
-    True for invariants that only state x == \\at(x, Pre)-style unchanged facts
-    (possibly chained with &&), which are too weak alone.
-    """
-    parts = [p.strip() for p in inv.split("&&") if p.strip()]
-    if not parts:
-        return False
-    pat = re.compile(r"^([A-Za-z_]\w*)\s*==\s*\\at\(\s*\1\s*,\s*Pre\s*\)$")
-    return all(bool(pat.match(p)) for p in parts)
-
-
 def is_nontrivial_inv(inv: str) -> bool:
     if is_tautological(inv):
         return False
@@ -669,76 +640,6 @@ def run_one_attempt(
             side_dir = SRC / parent / subdir_name
             if side_dir.exists():
                 shutil.rmtree(side_dir, ignore_errors=True)
-
-
-def extract_candidate_vars(code: str) -> List[str]:
-    ids = set(re.findall(r"\b([A-Za-z_]\w*)\b", code))
-    ids = {x for x in ids if x not in CPP_KEYWORDS and not x.startswith("main")}
-    return sorted(ids)
-
-
-def apply_var_rename(text: str, mapping: Dict[str, str]) -> str:
-    out = text
-    for src, dst in mapping.items():
-        out = re.sub(rf"\b{re.escape(src)}\b", dst, out)
-    return out
-
-
-def convert_for_to_while(code: str) -> str:
-    # Conservative conversion for simple one-block for loops.
-    pattern = re.compile(r"for\s*\(([^;{}]*);([^;{}]*);([^){}]*)\)\s*\{", re.DOTALL)
-    return pattern.sub(lambda m: f"{m.group(1).strip()};\nwhile ({m.group(2).strip()}) {{", code)
-
-
-
-
-def build_augments(base_item: Dict, aug_per_sample: int, rng: random.Random) -> List[Dict]:
-    augments: List[Dict] = []
-    seen = set()
-
-    base_raw = base_item["raw_c"]
-    vars_list = extract_candidate_vars(base_raw)
-
-    tries = 0
-    while len(augments) < aug_per_sample and tries < max(8, aug_per_sample * 10):
-        tries += 1
-        i = len(augments)
-        item = dict(base_item)
-        mode = tries % 2
-
-        if mode == 0 and vars_list:
-            # Variable rename augmentation.
-            shuffled = vars_list[:]
-            rng.shuffle(shuffled)
-            mapping = {a: b for a, b in zip(vars_list, shuffled) if a != b}
-            if not mapping:
-                continue
-            for k in ["raw_c", "annotated_c", "user_prompt", "raw_model_output"]:
-                item[k] = apply_var_rename(item[k], mapping)
-            item["augmentation"] = {"type": "var_rename", "mapping": mapping}
-        else:
-            # for->while textual augmentation (often no-op for existing while-only loops).
-            changed = False
-            for k in ["raw_c", "annotated_c", "user_prompt", "raw_model_output"]:
-                new_text = convert_for_to_while(item[k])
-                if new_text != item[k]:
-                    changed = True
-                    item[k] = new_text
-            if not changed:
-                continue
-            item["augmentation"] = {"type": "for_to_while"}
-
-        key = hashlib.sha256((item["user_prompt"] + "##" + item["raw_model_output"]).encode("utf-8")).hexdigest()
-        if key in seen:
-            continue
-        seen.add(key)
-        # Recompute signature after semantic-preserving transformation.
-        invs = [m.strip() for m in re.findall(r"loop invariant\s+([^;]+);", item.get("annotated_c", ""))]
-        item["signature"] = compute_signature(item.get("raw_c", ""), invs)
-        item["raw_structure_key"] = compute_raw_structure_key(item.get("raw_c", ""))
-        augments.append(item)
-
-    return augments
 
 
 def main() -> None:

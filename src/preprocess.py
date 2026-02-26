@@ -5,7 +5,7 @@ Preprocessing Module for Loop Invariant Filter
 Extracts known variables from loop record to populate FILTER_CONTEXT dynamically.
 """
 
-from typing import List, Set, Dict, Optional
+from typing import List, Dict
 
 
 def extract_context_from_record(record: Dict) -> Dict[str, List[str]]:
@@ -47,21 +47,6 @@ def extract_context_from_record(record: Dict) -> Dict[str, List[str]]:
     }
 
 
-def update_filter_context_from_record(record: Dict):
-    """
-    Update FILTER_CONTEXT in config.py with variables from record.
-    
-    Args:
-        record: Loop record dictionary
-    """
-    import config
-    
-    context = extract_context_from_record(record)
-    config.FILTER_CONTEXT['known_variables'] = context['known_variables']
-    
-    return context
-
-
 if __name__ == "__main__":
     # Test with example record
     test_record = {
@@ -91,4 +76,3 @@ if __name__ == "__main__":
     print(f"Known Variables: {context['known_variables']}")
     print(f"Param Pre Vars: {context['param_pre_vars']}")
     print("=" * 60)
-

@@ -117,27 +117,6 @@ class LoopInvariantFilter:
         return valid, rejected
 
 
-def check_invariant_syntax(invariant: str) -> Optional[str]:
-    """Check for common ACSL syntax errors."""
-    issues = []
-
-    if '\\product' in invariant or '\\sum' in invariant or '\\min' in invariant or '\\max' in invariant:
-        issues.append("Mathematical operators like \\product, \\sum, \\min, \\max are not ACSL built-ins")
-
-    if re.search(r'\b[a-zA-Z_]\w*\s*\([^)]*\)\s*[=!]', invariant):
-        issues.append("Possible custom function/predicate call detected")
-
-    if '\\let' in invariant:
-        issues.append("\\let binding is not supported in loop invariants")
-
-    if ':=' in invariant:
-        issues.append(":=(assignment) not allowed in logic expressions")
-
-    if issues:
-        return "; ".join(issues)
-    return None
-
-
 def validate_and_filter(invariants: List[str], verbose: bool = True) -> List[str]:
     """Main entry point for filtering invariants."""
     filter_obj = LoopInvariantFilter()

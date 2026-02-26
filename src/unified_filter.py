@@ -960,54 +960,6 @@ def _rewrite_at_pre(invariants: List[str], precondition: str, function_params: S
     return rewritten_invariants
 
 
-def _simplify_arithmetic_expressions(invariants: List[str]) -> List[str]:
-    """
-    简化不变量中的算术表达式，避免 Frama-C 语法错误。
-    
-    处理的模式：
-    - 1 * (1) -> 1
-    - 1 * (expr) -> expr (当 expr 是常量时)
-    - (1) -> 1
-    - expr * 1 -> expr
-    - expr + 0 -> expr
-    - 0 + expr -> expr
-    
-    Args:
-        invariants: 不变量列表
-        
-    Returns:
-        简化后的不变量列表
-    """
-    if not invariants:
-        return []
-    
-    simplified = []
-    for inv in invariants:
-        result = inv
-        
-        # 简化 1 * (数字)
-        result = re.sub(r'\b1\s*\*\s*\((\d+)\)', r'\1', result)
-        
-        # 简化 (单个数字)
-        result = re.sub(r'\((\d+)\)(?!\s*[+\-*/])', r'\1', result)
-        
-        # 简化 expr * 1 (但要小心不要破坏其他表达式)
-        result = re.sub(r'(\w+)\s*\*\s*1\b(?!\s*\*)', r'\1', result)
-        
-        # 简化 1 * expr (但要小心不要破坏其他表达式)
-        result = re.sub(r'\b1\s*\*\s*(\w+)', r'\1', result)
-        
-        # 简化 expr + 0
-        result = re.sub(r'(\w+)\s*\+\s*0\b', r'\1', result)
-        
-        # 简化 0 + expr
-        result = re.sub(r'\b0\s*\+\s*(\w+)', r'\1', result)
-        
-        simplified.append(result)
-    
-    return simplified
-
-
 if __name__ == "__main__":
     # 测试用例
     test_record = {
