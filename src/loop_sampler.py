@@ -1165,14 +1165,19 @@ class LoopSampler:
             f"--input-file={input_file}"
         ]
 
+        symexec_timeout_seconds = 120
+        self.timeout = False
+
         try:
             result = subprocess.run(
                 command,
                 cwd='../VST/test',
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                timeout=symexec_timeout_seconds,
             )
+            self.timeout = False
 
             
 
@@ -1220,8 +1225,9 @@ class LoopSampler:
                     print('end sample static')
 
               
-                
-
+        except subprocess.TimeoutExpired:
+            self.timeout = True
+            print(f"symexec timeout after {symexec_timeout_seconds}s: {input_file}")
         except Exception as e:
             print(f"An error occurred: {e}")
 
@@ -1665,7 +1671,11 @@ class LoopSampler:
             with open(self.input_file, 'r', encoding='utf-8') as f:
                 code = f.read()
 
-            # 提取循环内容（使用 process_loop_file 但不执行符号执行）
+            # 保留原始循环内容供 LLM 使用（禁止改写 unknown()）
+            stripped_code = self._strip_contracts(code)
+            _, original_loop_contents, original_sorted_indices, _ = self.process_loop(stripped_code)
+
+            # 提取循环内容（兼容符号执行流程，内部会改写 unknown()）
             self.loop_contents, self.sorted_indices, self.inner_flags = self.process_loop_file(self.input_file, self.unfold_file)
 
             # 初始化 records
@@ -1674,7 +1684,11 @@ class LoopSampler:
 
             # 为每个循环创建基本 record
             for idx in self.sorted_indices:
-                loop_content = self.loop_contents[idx]
+                # 给大模型的代码使用原始循环，不改写 unknown()
+                if idx < len(original_loop_contents):
+                    loop_content = original_loop_contents[idx]
+                else:
+                    loop_content = self.loop_contents[idx]
 
                 # 提取循环条件
                 loop_condition = None
@@ -1691,7 +1705,7 @@ class LoopSampler:
                 keywords = {'for', 'while', 'if', 'else', 'int', 'return', 'break', 'continue', 'printf', 'scanf',
                             'char', 'float', 'double', 'void', 'do', 'switch', 'case', 'sizeof', 'struct',
                             'union', 'enum', 'typedef', 'static', 'extern', 'const', 'volatile',
-                            'unsigned', 'signed', 'short', 'long', 'goto', 'main'}
+                            'unsigned', 'signed', 'short', 'long', 'goto', 'main', 'unknown'}
                 current_vars = {v for v in current_vars if v not in keywords}
 
                 # 从完整代码中提取局部变量声明（循环前的 int x = ...; 声明）
@@ -1736,6 +1750,12 @@ class LoopSampler:
                 self.loop_slices.append([idx])
                 logger.info(f"Loop {idx}: extracted basic info")
 
+            if len(original_sorted_indices) != len(self.sorted_indices):
+                logger.warning(
+                    "Loop count mismatch between original and symexec-normalized parsing: "
+                    f"original={len(original_sorted_indices)}, normalized={len(self.sorted_indices)}"
+                )
+
             logger.info(f"Found {len(self.records)} loops")
         except Exception as e:
             logger.error(f"Error extracting loops: {e}")
@@ -1772,8 +1792,12 @@ class LoopSampler:
             with open(self.input_file, 'r', encoding='utf-8') as f:
                 code = f.read()
 
-            # 提取循环内容
-            self.loop_contents, self.sorted_indices, self.inner_flags = self.process_loop_file(self.input_file, self.unfold_file)
+            # 给大模型的代码使用原始循环内容（禁止改写 unknown()）
+            stripped_code = self._strip_contracts(code)
+            _, self.loop_contents, self.sorted_indices, self.inner_flags = self.process_loop(stripped_code)
+
+            # 兼容旧流程：继续生成 unfold 文件（内部可能会改写 unknown()，但不用于 LLM 提示）
+            self.process_loop_file(self.input_file, self.unfold_file)
 
             # 初始化 records
             self.records = []
@@ -1798,7 +1822,7 @@ class LoopSampler:
                 keywords = {'for', 'while', 'if', 'else', 'int', 'return', 'break', 'continue', 'printf', 'scanf',
                             'char', 'float', 'double', 'void', 'do', 'switch', 'case', 'sizeof', 'struct',
                             'union', 'enum', 'typedef', 'static', 'extern', 'const', 'volatile',
-                            'unsigned', 'signed', 'short', 'long', 'goto', 'main'}
+                            'unsigned', 'signed', 'short', 'long', 'goto', 'main', 'unknown'}
                 current_vars = {v for v in current_vars if v not in keywords}
 
                 # 从完整代码中提取局部变量声明（循环前的 int x = ...; 声明）

@@ -23,6 +23,9 @@ class InvariantRepairer:
         """Fix syntax errors (similar to inv_gen.py's repair_annotations)"""
         prompt = (
             "You are an ACSL specification expert. Fix ACSL syntax errors.\n\n"
+            "Constraints:\n"
+            "- preserve all unknown()/unknownN() calls exactly; do NOT rewrite them to constants or other expressions\n"
+            "- keep loop/program statements unchanged unless required by ACSL syntax fixes\n\n"
             f"Error message:\n{error_msg}\n\n"
             f"Code:\n```c\n{code}\n```\n\n"
             "Return only the complete fixed C code."
@@ -80,6 +83,9 @@ loop invariant w == z;
             f"{common_error_hint}\n\n"
             "Constraints:\n"
             "- only modify/add loop invariants\n"
+            "- do NOT modify loop condition\n"
+            "- do NOT modify loop body statements\n"
+            "- preserve all unknown()/unknownN() calls exactly; do NOT rewrite them\n"
             "- do not add requires/ensures\n"
             "- keep code structure unchanged\n"
             "- return full C code only\n\n"
@@ -175,7 +181,7 @@ loop invariant w == z;
 
             # Houdini 剪枝
             self.logger.info("Applying Houdini pruning")
-            pruned_code = self.hudini(current_code, verifier, c_file_path)
+            pruned_code, houdini_valid = self.hudini(current_code, verifier, c_file_path)
             if pruned_code is None:
                 self.logger.info("Houdini removed all invariants, regenerating via LLM")
                 regen_msg = (
@@ -192,6 +198,8 @@ loop invariant w == z;
             if semantic_valid:
                 self.logger.info("✓ Passed after Houdini pruning")
                 return current_code
+            if houdini_valid and not semantic_valid:
+                self.logger.info("Houdini made invariants valid but assertion still not satisfied, continuing strengthening")
 
             # Houdini 后仍未通过，插入 verification goal 占位符
             self.logger.info("Houdini pruning completed but verification still failed, inserting PLACE_HOLDER_VERIFICATION_GOAL")

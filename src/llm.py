@@ -14,37 +14,44 @@ _local_model_cache: Dict[str, Any] = {}
 class TokenTracker:
     """全局 token 使用统计追踪器"""
     _instance = None
+    _instance_lock = threading.Lock()
     
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.stats = {
+            with cls._instance_lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance.stats = {
+                        "total_prompt_tokens": 0,
+                        "total_completion_tokens": 0,
+                        "total_tokens": 0,
+                        "call_count": 0
+                    }
+                    cls._instance._stats_lock = threading.Lock()
+        return cls._instance
+    
+    def record(self, prompt_tokens: int, completion_tokens: int, total_tokens: int):
+        """记录一次 API 调用的 token 使用情况"""
+        with self._stats_lock:
+            self.stats["total_prompt_tokens"] += prompt_tokens
+            self.stats["total_completion_tokens"] += completion_tokens
+            self.stats["total_tokens"] += total_tokens
+            self.stats["call_count"] += 1
+    
+    def get_stats(self) -> Dict:
+        """获取当前统计信息"""
+        with self._stats_lock:
+            return self.stats.copy()
+    
+    def reset(self):
+        """重置统计信息"""
+        with self._stats_lock:
+            self.stats = {
                 "total_prompt_tokens": 0,
                 "total_completion_tokens": 0,
                 "total_tokens": 0,
                 "call_count": 0
             }
-        return cls._instance
-    
-    def record(self, prompt_tokens: int, completion_tokens: int, total_tokens: int):
-        """记录一次 API 调用的 token 使用情况"""
-        self.stats["total_prompt_tokens"] += prompt_tokens
-        self.stats["total_completion_tokens"] += completion_tokens
-        self.stats["total_tokens"] += total_tokens
-        self.stats["call_count"] += 1
-    
-    def get_stats(self) -> Dict:
-        """获取当前统计信息"""
-        return self.stats.copy()
-    
-    def reset(self):
-        """重置统计信息"""
-        self.stats = {
-            "total_prompt_tokens": 0,
-            "total_completion_tokens": 0,
-            "total_tokens": 0,
-            "call_count": 0
-        }
 
 
 # 全局 token 追踪器实例
