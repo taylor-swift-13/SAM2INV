@@ -2779,9 +2779,10 @@ class InvariantGenerator:
             loop_contexts.append(f"### Loop {loop_idx} Context ###\n{ctx}")
 
         from config import PARALLEL_GENERATION_CONFIG
+        parallel_enabled = PARALLEL_GENERATION_CONFIG.get('enabled', True)
         num_candidates = PARALLEL_GENERATION_CONFIG.get('num_candidates', 10)
         temperature = PARALLEL_GENERATION_CONFIG.get('temperature', 0.9)
-        use_threading = PARALLEL_GENERATION_CONFIG.get('use_threading', True)
+        use_threading = PARALLEL_GENERATION_CONFIG.get('use_threading', True) and parallel_enabled
         if self.llm_config.use_api_model:
             max_workers = PARALLEL_GENERATION_CONFIG.get('max_workers', 5)
         else:
