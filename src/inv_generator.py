@@ -661,7 +661,7 @@ class InvariantGenerator:
                 # Houdini 阶段只保证 invariant establish/preserve；这里继续检查 assertion satisfy
                 syntax = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
                 valid = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
-                satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else True
+                satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else False
 
                 final_code = pruned_code
                 if syntax and valid and not satisfy:
@@ -2906,7 +2906,7 @@ class InvariantGenerator:
                 self.verifier.run(temp_file)
                 pass_syntax = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
                 pass_valid = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
-                pass_satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else True
+                pass_satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else False
                 if not houdini_valid:
                     for meta in pass_candidate_meta:
                         _mark_reject(meta, "houdini_gate")
@@ -2943,7 +2943,7 @@ class InvariantGenerator:
                         self.verifier.run(dedup_temp)
                         syntax2 = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
                         valid2 = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
-                        satisfy2 = all(self.verifier.verify_result) if self.verifier.verify_result else True
+                        satisfy2 = all(self.verifier.verify_result) if self.verifier.verify_result else False
                         if syntax2 and valid2 and satisfy2:
                             pass_final_code = dedup_code
                             pass_syntax = syntax2
@@ -3065,7 +3065,7 @@ class InvariantGenerator:
             self.verifier.run(c_file_path)
             syntax = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
             valid = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
-            satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else True
+            satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else False
 
             self.logger.info(
                 f"[strengthen {iteration}/{max_iterations}] "
@@ -3208,7 +3208,7 @@ class InvariantGenerator:
         self.verifier.run(c_file_path)
         syntax = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
         valid = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
-        satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else True
+        satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else False
         if syntax and valid:
             last_valid_code = current_code
         if syntax and valid and satisfy:
