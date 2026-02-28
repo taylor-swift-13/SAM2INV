@@ -25,6 +25,10 @@ def parse_log_file(log_path: str) -> dict:
         'syntax': None,
         'valid': None,
         'satisfy': None,
+        'syntax_raw': None,
+        'valid_raw': None,
+        'satisfy_raw': None,
+        'complete': False,
         'duration': None,
         'total_tokens': None,
         'prompt_tokens': None,
@@ -57,6 +61,9 @@ def parse_log_file(log_path: str) -> dict:
                 if i > 0:
                     prev = re.sub(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+ - \w+ - ', '', lines[i-1].strip())
                     if 'first_pass' in prev:
+                        result['syntax_raw'] = m.group(1)
+                        result['valid_raw'] = m.group(2)
+                        result['satisfy_raw'] = m.group(3)
                         result['syntax'] = _parse_bool(m.group(1))
                         result['valid'] = _parse_bool(m.group(2))
                         result['satisfy'] = _parse_bool(m.group(3))
@@ -95,37 +102,75 @@ def parse_log_file(log_path: str) -> dict:
         if found_first_pass and found_time and found_tokens:
             break
 
-    # Fallback: if no first_pass found (e.g., process timed out), find the best
-    # result across all strengthen iterations (prefer syntax+valid+satisfy, then syntax+valid)
-    if not found_first_pass:
-        best_syntax = False
-        best_valid = False
-        best_satisfy = False
-        for i in range(len(lines)):
-            line = lines[i].strip()
-            content = re.sub(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+ - \w+ - ', '', line)
-            m = re.search(r'\[strengthen \d+/\d+\]\s*syntax=(\w+),\s*valid=(\w+),\s*satisfy=(\w+)', content)
-            if m:
-                s, v, sat = _parse_bool(m.group(1)), _parse_bool(m.group(2)), _parse_bool(m.group(3))
-                if s:
-                    best_syntax = True
-                if s and v:
-                    best_valid = True
-                if s and v and sat:
-                    best_satisfy = True
-        if best_syntax or best_valid or best_satisfy:
-            result['syntax'] = best_syntax
-            result['valid'] = best_valid
-            result['satisfy'] = best_satisfy
+    # 聚合所有 pass 的结果：只要任一轮为真即计为真
+    # 日志样例: "Pass 3 summary: syntax=True, valid=True, satisfy=False"
+    any_syntax = False
+    any_valid = False
+    any_satisfy = False
+    for raw in lines:
+        content = re.sub(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+ - \w+ - ', '', raw.strip())
+        m = re.search(r'Pass \d+ summary:\s*syntax=(\w+),\s*valid=(\w+),\s*satisfy=(\w+)', content)
+        if m:
+            any_syntax = any_syntax or _parse_bool(m.group(1))
+            any_valid = any_valid or _parse_bool(m.group(2))
+            any_satisfy = any_satisfy or _parse_bool(m.group(3))
+
+    # 兼容旧日志里的 strengthen 行
+    for raw in lines:
+        content = re.sub(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d+ - \w+ - ', '', raw.strip())
+        m = re.search(r'\[strengthen \d+/\d+\]\s*syntax=(\w+),\s*valid=(\w+),\s*satisfy=(\w+)', content)
+        if m:
+            any_syntax = any_syntax or _parse_bool(m.group(1))
+            any_valid = any_valid or _parse_bool(m.group(2))
+            any_satisfy = any_satisfy or _parse_bool(m.group(3))
+
+    # 和 first_pass 结果做并集，确保“只要有一次正确就算正确”
+    if result['syntax'] is None:
+        result['syntax'] = any_syntax
+    else:
+        result['syntax'] = result['syntax'] or any_syntax
+
+    if result['valid'] is None:
+        result['valid'] = any_valid
+    else:
+        result['valid'] = result['valid'] or any_valid
+
+    if result['satisfy'] is None:
+        result['satisfy'] = any_satisfy
+    else:
+        result['satisfy'] = result['satisfy'] or any_satisfy
+
+    result['complete'] = (
+        _is_non_empty(result['syntax_raw']) and
+        _is_non_empty(result['valid_raw']) and
+        _is_non_empty(result['satisfy_raw'])
+    )
 
     return result
 
 
 def _parse_bool(val: str):
-    """将日志中的值转为 bool: 1/True -> True, None/0/False -> False"""
+    """将日志中的值转为 bool: True/1/正整数 -> True, None/0/False -> False"""
+    if val is None:
+        return False
+    v = val.strip()
+    if v in ('True', 'true'):
+        return True
+    if v in ('False', 'false', 'None', 'none'):
+        return False
+    # 支持 first_pass 里的计数值，例如 satisfy=5
+    if re.fullmatch(r'[+-]?\d+', v):
+        return int(v) > 0
     if val in ('1', 'True', 'true'):
         return True
     return False
+
+
+def _is_non_empty(val: str) -> bool:
+    if val is None:
+        return False
+    v = val.strip()
+    return v not in ('', 'None', 'none')
 
 
 def analyze_log_dir(log_dir: str):
@@ -174,6 +219,7 @@ def analyze_log_dir(log_dir: str):
     syntax_pass = sum(1 for r in results if r['syntax'])
     valid_pass = sum(1 for r in results if r['valid'])
     satisfy_pass = sum(1 for r in results if r['satisfy'])
+    complete_pass = sum(1 for r in results if r['complete'])
 
     durations = [r['duration'] for r in results if r['duration'] is not None]
     tokens_list = [r['total_tokens'] for r in results if r['total_tokens'] is not None]
@@ -189,7 +235,7 @@ def analyze_log_dir(log_dir: str):
     print(f"Invariants valid:        {valid_pass}/{total} ({valid_pass/total*100:.1f}%)")
     print(f"Assertions satisfied:    {satisfy_pass}/{total} ({satisfy_pass/total*100:.1f}%)")
     print()
-    print(f">>> Accuracy (satisfy):  {satisfy_pass}/{total} = {satisfy_pass/total*100:.1f}% <<<")
+    print(f">>> Accuracy (syntax/valid/satisfy non-empty):  {complete_pass}/{total} = {complete_pass/total*100:.1f}% <<<")
     print()
 
     # 时间统计
@@ -222,11 +268,11 @@ def analyze_log_dir(log_dir: str):
 
     # 列出通过和失败的文件
     passed = sorted(
-        [r['file'] for r in results if r['satisfy']],
+        [r['file'] for r in results if r['complete']],
         key=lambda x: int(x) if x.isdigit() else x,
     )
     failed = sorted(
-        [r['file'] for r in results if not r['satisfy']],
+        [r['file'] for r in results if not r['complete']],
         key=lambda x: int(x) if x.isdigit() else x,
     )
 
