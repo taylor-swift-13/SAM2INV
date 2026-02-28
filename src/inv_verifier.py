@@ -6,6 +6,7 @@ import subprocess
 import re
 import logging
 from typing import List, Tuple, Optional
+from run_dirs import resolve_verified_output_path
 
 class InvariantVerifier:
     """验证 ACSL 不变量的正确性"""
@@ -53,32 +54,13 @@ class InvariantVerifier:
     
     def _save_verified_file(self, c_file_path: str):
         """保存 Frama-C 验证的文件到 output 目录"""
-        import os
-        import shutil
-        
         try:
             # 读取文件内容
             with open(c_file_path, 'r') as f:
                 file_content = f.read()
             
-            # 确定保存路径
-            base_name = os.path.basename(c_file_path)
-            
-            # 如果文件路径包含子目录信息，保持相同结构
-            if 'NLA_lipus' in c_file_path or 'NLA_digit' in c_file_path:
-                # 提取数据集名称
-                if 'NLA_lipus' in c_file_path:
-                    dataset = 'NLA_lipus'
-                else:
-                    dataset = 'NLA_digit'
-                
-                output_dir = os.path.join('output', dataset)
-                os.makedirs(output_dir, exist_ok=True)
-                output_path = os.path.join(output_dir, base_name)
-            else:
-                # 默认保存到 output 根目录
-                os.makedirs('output', exist_ok=True)
-                output_path = os.path.join('output', base_name)
+            # 统一保存路径（避免回落到 output 根目录）
+            output_path = resolve_verified_output_path(c_file_path)
             
             # 保存文件
             with open(output_path, 'w') as f:
@@ -182,4 +164,3 @@ class InvariantVerifier:
                 errors.append(f"  {i}. {err[:100]}...")
         
         return "\n".join(errors) if errors else "No errors"
-

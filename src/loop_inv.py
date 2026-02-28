@@ -11,6 +11,7 @@ import os
 import signal
 import sys
 import time
+from run_dirs import resolve_run_dirs
 from inv_generator import InvariantGenerator
 from llm import LLMConfig, reset_token_stats, get_token_stats
 from config import SUBDIR, MAX_ITERATION
@@ -82,11 +83,22 @@ def main():
     args = parser.parse_args()
     INPUT_SUBDIR = args.input_subdir  # 更新全局配置
     
+    # 统一输出/日志目录策略：output/<test_set>_<timestamp>, log/<test_set>_<timestamp>
+    resolved_output_dir, resolved_log_dir, resolved_test_set, run_tag = resolve_run_dirs(
+        test_set=args.input_subdir,
+        output_dir=args.output_dir,
+        log_dir=args.log_dir,
+    )
+    os.environ["SAM2INV_OUTPUT_DIR"] = resolved_output_dir
+    os.environ["SAM2INV_LOG_DIR"] = resolved_log_dir
+    os.environ["SAM2INV_TEST_SET"] = resolved_test_set
+    os.environ["SAM2INV_RUN_TAG"] = run_tag
+
     # 重置 token 统计（开始新的分析时）
     reset_token_stats()
     
     # 设置日志记录器（自动对齐 input 路径）
-    logger = setup_logger(args.file_name, log_dir=args.log_dir)
+    logger = setup_logger(args.file_name, log_dir=resolved_log_dir)
     
     # 记录开始时间
     start_time = time.time()
@@ -96,6 +108,7 @@ def main():
         args.file_name,
         LLMConfig(),
         logger,
+        output_dir=resolved_output_dir,
         input_subdir=INPUT_SUBDIR,
         collect_dpo=False,
     )
@@ -107,7 +120,7 @@ def main():
     # Register SIGTERM handler to save partial results on timeout
     def _sigterm_handler(signum, frame):
         logger.warning("Received SIGTERM (timeout), saving partial results...")
-        generator.save_results(args.output_dir)
+        generator.save_results(resolved_output_dir)
         # Log partial first_pass if available
         first_pass = generator.first_pass if hasattr(generator, 'first_pass') and generator.first_pass else None
         if first_pass:
@@ -146,7 +159,7 @@ def main():
     logger.info("=" * 60)
     
     # Always save results, even if generation failed
-    generator.save_results(args.output_dir)
+    generator.save_results(resolved_output_dir)
     
     if annotated_code:
         logger.info(f"完成！已生成包含不变量的完整 C 代码")

@@ -18,6 +18,7 @@ from inv_repairer import InvariantRepairer
 from houdini_pruner import HoudiniPruner
 from config import SUBDIR, USE_TRACES, MAX_ITERATION, MAX_STRENGTHEN_ITERATIONS, SYNTAX_FILTER_CONFIG, TEMPLATE_CONFIG, INVARIANT_DEDUP_CONFIG
 from unified_filter import filter_invariants, validate_code_structure
+from run_dirs import resolve_run_dirs
 
 
 def to_acsl_state_expr(expr: str) -> str:
@@ -1977,9 +1978,12 @@ class InvariantGenerator:
         if getattr(self, '_output_dir', None) is not None:
             return self._output_dir
 
-        # Auto-determine output_dir based on selected subdir
-        subdir = getattr(self, "resolved_subdir", None) or SUBDIR
-        self._output_dir = os.path.join("output", subdir)
+        # Auto-determine output_dir with unified policy.
+        subdir = getattr(self, "resolved_subdir", None) or SUBDIR or "tmp"
+        resolved_output_dir, _, _, run_tag = resolve_run_dirs(test_set=subdir)
+        self._output_dir = resolved_output_dir
+        os.environ["SAM2INV_OUTPUT_DIR"] = resolved_output_dir
+        os.environ["SAM2INV_RUN_TAG"] = run_tag
         return self._output_dir
     
     def _delete_unused_merge_methods(self):

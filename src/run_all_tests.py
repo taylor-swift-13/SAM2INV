@@ -15,8 +15,8 @@ import sys
 import time
 import subprocess
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from datetime import datetime
 from config import MAX_ITERATION
+from run_dirs import resolve_run_dirs
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 TIMEOUT_SECONDS = 1200
@@ -113,10 +113,16 @@ def main():
         print(f"Error: No test files found in {input_path}")
         sys.exit(1)
 
-    # 设置输出/日志目录（日志目录带时间戳）
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_dir = args.output_dir or os.path.join('output', f'{args.test_set}_{timestamp}')
-    log_dir = args.log_dir or os.path.join('log', f'{args.test_set}_{timestamp}')
+    # 统一输出/日志目录策略：output/<test_set>_<timestamp>, log/<test_set>_<timestamp>
+    output_dir, log_dir, resolved_test_set, run_tag = resolve_run_dirs(
+        test_set=args.test_set,
+        output_dir=args.output_dir,
+        log_dir=args.log_dir,
+    )
+    os.environ["SAM2INV_OUTPUT_DIR"] = output_dir
+    os.environ["SAM2INV_LOG_DIR"] = log_dir
+    os.environ["SAM2INV_TEST_SET"] = resolved_test_set
+    os.environ["SAM2INV_RUN_TAG"] = run_tag
 
     os.makedirs(os.path.join(SCRIPT_DIR, output_dir), exist_ok=True)
     os.makedirs(os.path.join(SCRIPT_DIR, log_dir), exist_ok=True)

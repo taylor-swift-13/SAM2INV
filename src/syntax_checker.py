@@ -1,6 +1,6 @@
 import subprocess
 import argparse
-import os
+from run_dirs import resolve_verified_output_path
 
 class SyntaxChecker:
     def __init__(self):
@@ -19,24 +19,8 @@ class SyntaxChecker:
             with open(file_path, 'r') as f:
                 file_content = f.read()
             
-            # 确定保存路径
-            base_name = os.path.basename(file_path)
-            
-            # 如果文件路径包含子目录信息，保持相同结构
-            if 'NLA_lipus' in file_path or 'NLA_digit' in file_path:
-                # 提取数据集名称
-                if 'NLA_lipus' in file_path:
-                    dataset = 'NLA_lipus'
-                else:
-                    dataset = 'NLA_digit'
-                
-                output_dir = os.path.join('output', dataset)
-                os.makedirs(output_dir, exist_ok=True)
-                output_path = os.path.join(output_dir, base_name)
-            else:
-                # 默认保存到 output 根目录
-                os.makedirs('output', exist_ok=True)
-                output_path = os.path.join('output', base_name)
+            # 统一保存路径（避免回落到 output 根目录）
+            output_path = resolve_verified_output_path(file_path)
             
             # 保存文件
             with open(output_path, 'w') as f:
@@ -88,4 +72,3 @@ class SyntaxChecker:
 if __name__ == "__main__":
     checker = SyntaxChecker()
     checker.run()
-

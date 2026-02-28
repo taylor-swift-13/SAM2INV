@@ -11,6 +11,7 @@ from loop_inv import setup_logger
 from inv_generator import InvariantGenerator
 from llm import LLMConfig, reset_token_stats, get_token_stats
 from config import SUBDIR, MAX_ITERATION
+from run_dirs import resolve_run_dirs
 
 def batch_process(input_dir: str, output_dir: str = None, log_dir: str = None,
                   max_iterations: int = MAX_ITERATION, skip_existing: bool = False):
@@ -28,8 +29,15 @@ def batch_process(input_dir: str, output_dir: str = None, log_dir: str = None,
     script_dir = os.path.dirname(os.path.abspath(__file__))
     input_path = os.path.join(script_dir, input_dir)
     input_subdir = os.path.basename(os.path.normpath(input_dir))
-    resolved_output_dir = output_dir or os.path.join("output", input_subdir)
-    resolved_log_dir = log_dir or os.path.join("log", input_subdir)
+    resolved_output_dir, resolved_log_dir, resolved_test_set, run_tag = resolve_run_dirs(
+        test_set=input_subdir,
+        output_dir=output_dir,
+        log_dir=log_dir,
+    )
+    os.environ["SAM2INV_OUTPUT_DIR"] = resolved_output_dir
+    os.environ["SAM2INV_LOG_DIR"] = resolved_log_dir
+    os.environ["SAM2INV_TEST_SET"] = resolved_test_set
+    os.environ["SAM2INV_RUN_TAG"] = run_tag
     
     if not os.path.exists(input_path):
         print(f"错误: 输入目录不存在: {input_path}")
@@ -96,7 +104,13 @@ def batch_process(input_dir: str, output_dir: str = None, log_dir: str = None,
         
         try:
             # 创建不变量生成器
-            generator = InvariantGenerator(file_name, LLMConfig(), logger, input_subdir=input_subdir)
+            generator = InvariantGenerator(
+                file_name,
+                LLMConfig(),
+                logger,
+                output_dir=resolved_output_dir,
+                input_subdir=input_subdir,
+            )
             
             # 设置最大迭代次数
             generator.repairer.max_iterations = max_iterations
@@ -197,4 +211,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
