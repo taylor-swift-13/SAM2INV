@@ -2786,23 +2786,14 @@ class InvariantGenerator:
 
         prompt_template = self._get_gen_template()
         function_context = "\n\n".join(loop_contexts)
-        candidate_codes = self._generate_multiple_candidates(
-            template_all,
-            (prompt_template, function_context),
-            num_candidates=num_candidates,
-            temperature=temperature,
-            use_threading=use_threading,
-            max_workers=max_workers,
-        )
-        if not candidate_codes:
-            self.first_pass = {"syntax": None, "valid": None, "satisfy": None}
-            return None
-
         loop_n = len(processed_records)
-        combined_per_loop: List[List[str]] = [[] for _ in range(loop_n)]
-        assigns_per_loop: List[str] = ["" for _ in range(loop_n)]
-        seen_per_loop: List[set] = [set() for _ in range(loop_n)]
+
+        first_pass_metrics = {"syntax": None, "valid": None, "satisfy": None}
+        final_code: Optional[str] = None
         candidate_meta: List[Dict] = []
+        syntax = False
+        valid = False
+        satisfy = False
 
         def _mark_reject(meta: Dict, reason: str) -> None:
             meta["dpo_reject"] = True
@@ -2810,127 +2801,176 @@ class InvariantGenerator:
             if isinstance(rs, list) and reason not in rs:
                 rs.append(reason)
 
-        for code in candidate_codes:
-            meta = {"code": code, "dpo_reject": False, "dpo_reject_reasons": [], "contrib": [set() for _ in range(loop_n)]}
-            parsed = self._extract_per_loop_inv_assigns(code)
-            for i in range(min(loop_n, len(parsed))):
-                invs = list((parsed[i].get("invariants", []) if isinstance(parsed[i], dict) else []) or [])
-                if not assigns_per_loop[i]:
-                    assigns_per_loop[i] = str((parsed[i].get("assigns", "") if isinstance(parsed[i], dict) else "") or "")
+        for pass_idx in range(1, max_iterations + 1):
+            self.logger.info(f"\n{'='*60}")
+            self.logger.info(f"Main generation pass {pass_idx}/{max_iterations}")
+            self.logger.info(f"{'='*60}")
 
-                if SYNTAX_FILTER_CONFIG.get('enabled', True):
-                    fr = filter_invariants(invs, processed_records[i], verbose=False)
-                    syntax_kept = list(fr.valid or [])
-                    if fr.rejected:
-                        _mark_reject(meta, "syntax_gate")
-                else:
-                    syntax_kept = invs
+            candidate_codes = self._generate_multiple_candidates(
+                template_all,
+                (prompt_template, function_context),
+                num_candidates=num_candidates,
+                temperature=temperature,
+                use_threading=use_threading,
+                max_workers=max_workers,
+            )
+            if not candidate_codes:
+                self.logger.warning(f"Pass {pass_idx}: no candidate code generated")
+                continue
 
-                safe_kept: List[str] = []
-                function_params = set(processed_records[i].get('function_params', []) or [])
-                for inv in syntax_kept:
-                    if '^' in inv or '\\pow' in inv:
-                        _mark_reject(meta, "syntax_gate")
-                        continue
-                    inv2 = re.sub(r'\\at\((\w+),\s*Pre\)', lambda m: m.group(0) if m.group(1) in function_params else m.group(1), inv)
-                    if inv2 != inv:
-                        _mark_reject(meta, "merge_gate")
-                    safe_kept.append(inv2)
+            combined_per_loop: List[List[str]] = [[] for _ in range(loop_n)]
+            assigns_per_loop: List[str] = ["" for _ in range(loop_n)]
+            seen_per_loop: List[set] = [set() for _ in range(loop_n)]
+            pass_candidate_meta: List[Dict] = []
 
-                if filter_by_sampling:
-                    sampled_kept = self._filter_invariants_by_sampling(safe_kept, processed_records[i], i)
-                    kept_norm = {self._normalize_inv_text(x) for x in sampled_kept}
-                    for inv in safe_kept:
-                        if self._normalize_inv_text(inv) not in kept_norm:
-                            _mark_reject(meta, "sampling_gate")
-                    safe_kept = sampled_kept
+            for code in candidate_codes:
+                meta = {"code": code, "dpo_reject": False, "dpo_reject_reasons": [], "contrib": [set() for _ in range(loop_n)]}
+                parsed = self._extract_per_loop_inv_assigns(code)
+                for i in range(min(loop_n, len(parsed))):
+                    invs = list((parsed[i].get("invariants", []) if isinstance(parsed[i], dict) else []) or [])
+                    if not assigns_per_loop[i]:
+                        assigns_per_loop[i] = str((parsed[i].get("assigns", "") if isinstance(parsed[i], dict) else "") or "")
 
-                for inv in safe_kept:
-                    norm = ' '.join(inv.split())
-                    if norm not in seen_per_loop[i]:
-                        seen_per_loop[i].add(norm)
-                        combined_per_loop[i].append(inv)
-                    meta["contrib"][i].add(norm)
-            candidate_meta.append(meta)
-
-        if detect_conflicts:
-            for i in range(loop_n):
-                if len(combined_per_loop[i]) <= 1:
-                    continue
-                non_conf = self._remove_conflicting_invariants(combined_per_loop[i])
-                if len(non_conf) < len(combined_per_loop[i]):
-                    combined_per_loop[i] = non_conf
-
-        pre_houdini_norm_per_loop: List[set] = []
-        for i in range(loop_n):
-            pre_houdini_norm_per_loop.append({' '.join(x.split()) for x in combined_per_loop[i]})
-
-        combined_code = self._build_code_with_per_loop_invariants(
-            original_code, processed_records, combined_per_loop, assigns_per_loop
-        )
-
-        final_code = combined_code
-        syntax = False
-        valid = False
-        satisfy = False
-        temp_file = self._create_temp_file(combined_code)
-        try:
-            pruned_code, houdini_valid = self.houdini_pruner.hudini(combined_code, self.verifier, temp_file)
-            if pruned_code:
-                final_code = pruned_code
-            with open(temp_file, 'w', encoding='utf-8') as f:
-                f.write(final_code)
-            self.verifier.run(temp_file)
-            syntax = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
-            valid = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
-            satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else True
-            if not houdini_valid:
-                for meta in candidate_meta:
-                    _mark_reject(meta, "houdini_gate")
-        finally:
-            if os.path.exists(temp_file):
-                os.remove(temp_file)
-
-        # Mark candidate as rejected if its pre-Houdini contribution was removed by Houdini.
-        final_parsed = self._extract_per_loop_inv_assigns(final_code)
-        final_norm_per_loop: List[set] = []
-        for i in range(loop_n):
-            invs = []
-            if i < len(final_parsed) and isinstance(final_parsed[i], dict):
-                invs = list(final_parsed[i].get("invariants", []) or [])
-            final_norm_per_loop.append({' '.join(x.split()) for x in invs})
-        for meta in candidate_meta:
-            contrib = meta.get("contrib", []) or []
-            for i in range(min(loop_n, len(contrib))):
-                effective = set(contrib[i]).intersection(pre_houdini_norm_per_loop[i])
-                if any(x not in final_norm_per_loop[i] for x in effective):
-                    _mark_reject(meta, "houdini_gate")
-                    break
-
-        # Optional final invariant dedup (split top-level && + remove duplicates).
-        self.pre_dedup_final_code = final_code
-        self.dedup_removed = 0
-        if INVARIANT_DEDUP_CONFIG.get("enabled", True):
-            dedup_code, dedup_removed = self._dedup_loop_invariants_in_attached_blocks(final_code)
-            self.dedup_removed = int(dedup_removed)
-            if dedup_removed > 0:
-                self.logger.info(f"Deduplicated {dedup_removed} loop invariants in final code")
-                dedup_temp = self._create_temp_file(dedup_code)
-                try:
-                    self.verifier.run(dedup_temp)
-                    syntax2 = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
-                    valid2 = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
-                    satisfy2 = all(self.verifier.verify_result) if self.verifier.verify_result else True
-                    if syntax2 and valid2 and satisfy2:
-                        final_code = dedup_code
+                    if SYNTAX_FILTER_CONFIG.get('enabled', True):
+                        fr = filter_invariants(invs, processed_records[i], verbose=False)
+                        syntax_kept = list(fr.valid or [])
+                        if fr.rejected:
+                            _mark_reject(meta, "syntax_gate")
                     else:
-                        self.logger.warning(
-                            f"Dedup result failed verification, keeping original final code: "
-                            f"syntax={syntax2}, valid={valid2}, satisfy={satisfy2}"
-                        )
-                finally:
-                    if os.path.exists(dedup_temp):
-                        os.remove(dedup_temp)
+                        syntax_kept = invs
+
+                    safe_kept: List[str] = []
+                    function_params = set(processed_records[i].get('function_params', []) or [])
+                    for inv in syntax_kept:
+                        if '^' in inv or '\\pow' in inv:
+                            _mark_reject(meta, "syntax_gate")
+                            continue
+                        inv2 = re.sub(r'\\at\((\w+),\s*Pre\)', lambda m: m.group(0) if m.group(1) in function_params else m.group(1), inv)
+                        if inv2 != inv:
+                            _mark_reject(meta, "merge_gate")
+                        safe_kept.append(inv2)
+
+                    if filter_by_sampling:
+                        sampled_kept = self._filter_invariants_by_sampling(safe_kept, processed_records[i], i)
+                        kept_norm = {self._normalize_inv_text(x) for x in sampled_kept}
+                        for inv in safe_kept:
+                            if self._normalize_inv_text(inv) not in kept_norm:
+                                _mark_reject(meta, "sampling_gate")
+                        safe_kept = sampled_kept
+
+                    for inv in safe_kept:
+                        norm = ' '.join(inv.split())
+                        if norm not in seen_per_loop[i]:
+                            seen_per_loop[i].add(norm)
+                            combined_per_loop[i].append(inv)
+                        meta["contrib"][i].add(norm)
+                pass_candidate_meta.append(meta)
+
+            if detect_conflicts:
+                for i in range(loop_n):
+                    if len(combined_per_loop[i]) <= 1:
+                        continue
+                    non_conf = self._remove_conflicting_invariants(combined_per_loop[i])
+                    if len(non_conf) < len(combined_per_loop[i]):
+                        combined_per_loop[i] = non_conf
+
+            pre_houdini_norm_per_loop: List[set] = []
+            for i in range(loop_n):
+                pre_houdini_norm_per_loop.append({' '.join(x.split()) for x in combined_per_loop[i]})
+
+            combined_code = self._build_code_with_per_loop_invariants(
+                original_code, processed_records, combined_per_loop, assigns_per_loop
+            )
+
+            pass_final_code = combined_code
+            pass_syntax = False
+            pass_valid = False
+            pass_satisfy = False
+            temp_file = self._create_temp_file(combined_code)
+            try:
+                pruned_code, houdini_valid = self.houdini_pruner.hudini(combined_code, self.verifier, temp_file)
+                if pruned_code:
+                    pass_final_code = pruned_code
+                with open(temp_file, 'w', encoding='utf-8') as f:
+                    f.write(pass_final_code)
+                self.verifier.run(temp_file)
+                pass_syntax = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
+                pass_valid = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
+                pass_satisfy = all(self.verifier.verify_result) if self.verifier.verify_result else True
+                if not houdini_valid:
+                    for meta in pass_candidate_meta:
+                        _mark_reject(meta, "houdini_gate")
+            finally:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+
+            # Mark candidate as rejected if its pre-Houdini contribution was removed by Houdini.
+            final_parsed = self._extract_per_loop_inv_assigns(pass_final_code)
+            final_norm_per_loop: List[set] = []
+            for i in range(loop_n):
+                invs = []
+                if i < len(final_parsed) and isinstance(final_parsed[i], dict):
+                    invs = list(final_parsed[i].get("invariants", []) or [])
+                final_norm_per_loop.append({' '.join(x.split()) for x in invs})
+            for meta in pass_candidate_meta:
+                contrib = meta.get("contrib", []) or []
+                for i in range(min(loop_n, len(contrib))):
+                    effective = set(contrib[i]).intersection(pre_houdini_norm_per_loop[i])
+                    if any(x not in final_norm_per_loop[i] for x in effective):
+                        _mark_reject(meta, "houdini_gate")
+                        break
+
+            # Optional final invariant dedup (split top-level && + remove duplicates).
+            self.pre_dedup_final_code = pass_final_code
+            self.dedup_removed = 0
+            if INVARIANT_DEDUP_CONFIG.get("enabled", True):
+                dedup_code, dedup_removed = self._dedup_loop_invariants_in_attached_blocks(pass_final_code)
+                self.dedup_removed = int(dedup_removed)
+                if dedup_removed > 0:
+                    self.logger.info(f"Deduplicated {dedup_removed} loop invariants in final code")
+                    dedup_temp = self._create_temp_file(dedup_code)
+                    try:
+                        self.verifier.run(dedup_temp)
+                        syntax2 = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
+                        valid2 = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
+                        satisfy2 = all(self.verifier.verify_result) if self.verifier.verify_result else True
+                        if syntax2 and valid2 and satisfy2:
+                            pass_final_code = dedup_code
+                            pass_syntax = syntax2
+                            pass_valid = valid2
+                            pass_satisfy = satisfy2
+                        else:
+                            self.logger.warning(
+                                f"Dedup result failed verification, keeping original final code: "
+                                f"syntax={syntax2}, valid={valid2}, satisfy={satisfy2}"
+                            )
+                    finally:
+                        if os.path.exists(dedup_temp):
+                            os.remove(dedup_temp)
+
+            final_code = pass_final_code
+            candidate_meta = pass_candidate_meta
+            syntax = pass_syntax
+            valid = pass_valid
+            satisfy = pass_satisfy
+
+            if first_pass_metrics["syntax"] is None and syntax:
+                first_pass_metrics["syntax"] = pass_idx
+            if first_pass_metrics["valid"] is None and syntax and valid:
+                first_pass_metrics["valid"] = pass_idx
+            if first_pass_metrics["satisfy"] is None and syntax and valid and satisfy:
+                first_pass_metrics["satisfy"] = pass_idx
+
+            self.logger.info(
+                f"Pass {pass_idx} summary: syntax={syntax}, valid={valid}, satisfy={satisfy}"
+            )
+            if syntax and valid and satisfy:
+                self.logger.info(f"Pass {pass_idx} fully satisfied, stopping early")
+                break
+
+        if final_code is None:
+            self.first_pass = {"syntax": None, "valid": None, "satisfy": None}
+            return None
 
         self.invariants = [{'loop_idx': 0, 'code': final_code}]
         rejected_items: List[Dict[str, str]] = []
@@ -2963,11 +3003,7 @@ class InvariantGenerator:
         else:
             self.loop_dpo_records = {}
 
-        self.first_pass = {
-            "syntax": 1 if syntax else None,
-            "valid": 1 if valid else None,
-            "satisfy": 1 if (syntax and valid and satisfy) else None,
-        }
+        self.first_pass = first_pass_metrics
 
         self.save_results()
         

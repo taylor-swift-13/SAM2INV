@@ -17,6 +17,7 @@ import subprocess
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
+from config import MAX_ITERATION
 
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -83,7 +84,12 @@ def main():
     )
     parser.add_argument('test_set', type=str, help="测试集目录名 (e.g., NLA_lipus, linear)")
     parser.add_argument('--workers', type=int, default=20, help="并行worker数量 (default: 20)")
-    parser.add_argument('--max-iterations', type=int, default=1, help="最大迭代修复次数 (default: 1)")
+    parser.add_argument(
+        '--max-iterations',
+        type=int,
+        default=MAX_ITERATION,
+        help=f"最大迭代修复次数 (default: {MAX_ITERATION})",
+    )
     parser.add_argument('--output-dir', type=str, default=None, help="输出目录 (default: output/<test_set>)")
     parser.add_argument('--log-dir', type=str, default=None, help="日志目录 (default: log/<test_set>)")
     parser.add_argument('--files', type=str, nargs='+', default=None, help="指定要运行的文件名列表 (不含.c扩展名)")
