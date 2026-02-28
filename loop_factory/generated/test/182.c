@@ -10,4 +10,6 @@ int main182(int a,int m,int q){
       v = v+3;
   }
 
+
+  /*@ assert z+4 > h; */
 }

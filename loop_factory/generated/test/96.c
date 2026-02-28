@@ -10,4 +10,6 @@ int main96(int b,int k,int p){
       v = v+v;
   }
 
+
+  /*@ assert s >= h; */
 }

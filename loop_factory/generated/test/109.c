@@ -12,4 +12,6 @@ int main109(int a,int b,int q){
       p = p+o;
   }
 
+
+  /*@ assert t > v-1; */
 }

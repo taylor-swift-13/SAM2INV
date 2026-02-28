@@ -25,4 +25,6 @@ int main173(int b,int k,int p){
       u = u*4;
   }
 
+
+  /*@ assert s-1 < 0; */
 }

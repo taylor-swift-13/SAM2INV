@@ -28,4 +28,6 @@ int main53(int m,int n,int p){
       }
   }
 
+
+  /*@ assert h >= u; */
 }

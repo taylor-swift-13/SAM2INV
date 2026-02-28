@@ -26,4 +26,6 @@ int main25(int k,int m,int q){
       }
   }
 
+
+  /*@ assert l >= w; */
 }

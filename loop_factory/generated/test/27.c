@@ -26,4 +26,6 @@ int main27(int b,int k,int p){
       v = v+4;
   }
 
+
+  /*@ assert h+1 > m; */
 }

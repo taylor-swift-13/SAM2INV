@@ -28,4 +28,6 @@ int main9(int b,int k,int q){
       p = p-1;
   }
 
+
+  /*@ assert t >= u; */
 }

@@ -10,4 +10,6 @@ int main93(int a,int m,int q){
       x = x*x;
   }
 
+
+  /*@ assert i+2 > g; */
 }

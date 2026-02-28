@@ -13,4 +13,6 @@ int main118(int a,int p,int q){
       v = v+h*v;
   }
 
+
+  /*@ assert u-1 < 0; */
 }

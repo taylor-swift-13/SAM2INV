@@ -34,4 +34,6 @@ int main198(int b,int k,int p){
       }
   }
 
+
+  /*@ assert (r>=v); */
 }

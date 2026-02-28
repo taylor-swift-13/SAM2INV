@@ -15,4 +15,6 @@ int main51(int a,int p,int q){
       r = r-2;
   }
 
+
+  /*@ assert r <= v; */
 }

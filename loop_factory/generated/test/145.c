@@ -13,4 +13,6 @@ int main145(int a,int k,int n){
       }
   }
 
+
+  /*@ assert z <= 0; */
 }

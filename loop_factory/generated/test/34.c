@@ -23,4 +23,6 @@ int main34(int m,int n,int p){
       }
   }
 
+
+  /*@ assert g >= x; */
 }

@@ -22,4 +22,6 @@ int main52(int k,int m,int p){
       }
   }
 
+
+  /*@ assert i >= b; */
 }

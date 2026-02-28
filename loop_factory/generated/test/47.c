@@ -16,4 +16,6 @@ int main47(int a,int m,int n){
       }
   }
 
+
+  /*@ assert \false; */
 }

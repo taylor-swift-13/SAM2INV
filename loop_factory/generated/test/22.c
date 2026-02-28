@@ -20,4 +20,6 @@ int main22(int m,int p,int q){
       z = z+3;
   }
 
+
+  /*@ assert v+2 > u; */
 }

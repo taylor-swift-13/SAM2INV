@@ -25,4 +25,6 @@ int main151(int m,int n,int p){
       t = t+b;
   }
 
+
+  /*@ assert b == 0&&t!=0; */
 }

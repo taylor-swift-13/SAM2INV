@@ -8,6 +8,9 @@ int main73(int a,int m,int q){
 
   while (p>=p) {
       p = p+0;
+      /*@ assert p ==0 ; */
   }
 
+
+ 
 }

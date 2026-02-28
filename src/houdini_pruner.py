@@ -134,7 +134,7 @@ class HoudiniPruner:
             return None, False
 
         # 检查是否包含函数定义
-        if 'int main' not in code and 'void main' not in code:
+        if not re.search(r'\b(?:void|int|char|long|short|double|float)\s+\w+\s*\(', code):
             self.logger.error("Houdini received incomplete code (no function definition)")
             self.logger.error(f"First 500 chars of received code:\n{code[:500]}")
             return None, False
@@ -184,16 +184,13 @@ class HoudiniPruner:
                 self.logger.info(f"Houdini iteration {iteration + 1}: All invariants are valid")
                 break
 
-            # 使用 Houdini 删除失败的不变量
+            # 使用 Houdini 删除失败的不变量（按位置匹配，避免行号映射失效）
             before_invariants = self._extract_invariants_from_code(current_code)
             prev_code = current_code
-            validate_result_by_line = getattr(verifier, "validate_result_by_line", None)
-            if not validate_result_by_line:
-                validate_result_by_line = self._build_line_map_from_errors(verifier)
             current_code = self.hudini_annotations(
                 validate_result,
                 current_code,
-                validate_result_by_line=validate_result_by_line,
+                validate_result_by_line=None,
             )
             after_invariants = self._extract_invariants_from_code(current_code)
 
@@ -202,11 +199,6 @@ class HoudiniPruner:
             self.logger.info(f"  Before: {len(before_invariants)} invariants")
             self.logger.info(f"  After: {len(after_invariants)} invariants")
 
-            # Detect when hudini_annotations returned the code unchanged.
-            # This happens when validate_result count != annotation count
-            # (e.g. a malformed invariant with an embedded 'loop invariant' keyword
-            # causes Frama-C to count differently than our regex).
-            # Without this guard the loop runs forever.
             if current_code == prev_code:
                 self.logger.warning(
                     "Houdini: code unchanged after annotation removal; "

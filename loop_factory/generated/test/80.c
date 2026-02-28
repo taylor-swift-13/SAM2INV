@@ -19,4 +19,6 @@ int main80(int k,int n,int p){
       t = t+1;
   }
 
+
+  /*@ assert v >= m; */
 }

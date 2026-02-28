@@ -22,4 +22,6 @@ int main59(int b,int k,int p){
       }
   }
 
+
+  /*@ assert q <= 3; */
 }

@@ -13,4 +13,6 @@ int main190(int b,int k,int p){
       m = m*m;
   }
 
+
+  /*@ assert o >= c; */
 }

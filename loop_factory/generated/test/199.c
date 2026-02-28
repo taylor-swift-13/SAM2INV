@@ -16,4 +16,6 @@ int main199(int b,int m,int n){
       t = t+1;
   }
 
+
+  /*@ assert t == 0&&a!=0; */
 }

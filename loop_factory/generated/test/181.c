@@ -35,4 +35,6 @@ int main181(int a,int n,int p){
       c = c+w;
   }
 
+
+  /*@ assert d+3 > t; */
 }

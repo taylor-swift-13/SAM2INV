@@ -300,6 +300,7 @@ class InvariantGenerator:
         num_candidates = PARALLEL_GENERATION_CONFIG.get('num_candidates', 10)
         temperature = PARALLEL_GENERATION_CONFIG.get('temperature', 0.9)
         filter_by_sampling = PARALLEL_GENERATION_CONFIG.get('filter_by_sampling', True) and USE_TRACES
+        use_houdini = PARALLEL_GENERATION_CONFIG.get('use_houdini', True)
         select_best = PARALLEL_GENERATION_CONFIG.get('select_best', True)
         use_threading = PARALLEL_GENERATION_CONFIG.get('use_threading', True)
         if self.llm_config.use_api_model:
@@ -645,12 +646,16 @@ class InvariantGenerator:
         temp_file = self._create_temp_file(current_code)
         
         try:
-            # 使用Houdini迭代剪枝
-            pruned_code, houdini_valid = self.houdini_pruner.hudini(
-                current_code,
-                self.verifier,
-                temp_file
-            )
+            if use_houdini:
+                # 使用Houdini迭代剪枝
+                pruned_code, houdini_valid = self.houdini_pruner.hudini(
+                    current_code,
+                    self.verifier,
+                    temp_file
+                )
+            else:
+                self.logger.info(f"Loop {loop_idx} - Houdini disabled, skipping pruning")
+                pruned_code, houdini_valid = current_code, True
             
             if pruned_code and houdini_valid:
                 # Houdini 阶段只保证 invariant establish/preserve；这里继续检查 assertion satisfy
@@ -2783,6 +2788,7 @@ class InvariantGenerator:
             max_workers = PARALLEL_GENERATION_CONFIG.get('local_max_workers', 1)
         filter_by_sampling = PARALLEL_GENERATION_CONFIG.get('filter_by_sampling', True) and USE_TRACES
         detect_conflicts = PARALLEL_GENERATION_CONFIG.get('detect_conflicts', True)
+        use_houdini = PARALLEL_GENERATION_CONFIG.get('use_houdini', True)
 
         prompt_template = self._get_gen_template()
         function_context = "\n\n".join(loop_contexts)
@@ -2888,7 +2894,10 @@ class InvariantGenerator:
             pass_satisfy = False
             temp_file = self._create_temp_file(combined_code)
             try:
-                pruned_code, houdini_valid = self.houdini_pruner.hudini(combined_code, self.verifier, temp_file)
+                if use_houdini:
+                    pruned_code, houdini_valid = self.houdini_pruner.hudini(combined_code, self.verifier, temp_file)
+                else:
+                    pruned_code, houdini_valid = combined_code, True
                 if pruned_code:
                     pass_final_code = pruned_code
                 with open(temp_file, 'w', encoding='utf-8') as f:
@@ -3089,19 +3098,24 @@ class InvariantGenerator:
                     self._last_failed_invariants = "\n".join(failed_inv_details)
                     self.logger.info(f"Invariants removed by Houdini:\n{self._last_failed_invariants}")
 
-                # 补强后可能引入无效不变量，先用 Houdini 清理回到 valid，再继续补强
-                pruned_code, houdini_valid = self.repairer.hudini(current_code, self.verifier, c_file_path)
-                if pruned_code is None:
-                    self.logger.error("Strengthening failed: Houdini removed all invariants")
-                    if last_valid_code is not None:
-                        self.logger.warning(
-                            "Keeping last syntax+valid invariants after Houdini removed current candidates."
-                        )
-                        return last_valid_code
-                    return None
-                current_code = pruned_code
-                if houdini_valid:
-                    self.logger.info("Strengthening stage: Houdini restored valid invariants")
+                # 补强后可能引入无效不变量；若开启 Houdini 则先剪枝回到 valid。
+                from config import PARALLEL_GENERATION_CONFIG
+                use_houdini = PARALLEL_GENERATION_CONFIG.get('use_houdini', True)
+                if use_houdini:
+                    pruned_code, houdini_valid = self.repairer.hudini(current_code, self.verifier, c_file_path)
+                    if pruned_code is None:
+                        self.logger.error("Strengthening failed: Houdini removed all invariants")
+                        if last_valid_code is not None:
+                            self.logger.warning(
+                                "Keeping last syntax+valid invariants after Houdini removed current candidates."
+                            )
+                            return last_valid_code
+                        return None
+                    current_code = pruned_code
+                    if houdini_valid:
+                        self.logger.info("Strengthening stage: Houdini restored valid invariants")
+                else:
+                    self.logger.info("Strengthening stage: Houdini disabled, skipping pruning")
                 continue
 
             verify_error_msg = self._format_errors(self.verifier.verify_error_list, pre_condition)

@@ -19,4 +19,6 @@ int main113(int a,int n,int p){
       u = u+4;
   }
 
+
+  /*@ assert w > j-1; */
 }

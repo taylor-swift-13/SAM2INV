@@ -9,4 +9,6 @@ int main72(int m,int n,int p){
       v = v+4;
   }
 
+
+  /*@ assert b < r+1; */
 }

@@ -18,4 +18,6 @@ int main157(int m,int n,int q){
       j = j+5;
   }
 
+
+  /*@ assert i > t-1; */
 }

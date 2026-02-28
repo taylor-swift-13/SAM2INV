@@ -14,4 +14,6 @@ int main189(int a,int n,int p){
       v = v*2;
   }
 
+
+  /*@ assert i < i; */
 }

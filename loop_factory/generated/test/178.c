@@ -20,4 +20,6 @@ int main178(int n,int p,int q){
       v = v/3;
   }
 
+
+  /*@ assert w >= h; */
 }

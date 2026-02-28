@@ -15,4 +15,6 @@ int main155(int m,int p,int q){
       z = z*z;
   }
 
+
+  /*@ assert l < 4; */
 }

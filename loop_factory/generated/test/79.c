@@ -23,4 +23,6 @@ int main79(int m,int p,int q){
       k = k*j+2;
   }
 
+
+  /*@ assert a <= h; */
 }

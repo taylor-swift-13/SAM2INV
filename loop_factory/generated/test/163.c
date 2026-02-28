@@ -25,4 +25,6 @@ int main163(int a,int n,int q){
       v = v*k+4;
   }
 
+
+  /*@ assert (d>=l); */
 }

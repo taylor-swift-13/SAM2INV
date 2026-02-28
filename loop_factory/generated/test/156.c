@@ -15,4 +15,6 @@ int main156(int b,int k,int n){
       m = m+1;
   }
 
+
+  /*@ assert j > i-5; */
 }

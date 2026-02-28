@@ -18,4 +18,6 @@ int main31(int a,int k,int m){
       v = v+q;
   }
 
+
+  /*@ assert o+1 > e; */
 }

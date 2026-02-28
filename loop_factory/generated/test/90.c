@@ -14,4 +14,6 @@ int main90(int a,int k,int q){
       l = l+1;
   }
 
+
+  /*@ assert l >= u; */
 }

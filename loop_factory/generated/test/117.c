@@ -14,4 +14,6 @@ int main117(int k,int p,int q){
       o = o*o;
   }
 
+
+  /*@ assert b+1 > j; */
 }

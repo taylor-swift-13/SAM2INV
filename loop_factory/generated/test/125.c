@@ -25,4 +25,6 @@ int main125(int a,int b,int n){
       }
   }
 
+
+  /*@ assert q-e <= 0; */
 }

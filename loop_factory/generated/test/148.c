@@ -25,4 +25,6 @@ int main148(int k,int m,int n){
       }
   }
 
+
+  /*@ assert a-1 < 0; */
 }

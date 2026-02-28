@@ -22,4 +22,6 @@ int main192(int b,int p,int q){
       v = v;
   }
 
+
+  /*@ assert v < v; */
 }

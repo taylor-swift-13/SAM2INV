@@ -28,4 +28,6 @@ int main57(int k,int n,int q){
       u = u+z*u;
   }
 
+
+  /*@ assert l+5 > x; */
 }

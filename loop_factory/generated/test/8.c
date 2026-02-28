@@ -24,4 +24,6 @@ int main8(int a,int n,int q){
       m = m+(-2);
   }
 
+
+  /*@ assert h-3 < 0; */
 }

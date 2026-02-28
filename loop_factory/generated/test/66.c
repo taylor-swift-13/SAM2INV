@@ -13,4 +13,6 @@ int main66(int n,int p,int q){
       k = k+3;
   }
 
+
+  /*@ assert k+3 > o; */
 }

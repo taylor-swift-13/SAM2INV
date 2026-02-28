@@ -11,4 +11,6 @@ int main40(int k,int p,int q){
       u = u+1;
   }
 
+
+  /*@ assert \false; */
 }

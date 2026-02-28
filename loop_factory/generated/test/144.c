@@ -9,4 +9,6 @@ int main144(int a,int b,int m){
       v = v+3;
   }
 
+
+  /*@ assert e <= 0; */
 }

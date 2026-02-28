@@ -15,4 +15,6 @@ int main48(int k,int n,int q){
       b = b*b;
   }
 
+
+  /*@ assert \false; */
 }

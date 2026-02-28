@@ -18,4 +18,6 @@ int main50(int a,int k,int q){
       }
   }
 
+
+  /*@ assert \false; */
 }

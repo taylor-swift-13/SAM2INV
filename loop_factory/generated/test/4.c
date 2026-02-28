@@ -22,4 +22,6 @@ int main4(int k,int p,int q){
       j = j*j;
   }
 
+
+  /*@ assert f-1 < 0; */
 }

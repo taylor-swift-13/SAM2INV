@@ -19,4 +19,6 @@ int main162(int k,int m,int q){
       z = z*z;
   }
 
+
+  /*@ assert u-2 < 0; */
 }

@@ -25,4 +25,6 @@ int main64(int k,int m,int p){
       u = u+u;
   }
 
+
+  /*@ assert r-4 < 0; */
 }

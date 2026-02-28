@@ -20,4 +20,6 @@ int main10(int a,int k,int p){
       }
   }
 
+
+  /*@ assert c-b <= 0; */
 }

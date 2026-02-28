@@ -14,4 +14,6 @@ int main36(int a,int k,int m){
       }
   }
 
+
+  /*@ assert \false; */
 }

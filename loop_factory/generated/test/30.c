@@ -12,4 +12,6 @@ int main30(int b,int n,int p){
       e = e+k;
   }
 
+
+  /*@ assert k > l-1; */
 }

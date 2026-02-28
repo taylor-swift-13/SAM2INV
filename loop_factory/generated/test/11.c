@@ -24,4 +24,6 @@ int main11(int a,int b,int n){
       }
   }
 
+
+  /*@ assert c-1 < 0; */
 }

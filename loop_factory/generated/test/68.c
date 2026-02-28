@@ -14,4 +14,6 @@ int main68(int a,int b,int m){
       z = z-1;
   }
 
+
+  /*@ assert d >= h; */
 }

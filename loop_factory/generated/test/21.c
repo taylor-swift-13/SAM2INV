@@ -17,4 +17,6 @@ int main21(int a,int p,int q){
       s = s-1;
   }
 
+
+  /*@ assert s-1 < 0; */
 }

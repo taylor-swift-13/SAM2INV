@@ -21,4 +21,6 @@ int main143(int a,int b,int p){
       }
   }
 
+
+  /*@ assert v >= e; */
 }

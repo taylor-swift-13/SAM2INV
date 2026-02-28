@@ -12,4 +12,6 @@ int main62(int a,int m,int q){
       p = p+1;
   }
 
+
+  /*@ assert b >= k; */
 }

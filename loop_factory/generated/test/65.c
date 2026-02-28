@@ -15,4 +15,6 @@ int main65(int a,int m,int p){
       }
   }
 
+
+  /*@ assert u > z-1; */
 }

@@ -32,4 +32,6 @@ int main85(int k,int p,int q){
       d = d*2;
   }
 
+
+  /*@ assert o > n-1; */
 }

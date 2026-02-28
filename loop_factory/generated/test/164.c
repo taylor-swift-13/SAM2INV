@@ -29,4 +29,6 @@ int main164(int a,int m,int q){
       e = e%6;
   }
 
+
+  /*@ assert x >= u; */
 }

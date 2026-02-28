@@ -19,4 +19,6 @@ int main88(int b,int k,int p){
       v = v+u;
   }
 
+
+  /*@ assert \false; */
 }

@@ -27,4 +27,6 @@ int main76(int b,int n,int q){
       f = f-1;
   }
 
+
+  /*@ assert d < 3; */
 }

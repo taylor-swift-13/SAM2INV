@@ -14,4 +14,6 @@ int main180(int b,int p,int q){
       n = n*n;
   }
 
+
+  /*@ assert k <= 0; */
 }

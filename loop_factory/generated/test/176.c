@@ -14,4 +14,6 @@ int main176(int m,int n,int p){
       w = w%4;
   }
 
+
+  /*@ assert w >= h; */
 }

@@ -31,4 +31,6 @@ int main38(int b,int m,int n){
       }
   }
 
+
+  /*@ assert r >= z; */
 }

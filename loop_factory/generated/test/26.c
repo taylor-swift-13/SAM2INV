@@ -13,4 +13,6 @@ int main26(int b,int n,int p){
       c = c*2;
   }
 
+
+  /*@ assert \false; */
 }

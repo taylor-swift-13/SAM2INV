@@ -34,4 +34,6 @@ int main70(int a,int k,int n){
       i = i%8;
   }
 
+
+  /*@ assert e > b-2; */
 }

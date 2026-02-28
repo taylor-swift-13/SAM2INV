@@ -27,4 +27,6 @@ int main45(int a,int m,int q){
       i = i*o;
   }
 
+
+  /*@ assert u*2 > v; */
 }

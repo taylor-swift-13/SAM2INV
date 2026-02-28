@@ -9,4 +9,6 @@ int main158(int k,int m,int n){
       v = v+3;
   }
 
+
+  /*@ assert t >= d; */
 }

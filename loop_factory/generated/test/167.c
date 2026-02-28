@@ -13,4 +13,6 @@ int main167(int k,int m,int q){
       n = n+x;
   }
 
+
+  /*@ assert i >= g; */
 }

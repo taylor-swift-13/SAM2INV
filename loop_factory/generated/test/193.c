@@ -13,4 +13,6 @@ int main193(int k,int n,int q){
       o = o*2;
   }
 
+
+  /*@ assert o*2 > y; */
 }

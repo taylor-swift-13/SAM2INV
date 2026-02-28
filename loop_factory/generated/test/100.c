@@ -21,4 +21,6 @@ int main100(int m,int n,int q){
       k = l*l;
   }
 
+
+  /*@ assert \false; */
 }

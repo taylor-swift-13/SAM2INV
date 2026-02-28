@@ -11,4 +11,6 @@ int main43(int a,int b,int k){
       j = j+1;
   }
 
+
+  /*@ assert u > m-1; */
 }

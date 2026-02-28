@@ -17,4 +17,6 @@ int main16(int a,int b,int k){
       u = u+v;
   }
 
+
+  /*@ assert \false; */
 }

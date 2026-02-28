@@ -27,4 +27,6 @@ int main12(int a,int k,int p){
       t = t+v;
   }
 
+
+  /*@ assert v+4 > m; */
 }

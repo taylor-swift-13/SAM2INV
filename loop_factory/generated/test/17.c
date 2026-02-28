@@ -25,4 +25,6 @@ int main17(int a,int m,int p){
       o = o*2;
   }
 
+
+  /*@ assert \false; */
 }

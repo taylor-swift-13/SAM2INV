@@ -16,4 +16,6 @@ int main94(int a,int b,int k){
       }
   }
 
+
+  /*@ assert x > w-1; */
 }

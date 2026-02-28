@@ -31,4 +31,6 @@ int main19(int b,int k,int q){
       o = o+1;
   }
 
+
+  /*@ assert o == 0&&h!=0; */
 }

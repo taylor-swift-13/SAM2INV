@@ -12,4 +12,6 @@ int main127(int b,int k,int p){
       t = t+1;
   }
 
+
+  /*@ assert \false; */
 }

@@ -21,4 +21,6 @@ int main135(int a,int k,int q){
       n = n+d;
   }
 
+
+  /*@ assert w+1 > u; */
 }

@@ -30,4 +30,6 @@ int main98(int m,int n,int q){
       y = y+1;
   }
 
+
+  /*@ assert \false; */
 }

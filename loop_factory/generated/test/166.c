@@ -14,4 +14,6 @@ int main166(int a,int n,int p){
       w = w+4;
   }
 
+
+  /*@ assert \false; */
 }

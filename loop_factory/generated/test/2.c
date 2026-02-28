@@ -20,4 +20,6 @@ int main2(int b,int p,int q){
       }
   }
 
+
+  /*@ assert t >= x; */
 }

@@ -27,4 +27,6 @@ int main3(int m,int p,int q){
       }
   }
 
+
+  /*@ assert v < 1; */
 }

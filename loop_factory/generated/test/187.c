@@ -29,4 +29,6 @@ int main187(int b,int m,int q){
       }
   }
 
+
+  /*@ assert v == 0&&n!=0; */
 }

@@ -21,4 +21,6 @@ int main97(int a,int p,int q){
       b = b+t;
   }
 
+
+  /*@ assert h > y-1; */
 }

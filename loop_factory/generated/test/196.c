@@ -15,4 +15,6 @@ int main196(int a,int k,int m){
       o = o*o+o;
   }
 
+
+  /*@ assert b >= j; */
 }

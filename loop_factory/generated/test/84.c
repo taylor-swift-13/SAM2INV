@@ -24,4 +24,6 @@ int main84(int a,int n,int q){
       z = z*z;
   }
 
+
+  /*@ assert \false; */
 }

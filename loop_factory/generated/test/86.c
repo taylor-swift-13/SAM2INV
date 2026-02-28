@@ -25,4 +25,6 @@ int main86(int b,int k,int p){
       r = r+w;
   }
 
+
+  /*@ assert u >= d; */
 }

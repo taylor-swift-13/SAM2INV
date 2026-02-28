@@ -9,4 +9,5 @@ int main1(int n,int p,int q){
       j = j-4;
   }
 
+  /*@ assert j % 2 == 0; */
 }

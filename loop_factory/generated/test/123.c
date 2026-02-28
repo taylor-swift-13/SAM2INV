@@ -31,4 +31,6 @@ int main123(int a,int k,int n){
       t = v*v;
   }
 
+
+  /*@ assert v == 0&&t!=0; */
 }

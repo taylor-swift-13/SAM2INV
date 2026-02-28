@@ -23,4 +23,6 @@ int main107(int b,int k,int p){
       }
   }
 
+
+  /*@ assert a <= 0; */
 }

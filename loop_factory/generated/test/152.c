@@ -17,4 +17,6 @@ int main152(int a,int b,int m){
       }
   }
 
+
+  /*@ assert \false; */
 }

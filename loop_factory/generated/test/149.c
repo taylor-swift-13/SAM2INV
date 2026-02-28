@@ -26,4 +26,6 @@ int main149(int b,int n,int p){
       m = m*2;
   }
 
+
+  /*@ assert a+1 > u; */
 }

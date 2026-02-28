@@ -26,4 +26,6 @@ int main159(int a,int m,int q){
       u = u+5;
   }
 
+
+  /*@ assert u >= c; */
 }

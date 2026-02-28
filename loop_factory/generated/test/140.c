@@ -13,4 +13,6 @@ int main140(int k,int p,int q){
       l = l*l+l;
   }
 
+
+  /*@ assert z > m/2; */
 }

@@ -13,4 +13,6 @@ int main69(int a,int b,int n){
       z = z*2;
   }
 
+
+  /*@ assert \false; */
 }

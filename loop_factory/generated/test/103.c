@@ -10,4 +10,6 @@ int main103(int k,int m,int q){
       d = d*d;
   }
 
+
+  /*@ assert \false; */
 }

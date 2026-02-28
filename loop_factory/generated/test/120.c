@@ -23,4 +23,6 @@ int main120(int a,int n,int p){
       }
   }
 
+
+  /*@ assert w*2 > v; */
 }

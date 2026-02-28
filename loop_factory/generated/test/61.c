@@ -10,4 +10,6 @@ int main61(int a,int m,int p){
       d = d+5;
   }
 
+
+  /*@ assert t < 1; */
 }

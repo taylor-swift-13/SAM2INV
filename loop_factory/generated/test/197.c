@@ -30,4 +30,6 @@ int main197(int b,int n,int q){
       v = v*j;
   }
 
+
+  /*@ assert v == 0&&j!=0; */
 }

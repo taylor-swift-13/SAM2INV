@@ -22,4 +22,6 @@ int main121(int b,int m,int n){
       l = l*4;
   }
 
+
+  /*@ assert o > k-2; */
 }

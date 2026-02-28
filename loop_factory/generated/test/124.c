@@ -32,4 +32,6 @@ int main124(int k,int m,int p){
       v = v+c;
   }
 
+
+  /*@ assert b <= 0; */
 }

@@ -10,13 +10,15 @@ from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
 DEFAULT_CORE_KNOBS = {
-    "w_core_rel_guard": 1.3,
-    "w_core_cond_fixed": 1.7,
-    "w_core_linear_state": 1.5,
+    "w_core_rel_guard": 0.5,
+    "w_core_cond_fixed": 0.5,
+    "w_core_linear_state": 0.5,
     "w_core_min_update": 2.0,
     "w_core_qr_division": 2.3,
     "w_core_euclid_matrix": 1.2,
 }
+CORE_WEIGHT_TEMPERATURE = 0.80
+CORE_REPEAT_PENALTY = 0.60
 
 def _load_user_cfg() -> Dict[str, object]:
     """Best-effort load of src/config.py LOOP_FACTORY_USER_CONFIG."""
@@ -444,7 +446,7 @@ class ProbabilisticLoopFactory:
 
         if nla_family:
             # NLA-like recurrences with generalized semantic motifs:
-            # (2) affine chains, (3) multiply-add, (9) scaling pairs.
+            # affine chains, multiply-add, scaling pairs.
             a, b = writable[0], writable[1]
             c = writable[2] if len(writable) >= 3 else b
             d = writable[3] if len(writable) >= 4 else a
@@ -460,7 +462,7 @@ class ProbabilisticLoopFactory:
             ]
         else:
             # linear-like transitions with generalized semantic motifs:
-            # (1) conservation pairs, (2) affine chains, (12) counter decomposition.
+            # conservation pairs, affine chains, counter decomposition.
             a, b = writable[0], writable[1]
             c = writable[2] if len(writable) >= 3 else b
             d = writable[3] if len(writable) >= 4 else a
@@ -489,7 +491,8 @@ class ProbabilisticLoopFactory:
         params: Sequence[str],
         universe: List[str],
         remaining_local_budget: int,
-    ) -> Tuple[List[Tuple[str, str]], WhileLoop, List[str]]:
+        core_usage: Dict[str, int],
+    ) -> Tuple[List[Tuple[str, str]], WhileLoop, List[str], str]:
         src = self.rng.choice(list(params)) if params else "1"
         nla_family = self.rng.random() < self.hp.p_nonlinear
 
@@ -549,12 +552,12 @@ class ProbabilisticLoopFactory:
 
         # Generalized core rules extracted from target datasets (not exact copies).
         # Covers additional semantic motifs:
-        # 1) linear conservation, 2) affine chain, 3) multiply-add,
-        # 4) remainder buckets, 5) quotient-remainder coupling,
-        # 6) monotone-bound update, 7) phase switching,
-        # 8) saturation/truncation, 9) scaling pair,
-        # 10) two-var compare driven, 11) branch + fixed updates,
-        # 12) counter decomposition.
+        # linear conservation, affine chain, multiply-add,
+        # remainder buckets, quotient-remainder coupling,
+        # monotone-bound update, phase switching,
+        # saturation/truncation, scaling pair,
+        # two-var compare driven, branch + fixed updates,
+        # counter decomposition.
         core_applied = False
         if self.rng.random() < self.hp.p_semantic_core:
             a = state_vars[0]
@@ -567,8 +570,12 @@ class ProbabilisticLoopFactory:
 
             def allow(name: str, w: float, need_if: int, need_asg: int, need_vars: int) -> None:
                 if w > 0 and if_budget >= need_if and assign_total >= need_asg and len(state_vars) >= need_vars:
+                    repeat = core_usage.get(name, 0)
+                    # Flatten core selection and penalize repeated motifs per program.
+                    shaped = w ** max(0.25, CORE_WEIGHT_TEMPERATURE)
+                    novelty = CORE_REPEAT_PENALTY ** repeat
                     candidates.append(name)
-                    weights.append(w)
+                    weights.append(shaped * novelty)
 
             # Existing controls reused as coarse weights.
             rel_w = self.hp.w_core_rel_guard
@@ -578,19 +585,16 @@ class ProbabilisticLoopFactory:
             qr_w = self.hp.w_core_qr_division
             euclid_w = self.hp.w_core_euclid_matrix
 
-            allow("rel_guard", rel_w if nla_family else 0.0, 1, 2, 4)         # (5)
-            allow("cond_fixed", cond_w if nla_family else 0.0, 1, 4, 3)       # (11)
-            allow("linear_state", lin_w if (not nla_family) else 0.0, 1, 2, 3)  # (10-like FSM)
-            allow("conservation", lin_w, 0, 2, 2)                             # (1)
-            allow("affine_chain", lin_w + cond_w, 0, 3, 3)                    # (2)
-            allow("mul_add", cond_w if nla_family else 0.0, 0, 2, 2)          # (3)
-            allow("remainder_buckets", cond_w, 2, 2, 3)                        # (4)
-            allow("monotone_bound", lin_w, 1, 1, 2)                            # (6)
-            allow("phase_switch", cond_w, 1, 2, 2)                             # (7)
-            allow("saturation", cond_w, 1, 1, 2)                               # (8)
-            allow("scaling_pair", cond_w if nla_family else 0.0, 0, 2, 2)      # (9): nonlinear-only
-            allow("counter_decomp", lin_w, 0, 4, 4)                            # (12)
-            allow("gcd_compare", cond_w if nla_family else lin_w, 1, 1, 2)     # (10)
+            allow("cond_fixed", cond_w if nla_family else 0.0, 1, 4, 3)       # branch + fixed updates
+            allow("conservation", lin_w, 0, 2, 2)                             # conservation pair
+            allow("affine_chain", lin_w + cond_w, 0, 3, 3)                    # affine recurrence chain
+            allow("remainder_buckets", cond_w, 2, 2, 3)                        # remainder bucket counting
+            allow("monotone_bound", lin_w, 1, 1, 2)                            # monotone bound-tied update
+            allow("phase_switch", cond_w, 1, 2, 2)                             # phase-dependent update law
+            allow("saturation", cond_w, 1, 1, 2)                               # saturation/truncation
+            allow("scaling_pair", cond_w if nla_family else 0.0, 0, 2, 2)      # nonlinear-only scaling pair
+            allow("counter_decomp", lin_w, 0, 4, 4)                            # counter decomposition
+            allow("gcd_compare", cond_w if nla_family else lin_w, 1, 1, 2)     # compare-driven dual decrease
 
             # Extra linear cores inspired by src/input/linear motifs.
             allow("snapshot_step", lin_w + 0.4 * cond_w, 0, 2, 2)               # m=x; x=x+c
@@ -598,9 +602,12 @@ class ProbabilisticLoopFactory:
             allow("guarded_snapshot", lin_w + cond_w, 1, 2, 3)                  # if (..) m=x; x=x+1
             allow("triple_decrease", lin_w + cond_w, 2, 3, 3)                   # if(a>0) if(b>0) x-=1,y-=1,z-=1
             allow("stride_progress", lin_w, 0, 1, 1)                            # x=x+2 / x=x+3
-            allow("min_update_guarded", min_w, 1, 2, 3)                         # x+=c; if (z<=y) y=z
             allow("min_update_guarded_bound", min_w + 0.6, 1, 2, 3)             # while(x<lim) {x+=1; if(z<=y) y=z;}
-            allow("paired_progress", lin_w + 0.4 * cond_w, 0, 2, 2)             # x+=k; y+=k
+            allow("negative_cross_progress", lin_w + 1.1, 0, 2, 2)              # x<0; x+=y; y+=1 (linear/84,85-like)
+            allow("triplet_lockstep_stride", lin_w + 0.9, 0, 3, 3)              # i/j/k synchronized +s (linear/315,316-like)
+            allow("threshold_tail_accumulate", lin_w + 0.8, 1, 2, 2)            # second-half gated accumulate (linear/304-like)
+            allow("half_split_balance", lin_w + cond_w, 1, 2, 2)                # y++ first half, y-- second half (linear/296-like)
+            allow("mod_bucket_cascade", lin_w + cond_w + 0.4, 3, 5, 5)          # divisibility bucket chain (linear/313-like)
 
             # Generic complex paradigms (dataset-agnostic).
             allow("nested_guarded_transitions", lin_w + cond_w, 2, 5, 4)
@@ -610,37 +617,42 @@ class ProbabilisticLoopFactory:
             allow("while_one_break_counter", lin_w + cond_w + 0.8, 1, 2, 2)     # explicit while(1) + break
             allow("triple_recurrence_inc", qr_w, 0, 4, 4)                       # n++; x=x+y; y=y+z; z=z+c
             allow("qr_countdown_bucket", qr_w, 1, 3, 4)                         # if(r+1==B){q++;r=0;t--}else{r++;t--}
-            allow("mul_affine_pair", cond_w if nla_family else (lin_w + 0.3), 0, 3, 3)  # x=x*z+c; y=y*z; c++
-            allow("qr_countdown_split", qr_w, 1, 3, 4)                          # if(r+1==B){q++;r=0}else{r++}; t--
             # Body-first cores requested by user (not bound to while(1)).
-            allow("guarded_min_step", min_w + 0.8, 1, 2, 3)                     # if(z<=y) y=z; x=x+1
-            allow("mul_pair_progress", (cond_w + 0.4) if nla_family else cond_w, 0, 3, 3)  # x=x*z+c; y=y*z; c++
             allow("triple_recurrence_step", qr_w + 0.5, 0, 4, 4)                # x=x+y; y=y+z; z=z+const; n++
             allow("simple_accumulate", lin_w + 0.7, 0, 1, 2)                    # y+=x
             allow("triangular_progress", lin_w + 0.8, 0, 2, 3)                  # i++; j+=i
-            allow("mul_affine_param_pair", (cond_w + 0.8) if nla_family else (lin_w + 0.6), 0, 3, 4)  # c++; x=x*z+a; y=y*z
+            allow("mul_affine_param_pair", (cond_w + 0.8) if nla_family else (lin_w + 0.6), 0, 2, 4)  # merged mul-affine family
             allow("power_accumulate", cond_w if nla_family else (lin_w + 0.5), 0, 2, 3)  # y++; x+=y^k
+            allow("parity_decomposition_product", cond_w + qr_w + 0.9, 2, 5, 4)          # parity-driven multiplicative decomposition
+            allow("odd_step_accumulator", lin_w + cond_w + 0.8, 0, 3, 3)                  # odd-step ladder with monotone counter
+            allow("square_sync_progress", lin_w + cond_w + 0.7, 0, 2, 2)                  # y++ and x=y*y synchronization
+            allow("multiplicative_shadow_progress", cond_w + 0.9, 1, 3, 3)                # coupled product with guarded shadow product
+            allow("quadratic_form_triplet", cond_w + 0.9, 0, 4, 4)                        # three-way quadratic-form accumulation
+            allow("euclid_coupled_accumulator", euclid_w + 0.7, 1, 3, 4)                  # Euclid-style reduction with coupled drift
+            allow("fixed_point_root_refinement", cond_w + rel_w + 0.7, 0, 2, 3)           # fixed-point integer root refinement
+            allow("prefix_sum_progression", lin_w + 0.8, 0, 2, 3)                          # monotone prefix-sum progression
+            allow("residual_branch_walk", cond_w + 0.9, 1, 3, 4)                           # branch-controlled residual walk
+            allow("multi_branch_swap_recurrence", qr_w + cond_w + 1.0, 3, 8, 6)           # 4-way swap recurrence with moving threshold
             # while(1)-specific cores (all unique by body shape + break condition).
             allow("while_one_min_break", min_w + 1.0, 2, 3, 3)                  # break on ctr>=lim; min-update + ctr++
             allow("while_one_qr_break", qr_w + 1.0, 2, 3, 4)                    # break on x<=y*q+r; qr step
             allow("while_one_mul_break", cond_w + 1.0, 1, 4, 4)                 # break on c>=lim; mul-affine pair
             allow("while_one_recurrence_break", qr_w + 0.9, 1, 5, 4)            # break on n>lim; 3-var recurrence
+            # ── Cores derived from linear/ and NLA_lipus/ real benchmarks ──────────
+            allow("snapshot_chase", lin_w, 0, 2, 3)                              # c=a; while(a!=0){a--;b--;} (linear/124,270)
+            allow("parity_alternating", cond_w, 1, 2, 4)                         # flag-flip dual counter (linear/176)
+            allow("proportional_stride", lin_w + 0.5, 0, 2, 2)                  # j+=k; i++ (linear/154)
+            allow("sum_before_incr", lin_w + 0.6, 0, 2, 2)                      # sum+=i; i++ (linear/172, NLA/39)
+            allow("russian_multiply", cond_w if nla_family else 0.0, 1, 3, 3)   # z+=x;x*=2;y/=2 (NLA/14)
+            allow("cauchy_schwarz_triple", qr_w if nla_family else (lin_w * 0.3), 0, 4, 4)  # z+=x²;w+=y²;p+=xy (NLA/29)
+            allow("linear_product_reduce", lin_w + 0.4, 0, 2, 2)                # product+=a; i++ (NLA/42)
+            allow("int_sqrt_sieve", lin_w + 0.5, 0, 2, 2)                       # x-=r; r++ (NLA/36)
+            allow("countdown_triple", lin_w + 0.6, 0, 3, 3)                     # lo++;hi--;mid-- (linear/145)
 
             chosen = self.rng.choices(candidates, weights=weights, k=1)[0] if candidates else ""
 
-            if chosen == "rel_guard":
-                # (5) x = y*q + r style relation with q/r updates.
-                set_init(a, f"({src}%60)+60")
-                set_init(b, f"({src}%9)+2")
-                set_init(c, "0")
-                set_init(d, "0")
-                guard = f"{a}>{b}*{c}+{d}"
-                body.append(IfElse(cond=f"{d}=={b}-1", then_body=[Assign(d, "0"), Assign(c, f"{c}+1")], else_body=[Assign(d, f"{d}+1")]))
-                used_if += 1
-                used_assign += 2
-                core_applied = True
-            elif chosen == "cond_fixed":
-                # (11) branch updates + fixed updates outside branch.
+            if chosen == "cond_fixed":
+                # Branch updates + fixed updates outside branch.
                 set_init(a, f"({src}%20)+1")
                 set_init(b, f"({src}%25)+1")
                 set_init(c, "0")
@@ -651,37 +663,24 @@ class ProbabilisticLoopFactory:
                 used_if += 1
                 used_assign += 4
                 core_applied = True
-            elif chosen == "linear_state":
-                # (10) two-variable compare-driven state transition.
-                set_init(a, f"({src}%40)+10")
-                set_init(b, f"({src}%30)+6")
-                guard = f"{a}!=0&&{b}!=0"
-                body.append(IfElse(cond=f"{a}>{b}", then_body=[Assign(a, f"{a}-{b}")], else_body=[Assign(b, f"{b}-{a}")]))
-                used_if += 1
-                used_assign += 1
-                core_applied = True
             elif chosen == "conservation":
-                # (1) u-v or u+v style conservation pair.
-                if self.rng.random() < 0.5:
-                    body.extend([Assign(a, f"{a}+1"), Assign(b, f"{b}-1")])
+                # u-v or u+v style conservation pair.
+                step = self.rng.randint(1, 4)
+                if self.rng.random() < 0.4:
+                    body.extend([Assign(a, f"{a}+{step}"), Assign(b, f"{b}-{step}")])
+                elif self.rng.random() < 0.7:
+                    body.extend([Assign(a, f"{a}+{step}"), Assign(b, f"{b}+{step}")])
                 else:
-                    body.extend([Assign(a, f"{a}+1"), Assign(b, f"{b}+1")])
+                    body.extend([Assign(a, f"{a}+{step}"), Assign(b, f"{b}+{a}")])
                 used_assign += 2
                 core_applied = True
             elif chosen == "affine_chain":
-                # (2) affine recurrence chain.
+                # Affine recurrence chain.
                 body.extend([Assign(a, f"{a}+{self.rng.randint(1,4)}"), Assign(b, f"{b}+{a}"), Assign(c, f"{c}+{b}")])
                 used_assign += 3
                 core_applied = True
-            elif chosen == "mul_add":
-                # (3) multiply-add recurrence.
-                k = self.rng.randint(2, 4)
-                cst = self.rng.randint(1, 5)
-                body.extend([Assign(a, f"{a}*{k}+{cst}"), Assign(b, f"{b}*{a}+{cst}")])
-                used_assign += 2
-                core_applied = True
             elif chosen == "remainder_buckets":
-                # (4) remainder bucket counting with 2-way split (generalizable).
+                # Remainder bucket counting with 2-way split (generalizable).
                 k = self.rng.randint(2, 6)
                 r = self.rng.randint(0, k - 1)
                 body.append(IfElse(cond=f"{ctr}%{k}=={r}", then_body=[Assign(a, f"{a}+1")], else_body=[Assign(b, f"{b}+1")]))
@@ -691,14 +690,14 @@ class ProbabilisticLoopFactory:
                 used_assign += 2
                 core_applied = True
             elif chosen == "monotone_bound":
-                # (6) monotone variable tied to guard.
+                # Monotone variable tied to guard.
                 guard = f"{a}<{lim}"
                 body.append(IfOnly(cond=f"{a}<{lim}", then_body=[Assign(a, f"{a}+1")]))
                 used_if += 1
                 used_assign += 1
                 core_applied = True
             elif chosen == "phase_switch":
-                # (7) phase-dependent update law.
+                # Phase-dependent update law.
                 body.append(
                     IfElse(
                         cond=f"{ctr}<{lim}/2",
@@ -710,25 +709,25 @@ class ProbabilisticLoopFactory:
                 used_assign += 1
                 core_applied = True
             elif chosen == "saturation":
-                # (8) saturation/truncation via if-else (DSL equivalent).
+                # Saturation/truncation via if-else (DSL equivalent).
                 cst = self.rng.randint(1, 6)
                 body.append(IfElse(cond=f"{a}+{cst}<={lim}", then_body=[Assign(a, f"{a}+{cst}")], else_body=[Assign(a, lim)]))
                 used_if += 1
                 used_assign += 1
                 core_applied = True
             elif chosen == "scaling_pair":
-                # (9) scaling pair.
+                # Scaling pair.
                 k = self.rng.randint(2, 4)
                 body.extend([Assign(a, f"{a}*{k}"), Assign(b, f"{b}/{k}")])
                 used_assign += 2
                 core_applied = True
             elif chosen == "counter_decomp":
-                # (12) decomposition: c1+c2+c3 tracks step-like progress.
+                # Decomposition: c1+c2+c3 tracks step-like progress.
                 body.extend([Assign(a, f"{a}+1"), Assign(b, f"{b}+1"), Assign(c, f"{c}+1"), Assign(d, f"{a}+{b}+{c}")])
                 used_assign += 4
                 core_applied = True
             elif chosen == "gcd_compare":
-                # (10) compare-driven dual-variable decrease.
+                # Compare-driven dual-variable decrease.
                 guard = f"{a}!=0&&{b}!=0"
                 body.append(IfElse(cond=f"{a}>{b}", then_body=[Assign(a, f"{a}-{b}")], else_body=[Assign(b, f"{b}-{a}")]))
                 used_if += 1
@@ -777,29 +776,114 @@ class ProbabilisticLoopFactory:
                 body.append(Assign(a, f"{a}+{step}"))
                 used_assign += 1
                 core_applied = True
-            elif chosen == "min_update_guarded":
-                # Linear motif aligned with y=min(y,z)-style guarded update.
-                step = self.rng.randint(1, 3)
-                body.append(Assign(a, f"{a}+{step}"))
-                body.append(IfOnly(cond=f"{c}<={b}", then_body=[Assign(b, c)]))
-                used_if += 1
-                used_assign += 2
-                core_applied = True
             elif chosen == "min_update_guarded_bound":
                 # Strong linear target: bounded progress + guarded min-update.
                 set_init(a, "0")
                 guard = f"{a}<{lim}"
-                body.append(Assign(a, f"{a}+1"))
-                body.append(IfOnly(cond=f"{d}<={c}", then_body=[Assign(c, d)]))
+                step = self.rng.randint(1, 2)
+                body.append(Assign(a, f"{a}+{step}"))
+                if self.rng.random() < 0.5:
+                    body.append(IfOnly(cond=f"{d}<={c}", then_body=[Assign(c, d)]))
+                else:
+                    body.append(IfOnly(cond=f"{c}<={b}", then_body=[Assign(b, c)]))
                 used_if += 1
                 used_assign += 2
                 core_applied = True
-            elif chosen == "paired_progress":
-                # Two-variable synchronized progress often seen in linear set.
-                k = self.rng.randint(1, 10)
-                body.append(Assign(a, f"{a}+{k}"))
-                body.append(Assign(b, f"{b}+{k}"))
+            elif chosen == "negative_cross_progress":
+                # Variant family inspired by linear/84.c and linear/85.c,
+                # but intentionally avoids exact same shape.
+                # Examples:
+                #   while (x <= -k) { x = x + y + c1; y = y + c2; }
+                #   while (x + k < 0) { x = x + y - c1; y = y + c2; }
+                neg_start = self.rng.randint(20, 20000)
+                bias = self.rng.randint(1, 3)
+                y_step = self.rng.randint(1, 3)
+                thresh = self.rng.randint(1, 8)
+                set_init(a, f"-{neg_start}")
+                if self.rng.random() < 0.5:
+                    guard = f"{a}<=-{thresh}"
+                else:
+                    guard = f"{a}+{thresh}<0"
+                if self.rng.random() < 0.5:
+                    body.append(Assign(a, f"{a}+{b}+{bias}"))
+                else:
+                    body.append(Assign(a, f"{a}+{b}-{bias}"))
+                body.append(Assign(b, f"{b}+{y_step}"))
                 used_assign += 2
+                core_applied = True
+            elif chosen == "triplet_lockstep_stride":
+                # Three counters progress in lockstep with identical stride.
+                stride = self.rng.randint(2, 5)
+                set_init(a, "0")
+                set_init(b, str(self.rng.randint(0, 2)))
+                set_init(c, str(self.rng.randint(0, 2)))
+                guard = f"{a}<{lim}"
+                body.append(Assign(a, f"{a}+{stride}"))
+                body.append(Assign(b, f"{b}+{stride}"))
+                body.append(Assign(c, f"{c}+{stride}"))
+                used_assign += 3
+                core_applied = True
+            elif chosen == "threshold_tail_accumulate":
+                # Threshold-gated tail accumulation with explicit progress.
+                step = self.rng.choice([2, 4])
+                set_init(a, "0")
+                guard = f"{a}<{lim}"
+                body.append(IfOnly(cond=f"{a}>={lim}/2", then_body=[Assign(b, f"{b}+{step}")]))
+                body.append(Assign(a, f"{a}+1"))
+                used_if += 1
+                used_assign += 2
+                core_applied = True
+            elif chosen == "half_split_balance":
+                # First-half increment, second-half decrement: balanced piecewise drift.
+                step = self.rng.randint(1, 3)
+                set_init(a, "0")
+                set_init(b, "0")
+                guard = f"{a}<{lim}"
+                body.append(
+                    IfElse(
+                        cond=f"{a}<{lim}/2",
+                        then_body=[Assign(b, f"{b}+{step}")],
+                        else_body=[Assign(b, f"{b}-{step}")],
+                    )
+                )
+                body.append(Assign(a, f"{a}+1"))
+                used_if += 1
+                used_assign += 2
+                core_applied = True
+            elif chosen == "mod_bucket_cascade":
+                # Divisibility cascade with multiple residue buckets and running index.
+                e = state_vars[4] if len(state_vars) > 4 else a
+                k1 = self.rng.randint(7, 11)
+                k2 = self.rng.randint(5, 9)
+                k3 = self.rng.randint(3, 7)
+                set_init(a, "0")
+                set_init(b, "0")
+                set_init(c, "0")
+                set_init(d, "0")
+                set_init(e, "0")
+                guard = f"{a}<{lim}"
+                body.append(
+                    IfElse(
+                        cond=f"{a}%{k1}==0",
+                        then_body=[Assign(e, f"{e}+1")],
+                        else_body=[
+                            IfElse(
+                                cond=f"{a}%{k2}==0",
+                                then_body=[Assign(d, f"{d}+1")],
+                                else_body=[
+                                    IfElse(
+                                        cond=f"{a}%{k3}==0",
+                                        then_body=[Assign(c, f"{c}+1")],
+                                        else_body=[Assign(b, f"{b}+1")],
+                                    )
+                                ],
+                            )
+                        ],
+                    )
+                )
+                body.append(Assign(a, f"{a}+1"))
+                used_if += 3
+                used_assign += 5
                 core_applied = True
             elif chosen == "qr_division_step":
                 # Quotient-remainder coupling: x > y*q+r.
@@ -862,67 +946,25 @@ class ProbabilisticLoopFactory:
                 used_assign += 4
                 core_applied = True
             elif chosen == "qr_countdown_bucket":
+                # merged qr countdown family:
                 # while(t!=0){ if(r+1==B){q++;r=0;t--} else {r++;t--} }
+                # or while(t!=0){ if(r+1==B){q++;r=0}else{r++}; t--; }
                 set_init(a, "0")  # q
                 set_init(b, "0")  # r
                 set_init(c, f"({src}%50)+20")  # t
                 set_init(d, f"({src}%8)+2")    # B
                 guard = f"{c}!=0"
+                split_tail = self.rng.random() < 0.5
                 body.append(
                     IfElse(
                         cond=f"{b}+1=={d}",
-                        then_body=[Assign(a, f"{a}+1"), Assign(b, "0"), Assign(c, f"{c}-1")],
-                        else_body=[Assign(b, f"{b}+1"), Assign(c, f"{c}-1")],
+                        then_body=[Assign(a, f"{a}+1"), Assign(b, "0")] + ([] if split_tail else [Assign(c, f"{c}-1")]),
+                        else_body=[Assign(b, f"{b}+1")] + ([] if split_tail else [Assign(c, f"{c}-1")]),
                     )
                 )
+                if split_tail:
+                    body.append(Assign(c, f"{c}-1"))
                 used_if += 1
-                used_assign += 3
-                core_applied = True
-            elif chosen == "mul_affine_pair":
-                # while(c<k){ c++; x=x*z+cst; y=y*z; }
-                set_init(c, "0")
-                zvar = d
-                set_init(zvar, f"({src}%6)+2")
-                guard = f"{c}<{lim}"
-                const_term = self.rng.randint(1, 4)
-                body.append(Assign(c, f"{c}+1"))
-                body.append(Assign(a, f"{a}*{zvar}+{const_term}"))
-                body.append(Assign(b, f"{b}*{zvar}"))
-                used_assign += 3
-                core_applied = True
-            elif chosen == "qr_countdown_split":
-                # while(t!=0){ if(r+1==B){q++;r=0}else{r++}; t--; }
-                set_init(a, "0")  # q
-                set_init(b, "0")  # r
-                set_init(c, f"({src}%40)+10")  # t
-                set_init(d, f"({src}%7)+2")    # B
-                guard = f"{c}!=0"
-                body.append(
-                    IfElse(
-                        cond=f"{b}+1=={d}",
-                        then_body=[Assign(a, f"{a}+1"), Assign(b, "0")],
-                        else_body=[Assign(b, f"{b}+1")],
-                    )
-                )
-                body.append(Assign(c, f"{c}-1"))
-                used_if += 1
-                used_assign += 3
-                core_applied = True
-            elif chosen == "guarded_min_step":
-                # if (z<=y) y=z; x=x+1; (condition-agnostic core body)
-                body.append(IfOnly(cond=f"{c}<={b}", then_body=[Assign(b, c)]))
-                body.append(Assign(a, f"{a}+1"))
-                used_if += 1
-                used_assign += 2
-                core_applied = True
-            elif chosen == "mul_pair_progress":
-                # x=x*z+c; y=y*z; c++;
-                zvar = d
-                set_init(zvar, f"({src}%6)+2")
-                guard = f"{c}<{lim}"
-                body.append(Assign(a, f"{a}*{zvar}+{c}"))
-                body.append(Assign(b, f"{b}*{zvar}"))
-                body.append(Assign(c, f"{c}+1"))
                 used_assign += 3
                 core_applied = True
             elif chosen == "triple_recurrence_step":
@@ -947,14 +989,18 @@ class ProbabilisticLoopFactory:
                 used_assign += 2
                 core_applied = True
             elif chosen == "mul_affine_param_pair":
-                # c = c + 1; x = x*z + a; y = y*z
+                # merged mul-affine family:
+                # c = c + 1; x = x*z + bias; y = y*z
                 zvar = d
                 set_init(zvar, f"({src}%6)+2")
                 guard = f"{c}<{lim}"
-                body.append(Assign(c, f"{c}+1"))
-                body.append(Assign(a, f"{a}*{zvar}+{src}"))
+                bias_expr = src if self.rng.random() < 0.5 else str(self.rng.randint(1, 4))
+                if self.rng.random() < 0.7:
+                    body.append(Assign(c, f"{c}+1"))
+                    used_assign += 1
+                body.append(Assign(a, f"{a}*{zvar}+{bias_expr}"))
                 body.append(Assign(b, f"{b}*{zvar}"))
-                used_assign += 3
+                used_assign += 2
                 core_applied = True
             elif chosen == "power_accumulate":
                 # y = y + 1; x = x + y^k (k in [2..5], using repeated mul)
@@ -963,6 +1009,150 @@ class ProbabilisticLoopFactory:
                 body.append(Assign(b, f"{b}+1"))
                 body.append(Assign(a, f"{a}+{term}"))
                 used_assign += 2
+                core_applied = True
+            elif chosen == "parity_decomposition_product":
+                # Parity decomposition with branch-specific multiplicative updates.
+                set_init(c, "0")
+                set_init(d, "1")
+                guard = f"{a}!=0&&{b}!=0"
+                body.append(
+                    IfElse(
+                        cond=f"{a}%2==0&&{b}%2==0",
+                        then_body=[Assign(a, f"{a}/2"), Assign(b, f"{b}/2"), Assign(d, f"4*{d}")],
+                        else_body=[
+                            IfElse(
+                                cond=f"{a}%2==1&&{b}%2==0",
+                                then_body=[Assign(a, f"{a}-1"), Assign(c, f"{c}+{b}*{d}")],
+                                else_body=[
+                                    IfElse(
+                                        cond=f"{a}%2==0&&{b}%2==1",
+                                        then_body=[Assign(b, f"{b}-1"), Assign(c, f"{c}+{a}*{d}")],
+                                        else_body=[Assign(a, f"{a}-1"), Assign(b, f"{b}-1"), Assign(c, f"{c}+({a}+{b}+1)*{d}")],
+                                    )
+                                ],
+                            )
+                        ],
+                    )
+                )
+                used_if += 3
+                used_assign += 5
+                core_applied = True
+            elif chosen == "odd_step_accumulator":
+                # Odd-step ladder (s,t) with monotone counter.
+                set_init(a, "0")
+                set_init(b, "1")
+                set_init(c, "1")
+                guard = f"{b}<={lim}"
+                body.append(Assign(a, f"{a}+1"))
+                body.append(Assign(c, f"{c}+2"))
+                body.append(Assign(b, f"{b}+{c}"))
+                used_assign += 3
+                core_applied = True
+            elif chosen == "square_sync_progress":
+                # y++ and x=y*y synchronization.
+                body.append(Assign(b, f"{b}+1"))
+                body.append(Assign(a, f"{b}*{b}"))
+                used_assign += 2
+                core_applied = True
+            elif chosen == "multiplicative_shadow_progress":
+                # Shared multiplicative progress with branch-guarded shadow product.
+                set_init(c, "1")
+                guard = f"{a}<={lim}"
+                body.append(Assign(b, f"{b}*{a}"))
+                body.append(IfOnly(cond=f"{a}<{lim}", then_body=[Assign(c, f"{c}*{a}")]))
+                body.append(Assign(a, f"{a}+1"))
+                used_if += 1
+                used_assign += 3
+                core_applied = True
+            elif chosen == "quadratic_form_triplet":
+                # Quadratic-form accumulation triplet.
+                set_init(d, f"({src}%35)+8")
+                guard = f"{d}>0"
+                body.append(Assign(a, f"{a}+{b}*{b}"))
+                body.append(Assign(c, f"{c}+{d}*{d}"))
+                body.append(Assign(b, f"{b}+{d}*{d}"))
+                body.append(Assign(d, f"{d}-1"))
+                used_assign += 4
+                core_applied = True
+            elif chosen == "euclid_coupled_accumulator":
+                # Euclid-style reduction with coupled accumulator swaps.
+                guard = f"{a}!={b}"
+                body.append(
+                    IfElse(
+                        cond=f"{a}>{b}",
+                        then_body=[Assign(a, f"{a}-{b}"), Assign(d, f"{d}+{c}")],
+                        else_body=[Assign(b, f"{b}-{a}"), Assign(c, f"{c}+{d}")],
+                    )
+                )
+                used_if += 1
+                used_assign += 3
+                core_applied = True
+            elif chosen == "fixed_point_root_refinement":
+                # Newton-style integer square-root refinement.
+                set_init(a, f"({src}%40)+2")
+                set_init(b, "0")
+                guard = f"{a}!={b}"
+                body.append(Assign(b, a))
+                body.append(Assign(a, f"({a}+{lim}/{a})/2"))
+                used_assign += 2
+                core_applied = True
+            elif chosen == "prefix_sum_progression":
+                # Triangular-like prefix sum with explicit monotone index.
+                set_init(a, "0")
+                set_init(b, "1")
+                guard = f"{b}<={lim}"
+                body.append(Assign(a, f"{a}+{b}"))
+                body.append(Assign(b, f"{b}+1"))
+                used_assign += 2
+                core_applied = True
+            elif chosen == "residual_branch_walk":
+                # Branch-controlled residual walk + synchronized step.
+                set_init(c, "0")
+                set_init(d, "0")
+                guard = f"{c}<={lim}"
+                body.append(
+                    IfElse(
+                        cond=f"{a}<0",
+                        then_body=[Assign(a, f"{a}+2*{b}")],
+                        else_body=[Assign(a, f"{a}+2*({b}-{lim})"), Assign(d, f"{d}+1")],
+                    )
+                )
+                body.append(Assign(c, f"{c}+1"))
+                used_if += 1
+                used_assign += 3
+                core_applied = True
+            elif chosen == "multi_branch_swap_recurrence":
+                # 4-way piecewise swap recurrence with moving threshold.
+                e = state_vars[4] if len(state_vars) > 4 else a
+                f = state_vars[5] if len(state_vars) > 5 else b
+                set_init(a, f"{src}*{src}")      # n
+                set_init(b, f"({src}%11)+3")     # d
+                set_init(c, f"{a}%{b}")          # r
+                set_init(d, "0")                 # t
+                set_init(e, f"{a}%({b}-2)")      # k
+                set_init(f, f"4*({a}/({b}-2)-{a}/{b})")  # q
+                guard = f"{src}>={b}&&{c}!=0"
+                body.append(
+                    IfElse(
+                        cond=f"2*{c}+{f}<{e}",
+                        then_body=[Assign(d, c), Assign(c, f"2*{c}-{e}+{f}+{b}+2"), Assign(e, d), Assign(f, f"{f}+4"), Assign(b, f"{b}+2")],
+                        else_body=[
+                            IfElse(
+                                cond=f"2*{c}+{f}<{b}+{e}+2",
+                                then_body=[Assign(d, c), Assign(c, f"2*{c}-{e}+{f}"), Assign(e, d), Assign(b, f"{b}+2")],
+                                else_body=[
+                                    IfElse(
+                                        cond=f"2*{c}+{f}<2*{b}+{e}+4",
+                                        then_body=[Assign(d, c), Assign(c, f"2*{c}-{e}+{f}-{b}-2"), Assign(e, d), Assign(f, f"{f}-4"), Assign(b, f"{b}+2")],
+                                        else_body=[Assign(d, c), Assign(c, f"2*{c}-{e}+{f}-2*{b}-4"), Assign(e, d), Assign(f, f"{f}-8"), Assign(b, f"{b}+2")],
+                                    )
+                                ],
+                            )
+                        ],
+                    )
+                )
+                used_if += 3
+                used_assign += 8
                 core_applied = True
             elif chosen == "while_one_min_break":
                 # while(1){ if(ctr>=lim) break; if(z<=y) y=z; ctr++; }
@@ -1100,6 +1290,124 @@ class ProbabilisticLoopFactory:
                 used_if += 2
                 used_assign += 6
                 core_applied = True
+            elif chosen == "snapshot_chase":
+                # Save snapshot of a; synchronized decrement until a reaches 0.
+                # linear/124-127, 160, 270: i=x; j=y; while(x!=0){x--;y--;} inv: x-y==i-j
+                set_init(c, a)
+                set_init(a, f"({src}%18)+5")
+                set_init(b, f"({src}%15)+3")
+                guard = f"{a}!=0"
+                body.append(Assign(a, f"{a}-1"))
+                body.append(Assign(b, f"{b}-1"))
+                used_assign += 2
+                core_applied = True
+            elif chosen == "parity_alternating":
+                # Flip-flop bit flag; increments alternating counters.
+                # linear/176: b=1; n=0; i=0; j=0; while(n<2k){n++;if(b==1){b=0;i++;}else{b=1;j++;}}
+                # inv: |i-j| <= 1
+                set_init(a, "0")   # counter n
+                set_init(b, "1")   # flip-flop flag (0 or 1)
+                set_init(c, "0")   # bucket 0 count
+                set_init(d, "0")   # bucket 1 count
+                guard = f"{a}<{lim}"
+                body.append(
+                    IfElse(
+                        cond=f"{b}==1",
+                        then_body=[Assign(b, "0"), Assign(c, f"{c}+1")],
+                        else_body=[Assign(b, "1"), Assign(d, f"{d}+1")],
+                    )
+                )
+                body.append(Assign(a, f"{a}+1"))
+                used_if += 1
+                used_assign += 2
+                core_applied = True
+            elif chosen == "proportional_stride":
+                # Two variables increment at proportional fixed rates.
+                # linear/154: while(i<n){j+=2; i++;} inv: j==2*i
+                step_ratio = self.rng.randint(2, 5)
+                set_init(a, "0")   # i
+                set_init(b, "0")   # j
+                guard = f"{a}<{lim}"
+                body.append(Assign(b, f"{b}+{step_ratio}"))
+                body.append(Assign(a, f"{a}+1"))
+                used_assign += 2
+                core_applied = True
+            elif chosen == "sum_before_incr":
+                # Accumulate counter before incrementing: sum+=i; i++
+                # linear/172,175, NLA/39: while(i<n){sum+=i; i++;} inv: 2*sum==i*(i-1)
+                # Note: differs from triangular_progress (i++;sum+=i gives sum=i*(i+1)/2)
+                set_init(a, "0")   # i
+                set_init(b, "0")   # sum
+                guard = f"{a}<{lim}"
+                body.append(Assign(b, f"{b}+{a}"))
+                body.append(Assign(a, f"{a}+1"))
+                used_assign += 2
+                core_applied = True
+            elif chosen == "russian_multiply":
+                # Binary multiplication by repeated halving/doubling.
+                # NLA/14: while(y!=0){if(y%2==1){z+=x;y--;} x*=2; y/=2;}
+                # inv: z + x*y == a_init * b_init
+                set_init(a, f"({src}%28)+8")   # x
+                set_init(b, f"({src}%22)+5")   # y
+                set_init(c, "0")               # z (accumulates result)
+                guard = f"{b}!=0"
+                body.append(IfOnly(cond=f"{b}%2==1", then_body=[Assign(c, f"{c}+{a}"), Assign(b, f"{b}-1")]))
+                body.append(Assign(a, f"2*{a}"))
+                body.append(Assign(b, f"{b}/2"))
+                used_if += 1
+                used_assign += 3
+                core_applied = True
+            elif chosen == "cauchy_schwarz_triple":
+                # Three accumulators: z=Σx², w=Σy², p=Σxy; countdown n.
+                # NLA/29,30: while(n>0){z+=x*x; w+=y*y; p+=x*y; n--;} inv: z*w>=p*p
+                xp = params[0] if params else src
+                yp = params[1] if len(params) > 1 else src
+                set_init(a, "0")                   # z = Σ x²
+                set_init(b, "0")                   # w = Σ y²
+                set_init(c, "0")                   # p = Σ x*y
+                set_init(d, f"({src}%18)+5")       # n countdown
+                guard = f"{d}>0"
+                body.append(Assign(a, f"{a}+{xp}*{xp}"))
+                body.append(Assign(b, f"{b}+{yp}*{yp}"))
+                body.append(Assign(c, f"{c}+{xp}*{yp}"))
+                body.append(Assign(d, f"{d}-1"))
+                used_assign += 4
+                core_applied = True
+            elif chosen == "linear_product_reduce":
+                # Repeated addition accumulates a product.
+                # NLA/42: product=0; i=0; while(i<b){product+=a; i++;} inv: product==a*i
+                xp = params[0] if params else src
+                set_init(a, "0")   # product
+                set_init(b, "0")   # i
+                guard = f"{b}<{lim}"
+                body.append(Assign(a, f"{a}+{xp}"))
+                body.append(Assign(b, f"{b}+1"))
+                used_assign += 2
+                core_applied = True
+            elif chosen == "int_sqrt_sieve":
+                # Integer square root by successive subtraction.
+                # NLA/36,43,44: r=0; x=A/2; while(x>r){x-=r; r++;} inv: A==2*x+r²-r
+                xp = params[0] if params else src
+                set_init(a, "0")                   # r
+                set_init(b, f"({xp}%28)+10")       # x (initial approximation)
+                guard = f"{b}>{a}"
+                body.append(Assign(b, f"{b}-{a}"))
+                body.append(Assign(a, f"{a}+1"))
+                used_assign += 2
+                core_applied = True
+            elif chosen == "countdown_triple":
+                # Three-way linear countdown with conservation.
+                # linear/145: lo=0; hi=2*mid; while(mid>0){lo++;hi--;mid--;} inv: lo+hi==2*mid_init
+                mid_init = self.rng.randint(5, 20)
+                set_init(a, "0")                   # lo
+                set_init(b, str(2 * mid_init))     # hi = 2*mid_init
+                set_init(c, str(mid_init))         # mid (countdown)
+                guard = f"{c}>0"
+                body.append(Assign(a, f"{a}+1"))
+                body.append(Assign(b, f"{b}-1"))
+                body.append(Assign(c, f"{c}-1"))
+                used_assign += 3
+                core_applied = True
 
         if core_applied:
             append_step = False
@@ -1148,7 +1456,8 @@ class ProbabilisticLoopFactory:
 
         if append_step:
             body.append(step_stmt)
-        return inits, WhileLoop(cond=guard, body=body), [ctr, lim] + state_vars
+        selected_core = chosen if core_applied else "none"
+        return inits, WhileLoop(cond=guard, body=body), [ctr, lim] + state_vars, selected_core
 
     def _arrange_loops(self, loops: List[WhileLoop]) -> List[Stmt]:
         if not loops:
@@ -1185,19 +1494,149 @@ class ProbabilisticLoopFactory:
         loops: List[WhileLoop] = []
         seen = set()
         universe: List[str] = []
+        core_usage: Dict[str, int] = {}
 
         max_local_vars = max(3, self.hp.m)
         for _ in range(self._sample_loop_count()):
             remaining = max_local_vars - len(seen)
-            inits, loop, produced = self._sample_core_loop(alloc, params, universe, remaining)
+            inits, loop, produced, core_name = self._sample_core_loop(alloc, params, universe, remaining, core_usage)
             for v, e in inits:
                 if v not in seen:
                     local_inits.append((v, e))
                     seen.add(v)
             loops.append(loop)
             universe.extend(produced)
+            core_usage[core_name] = core_usage.get(core_name, 0) + 1
 
         return Program(name=f"main{idx + 1}", params=params, local_inits=local_inits, body=self._arrange_loops(loops))
+
+
+# ─── Trace-based semantic scorer ─────────────────────────────────────────────
+def _c_to_py(s: str) -> str:
+    """Minimal C-to-Python expression conversion for eval()."""
+    s = re.sub(r"&&", " and ", s)
+    s = re.sub(r"\|\|", " or ", s)
+    # Replace logical ! but not !=
+    s = re.sub(r"!(?!=)", " not ", s)
+    return s
+
+
+_TRACE_MAX_INT = (1 << 31) - 1  # clamp to signed 32-bit range to avoid bignum slowdown
+
+
+def _c_eval_int(expr: str, env: Dict[str, int]) -> int:
+    try:
+        result = int(eval(_c_to_py(expr), {"__builtins__": {}}, dict(env)))
+        return max(-_TRACE_MAX_INT, min(_TRACE_MAX_INT, result))
+    except Exception:
+        return 0
+
+
+def _c_eval_bool(cond: str, env: Dict[str, int]) -> bool:
+    try:
+        return bool(eval(_c_to_py(cond), {"__builtins__": {}}, dict(env)))
+    except Exception:
+        return False
+
+
+def _exec_stmts(stmts: List[Stmt], env: Dict[str, int], budget: List[int]) -> bool:
+    """Execute statement list in-place; return False if a Break was hit."""
+    for stmt in stmts:
+        if budget[0] <= 0:
+            return True  # timeout – continue outer loop
+        if isinstance(stmt, Assign):
+            env[stmt.target] = _c_eval_int(stmt.expr, env)
+        elif isinstance(stmt, Break):
+            return False
+        elif isinstance(stmt, IfOnly):
+            if _c_eval_bool(stmt.cond, env):
+                if not _exec_stmts(stmt.then_body, env, budget):
+                    return False
+        elif isinstance(stmt, IfElse):
+            branch = stmt.then_body if _c_eval_bool(stmt.cond, env) else stmt.else_body
+            if not _exec_stmts(branch, env, budget):
+                return False
+        elif isinstance(stmt, WhileLoop):
+            while _c_eval_bool(stmt.cond, env) and budget[0] > 0:
+                budget[0] -= 1
+                if not _exec_stmts(stmt.body, env, budget):
+                    break  # Break stmt exits while
+    return True
+
+
+def _has_break(stmts: List[Stmt]) -> bool:
+    """Return True if any Break occurs directly or inside an if-branch."""
+    for s in stmts:
+        if isinstance(s, Break):
+            return True
+        if isinstance(s, IfOnly) and _has_break(s.then_body):
+            return True
+        if isinstance(s, IfElse) and (_has_break(s.then_body) or _has_break(s.else_body)):
+            return True
+    return False
+
+
+def trace_score(
+    program: "Program",
+    n_trials: int = 16,
+    max_steps: int = 150,
+    seed: int = 777,
+) -> float:
+    """
+    Evaluate semantic quality of a generated Program.  Returns a score in [0,1].
+
+    Three components weighted 50/30/20:
+      termination_rate  – fraction of random inputs that finish within max_steps
+      diversity         – normalised unique final-state count across trials
+      coverage          – fraction of local vars that actually change
+
+    Typical thresholds: score >= 0.50 → keep; < 0.35 → reject garbage loops.
+    max_steps=150 is enough for the typical generated loop bounds (8-105 iterations).
+
+    Usage::
+        prog = factory.sample_program(0)
+        if trace_score(prog) >= 0.45:
+            submit(prog)
+    """
+    rng = random.Random(seed)
+    local_names = [v for v, _ in program.local_inits]
+    param_range = max(1, 60 // max(1, len(program.params)))
+
+    # Fast-reject: while(1) loops without any Break are non-terminating by design.
+    for stmt in program.body:
+        if isinstance(stmt, WhileLoop) and stmt.cond.strip() == "1" and not _has_break(stmt.body):
+            return 0.0
+
+    terminated = 0
+    final_states: List[Tuple] = []
+
+    for _ in range(n_trials):
+        env: Dict[str, int] = {p: rng.randint(1, param_range) for p in program.params}
+        for v, e in program.local_inits:
+            env[v] = _c_eval_int(e, env)
+
+        budget = [max_steps]
+        _exec_stmts(program.body, env, budget)
+
+        if budget[0] > 0:
+            terminated += 1
+        final_states.append(tuple(env.get(v, 0) for v in local_names))
+
+    term_rate = terminated / n_trials
+
+    # Diversity: fraction of unique final states
+    diversity = len(set(final_states)) / max(1, n_trials)
+
+    # Coverage: fraction of local vars that differ across trials
+    if local_names and len(final_states) >= 2:
+        coverage = sum(
+            1 for i in range(len(local_names))
+            if len(set(s[i] for s in final_states)) > 1
+        ) / len(local_names)
+    else:
+        coverage = 0.0
+
+    return 0.50 * term_rate + 0.30 * diversity + 0.20 * coverage
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

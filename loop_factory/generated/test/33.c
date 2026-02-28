@@ -18,4 +18,6 @@ int main33(int b,int m,int p){
       }
   }
 
+
+  /*@ assert i >= r; */
 }

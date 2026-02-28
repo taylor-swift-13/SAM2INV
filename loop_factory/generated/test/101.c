@@ -20,4 +20,6 @@ int main101(int a,int b,int p){
       }
   }
 
+
+  /*@ assert t-3 < 0; */
 }

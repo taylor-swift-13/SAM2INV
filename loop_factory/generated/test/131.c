@@ -22,4 +22,6 @@ int main131(int a,int k,int p){
       v = v*v;
   }
 
+
+  /*@ assert l+3 > o; */
 }

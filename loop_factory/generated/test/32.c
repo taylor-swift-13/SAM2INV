@@ -23,4 +23,6 @@ int main32(int m,int n,int p){
       l = l+1;
   }
 
+
+  /*@ assert (l>=w); */
 }

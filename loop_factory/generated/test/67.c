@@ -27,4 +27,6 @@ int main67(int a,int k,int q){
       }
   }
 
+
+  /*@ assert z > j-1; */
 }

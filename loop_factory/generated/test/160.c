@@ -20,4 +20,6 @@ int main160(int a,int b,int m){
       }
   }
 
+
+  /*@ assert d-2 < 0; */
 }

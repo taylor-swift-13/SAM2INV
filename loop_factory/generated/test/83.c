@@ -14,4 +14,6 @@ int main83(int b,int k,int p){
       o = o*m+3;
   }
 
+
+  /*@ assert v > n-1; */
 }

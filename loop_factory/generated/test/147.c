@@ -27,4 +27,6 @@ int main147(int b,int k,int p){
       i = i*i+i;
   }
 
+
+  /*@ assert o <= 0; */
 }

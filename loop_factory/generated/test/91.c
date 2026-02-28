@@ -34,4 +34,6 @@ int main91(int a,int k,int n){
       m = h-m;
   }
 
+
+  /*@ assert (u>=v); */
 }

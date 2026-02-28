@@ -35,4 +35,6 @@ int main169(int b,int k,int m){
       i = i+l*i;
   }
 
+
+  /*@ assert r+1 > y; */
 }

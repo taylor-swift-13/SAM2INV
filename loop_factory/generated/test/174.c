@@ -26,4 +26,6 @@ int main174(int b,int m,int p){
       }
   }
 
+
+  /*@ assert y >= f; */
 }

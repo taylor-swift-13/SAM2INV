@@ -9,4 +9,6 @@ int main194(int a,int m,int q){
       v = v+4;
   }
 
+
+  /*@ assert l < 3; */
 }

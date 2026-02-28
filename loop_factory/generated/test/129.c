@@ -24,4 +24,6 @@ int main129(int a,int m,int n){
       d = d*d;
   }
 
+
+  /*@ assert v+2 > o; */
 }

@@ -13,4 +13,6 @@ int main41(int a,int b,int q){
       x = x*2;
   }
 
+
+  /*@ assert x >= e; */
 }

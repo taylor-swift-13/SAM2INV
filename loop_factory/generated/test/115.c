@@ -26,4 +26,6 @@ int main115(int a,int m,int n){
       h = h+v;
   }
 
+
+  /*@ assert v == 0&&h!=0; */
 }

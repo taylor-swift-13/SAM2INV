@@ -27,4 +27,6 @@ int main150(int b,int m,int p){
       }
   }
 
+
+  /*@ assert y-4 < 0; */
 }

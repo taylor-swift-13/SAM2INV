@@ -14,4 +14,6 @@ int main24(int b,int n,int q){
       v = v+4;
   }
 
+
+  /*@ assert h < 2; */
 }

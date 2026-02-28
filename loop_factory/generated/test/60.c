@@ -19,4 +19,6 @@ int main60(int a,int b,int q){
       }
   }
 
+
+  /*@ assert n > u/2; */
 }

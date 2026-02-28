@@ -22,4 +22,6 @@ int main20(int n,int p,int q){
       u = u+1;
   }
 
+
+  /*@ assert \false; */
 }

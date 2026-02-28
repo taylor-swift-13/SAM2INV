@@ -23,4 +23,6 @@ int main44(int a,int b,int n){
       }
   }
 
+
+  /*@ assert q >= v; */
 }

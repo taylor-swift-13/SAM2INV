@@ -17,4 +17,6 @@ int main49(int a,int k,int m){
       j = j*j;
   }
 
+
+  /*@ assert y <= 0; */
 }

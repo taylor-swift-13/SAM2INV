@@ -11,4 +11,6 @@ int main106(int a,int m,int p){
       n = n+1;
   }
 
+
+  /*@ assert \false; */
 }

@@ -19,4 +19,6 @@ int main95(int n,int p,int q){
       }
   }
 
+
+  /*@ assert o >= y; */
 }

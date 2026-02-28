@@ -15,4 +15,6 @@ int main136(int b,int k,int n){
       j = j%5;
   }
 
+
+  /*@ assert h <= 0; */
 }

@@ -12,4 +12,6 @@ int main78(int a,int p,int q){
       v = v+s;
   }
 
+
+  /*@ assert \false; */
 }

@@ -12,4 +12,6 @@ int main5(int b,int k,int p){
       n = n+n;
   }
 
+
+  /*@ assert q >= h; */
 }

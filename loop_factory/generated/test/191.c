@@ -21,4 +21,6 @@ int main191(int k,int m,int q){
       u = u+f;
   }
 
+
+  /*@ assert v > r/3; */
 }

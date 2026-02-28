@@ -21,4 +21,6 @@ int main126(int b,int k,int m){
       d = d+1;
   }
 
+
+  /*@ assert \false; */
 }

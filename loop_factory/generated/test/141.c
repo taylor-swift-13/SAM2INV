@@ -19,4 +19,6 @@ int main141(int a,int b,int n){
       }
   }
 
+
+  /*@ assert (k>=f); */
 }

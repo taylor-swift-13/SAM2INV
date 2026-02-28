@@ -24,4 +24,6 @@ int main108(int k,int m,int p){
       d = d+r;
   }
 
+
+  /*@ assert v-1 < 0; */
 }

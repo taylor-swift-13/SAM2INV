@@ -24,4 +24,6 @@ int main153(int b,int k,int p){
       l = l+l;
   }
 
+
+  /*@ assert t < t; */
 }

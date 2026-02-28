@@ -25,4 +25,6 @@ int main63(int a,int n,int p){
       g = g*g+g;
   }
 
+
+  /*@ assert v-j <= 0; */
 }

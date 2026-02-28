@@ -34,4 +34,6 @@ int main58(int k,int p,int q){
       }
   }
 
+
+  /*@ assert o+1 > v; */
 }

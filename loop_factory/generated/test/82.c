@@ -19,4 +19,6 @@ int main82(int m,int n,int p){
       }
   }
 
+
+  /*@ assert z+4 > w; */
 }

@@ -15,4 +15,6 @@ int main28(int a,int b,int m){
       }
   }
 
+
+  /*@ assert z == 0&&h!=0; */
 }

@@ -16,4 +16,6 @@ int main99(int b,int m,int p){
       }
   }
 
+
+  /*@ assert u == 0&&t!=0; */
 }

@@ -26,4 +26,6 @@ int main132(int k,int n,int q){
       e = e+2;
   }
 
+
+  /*@ assert e+2 > d; */
 }

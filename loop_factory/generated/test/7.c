@@ -28,4 +28,6 @@ int main7(int k,int n,int p){
       }
   }
 
+
+  /*@ assert a+4 > f; */
 }

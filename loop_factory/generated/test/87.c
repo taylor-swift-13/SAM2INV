@@ -24,4 +24,6 @@ int main87(int b,int m,int n){
       s = s+4;
   }
 
+
+  /*@ assert e >= z; */
 }

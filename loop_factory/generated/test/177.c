@@ -17,4 +17,6 @@ int main177(int a,int k,int n){
       }
   }
 
+
+  /*@ assert v >= y; */
 }

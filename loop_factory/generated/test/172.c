@@ -24,4 +24,6 @@ int main172(int m,int n,int p){
       a = a-1;
   }
 
+
+  /*@ assert i >= h; */
 }

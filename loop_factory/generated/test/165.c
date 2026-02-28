@@ -17,4 +17,6 @@ int main165(int k,int n,int p){
       v = v-1;
   }
 
+
+  /*@ assert h >= t; */
 }

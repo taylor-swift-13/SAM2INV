@@ -23,4 +23,6 @@ int main77(int k,int n,int q){
       z = z+v;
   }
 
+
+  /*@ assert v >= i; */
 }

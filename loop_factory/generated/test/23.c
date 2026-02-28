@@ -31,4 +31,6 @@ int main23(int m,int n,int q){
       }
   }
 
+
+  /*@ assert b < 1; */
 }

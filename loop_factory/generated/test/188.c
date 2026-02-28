@@ -27,4 +27,6 @@ int main188(int a,int b,int q){
       l = l*l;
   }
 
+
+  /*@ assert h < 2; */
 }

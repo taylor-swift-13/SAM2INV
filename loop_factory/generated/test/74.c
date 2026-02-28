@@ -14,4 +14,6 @@ int main74(int a,int k,int q){
       s = s*s+s;
   }
 
+
+  /*@ assert g <= 2; */
 }

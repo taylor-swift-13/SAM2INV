@@ -26,4 +26,6 @@ int main102(int a,int b,int q){
       m = m+1;
   }
 
+
+  /*@ assert (h>=s); */
 }

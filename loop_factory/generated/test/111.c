@@ -17,4 +17,6 @@ int main111(int k,int n,int p){
       w = w+1;
   }
 
+
+  /*@ assert v < 2; */
 }

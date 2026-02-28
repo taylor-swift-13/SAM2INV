@@ -31,4 +31,6 @@ int main92(int a,int n,int q){
       x = x*2;
   }
 
+
+  /*@ assert x == 0&&f!=0; */
 }

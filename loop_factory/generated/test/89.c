@@ -19,4 +19,6 @@ int main89(int a,int k,int n){
       f = b+q;
   }
 
+
+  /*@ assert \false; */
 }

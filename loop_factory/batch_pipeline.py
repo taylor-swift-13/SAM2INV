@@ -685,10 +685,14 @@ def main() -> None:
         d.mkdir(parents=True, exist_ok=True)
 
     # Keep one-candidate path; outer pipeline handles concurrency.
-    config.PARALLEL_GENERATION_CONFIG["num_candidates"] = 5
+    config.PARALLEL_GENERATION_CONFIG["num_candidates"] = 10
     config.PARALLEL_GENERATION_CONFIG["use_threading"] = False
     config.PARALLEL_GENERATION_CONFIG["max_workers"] = 1
-    config.PARALLEL_GENERATION_CONFIG["temperature"] = 0.2
+    config.PARALLEL_GENERATION_CONFIG["temperature"] = 1.0
+    # Hard-coded filtering policy for batch_pipeline: all enabled.
+    config.SYNTAX_FILTER_CONFIG["enabled"] = True
+    config.PARALLEL_GENERATION_CONFIG["filter_by_sampling"] = True
+    config.PARALLEL_GENERATION_CONFIG["use_houdini"] = True
     invgen_mod.USE_TRACES = False
 
     llm_cfg = LLMConfig()

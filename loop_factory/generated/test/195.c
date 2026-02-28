@@ -20,4 +20,6 @@ int main195(int k,int n,int q){
       o = o*o;
   }
 
+
+  /*@ assert z-1 < 0; */
 }

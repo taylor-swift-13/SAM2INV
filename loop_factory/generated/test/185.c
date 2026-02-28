@@ -9,4 +9,6 @@ int main185(int a,int b,int m){
       w = w+4;
   }
 
+
+  /*@ assert p < 2; */
 }

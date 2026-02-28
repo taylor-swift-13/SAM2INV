@@ -11,4 +11,6 @@ int main6(int a,int m,int p){
       v = v+1;
   }
 
+
+  /*@ assert u > h-2; */
 }

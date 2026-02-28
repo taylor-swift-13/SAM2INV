@@ -28,4 +28,6 @@ int main81(int k,int m,int n){
       d = d*2;
   }
 
+
+  /*@ assert d > r/2; */
 }

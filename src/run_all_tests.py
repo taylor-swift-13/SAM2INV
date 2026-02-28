@@ -14,20 +14,17 @@ import os
 import sys
 import time
 import subprocess
-from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
 from config import MAX_ITERATION
 
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+TIMEOUT_SECONDS = 1200
 
 
 def run_single_test(file_name: str, input_subdir: str, output_dir: str,
                     log_dir: str, max_iterations: int) -> dict:
-    """
-    运行单个测试用例（在子进程中调用 loop_inv.py）
-    """
+    """运行单个测试用例（在子进程中调用 loop_inv.py）"""
     start_time = time.time()
     result = {
         'file': file_name,
@@ -46,24 +43,22 @@ def run_single_test(file_name: str, input_subdir: str, output_dir: str,
     ]
 
     try:
-        import signal
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, cwd=SCRIPT_DIR
         )
         try:
-            stdout, stderr = proc.communicate(timeout=600)
+            stdout, stderr = proc.communicate(timeout=TIMEOUT_SECONDS)
             result['success'] = (proc.returncode == 0)
             if proc.returncode != 0:
                 result['error'] = stderr[-500:] if stderr else 'Unknown error'
         except subprocess.TimeoutExpired:
-            # Send SIGTERM first so the child can save partial results
             proc.terminate()
             try:
-                proc.communicate(timeout=15)  # Give 15s for graceful shutdown
+                proc.communicate(timeout=15)
             except subprocess.TimeoutExpired:
                 proc.kill()
                 proc.communicate()
-            result['error'] = 'Timeout (600s)'
+            result['error'] = f'Timeout ({TIMEOUT_SECONDS}s)'
     except Exception as e:
         result['error'] = str(e)
 
@@ -85,13 +80,11 @@ def main():
     parser.add_argument('test_set', type=str, help="测试集目录名 (e.g., NLA_lipus, linear)")
     parser.add_argument('--workers', type=int, default=20, help="并行worker数量 (default: 20)")
     parser.add_argument(
-        '--max-iterations',
-        type=int,
-        default=MAX_ITERATION,
+        '--max-iterations', type=int, default=MAX_ITERATION,
         help=f"最大迭代修复次数 (default: {MAX_ITERATION})",
     )
     parser.add_argument('--output-dir', type=str, default=None, help="输出目录 (default: output/<test_set>)")
-    parser.add_argument('--log-dir', type=str, default=None, help="日志目录 (default: log/<test_set>)")
+    parser.add_argument('--log-dir', type=str, default=None, help="日志目录 (default: log/<test_set>_<timestamp>)")
     parser.add_argument('--files', type=str, nargs='+', default=None, help="指定要运行的文件名列表 (不含.c扩展名)")
 
     args = parser.parse_args()
@@ -120,9 +113,10 @@ def main():
         print(f"Error: No test files found in {input_path}")
         sys.exit(1)
 
-    # 设置输出/日志目录
-    output_dir = args.output_dir or os.path.join('output', args.test_set)
-    log_dir = args.log_dir or os.path.join('log', args.test_set)
+    # 设置输出/日志目录（日志目录带时间戳）
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    output_dir = args.output_dir or os.path.join('output', f'{args.test_set}_{timestamp}')
+    log_dir = args.log_dir or os.path.join('log', f'{args.test_set}_{timestamp}')
 
     os.makedirs(os.path.join(SCRIPT_DIR, output_dir), exist_ok=True)
     os.makedirs(os.path.join(SCRIPT_DIR, log_dir), exist_ok=True)
@@ -134,6 +128,7 @@ def main():
     print(f"Test files:       {len(test_files)}")
     print(f"Workers:          {args.workers}")
     print(f"Max iterations:   {args.max_iterations}")
+    print(f"Timeout:          {TIMEOUT_SECONDS}s")
     print(f"Output dir:       {output_dir}")
     print(f"Log dir:          {log_dir}")
     print(f"{'='*60}\n")
@@ -145,12 +140,12 @@ def main():
     results = []
 
     with ProcessPoolExecutor(max_workers=args.workers) as executor:
-        futures = {}
-        for f in test_files:
-            future = executor.submit(
+        futures = {
+            executor.submit(
                 run_single_test, f, args.test_set, output_dir, log_dir, args.max_iterations
-            )
-            futures[future] = f
+            ): f
+            for f in test_files
+        }
 
         for future in as_completed(futures):
             result = future.result()
@@ -171,11 +166,10 @@ def main():
     print(f"Analyzing logs in {log_dir} ...")
     print(f"{'='*60}\n")
 
-    analyze_cmd = [
-        sys.executable, os.path.join(SCRIPT_DIR, 'analyze_logs.py'),
-        os.path.join(SCRIPT_DIR, log_dir),
-    ]
-    subprocess.run(analyze_cmd, cwd=SCRIPT_DIR)
+    subprocess.run(
+        [sys.executable, os.path.join(SCRIPT_DIR, 'analyze_logs.py'), os.path.join(SCRIPT_DIR, log_dir)],
+        cwd=SCRIPT_DIR,
+    )
 
 
 if __name__ == '__main__':

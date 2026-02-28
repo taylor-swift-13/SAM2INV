@@ -19,4 +19,6 @@ int main138(int k,int n,int q){
       m = m+1;
   }
 
+
+  /*@ assert r < 1; */
 }

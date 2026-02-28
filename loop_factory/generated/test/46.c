@@ -9,4 +9,6 @@ int main46(int a,int b,int m){
       l = l+2;
   }
 
+
+  /*@ assert \false; */
 }

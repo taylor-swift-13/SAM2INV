@@ -23,4 +23,6 @@ int main71(int a,int k,int n){
       r = r+1;
   }
 
+
+  /*@ assert b >= f; */
 }

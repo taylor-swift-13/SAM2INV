@@ -22,4 +22,6 @@ int main168(int k,int m,int q){
       w = w/4;
   }
 
+
+  /*@ assert (x>=h); */
 }

@@ -21,4 +21,6 @@ int main114(int a,int n,int q){
       }
   }
 
+
+  /*@ assert d < 1; */
 }

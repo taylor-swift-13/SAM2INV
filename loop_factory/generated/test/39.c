@@ -16,4 +16,6 @@ int main39(int m,int n,int p){
       x = x-x;
   }
 
+
+  /*@ assert \false; */
 }

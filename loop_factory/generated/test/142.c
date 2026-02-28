@@ -32,4 +32,6 @@ int main142(int b,int k,int n){
       d = d+o;
   }
 
+
+  /*@ assert \false; */
 }

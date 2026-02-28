@@ -18,4 +18,6 @@ int main13(int a,int m,int q){
       v = v+l*v;
   }
 
+
+  /*@ assert r <= 0; */
 }

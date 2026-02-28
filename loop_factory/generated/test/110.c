@@ -21,4 +21,6 @@ int main110(int b,int k,int n){
       }
   }
 
+
+  /*@ assert s >= g; */
 }

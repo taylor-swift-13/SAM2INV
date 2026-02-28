@@ -39,4 +39,6 @@ int main154(int a,int k,int p){
       s = s+1;
   }
 
+
+  /*@ assert v > m-5; */
 }

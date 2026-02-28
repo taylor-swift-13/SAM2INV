@@ -16,4 +16,6 @@ int main42(int a,int m,int p){
       q = q/3;
   }
 
+
+  /*@ assert (t>=h); */
 }

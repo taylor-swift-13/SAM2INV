@@ -34,4 +34,6 @@ int main130(int k,int p,int q){
       }
   }
 
+
+  /*@ assert l < 3; */
 }
