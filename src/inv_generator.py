@@ -304,10 +304,7 @@ class InvariantGenerator:
         use_houdini = PARALLEL_GENERATION_CONFIG.get('use_houdini', True)
         select_best = PARALLEL_GENERATION_CONFIG.get('select_best', True)
         use_threading = PARALLEL_GENERATION_CONFIG.get('use_threading', True)
-        if self.llm_config.use_api_model:
-            max_workers = PARALLEL_GENERATION_CONFIG.get('max_workers', 5)
-        else:
-            max_workers = PARALLEL_GENERATION_CONFIG.get('local_max_workers', 1)
+        max_workers = PARALLEL_GENERATION_CONFIG.get('max_workers', 5)
 
         # 1. Generate template with PLACE_HOLDER
         template_code = self.template_gen.generate_template(record, simplified=self.template_simplified)
@@ -1732,24 +1729,14 @@ class InvariantGenerator:
         thread_config = LLMConfig()
         thread_config.think_mode_enabled = self.llm_config.think_mode_enabled
 
-        if self.llm_config.use_api_model:
-            # API 模式：每个线程建独立的 OpenAI client（有独立的消息历史）
-            thread_config.use_api_model = True
-            thread_config.api_model = model_name
-            thread_config.api_key = self.llm_config.api_key
-            thread_config.base_url = self.llm_config.base_url
-            thread_config.api_temperature = self.llm_config.api_temperature
-            thread_config.api_top_p = self.llm_config.api_top_p
-        else:
-            # 本地模型：复用模块级缓存的权重（不重复占显存），只有消息历史是独立的
-            thread_config.use_api_model = False
-            thread_config.local_model_path = self.llm_config.local_model_path
-            thread_config.local_max_new_tokens = self.llm_config.local_max_new_tokens
-            thread_config.local_temperature = self.llm_config.local_temperature
-            thread_config.local_top_p = self.llm_config.local_top_p
-            thread_config.local_max_length = self.llm_config.local_max_length
-            thread_config.local_model_replicas = self.llm_config.local_model_replicas
-            thread_config.local_model_instance_key = self.llm_config.local_model_instance_key
+        # Service-only architecture: each thread uses an API client with isolated context.
+        thread_config.use_api_model = True
+        thread_config.api_model = model_name
+        thread_config.api_key = self.llm_config.api_key
+        thread_config.base_url = self.llm_config.base_url
+        thread_config.api_base_urls = self.llm_config.api_base_urls
+        thread_config.api_temperature = self.llm_config.api_temperature
+        thread_config.api_top_p = self.llm_config.api_top_p
 
         return Chatbot(thread_config)
     
@@ -2790,10 +2777,7 @@ class InvariantGenerator:
         num_candidates = PARALLEL_GENERATION_CONFIG.get('num_candidates', 10)
         temperature = PARALLEL_GENERATION_CONFIG.get('temperature', 0.9)
         use_threading = PARALLEL_GENERATION_CONFIG.get('use_threading', True) and parallel_enabled
-        if self.llm_config.use_api_model:
-            max_workers = PARALLEL_GENERATION_CONFIG.get('max_workers', 5)
-        else:
-            max_workers = PARALLEL_GENERATION_CONFIG.get('local_max_workers', 1)
+        max_workers = PARALLEL_GENERATION_CONFIG.get('max_workers', 5)
         filter_by_sampling = PARALLEL_GENERATION_CONFIG.get('filter_by_sampling', True) and USE_TRACES
         detect_conflicts = PARALLEL_GENERATION_CONFIG.get('detect_conflicts', True)
         use_houdini = PARALLEL_GENERATION_CONFIG.get('use_houdini', True)

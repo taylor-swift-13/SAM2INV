@@ -3,23 +3,7 @@ import re
 import threading
 from config import LLMConfig
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Any, Optional
-
-# 本地模型缓存：instance_key -> (model, tokenizer)
-_local_model_cache: Dict[str, Any] = {}
-# 每个本地模型实例独立推理锁：同实例串行、不同实例可并行
-_local_model_locks: Dict[str, threading.Lock] = {}
-# 保护模型缓存和锁字典
-_local_cache_lock = threading.Lock()
-
-
-def _get_model_lock(instance_key: str) -> threading.Lock:
-    with _local_cache_lock:
-        lock = _local_model_locks.get(instance_key)
-        if lock is None:
-            lock = threading.Lock()
-            _local_model_locks[instance_key] = lock
-        return lock
+from typing import Dict, List
 
 
 # 全局 token 统计追踪器
@@ -118,15 +102,25 @@ class BaseChatModel(ABC):
 class OpenAILLM(BaseChatModel):
     def __init__(self, config: LLMConfig):
         super().__init__(config)
-        self.client = openai.OpenAI(
-            base_url=self.config.base_url,
-            api_key=self.config.api_key
-        )
+        base_urls = [u.strip() for u in getattr(self.config, "api_base_urls", "").split(",") if u.strip()]
+        if not base_urls:
+            base_urls = [self.config.base_url]
+        self._clients = [
+            openai.OpenAI(base_url=url, api_key=self.config.api_key)
+            for url in base_urls
+        ]
+        self._rr_lock = threading.Lock()
+        self._rr_counter = 0
         # 为 OpenAI API 使用其特定的模型Name和温度
         self.model_name = self.config.api_model
         self.temperature = self.config.api_temperature
         self.top_p =self.config.api_top_p
 
+    def _next_client(self):
+        with self._rr_lock:
+            idx = self._rr_counter % len(self._clients)
+            self._rr_counter += 1
+        return self._clients[idx]
 
     def generate_response(self, user_input: str) -> str:
         try:
@@ -134,7 +128,7 @@ class OpenAILLM(BaseChatModel):
             self.messages.append({"role": "user", "content": user_input})
 
             # 调用 OpenAI API
-            response = self.client.chat.completions.create(
+            response = self._next_client().chat.completions.create(
                 model=self.model_name,
                 messages=self.messages,
                 temperature=self.temperature,
@@ -164,161 +158,12 @@ class OpenAILLM(BaseChatModel):
                 self.messages.pop()
             return f"生成响应失败: {e}"
 
-# 本地 Transformers 模型（单 GPU，推理串行执行）
-class LocalLLM(BaseChatModel):
-    """
-    使用 HuggingFace Transformers 加载本地模型。
-
-    设计要点：
-    - 支持同一路径多副本：local_model_replicas > 1 时并发占用显存。
-    - 模型/tokenizer 以 local_model_instance_key 缓存；副本自动生成 replica key。
-    - 同一副本串行推理（防 OOM），不同副本并行推理。
-    - local_max_workers 控制线程池大小，决定同时"准备 prompt"的并发度，
-      实际 GPU 计算并发度由“模型数 + 每模型锁”共同决定。
-    """
-
-    def __init__(self, config: LLMConfig):
-        super().__init__(config)
-        if not config.local_model_path:
-            raise ValueError("local_model_path is empty; cannot initialize LocalLLM.")
-        self._replicas: List[Tuple[Any, Any, threading.Lock]] = []
-        self._rr_lock = threading.Lock()
-        self._rr_counter = 0
-        self._build_replicas()
-
-    def _build_replicas(self) -> None:
-        reps = max(1, int(self.config.local_model_replicas))
-        paths = [self.config.local_model_path] * reps
-
-        for idx, path in enumerate(paths):
-            explicit_key = (self.config.local_model_instance_key or "").strip()
-            if explicit_key and len(paths) == 1:
-                instance_key = explicit_key
-            else:
-                instance_key = f"{path}::replica_{idx + 1}"
-            model, tokenizer = self._get_or_load_model(path, instance_key)
-            lock = _get_model_lock(instance_key)
-            self._replicas.append((model, tokenizer, lock))
-
-        if not self._replicas:
-            raise RuntimeError("No local model replicas initialized.")
-
-    def _acquire_replica(self) -> Tuple[Any, Any, threading.Lock]:
-        n = len(self._replicas)
-        with self._rr_lock:
-            start = self._rr_counter % n
-            self._rr_counter += 1
-
-        # Prefer non-blocking acquisition for higher parallel utilization.
-        for off in range(n):
-            model, tokenizer, lock = self._replicas[(start + off) % n]
-            if lock.acquire(blocking=False):
-                return model, tokenizer, lock
-
-        # If all busy, block on round-robin selected replica.
-        model, tokenizer, lock = self._replicas[start]
-        lock.acquire()
-        return model, tokenizer, lock
-
-    @staticmethod
-    def _get_or_load_model(path: str, instance_key: str):
-        """线程安全地加载或复用已缓存的模型。"""
-        with _local_cache_lock:
-            # 二次检查：防止等锁期间其他线程已完成加载
-            if instance_key in _local_model_cache:
-                return _local_model_cache[instance_key]
-            try:
-                import torch
-                from transformers import AutoModelForCausalLM, AutoTokenizer
-            except ImportError as e:
-                raise ImportError(
-                    "transformers and torch are required for local model inference. "
-                    f"Install them with: pip install transformers torch\n{e}"
-                )
-            print(f"[LocalLLM] Loading model from {path} ...")
-            tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
-            model = AutoModelForCausalLM.from_pretrained(
-                path,
-                torch_dtype=torch.float16,
-                device_map="auto",
-                trust_remote_code=True,
-            )
-            model.eval()
-
-            # Some chat models (e.g., Qwen) may not define pad_token.
-            # Align pad token to eos token to keep generation stable.
-            if tokenizer.pad_token_id is None:
-                tokenizer.pad_token = tokenizer.eos_token
-            model.config.pad_token_id = tokenizer.pad_token_id
-            if hasattr(model, "generation_config") and model.generation_config is not None:
-                model.generation_config.pad_token_id = tokenizer.pad_token_id
-
-            _local_model_cache[instance_key] = (model, tokenizer)
-            _local_model_locks.setdefault(instance_key, threading.Lock())
-            print(f"[LocalLLM] Model loaded.")
-            return _local_model_cache[instance_key]
-
-    def generate_response(self, user_input: str) -> str:
-        self.messages.append({"role": "user", "content": user_input})
-
-        model, tokenizer, lock = self._acquire_replica()
-        try:
-            import torch
-            # Build text first, then tokenize to get both input_ids and attention_mask.
-            try:
-                text = tokenizer.apply_chat_template(
-                    self.messages,
-                    tokenize=False,
-                    add_generation_prompt=True,
-                )
-            except Exception:
-                # 回退：简单拼接角色文本
-                text = "\n".join(
-                    f"{m['role']}: {m['content']}" for m in self.messages
-                )
-
-            max_len = getattr(self.config, "local_max_length", 4096)
-            inputs = tokenizer(
-                text,
-                return_tensors="pt",
-                truncation=True,
-                max_length=max_len,
-                padding=False,
-            )
-            inputs = {k: v.to(model.device) for k, v in inputs.items()}
-
-            with torch.no_grad():
-                output_ids = model.generate(
-                    **inputs,
-                    max_new_tokens=self.config.local_max_new_tokens,
-                    temperature=self.config.local_temperature,
-                    top_p=self.config.local_top_p,
-                    do_sample=True,
-                    pad_token_id=tokenizer.pad_token_id,
-                )
-
-            new_tokens = output_ids[0][inputs["input_ids"].shape[-1]:]
-            raw_response = tokenizer.decode(new_tokens, skip_special_tokens=True)
-        finally:
-            lock.release()
-
-        processed = self._process_response_think_tags(raw_response)
-        self.messages.append({"role": "assistant", "content": raw_response})
-        return processed
-
-
 # 主控制类，根据配置选择使用哪种 LLM 实现
 class Chatbot:
     def __init__(self, config: LLMConfig):
         self.config = config
-        if config.use_api_model:
-            self.llm_instance = OpenAILLM(config)
-        elif config.local_model_path:
-            self.llm_instance = LocalLLM(config)
-        else:
-            print("Warning: use_api_model is False and local_model_path is empty; "
-                  "no LLM instance created.")
-            self.llm_instance = None
+        # Service-only architecture: always use OpenAI-compatible API.
+        self.llm_instance = OpenAILLM(config)
 
     def chat(self, user_input: str) -> str:
         if self.llm_instance is None:

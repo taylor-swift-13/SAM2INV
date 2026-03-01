@@ -1,27 +1,20 @@
+import os
 from dataclasses import dataclass
 
 
 @dataclass
 class LLMConfig:
     # API model configuration
-    use_api_model = True  # True → OpenAI-compatible API；False → 本地 Transformers 模型
-    api_model: str = "qwen3-8b"
-    api_key: str = "YOUR_API_KEY"
-    base_url: str = "https://yunwu.ai/v1"
+    use_api_model = True  # Service-only: always use OpenAI-compatible API
+    api_model: str = os.getenv("OPENAI_MODEL", "qwen3-8b")
+    api_key: str = os.getenv("OPENAI_API_KEY", "EMPTY")
+    base_url: str = os.getenv("OPENAI_BASE_URL", "https://yunwu.ai/v1")
+    # Multi-instance API endpoints (comma-separated). If set, round-robin is used.
+    # Example: "http://127.0.0.1:8001/v1,http://127.0.0.1:8002/v1"
+    api_base_urls: str = os.getenv("OPENAI_BASE_URLS", "")
     api_temperature: float = 1.0
     api_top_p: float = 1.0
     think_mode_enabled: bool = False
-
-    # Local model configuration (use_api_model=False 时生效)
-    local_model_path: str = ""        # 本地模型路径，留空表示暂不启用
-    local_max_new_tokens: int = 2048  # 单次推理最大生成 token 数
-    local_temperature: float = 1.0    # 采样温度
-    local_top_p: float = 1.0          # nucleus sampling
-    local_max_length: int = 4096      # 输入截断上限
-    # 同一路径加载多个副本，workers 自动在副本间均分
-    local_model_replicas: int = 1
-    # 运行时内部字段（无需手动配置）
-    local_model_instance_key: str = ""
 
 # 通用输入子目录配置：替代之前写死的 'linear'
 SUBDIR = "NLA_lipus"
@@ -98,7 +91,6 @@ PARALLEL_GENERATION_CONFIG = {
     'detect_conflicts': True,     # 是否检测并去除冲突的不变式
     'use_threading': True,        # 是否使用线程池实现真正的并行生成
     'max_workers': 20,            # API 模型：线程池最大并发数
-    'local_max_workers': 1,       # 本地模型：受显存限制的最大并发采样数
 }
 
 # Prompt 构建配置 (Prompt Construction Configuration)
@@ -162,6 +154,18 @@ LOOP_FACTORY_USER_CONFIG = {
     'q_nest': 0.0,
     'p_nonlinear': 0.40,
     'p_semantic_core': 0.80
+}
+
+
+# ==============================================================================
+# Local API Service Bootstrap (for src/scripts/start_local_services_from_config.py)
+# ==============================================================================
+# 一键从配置启动本地 OpenAI 兼容服务（多个实例，各自加载一份模型）。
+LOCAL_MODEL_SERVICE_CONFIG = {
+    # 必填：本地模型路径。为空时启动脚本会报错退出。
+    'model_path': '',
+    # 启动实例数（同一路径加载多少份模型）。
+    'num_instances': 1,
 }
 
 
