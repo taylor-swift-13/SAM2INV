@@ -6,7 +6,7 @@ class LLMConfig:
     # API model configuration
     use_api_model = True  # True → OpenAI-compatible API；False → 本地 Transformers 模型
     api_model: str = "qwen3-8b"
-    api_key: str = "sk-afVplv2oRlR8SnMlC3K0ndGKOIsaBN5O3zxrD1B7zWzgNWGA"
+    api_key: str = "YOUR_API_KEY"
     base_url: str = "https://yunwu.ai/v1"
     api_temperature: float = 1.0
     api_top_p: float = 1.0
@@ -17,6 +17,11 @@ class LLMConfig:
     local_max_new_tokens: int = 2048  # 单次推理最大生成 token 数
     local_temperature: float = 1.0    # 采样温度
     local_top_p: float = 1.0          # nucleus sampling
+    local_max_length: int = 4096      # 输入截断上限
+    # 同一路径加载多个副本，workers 自动在副本间均分
+    local_model_replicas: int = 1
+    # 运行时内部字段（无需手动配置）
+    local_model_instance_key: str = ""
 
 # 通用输入子目录配置：替代之前写死的 'linear'
 SUBDIR = "NLA_lipus"

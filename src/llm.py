@@ -5,10 +5,22 @@ from config import LLMConfig
 from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple, Any, Optional
 
-# 本地模型推理锁：GPU 同一时刻只能跑一个推理，防止 OOM
-_local_inference_lock = threading.Lock()
-# 模型缓存：path -> (model, tokenizer)，避免多线程重复加载
+# 本地模型缓存：instance_key -> (model, tokenizer)
 _local_model_cache: Dict[str, Any] = {}
+# 每个本地模型实例独立推理锁：同实例串行、不同实例可并行
+_local_model_locks: Dict[str, threading.Lock] = {}
+# 保护模型缓存和锁字典
+_local_cache_lock = threading.Lock()
+
+
+def _get_model_lock(instance_key: str) -> threading.Lock:
+    with _local_cache_lock:
+        lock = _local_model_locks.get(instance_key)
+        if lock is None:
+            lock = threading.Lock()
+            _local_model_locks[instance_key] = lock
+        return lock
+
 
 # 全局 token 统计追踪器
 class TokenTracker:
@@ -158,28 +170,63 @@ class LocalLLM(BaseChatModel):
     使用 HuggingFace Transformers 加载本地模型。
 
     设计要点：
-    - 模型/tokenizer 以 local_model_path 为 key 缓存在模块级 _local_model_cache 中，
-      多个 LocalLLM 实例（来自不同线程）共享同一份权重，不会重复占用显存。
-    - 所有推理调用通过 _local_inference_lock 串行化，GPU 同一时刻只执行一个前向传播。
+    - 支持同一路径多副本：local_model_replicas > 1 时并发占用显存。
+    - 模型/tokenizer 以 local_model_instance_key 缓存；副本自动生成 replica key。
+    - 同一副本串行推理（防 OOM），不同副本并行推理。
     - local_max_workers 控制线程池大小，决定同时"准备 prompt"的并发度，
-      但实际 GPU 计算始终是串行的。
+      实际 GPU 计算并发度由“模型数 + 每模型锁”共同决定。
     """
 
     def __init__(self, config: LLMConfig):
         super().__init__(config)
         if not config.local_model_path:
             raise ValueError("local_model_path is empty; cannot initialize LocalLLM.")
-        self._model, self._tokenizer = self._get_or_load_model(config.local_model_path)
+        self._replicas: List[Tuple[Any, Any, threading.Lock]] = []
+        self._rr_lock = threading.Lock()
+        self._rr_counter = 0
+        self._build_replicas()
+
+    def _build_replicas(self) -> None:
+        reps = max(1, int(self.config.local_model_replicas))
+        paths = [self.config.local_model_path] * reps
+
+        for idx, path in enumerate(paths):
+            explicit_key = (self.config.local_model_instance_key or "").strip()
+            if explicit_key and len(paths) == 1:
+                instance_key = explicit_key
+            else:
+                instance_key = f"{path}::replica_{idx + 1}"
+            model, tokenizer = self._get_or_load_model(path, instance_key)
+            lock = _get_model_lock(instance_key)
+            self._replicas.append((model, tokenizer, lock))
+
+        if not self._replicas:
+            raise RuntimeError("No local model replicas initialized.")
+
+    def _acquire_replica(self) -> Tuple[Any, Any, threading.Lock]:
+        n = len(self._replicas)
+        with self._rr_lock:
+            start = self._rr_counter % n
+            self._rr_counter += 1
+
+        # Prefer non-blocking acquisition for higher parallel utilization.
+        for off in range(n):
+            model, tokenizer, lock = self._replicas[(start + off) % n]
+            if lock.acquire(blocking=False):
+                return model, tokenizer, lock
+
+        # If all busy, block on round-robin selected replica.
+        model, tokenizer, lock = self._replicas[start]
+        lock.acquire()
+        return model, tokenizer, lock
 
     @staticmethod
-    def _get_or_load_model(path: str):
+    def _get_or_load_model(path: str, instance_key: str):
         """线程安全地加载或复用已缓存的模型。"""
-        if path in _local_model_cache:
-            return _local_model_cache[path]
-        with _local_inference_lock:
+        with _local_cache_lock:
             # 二次检查：防止等锁期间其他线程已完成加载
-            if path in _local_model_cache:
-                return _local_model_cache[path]
+            if instance_key in _local_model_cache:
+                return _local_model_cache[instance_key]
             try:
                 import torch
                 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -197,42 +244,63 @@ class LocalLLM(BaseChatModel):
                 trust_remote_code=True,
             )
             model.eval()
-            _local_model_cache[path] = (model, tokenizer)
+
+            # Some chat models (e.g., Qwen) may not define pad_token.
+            # Align pad token to eos token to keep generation stable.
+            if tokenizer.pad_token_id is None:
+                tokenizer.pad_token = tokenizer.eos_token
+            model.config.pad_token_id = tokenizer.pad_token_id
+            if hasattr(model, "generation_config") and model.generation_config is not None:
+                model.generation_config.pad_token_id = tokenizer.pad_token_id
+
+            _local_model_cache[instance_key] = (model, tokenizer)
+            _local_model_locks.setdefault(instance_key, threading.Lock())
             print(f"[LocalLLM] Model loaded.")
-            return _local_model_cache[path]
+            return _local_model_cache[instance_key]
 
     def generate_response(self, user_input: str) -> str:
         self.messages.append({"role": "user", "content": user_input})
 
-        with _local_inference_lock:
+        model, tokenizer, lock = self._acquire_replica()
+        try:
             import torch
-            # 优先使用 apply_chat_template（支持 ChatML / Llama3 等格式）
+            # Build text first, then tokenize to get both input_ids and attention_mask.
             try:
-                input_ids = self._tokenizer.apply_chat_template(
+                text = tokenizer.apply_chat_template(
                     self.messages,
+                    tokenize=False,
                     add_generation_prompt=True,
-                    return_tensors="pt",
-                ).to(self._model.device)
+                )
             except Exception:
                 # 回退：简单拼接角色文本
-                prompt = "\n".join(
+                text = "\n".join(
                     f"{m['role']}: {m['content']}" for m in self.messages
                 )
-                input_ids = self._tokenizer(
-                    prompt, return_tensors="pt"
-                ).input_ids.to(self._model.device)
+
+            max_len = getattr(self.config, "local_max_length", 4096)
+            inputs = tokenizer(
+                text,
+                return_tensors="pt",
+                truncation=True,
+                max_length=max_len,
+                padding=False,
+            )
+            inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
             with torch.no_grad():
-                output_ids = self._model.generate(
-                    input_ids,
+                output_ids = model.generate(
+                    **inputs,
                     max_new_tokens=self.config.local_max_new_tokens,
                     temperature=self.config.local_temperature,
                     top_p=self.config.local_top_p,
                     do_sample=True,
+                    pad_token_id=tokenizer.pad_token_id,
                 )
 
-            new_tokens = output_ids[0][input_ids.shape[-1]:]
-            raw_response = self._tokenizer.decode(new_tokens, skip_special_tokens=True)
+            new_tokens = output_ids[0][inputs["input_ids"].shape[-1]:]
+            raw_response = tokenizer.decode(new_tokens, skip_special_tokens=True)
+        finally:
+            lock.release()
 
         processed = self._process_response_think_tags(raw_response)
         self.messages.append({"role": "assistant", "content": raw_response})

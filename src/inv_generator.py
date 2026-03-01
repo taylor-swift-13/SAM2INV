@@ -1747,6 +1747,9 @@ class InvariantGenerator:
             thread_config.local_max_new_tokens = self.llm_config.local_max_new_tokens
             thread_config.local_temperature = self.llm_config.local_temperature
             thread_config.local_top_p = self.llm_config.local_top_p
+            thread_config.local_max_length = self.llm_config.local_max_length
+            thread_config.local_model_replicas = self.llm_config.local_model_replicas
+            thread_config.local_model_instance_key = self.llm_config.local_model_instance_key
 
         return Chatbot(thread_config)
     
