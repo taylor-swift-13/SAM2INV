@@ -650,7 +650,12 @@ def main() -> None:
     parser.add_argument("--max-attempts", type=int, default=int(USER_CFG.get("max_attempts", 1200)), help="Max generation attempts before stop.")
     parser.add_argument("--seed", type=int, default=int(USER_CFG.get("seed", 2026)), help="Base random seed.")
     parser.add_argument("--workers", type=int, default=int(USER_CFG.get("workers", 20)), help="Number of concurrent workers.")
-    parser.add_argument("--model", type=str, default=str(USER_CFG.get("model", "gpt-5-mini")), help="LLM model name for invariant generation.")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default=LLMConfig().api_model,
+        help="LLM model name for invariant generation (default from src/config.py LLMConfig.api_model).",
+    )
     parser.add_argument("--max-skeleton-repeat", type=int, default=int(USER_CFG.get("max_skeleton_repeat", 3)), help="Maximum accepted samples per loop skeleton key.")
     parser.add_argument(
         "--append",

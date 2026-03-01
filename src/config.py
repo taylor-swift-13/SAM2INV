@@ -5,8 +5,8 @@ from dataclasses import dataclass
 class LLMConfig:
     # API model configuration
     use_api_model = True  # True → OpenAI-compatible API；False → 本地 Transformers 模型
-    api_model: str = "gpt-5-nano"
-    api_key: str = "sk-9dnxPHHwjlTiAlH0u————————pqUSRj9DvZurLZx1R"
+    api_model: str = "qwen3-8b"
+    api_key: str = "sk-afVplv2oRlR8SnMlC3K0ndGKOIsaBN5O3zxrD1B7zWzgNWGA"
     base_url: str = "https://yunwu.ai/v1"
     api_temperature: float = 1.0
     api_top_p: float = 1.0
@@ -30,7 +30,7 @@ SUBDIR = "NLA_lipus"
 #   1. 不触发动态采样（跳过程序执行获取 traces）
 #   2. Prompt 中不包含 traces 信息
 #   3. 跳过基于 traces 的候选不变式筛选阶段
-USE_TRACES = True
+USE_TRACES = False
 
 # ==============================================================================
 # 采样策略配置 (Sampling Strategy Configuration)
@@ -74,7 +74,7 @@ SAMPLING_DEBUG = False  # 是否输出采样策略调试信息
 # ==============================================================================
 
 # 主流程最大迭代次数
-MAX_ITERATION = 1
+MAX_ITERATION = 5
 
 # 不变量补强最大迭代次数（用于 syntax/valid 通过但 satisfy 失败时）
 MAX_STRENGTHEN_ITERATIONS = 0
@@ -85,11 +85,11 @@ MAX_STRENGTHEN_ITERATIONS = 0
 
 # 并行生成配置
 PARALLEL_GENERATION_CONFIG = {
-    'enabled': True,              # 是否启用并行生成多组候选不变式
-    'num_candidates': 5,          # 并行生成的候选组数
+    'enabled': False,              # 是否启用并行生成多组候选不变式
+    'num_candidates': 1,          # 并行生成的候选组数
     'temperature': 1.0,           # 生成温度，控制多样性
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
-    'use_houdini': True,          # 是否使用 Houdini 进一步筛选组合后的不变式
+    'use_houdini': False,         # 是否使用 Houdini 进一步筛选组合后的不变式
     'detect_conflicts': True,     # 是否检测并去除冲突的不变式
     'use_threading': True,        # 是否使用线程池实现真正的并行生成
     'max_workers': 20,            # API 模型：线程池最大并发数
@@ -114,7 +114,7 @@ TEMPLATE_CONFIG = {
 # enabled=True: split top-level && invariants and deduplicate by text ignoring whitespace.
 # enabled=False: keep Houdini output as-is.
 INVARIANT_DEDUP_CONFIG = {
-    'enabled': True,
+    'enabled': False,
 }
 
 # ==============================================================================
@@ -123,8 +123,8 @@ INVARIANT_DEDUP_CONFIG = {
 
 # 语法过滤配置 (Syntax Filter Configuration)
 SYNTAX_FILTER_CONFIG = {
-    'enabled': True,          # 是否启用语法过滤（基于 unified_filter.py）
-    'verbose': True        # 是否输出详细的过滤日志
+    'enabled': False,          # 是否启用语法过滤（基于 unified_filter.py）
+    'verbose': False    # 是否输出详细的过滤日志
 }
 
 # Filter is always enabled and uses variables from symbolic execution record
@@ -141,7 +141,6 @@ LOOP_FACTORY_USER_CONFIG = {
     'max_attempts': 1200,
     'seed': 2026,
     'workers': 20,
-    'model': 'gpt-5-nano',
     'max_skeleton_repeat': 10,
     'append': True,
     'work_dir': '',
@@ -156,7 +155,7 @@ LOOP_FACTORY_USER_CONFIG = {
     'max_depth': 1,
     'p_multi': 0.0,
     'q_nest': 0.0,
-    'p_nonlinear': 0.00,
+    'p_nonlinear': 0.40,
     'p_semantic_core': 0.80
 }
 
