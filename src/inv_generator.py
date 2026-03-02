@@ -1824,16 +1824,19 @@ class InvariantGenerator:
         from config import LLMConfig
 
         thread_config = LLMConfig()
+        # 继承调用方的模式（本地 or 服务商）及全部连接参数
+        thread_config.use_local = self.llm_config.use_local
         thread_config.think_mode_enabled = self.llm_config.think_mode_enabled
-
-        # Service-only architecture: each thread uses an API client with isolated context.
-        thread_config.use_api_model = True
-        thread_config.api_model = model_name
-        thread_config.api_key = self.llm_config.api_key
-        thread_config.base_url = self.llm_config.base_url
-        thread_config.api_base_urls = self.llm_config.api_base_urls
         thread_config.api_temperature = self.llm_config.api_temperature
         thread_config.api_top_p = self.llm_config.api_top_p
+        if self.llm_config.use_local:
+            thread_config.local_model = self.llm_config.local_model
+            thread_config.local_api_key = self.llm_config.local_api_key
+            thread_config.local_base_urls = self.llm_config.local_base_urls
+        else:
+            thread_config.api_model = model_name
+            thread_config.api_key = self.llm_config.api_key
+            thread_config.base_url = self.llm_config.base_url
 
         return Chatbot(thread_config)
     

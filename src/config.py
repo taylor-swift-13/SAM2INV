@@ -4,16 +4,27 @@ from dataclasses import dataclass
 
 @dataclass
 class LLMConfig:
-    # API model configuration
-    use_api_model = True  # Service-only: always use OpenAI-compatible API
-    api_model: str = os.getenv("OPENAI_MODEL", "qwen3-8b")
-    api_key: str = os.getenv("OPENAI_API_KEY", "EMPTY")
+    # ── 模式开关 ──────────────────────────────────────────────────────────────
+    # True  → 走本地服务（vLLM 等 OpenAI 兼容接口）
+    # False → 走云端服务商（yunwu.ai / OpenAI 等）
+    use_local: bool = False
+
+    # ── 云端服务商配置 ────────────────────────────────────────────────────────
+    api_model: str = os.getenv("OPENAI_MODEL", "gpt-5-nano")
+    api_key: str = os.getenv("OPENAI_API_KEY", "")
     base_url: str = os.getenv("OPENAI_BASE_URL", "https://yunwu.ai/v1")
-    # Multi-instance API endpoints (comma-separated). If set, round-robin is used.
-    # Example: "http://127.0.0.1:8001/v1,http://127.0.0.1:8002/v1"
-    api_base_urls: str = os.getenv("OPENAI_BASE_URLS", "")
+
+    # ── 本地模型配置 ──────────────────────────────────────────────────────────
+    # 多实例用逗号分隔，轮询分发：
+    # 例：local_base_urls = "http://127.0.0.1:8001/v1,http://127.0.0.1:8002/v1"
+    local_model: str = os.getenv("LOCAL_MODEL", "")
+    local_api_key: str = os.getenv("LOCAL_API_KEY", "EMPTY")
+    local_base_urls: str = os.getenv("LOCAL_BASE_URLS", "http://127.0.0.1:8001/v1")
+
+    # ── 通用生成参数 ──────────────────────────────────────────────────────────
     api_temperature: float = 1.0
     api_top_p: float = 1.0
+    api_max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "8192"))
     think_mode_enabled: bool = False
 
 # 通用输入子目录配置：替代之前写死的 'linear'

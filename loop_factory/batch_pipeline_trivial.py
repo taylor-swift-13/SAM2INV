@@ -32,6 +32,26 @@ import config  # type: ignore
 import inv_generator as invgen_mod  # type: ignore
 from config import LLMConfig  # type: ignore
 from inv_generator import InvariantGenerator  # type: ignore
+from llm import Chatbot  # type: ignore
+
+# Patch Chatbot.chat at class level so every instance (including thread-local ones
+# created inside _generate_multiple_candidates) is intercepted.
+_capture = threading.local()  # per-thread: .pairs = List[Tuple[str, str]] or None
+_orig_chatbot_chat = Chatbot.chat
+
+
+def _capturing_chat(self, user_input: str) -> str:
+    resp = _orig_chatbot_chat(self, user_input)
+    pairs_list = getattr(_capture, "pairs", None)
+    if pairs_list is not None:
+        prompt = (user_input or "").strip()
+        response = (resp or "").strip()
+        if prompt and response:
+            pairs_list.append((prompt, response))
+    return resp
+
+
+Chatbot.chat = _capturing_chat  # type: ignore[method-assign]
 
 USER_CFG = getattr(config, "LOOP_FACTORY_USER_CONFIG", {})
 
@@ -187,22 +207,14 @@ def run_one_attempt(
         )
 
         # Capture every (prompt, response) pair produced by LLM calls.
+        # Use thread-local storage so the class-level patch (_capturing_chat)
+        # records calls from *all* Chatbot instances, including thread-local ones.
         pairs: List[Tuple[str, str]] = []
-        original_chat = gen.llm.chat
-
-        def chat_capture(user_input: str) -> str:
-            if stop_event.is_set():
-                raise RuntimeError("cancelled")
-            resp = original_chat(user_input)
-            prompt = (user_input or "").strip()
-            response = (resp or "").strip()
-            if prompt and response:
-                pairs.append((prompt, response))
-            return resp
-
-        gen.llm.chat = chat_capture  # type: ignore[assignment]
-
-        gen.generate_all(max_iterations=1)
+        _capture.pairs = pairs
+        try:
+            gen.generate_all(max_iterations=1)
+        finally:
+            _capture.pairs = None
 
         if not pairs:
             return {"ok": False, "reason": "no LLM calls captured", "attempt": attempt, "seed": seed}

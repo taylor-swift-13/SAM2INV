@@ -104,17 +104,21 @@ class BaseChatModel(ABC):
 class OpenAILLM(BaseChatModel):
     def __init__(self, config: LLMConfig):
         super().__init__(config)
-        base_urls = [u.strip() for u in getattr(self.config, "api_base_urls", "").split(",") if u.strip()]
-        if not base_urls:
-            base_urls = [self.config.base_url]
-        self._clients = [
-            openai.OpenAI(base_url=url, api_key=self.config.api_key)
-            for url in base_urls
-        ]
+        if getattr(config, "use_local", False):
+            # 本地模式：支持多实例轮询
+            urls = [u.strip() for u in config.local_base_urls.split(",") if u.strip()]
+            if not urls:
+                urls = ["http://127.0.0.1:8001/v1"]
+            key = config.local_api_key or "EMPTY"
+            self.model_name = config.local_model or ""
+            self._clients = [openai.OpenAI(base_url=url, api_key=key) for url in urls]
+        else:
+            # 云端服务商模式
+            self.model_name = config.api_model
+            self._clients = [openai.OpenAI(base_url=config.base_url, api_key=config.api_key)]
+
         self._rr_lock = threading.Lock()
         self._rr_counter = 0
-        # 为 OpenAI API 使用其特定的模型Name和温度
-        self.model_name = self.config.api_model
         self.temperature = self.config.api_temperature
         self.top_p = self.config.api_top_p
         self.max_tokens = max(1, int(getattr(self.config, "api_max_tokens", 256)))
