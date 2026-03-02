@@ -12,7 +12,7 @@ class LLMConfig:
 
     # ── 云端服务商配置 ────────────────────────────────────────────────────────
     api_model: str = os.getenv("OPENAI_MODEL", "gpt-5-nano")
-    api_key: str = os.getenv("OPENAI_API_KEY", "sk-afVplv2oRlR8SnMlC3K0ndGKOIsaBN5O3zxrD1B7zWzgNWGA")
+    api_key: str = os.getenv("OPENAI_API_KEY", "")
     base_url: str = os.getenv("OPENAI_BASE_URL", "https://yunwu.ai/v1")
 
     # ── 本地推理配置 ──────────────────────────────────────────────────────────
