@@ -209,6 +209,7 @@ def run_one_attempt(
     run_tag: str,
     stop_event: threading.Event,
     lf_overrides: Dict[str, object],
+    src_c_path: Path | None = None,
 ) -> Dict:
     if stop_event.is_set():
         return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
@@ -223,8 +224,11 @@ def run_one_attempt(
     goal_prefix = ""
 
     try:
-        src_c = generate_one_loop(attempt_tmp_loops, seed, lf_overrides)
-        raw_code = src_c.read_text(encoding="utf-8")
+        if src_c_path is not None:
+            raw_code = src_c_path.read_text(encoding="utf-8")
+        else:
+            src_c = generate_one_loop(attempt_tmp_loops, seed, lf_overrides)
+            raw_code = src_c.read_text(encoding="utf-8")
         if not has_no_assert(raw_code):
             return {"ok": False, "reason": "input has assert", "attempt": attempt, "seed": seed}
 
@@ -239,6 +243,7 @@ def run_one_attempt(
         local_cfg.api_model = llm_cfg.api_model
         local_cfg.api_key = llm_cfg.api_key
         local_cfg.base_url = llm_cfg.base_url
+        local_cfg.api_base_urls = llm_cfg.api_base_urls
         local_cfg.use_api_model = llm_cfg.use_api_model
         local_cfg.api_temperature = llm_cfg.api_temperature
         local_cfg.api_top_p = llm_cfg.api_top_p
@@ -373,6 +378,8 @@ def main() -> None:
     parser.add_argument("--q-nest", "--lf-q-nest", dest="q_nest", type=float, default=float(_lf_cfg("q_nest", 0.0)), help="Loop-factory q_nest.")
     parser.add_argument("--p-nonlinear", "--lf-p-nonlinear", dest="p_nonlinear", type=float, default=float(_lf_cfg("p_nonlinear", 0.75)), help="Loop-factory nonlinear family probability.")
     parser.add_argument("--p-semantic-core", "--lf-p-semantic-core", dest="p_semantic_core", type=float, default=float(_lf_cfg("p_semantic_core", 0.88)), help="Loop-factory semantic core probability.")
+    parser.add_argument("--input-dir", type=str, default="",
+                        help="Read .c files from this directory instead of generating with loop_factory.")
     args = parser.parse_args()
 
     os.chdir(SRC)
@@ -415,6 +422,14 @@ def main() -> None:
         "p_semantic_core": args.p_semantic_core,
     }
 
+    input_files: List[Path] | None = None
+    if args.input_dir:
+        input_dir_path = Path(args.input_dir)
+        input_files = sorted(
+            input_dir_path.glob("*.c"),
+            key=lambda p: (int(p.stem) if p.stem.isdigit() else p.stem),
+        )
+
     existing_max_idx = 0
     if args.append:
         existing_raw_files = sorted(raw_dir.glob("*.c"), key=lambda p: int(p.stem))
@@ -439,6 +454,8 @@ def main() -> None:
     signal.signal(signal.SIGINT, _cleanup_on_signal)
 
     seed_offset = existing_max_idx if args.append else 0
+    if input_files is not None:
+        total_candidates = min(total_candidates, max(0, len(input_files) - seed_offset))
     next_attempt = 1
     pending: Dict[concurrent.futures.Future, Tuple[int, int]] = {}
     stop_event = threading.Event()
@@ -449,6 +466,9 @@ def main() -> None:
                 attempt = next_attempt
                 next_attempt += 1
                 seed = args.seed + seed_offset + (attempt - 1)
+                _src_c_path: Path | None = None
+                if input_files is not None:
+                    _src_c_path = input_files[seed_offset + attempt - 1]
                 fut = ex.submit(
                     run_one_attempt,
                     attempt,
@@ -461,6 +481,7 @@ def main() -> None:
                     run_tag,
                     stop_event,
                     lf_overrides,
+                    _src_c_path,
                 )
                 pending[fut] = (attempt, seed)
 
