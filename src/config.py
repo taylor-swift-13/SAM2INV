@@ -5,21 +5,25 @@ from dataclasses import dataclass
 @dataclass
 class LLMConfig:
     # ── 模式开关 ──────────────────────────────────────────────────────────────
-    # True  → 走本地服务（vLLM 等 OpenAI 兼容接口）
-    # False → 走云端服务商（yunwu.ai / OpenAI 等）
-    use_local: bool = False
+    # True  → 本地推理（vLLM 或 Transformers，由 use_vllm 进一步决定）
+    # False → 云端服务商（yunwu.ai / OpenAI 等）
+    # 也可通过环境变量 USE_LOCAL=1 / USE_LOCAL=0 控制
+    use_local: bool = os.getenv("USE_LOCAL", "0").strip() in {"1", "true", "True", "yes"}
 
     # ── 云端服务商配置 ────────────────────────────────────────────────────────
     api_model: str = os.getenv("OPENAI_MODEL", "gpt-5-nano")
-    api_key: str = os.getenv("OPENAI_API_KEY", "")
+    api_key: str = os.getenv("OPENAI_API_KEY", "sk-afVplv2oRlR8SnMlC3K0ndGKOIsaBN5O3zxrD1B7zWzgNWGA")
     base_url: str = os.getenv("OPENAI_BASE_URL", "https://yunwu.ai/v1")
 
-    # ── 本地模型配置 ──────────────────────────────────────────────────────────
-    # 多实例用逗号分隔，轮询分发：
-    # 例：local_base_urls = "http://127.0.0.1:8001/v1,http://127.0.0.1:8002/v1"
-    local_model: str = os.getenv("LOCAL_MODEL", "")
-    local_api_key: str = os.getenv("LOCAL_API_KEY", "EMPTY")
-    local_base_urls: str = os.getenv("LOCAL_BASE_URLS", "http://127.0.0.1:8001/v1")
+    # ── 本地推理配置 ──────────────────────────────────────────────────────────
+    # use_local=True 时生效；通过 use_vllm 选择后端：
+    #   True  → vLLM（高吞吐，推荐多卡）
+    #   False → Transformers（单卡或 CPU，无需 vllm 安装）
+    # 也可通过环境变量 USE_VLLM=1 / USE_VLLM=0 控制
+    use_vllm: bool = os.getenv("USE_VLLM", "1").strip() in {"1", "true", "True", "yes"}
+    vllm_model_path: str = os.getenv("VLLM_MODEL_PATH", "")
+    vllm_gpu_count: int = int(os.getenv("VLLM_GPU_COUNT", "1"))
+    vllm_gpu_mem: float = float(os.getenv("VLLM_GPU_MEM", "0.90"))
 
     # ── 通用生成参数 ──────────────────────────────────────────────────────────
     api_temperature: float = 1.0
@@ -169,14 +173,16 @@ LOOP_FACTORY_USER_CONFIG = {
 
 
 # ==============================================================================
-# Local API Service Bootstrap (for src/scripts/start_local_services_from_config.py)
+# vLLM Engine Bootstrap (for src/scripts/vllm_warmup.py)
 # ==============================================================================
-# 一键从配置启动本地 OpenAI 兼容服务（多个实例，各自加载一份模型）。
-LOCAL_MODEL_SERVICE_CONFIG = {
-    # 必填：本地模型路径。为空时启动脚本会报错退出。
+# 配置在进程内直接加载的 vLLM 引擎参数，无需启动 HTTP 服务。
+VLLM_ENGINE_CONFIG = {
+    # 必填：本地模型路径（HuggingFace 格式）。
     'model_path': '',
-    # 启动实例数（同一路径加载多少份模型）。
-    'num_instances': 1,
+    # 推理使用的 GPU 数量（tensor parallel）。
+    'gpu_count': 1,
+    # GPU 显存利用率（0~1）。
+    'gpu_mem': 0.90,
 }
 
 

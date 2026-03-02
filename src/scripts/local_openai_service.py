@@ -1,148 +1,61 @@
 #!/usr/bin/env python3
+"""
+vLLM 独立推理脚本（原 local_openai_service.py 已废弃）。
+
+之前的做法：用 FastAPI + Transformers 启动 HTTP 服务，再用 OpenAI 客户端访问。
+现在的做法：直接在进程内通过 vllm.LLM 推理，无需任何 HTTP 服务层。
+
+此脚本作为 VLLMClient 的独立使用示例，可单独运行验证环境。
+"""
+from __future__ import annotations
+
 import argparse
-import time
-from typing import Any, Dict, Optional
+import sys
+from pathlib import Path
 
-import torch
-from fastapi import FastAPI, HTTPException, Header
-from pydantic import BaseModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import uvicorn
+# 将 src/ 加入路径，使 VLLMClient 可直接导入
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
-
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-
-class ChatCompletionRequest(BaseModel):
-    model: str
-    messages: list[ChatMessage]
-    temperature: float = 1.0
-    top_p: float = 1.0
-    max_tokens: int = 1024
-
-
-def build_app(
-    model_path: str,
-    served_model_name: str,
-    api_key: str,
-    max_model_len: int,
-) -> FastAPI:
-    app = FastAPI()
-
-    print(f"[local-api] Loading model from {model_path} ...")
-    tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_path,
-        dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
-        device_map="auto",
-        trust_remote_code=True,
-    )
-    model.eval()
-
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
-    model.config.pad_token_id = tokenizer.pad_token_id
-    if getattr(model, "generation_config", None) is not None:
-        model.generation_config.pad_token_id = tokenizer.pad_token_id
-    print("[local-api] Model loaded.")
-
-    def _auth_ok(auth_header: Optional[str]) -> bool:
-        if not api_key:
-            return True
-        if not auth_header:
-            return False
-        return auth_header.strip() == f"Bearer {api_key}"
-
-    @app.get("/v1/models")
-    def list_models(authorization: Optional[str] = Header(default=None)) -> Dict[str, Any]:
-        if not _auth_ok(authorization):
-            raise HTTPException(status_code=401, detail="Unauthorized")
-        return {"object": "list", "data": [{"id": served_model_name, "object": "model"}]}
-
-    @app.post("/v1/chat/completions")
-    def chat_completions(req: ChatCompletionRequest, authorization: Optional[str] = Header(default=None)) -> Dict[str, Any]:
-        if not _auth_ok(authorization):
-            raise HTTPException(status_code=401, detail="Unauthorized")
-        if req.model != served_model_name:
-            raise HTTPException(status_code=400, detail=f"Unknown model: {req.model}")
-
-        msgs = [{"role": m.role, "content": m.content} for m in req.messages]
-        try:
-            text = tokenizer.apply_chat_template(
-                msgs,
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-        except Exception:
-            text = "\n".join(f"{m['role']}: {m['content']}" for m in msgs)
-
-        inputs = tokenizer(
-            text,
-            return_tensors="pt",
-            truncation=True,
-            max_length=max_model_len,
-            padding=False,
-        )
-        inputs = {k: v.to(model.device) for k, v in inputs.items()}
-
-        with torch.no_grad():
-            output_ids = model.generate(
-                **inputs,
-                max_new_tokens=max(1, int(req.max_tokens)),
-                temperature=max(0.0, float(req.temperature)),
-                top_p=max(0.0, min(1.0, float(req.top_p))),
-                do_sample=float(req.temperature) > 0.0,
-                pad_token_id=tokenizer.pad_token_id,
-            )
-
-        new_tokens = output_ids[0][inputs["input_ids"].shape[-1] :]
-        content = tokenizer.decode(new_tokens, skip_special_tokens=True)
-        prompt_tokens = int(inputs["input_ids"].shape[-1])
-        completion_tokens = int(new_tokens.shape[-1])
-        total_tokens = prompt_tokens + completion_tokens
-        now = int(time.time())
-
-        return {
-            "id": f"chatcmpl-{now}",
-            "object": "chat.completion",
-            "created": now,
-            "model": served_model_name,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": content},
-                    "finish_reason": "stop",
-                }
-            ],
-            "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-            },
-        }
-
-    return app
+from llm import VLLMClient  # type: ignore
+from vllm import SamplingParams  # type: ignore
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="OpenAI-compatible local chat service (Transformers backend).")
-    parser.add_argument("--model-path", required=True, help="Local model path.")
-    parser.add_argument("--served-model-name", default="qwen-local", help="Model id exposed at /v1.")
-    parser.add_argument("--host", default="0.0.0.0")
-    parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--api-key", default="", help="Bearer token required by API clients.")
-    parser.add_argument("--max-model-len", type=int, default=8192)
+    parser = argparse.ArgumentParser(description="vLLM 独立推理示例")
+    parser.add_argument("--model-path", required=True, help="本地模型路径（HuggingFace 格式）")
+    parser.add_argument("--gpu-count", type=int, default=1, help="Tensor parallel GPU 数量")
+    parser.add_argument("--gpu-mem", type=float, default=0.90, help="GPU 显存利用率 (0~1)")
+    parser.add_argument("--prompt", type=str, default="你好，请介绍一下你自己。", help="测试 prompt")
+    parser.add_argument("--max-tokens", type=int, default=512, help="最大生成 token 数")
+    parser.add_argument("--temperature", type=float, default=0.0, help="采样温度")
     args = parser.parse_args()
 
-    app = build_app(
+    # 初始化（全局仅此一次）
+    client = VLLMClient(
         model_path=args.model_path,
-        served_model_name=args.served_model_name,
-        api_key=args.api_key,
-        max_model_len=args.max_model_len,
+        gpu_count=args.gpu_count,
+        gpu_mem=args.gpu_mem,
     )
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+
+    sampling_params = SamplingParams(
+        temperature=args.temperature,
+        max_tokens=args.max_tokens,
+    )
+
+    # 单轮推理示例
+    print(f"\n[Prompt] {args.prompt}")
+    response = client.chat(args.prompt, sampling_params=sampling_params)
+    print(f"[Response] {response}")
+
+    # 多轮对话示例（messages 格式）
+    messages = [
+        {"role": "system", "content": "你是一个有帮助的助手。"},
+        {"role": "user", "content": args.prompt},
+    ]
+    text, pt, ct = client.chat_messages(messages, sampling_params=sampling_params)
+    print(f"\n[Messages] prompt_tokens={pt}  completion_tokens={ct}")
+    print(f"[Response] {text}")
 
 
 if __name__ == "__main__":

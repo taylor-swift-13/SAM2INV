@@ -1,82 +1,43 @@
 #!/usr/bin/env python3
+"""
+vLLM 引擎预热脚本（原 start_local_services_from_config.py 已废弃）。
+
+之前的做法：从 LOCAL_MODEL_SERVICE_CONFIG 读取参数，启动多个 FastAPI+Transformers HTTP 进程。
+现在的做法：vLLM 引擎直接在推理进程内加载（见 src/llm.py VLLMClient），无需独立服务进程。
+
+此脚本读取 VLLM_ENGINE_CONFIG，提前触发 VLLMClient 单例初始化，用于预热验证。
+"""
 from __future__ import annotations
 
-import os
-import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
-def _load_cfg() -> Dict[str, object]:
-    root = Path(__file__).resolve().parents[1]
-    if str(root) not in sys.path:
-        sys.path.insert(0, str(root))
-    import config  # type: ignore
-
-    cfg = getattr(config, "LOCAL_MODEL_SERVICE_CONFIG", {})
-    if not isinstance(cfg, dict):
-        raise RuntimeError("LOCAL_MODEL_SERVICE_CONFIG is missing or not a dict")
-    return cfg
+import config as cfg_mod  # type: ignore
+from config import LLMConfig  # type: ignore
+from llm import _get_vllm_client  # type: ignore
 
 
 def main() -> None:
-    cfg = _load_cfg()
-    root = Path(__file__).resolve().parents[1]
-    script = root / "scripts" / "local_openai_service.py"
-    log_dir = root / "log" / "local_api_instances"
-    log_dir.mkdir(parents=True, exist_ok=True)
-
-    model_path = str(cfg.get("model_path", "")).strip()
+    engine_cfg = getattr(cfg_mod, "VLLM_ENGINE_CONFIG", {})
+    model_path = str(engine_cfg.get("model_path", "")).strip()
     if not model_path:
-        raise RuntimeError("LOCAL_MODEL_SERVICE_CONFIG['model_path'] is empty.")
+        raise RuntimeError("VLLM_ENGINE_CONFIG['model_path'] 未设置。")
 
-    n = max(1, int(cfg.get("num_instances", 1)))
-    # Fixed defaults to keep configuration minimal.
-    start_port = 8001
-    served_model = "qwen-local"
-    api_key = os.getenv("OPENAI_API_KEY", "EMPTY")
-    max_model_len = 8192
-    host = "0.0.0.0"
+    llm_cfg = LLMConfig(
+        use_local=True,
+        vllm_model_path=model_path,
+        vllm_gpu_count=int(engine_cfg.get("gpu_count", 1)),
+        vllm_gpu_mem=float(engine_cfg.get("gpu_mem", 0.90)),
+    )
 
-    urls: List[str] = []
-    for i in range(n):
-        port = start_port + i
-        env = os.environ.copy()
-
-        log_file = log_dir / f"instance_{port}.log"
-        pid_file = log_dir / f"instance_{port}.pid"
-        cmd = [
-            sys.executable,
-            str(script),
-            "--model-path",
-            model_path,
-            "--served-model-name",
-            served_model,
-            "--host",
-            host,
-            "--port",
-            str(port),
-            "--api-key",
-            api_key,
-            "--max-model-len",
-            str(max_model_len),
-        ]
-        with log_file.open("a", encoding="utf-8") as lf:
-            proc = subprocess.Popen(
-                cmd,
-                cwd=str(root),
-                env=env,
-                stdout=lf,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
-        pid_file.write_text(str(proc.pid), encoding="utf-8")
-        urls.append(f"http://127.0.0.1:{port}/v1")
-        print(f"[started] port={port} pid={proc.pid} log={log_file}")
-
-    joined = ",".join(urls)
-    print(joined)
+    print(f"[vllm-warmup] 预热 vLLM 引擎: {model_path}")
+    client = _get_vllm_client(llm_cfg)
+    # 发送一条空推理触发 KV-cache 及 CUDA 核编译
+    client.chat("warm up", sampling_params=client._SamplingParams(temperature=0, max_tokens=1))
+    print("[vllm-warmup] 引擎已就绪。")
 
 
 if __name__ == "__main__":
