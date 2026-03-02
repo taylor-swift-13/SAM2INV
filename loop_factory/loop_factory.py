@@ -205,7 +205,10 @@ class ProbabilisticLoopFactory:
         # Fuel is an upper bound. Actual loop count is sampled in [0, while_fuel].
         lo = max(1, self.hp.min_while_fuel)
         hi = max(lo, self.hp.while_fuel)
-        return self.rng.randint(lo, hi)
+        count = lo
+        while count < hi and self.rng.random() < self.hp.p_multi:
+            count += 1
+        return count
 
     def _sample_const(self) -> int:
         return self.rng.choice([-8, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 8])
@@ -1762,7 +1765,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-ifelse", type=int, default=4, help="Per-loop if/if-else upper bound; actual sampled in [0, max-ifelse]")
 
     parser.add_argument("--max-depth", type=int, default=2, help="Max loop nesting depth")
-    parser.add_argument("--p-multi", type=float, default=0.35, help="Loop continuation probability p")
+    parser.add_argument("--p-multi", type=float, default=0.12, help="Loop continuation probability p")
     parser.add_argument("--q-nest", type=float, default=0.12, help="Loop nesting probability q")
 
     parser.add_argument("--p-nonlinear", type=float, default=0.58, help="Probability of NLA-like loop family")
