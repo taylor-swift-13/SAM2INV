@@ -199,6 +199,128 @@ class InvariantGenerator:
                     return block
         return blocks[0]
 
+    def _extract_balanced_region(self, text: str, start_idx: int) -> Optional[str]:
+        """Extract a balanced {...} region starting from the first '{' at/after start_idx."""
+        if not text:
+            return None
+        open_idx = text.find('{', start_idx)
+        if open_idx < 0:
+            return None
+        depth = 0
+        i = open_idx
+        n = len(text)
+        while i < n:
+            ch = text[i]
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return text[start_idx : i + 1]
+            i += 1
+        return None
+
+    def _extract_function_region(self, text: str, function_name: Optional[str]) -> Optional[str]:
+        """Extract a full function definition (optionally by target function name)."""
+        if not text:
+            return None
+
+        blocked = {"if", "for", "while", "switch"}
+        if function_name:
+            pat = re.compile(
+                rf'^\s*(?:[A-Za-z_]\w*[\s\*]+)+{re.escape(function_name)}\s*\([^;{{}}]*\)\s*\{{',
+                re.MULTILINE,
+            )
+            matches = list(pat.finditer(text))
+        else:
+            pat = re.compile(
+                r'^\s*(?:[A-Za-z_]\w*[\s\*]+)+([A-Za-z_]\w*)\s*\([^;{}]*\)\s*\{',
+                re.MULTILINE,
+            )
+            matches = [m for m in pat.finditer(text) if m.group(1) not in blocked]
+
+        for m in matches:
+            func_start = m.start()
+            segment = self._extract_balanced_region(text, func_start)
+            if not segment:
+                continue
+
+            # Include attached ACSL contract if present.
+            prefix = text[:func_start]
+            acsl_match = re.search(r'/\*@[\s\S]*?\*/\s*$', prefix)
+            if acsl_match:
+                return text[acsl_match.start() : func_start] + segment
+            return segment
+        return None
+
+    def _extract_code_from_llm_response(self, response: str, expected_func: Optional[str]) -> Optional[str]:
+        """Robustly extract C code from an LLM response."""
+        text = (response or "").replace("\r\n", "\n").strip()
+        if not text:
+            return None
+
+        # Standard fenced code blocks: ```c ... ```, ```cpp ... ```, ``` ... ```
+        blocks = re.findall(r'```(?:[A-Za-z0-9_+\-]*)?\s*\n([\s\S]*?)```', text, re.DOTALL)
+        blocks = [b.strip() for b in blocks if b and b.strip()]
+        if blocks:
+            return self._prefer_code_block_by_function(blocks, expected_func)
+
+        # Unclosed fenced block.
+        unclosed = re.search(r'```(?:[A-Za-z0-9_+\-]*)?\s*\n([\s\S]*)$', text, re.DOTALL)
+        if unclosed and unclosed.group(1).strip():
+            return unclosed.group(1).strip()
+
+        # No fences: extract by function signature + balanced braces.
+        function_region = self._extract_function_region(text, expected_func)
+        if function_region:
+            return function_region.strip()
+
+        # Last-resort fallback for code-like raw responses.
+        code_markers = (
+            "/*@",
+            "#include",
+            "loop invariant",
+            "while(",
+            "while (",
+            "for(",
+            "for (",
+            "return ",
+        )
+        if any(m in text for m in code_markers):
+            first_code = re.search(
+                r'(#include\b|/\*@|\b(?:int|void|long|short|char|float|double)\s+[A-Za-z_]\w*\s*\()',
+                text,
+            )
+            candidate = text[first_code.start() :].strip() if first_code else text
+            if "{" in candidate or ";" in candidate or "loop invariant" in candidate:
+                return candidate
+
+        return None
+
+    def _extract_or_fallback_code(
+        self,
+        response: str,
+        expected_func: Optional[str],
+        fallback_code: str,
+        log_prefix: str = "",
+    ) -> Optional[str]:
+        """
+        Extract code from response. If extraction fails, fallback to provided template/code.
+        This avoids dropping candidates due to format-only response issues.
+        """
+        extracted = self._extract_code_from_llm_response(response, expected_func)
+        if extracted is not None and extracted.strip():
+            return extracted.strip()
+
+        fallback = (fallback_code or "").strip()
+        if fallback:
+            if log_prefix:
+                self.logger.warning(f"{log_prefix}failed to extract code; falling back to template code")
+            else:
+                self.logger.warning("failed to extract code; falling back to template code")
+            return fallback
+        return None
+
     def _extract_loop_segment_with_optional_annotation(self, code: str, loop_idx: int) -> Optional[str]:
         """
         Extract loop segment by index and include the nearest ACSL block right before it.
@@ -1242,20 +1364,8 @@ class InvariantGenerator:
         try:
             response = self.llm.chat(refine_prompt)
             
-            # Extract code from response: prefer block containing target function name
-            extracted_code = None
             expected_func = self._extract_primary_function_name(current_code)
-
-            all_code_blocks = re.findall(r'```c\n(.*?)\n```', response, re.DOTALL)
-            if not all_code_blocks:
-                all_code_blocks = re.findall(r'```\n(.*?)\n```', response, re.DOTALL)
-
-            if all_code_blocks:
-                extracted_code = self._prefer_code_block_by_function(all_code_blocks, expected_func)
-
-            # Fallback: return response if it looks like code
-            if extracted_code is None and ('/*@' in response or '#include' in response or '{' in response):
-                extracted_code = response.strip()
+            extracted_code = self._extract_code_from_llm_response(response, expected_func)
 
             if extracted_code is None:
                 return None
@@ -1658,21 +1768,8 @@ class InvariantGenerator:
         # Call LLM to fill in the placeholders
         response = self.llm.chat(prompt)
         
-        # Extract code from response: prefer block containing target function name
-        extracted_code = None
         expected_func = self._extract_primary_function_name(code_with_template)
-
-        # 找所有 ```c ... ``` 代码块
-        all_code_blocks = re.findall(r'```c\n(.*?)\n```', response, re.DOTALL)
-        if not all_code_blocks:
-            all_code_blocks = re.findall(r'```\n(.*?)\n```', response, re.DOTALL)
-
-        if all_code_blocks:
-            extracted_code = self._prefer_code_block_by_function(all_code_blocks, expected_func)
-
-        # Fallback: return response if it looks like code
-        if extracted_code is None and ('/*@' in response or '#include' in response or '{' in response):
-            extracted_code = response.strip()
+        extracted_code = self._extract_code_from_llm_response(response, expected_func)
         
         if extracted_code is None:
             return None
@@ -1802,25 +1899,17 @@ class InvariantGenerator:
                         # 调用独立的 LLM client 生成（不共享上下文）
                         response = thread_llm.chat(prompt)
                         
-                        # 提取代码：优先选包含目标函数名的代码块
-                        extracted_code = None
                         expected_func = self._extract_primary_function_name(code_with_template)
-
-                        # 找所有 ```c ... ``` 代码块
-                        all_code_blocks = re.findall(r'```c\n(.*?)\n```', response, re.DOTALL)
-                        if not all_code_blocks:
-                            all_code_blocks = re.findall(r'```\n(.*?)\n```', response, re.DOTALL)
-
-                        if all_code_blocks:
-                            extracted_code = self._prefer_code_block_by_function(all_code_blocks, expected_func)
-                        elif '/*@' in response or '#include' in response:
-                            extracted_code = response.strip()
+                        extracted_code = self._extract_code_from_llm_response(response, expected_func)
                         
                         if extracted_code:
                             # Validate and fix code structure (using self from outer scope)
                             extracted_code = self._validate_and_fix_code_structure(extracted_code, code_with_template)
                             return extracted_code
                         else:
+                            self.logger.warning(
+                                f"  Raw response for candidate {candidate_idx+1}:\n{response}"
+                            )
                             self.logger.warning(f"  Failed to extract code from candidate {candidate_idx+1}")
                             return None
                     except Exception as e:
@@ -1871,24 +1960,15 @@ class InvariantGenerator:
                     # 调用独立的 LLM client 生成（不共享上下文）
                     response = thread_llm.chat(prompt)
                     
-                    # 提取代码：优先选包含目标函数名的代码块
-                    extracted_code = None
                     expected_func = self._extract_primary_function_name(code_with_template)
-
-                    all_code_blocks = re.findall(r'```c\n(.*?)\n```', response, re.DOTALL)
-                    if not all_code_blocks:
-                        all_code_blocks = re.findall(r'```\n(.*?)\n```', response, re.DOTALL)
-
-                    if all_code_blocks:
-                        extracted_code = self._prefer_code_block_by_function(all_code_blocks, expected_func)
-                    elif '/*@' in response or '#include' in response:
-                        extracted_code = response.strip()
+                    extracted_code = self._extract_code_from_llm_response(response, expected_func)
                     
                     if extracted_code:
                         # Validate and fix code structure
                         extracted_code = self._validate_and_fix_code_structure(extracted_code, code_with_template)
                         candidates.append(extracted_code)
                     else:
+                        self.logger.warning(f"  Raw response for candidate {i+1}:\n{response}")
                         candidates.append(None)
                         self.logger.warning(f"  Failed to extract code from candidate {i+1}")
         

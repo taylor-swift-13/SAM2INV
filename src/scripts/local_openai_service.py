@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-from __future__ import annotations
-
 import argparse
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import torch
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from pydantic import BaseModel
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import uvicorn
@@ -19,7 +17,7 @@ class ChatMessage(BaseModel):
 
 class ChatCompletionRequest(BaseModel):
     model: str
-    messages: List[ChatMessage]
+    messages: list[ChatMessage]
     temperature: float = 1.0
     top_p: float = 1.0
     max_tokens: int = 1024
@@ -58,13 +56,13 @@ def build_app(
         return auth_header.strip() == f"Bearer {api_key}"
 
     @app.get("/v1/models")
-    def list_models(authorization: Optional[str] = None) -> Dict[str, Any]:
+    def list_models(authorization: Optional[str] = Header(default=None)) -> Dict[str, Any]:
         if not _auth_ok(authorization):
             raise HTTPException(status_code=401, detail="Unauthorized")
         return {"object": "list", "data": [{"id": served_model_name, "object": "model"}]}
 
     @app.post("/v1/chat/completions")
-    def chat_completions(req: ChatCompletionRequest, authorization: Optional[str] = None) -> Dict[str, Any]:
+    def chat_completions(req: ChatCompletionRequest, authorization: Optional[str] = Header(default=None)) -> Dict[str, Any]:
         if not _auth_ok(authorization):
             raise HTTPException(status_code=401, detail="Unauthorized")
         if req.model != served_model_name:
@@ -134,7 +132,7 @@ def main() -> None:
     parser.add_argument("--served-model-name", default="qwen-local", help="Model id exposed at /v1.")
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--api-key", default="EMPTY", help="Bearer token required by API clients.")
+    parser.add_argument("--api-key", default="", help="Bearer token required by API clients.")
     parser.add_argument("--max-model-len", type=int, default=8192)
     args = parser.parse_args()
 

@@ -586,7 +586,7 @@ class ProbabilisticLoopFactory:
             euclid_w = self.hp.w_core_euclid_matrix
 
             allow("cond_fixed", cond_w if nla_family else 0.0, 1, 4, 3)       # branch + fixed updates
-            allow("conservation", lin_w, 0, 2, 2)                             # conservation pair
+            allow("linear_conservation_family", lin_w + 0.4 * cond_w, 0, 2, 2) # conservation/lockstep/counter-compensation
             allow("affine_chain", lin_w + cond_w, 0, 3, 3)                    # affine recurrence chain
             allow("remainder_buckets", cond_w, 2, 2, 3)                        # remainder bucket counting
             allow("monotone_bound", lin_w, 1, 1, 2)                            # monotone bound-tied update
@@ -597,11 +597,10 @@ class ProbabilisticLoopFactory:
             allow("gcd_compare", cond_w if nla_family else lin_w, 1, 1, 2)     # compare-driven dual decrease
 
             # Extra linear cores inspired by src/input/linear motifs.
-            allow("snapshot_step", lin_w + 0.4 * cond_w, 0, 2, 2)               # m=x; x=x+c
+            allow("snapshot_family", lin_w + cond_w, 1, 2, 3)                   # snapshot/guarded_snapshot/chase
             allow("complement_step", lin_w + 0.5 * cond_w, 0, 2, 2)             # y=n-x; x=x+1
-            allow("guarded_snapshot", lin_w + cond_w, 1, 2, 3)                  # if (..) m=x; x=x+1
             allow("triple_decrease", lin_w + cond_w, 2, 3, 3)                   # if(a>0) if(b>0) x-=1,y-=1,z-=1
-            allow("stride_progress", lin_w, 0, 1, 1)                            # x=x+2 / x=x+3
+            allow("stride_family", lin_w + 0.5 * cond_w, 0, 1, 2)               # fixed/proportional strides
             allow("min_update_guarded_bound", min_w + 0.6, 1, 2, 3)             # while(x<lim) {x+=1; if(z<=y) y=z;}
             allow("negative_cross_progress", lin_w + 1.1, 0, 2, 2)              # x<0; x+=y; y+=1 (linear/84,85-like)
             allow("triplet_lockstep_stride", lin_w + 0.9, 0, 3, 3)              # i/j/k synchronized +s (linear/315,316-like)
@@ -619,8 +618,8 @@ class ProbabilisticLoopFactory:
             allow("qr_countdown_bucket", qr_w, 1, 3, 4)                         # if(r+1==B){q++;r=0;t--}else{r++;t--}
             # Body-first cores requested by user (not bound to while(1)).
             allow("triple_recurrence_step", qr_w + 0.5, 0, 4, 4)                # x=x+y; y=y+z; z=z+const; n++
-            allow("simple_accumulate", lin_w + 0.7, 0, 1, 2)                    # y+=x
-            allow("triangular_progress", lin_w + 0.8, 0, 2, 3)                  # i++; j+=i
+            allow("accumulate_family", lin_w + 0.8, 0, 1, 2)                    # simple_accumulate/linear_product_reduce
+            allow("prefix_sum_family", lin_w + 0.9, 0, 2, 3)                    # triangular/sum-before/prefix-sum
             allow("mul_affine_param_pair", (cond_w + 0.8) if nla_family else (lin_w + 0.6), 0, 2, 4)  # merged mul-affine family
             allow("power_accumulate", cond_w if nla_family else (lin_w + 0.5), 0, 2, 3)  # y++; x+=y^k
             allow("parity_decomposition_product", cond_w + qr_w + 0.9, 2, 5, 4)          # parity-driven multiplicative decomposition
@@ -630,7 +629,7 @@ class ProbabilisticLoopFactory:
             allow("quadratic_form_triplet", cond_w + 0.9, 0, 4, 4)                        # three-way quadratic-form accumulation
             allow("euclid_coupled_accumulator", euclid_w + 0.7, 1, 3, 4)                  # Euclid-style reduction with coupled drift
             allow("fixed_point_root_refinement", cond_w + rel_w + 0.7, 0, 2, 3)           # fixed-point integer root refinement
-            allow("prefix_sum_progression", lin_w + 0.8, 0, 2, 3)                          # monotone prefix-sum progression
+            # merged into prefix_sum_family above
             allow("residual_branch_walk", cond_w + 0.9, 1, 3, 4)                           # branch-controlled residual walk
             allow("multi_branch_swap_recurrence", qr_w + cond_w + 1.0, 3, 8, 6)           # 4-way swap recurrence with moving threshold
             # while(1)-specific cores (all unique by body shape + break condition).
@@ -639,15 +638,21 @@ class ProbabilisticLoopFactory:
             allow("while_one_mul_break", cond_w + 1.0, 1, 4, 4)                 # break on c>=lim; mul-affine pair
             allow("while_one_recurrence_break", qr_w + 0.9, 1, 5, 4)            # break on n>lim; 3-var recurrence
             # ── Cores derived from linear/ and NLA_lipus/ real benchmarks ──────────
-            allow("snapshot_chase", lin_w, 0, 2, 3)                              # c=a; while(a!=0){a--;b--;} (linear/124,270)
+            # merged into snapshot_family above
             allow("parity_alternating", cond_w, 1, 2, 4)                         # flag-flip dual counter (linear/176)
-            allow("proportional_stride", lin_w + 0.5, 0, 2, 2)                  # j+=k; i++ (linear/154)
-            allow("sum_before_incr", lin_w + 0.6, 0, 2, 2)                      # sum+=i; i++ (linear/172, NLA/39)
+            # merged into stride_family / prefix_sum_family above
             allow("russian_multiply", cond_w if nla_family else 0.0, 1, 3, 3)   # z+=x;x*=2;y/=2 (NLA/14)
             allow("cauchy_schwarz_triple", qr_w if nla_family else (lin_w * 0.3), 0, 4, 4)  # z+=x²;w+=y²;p+=xy (NLA/29)
-            allow("linear_product_reduce", lin_w + 0.4, 0, 2, 2)                # product+=a; i++ (NLA/42)
+            # merged into accumulate_family above
             allow("int_sqrt_sieve", lin_w + 0.5, 0, 2, 2)                       # x-=r; r++ (NLA/36)
             allow("countdown_triple", lin_w + 0.6, 0, 3, 3)                     # lo++;hi--;mid-- (linear/145)
+            # Extra targeted cores for uncovered linear patterns.
+            allow("binary_toggle", cond_w + 0.6, 1, 1, 1)                       # if(x==1)x=2; else if(x==2)x=1
+            # merged into linear_conservation_family / stride_family above
+            allow("gap_drift_piecewise", cond_w + 0.7, 1, 3, 2)                 # if(x-y<k){x--;y+=2}else{y++}
+            allow("alternating_series_accumulator", cond_w + 0.8, 1, 5, 4)      # term recurrence + alternating sign
+            allow("turn_based_state_machine", cond_w + rel_w + 0.8, 3, 5, 4)    # turn-driven multi-phase updates
+            allow("equal_pair_piecewise_increment", cond_w + 0.7, 2, 5, 3)      # a/b same-step piecewise increments
 
             chosen = self.rng.choices(candidates, weights=weights, k=1)[0] if candidates else ""
 
@@ -663,16 +668,30 @@ class ProbabilisticLoopFactory:
                 used_if += 1
                 used_assign += 4
                 core_applied = True
-            elif chosen == "conservation":
-                # u-v or u+v style conservation pair.
-                step = self.rng.randint(1, 4)
-                if self.rng.random() < 0.4:
-                    body.extend([Assign(a, f"{a}+{step}"), Assign(b, f"{b}-{step}")])
-                elif self.rng.random() < 0.7:
-                    body.extend([Assign(a, f"{a}+{step}"), Assign(b, f"{b}+{step}")])
+            elif chosen == "linear_conservation_family":
+                # Merged family:
+                # - conservation pair
+                # - lockstep equal increments
+                # - counter compensation (sum conservation)
+                mode = self.rng.choice(["conservation", "lockstep", "counter_comp"])
+                if mode == "conservation":
+                    step = self.rng.randint(1, 4)
+                    if self.rng.random() < 0.4:
+                        body.extend([Assign(a, f"{a}+{step}"), Assign(b, f"{b}-{step}")])
+                    elif self.rng.random() < 0.7:
+                        body.extend([Assign(a, f"{a}+{step}"), Assign(b, f"{b}+{step}")])
+                    else:
+                        body.extend([Assign(a, f"{a}+{step}"), Assign(b, f"{b}+{a}")])
+                    used_assign += 2
+                elif mode == "lockstep":
+                    body.extend([Assign(a, f"{a}+1"), Assign(b, f"{b}+1")])
+                    used_assign += 2
                 else:
-                    body.extend([Assign(a, f"{a}+{step}"), Assign(b, f"{b}+{a}")])
-                used_assign += 2
+                    set_init(a, "0")
+                    set_init(b, lim)
+                    guard = f"{a}<{lim}&&{b}>0"
+                    body.extend([Assign(a, f"{a}+1"), Assign(b, f"{b}-1")])
+                    used_assign += 2
                 core_applied = True
             elif chosen == "affine_chain":
                 # Affine recurrence chain.
@@ -733,24 +752,34 @@ class ProbabilisticLoopFactory:
                 used_if += 1
                 used_assign += 1
                 core_applied = True
-            elif chosen == "snapshot_step":
-                # linear motif: m=x; x=x+c
-                step = self.rng.randint(1, 3)
-                body.extend([Assign(b, a), Assign(a, f"{a}+{step}")])
-                used_assign += 2
+            elif chosen == "snapshot_family":
+                # Merged family:
+                # - snapshot_step: m=x; x=x+c
+                # - guarded_snapshot: if(g<lim)m=x; x++
+                # - snapshot_chase: while(x!=0){x--;y--;}
+                mode = self.rng.choice(["snapshot_step", "guarded_snapshot", "snapshot_chase"])
+                if mode == "snapshot_step":
+                    step = self.rng.randint(1, 3)
+                    body.extend([Assign(b, a), Assign(a, f"{a}+{step}")])
+                    used_assign += 2
+                elif mode == "guarded_snapshot":
+                    guard_var = c
+                    body.append(IfOnly(cond=f"{guard_var}<{lim}", then_body=[Assign(b, a)]))
+                    body.append(Assign(a, f"{a}+1"))
+                    used_if += 1
+                    used_assign += 2
+                else:
+                    set_init(c, a)
+                    set_init(a, f"({src}%18)+5")
+                    set_init(b, f"({src}%15)+3")
+                    guard = f"{a}!=0"
+                    body.extend([Assign(a, f"{a}-1"), Assign(b, f"{b}-1")])
+                    used_assign += 2
                 core_applied = True
             elif chosen == "complement_step":
                 # linear motif: y=n-x; x=x+1
                 set_init(a, "0")
                 body.extend([Assign(b, f"{lim}-{a}"), Assign(a, f"{a}+1")])
-                used_assign += 2
-                core_applied = True
-            elif chosen == "guarded_snapshot":
-                # linear motif: if (cond) m=x; x=x+1
-                guard_var = c
-                body.append(IfOnly(cond=f"{guard_var}<{lim}", then_body=[Assign(b, a)]))
-                body.append(Assign(a, f"{a}+1"))
-                used_if += 1
                 used_assign += 2
                 core_applied = True
             elif chosen == "triple_decrease":
@@ -770,11 +799,25 @@ class ProbabilisticLoopFactory:
                 used_if += 2
                 used_assign += 3
                 core_applied = True
-            elif chosen == "stride_progress":
-                # linear motif: x increases by fixed stride > 1
-                step = self.rng.randint(2, 4)
-                body.append(Assign(a, f"{a}+{step}"))
-                used_assign += 1
+            elif chosen == "stride_family":
+                # Merged family:
+                # - stride_progress / fixed_stride_progress
+                # - proportional_stride
+                mode = self.rng.choice(["fixed", "proportional"])
+                if mode == "fixed":
+                    set_init(a, "0")
+                    guard = f"{a}<{lim}"
+                    step = self.rng.choice([2, 3, 4])
+                    body.append(Assign(a, f"{a}+{step}"))
+                    used_assign += 1
+                else:
+                    step_ratio = self.rng.randint(2, 5)
+                    set_init(a, "0")
+                    set_init(b, "0")
+                    guard = f"{a}<{lim}"
+                    body.append(Assign(b, f"{b}+{step_ratio}"))
+                    body.append(Assign(a, f"{a}+1"))
+                    used_assign += 2
                 core_applied = True
             elif chosen == "min_update_guarded_bound":
                 # Strong linear target: bounded progress + guarded min-update.
@@ -977,15 +1020,43 @@ class ProbabilisticLoopFactory:
                 body.append(Assign(d, f"{d}+1"))
                 used_assign += 4
                 core_applied = True
-            elif chosen == "simple_accumulate":
-                # y = y + x
-                body.append(Assign(b, f"{b}+{a}"))
-                used_assign += 1
+            elif chosen == "accumulate_family":
+                # Merged family:
+                # - simple_accumulate: y += x
+                # - linear_product_reduce: product += param; i++
+                if self.rng.random() < 0.55:
+                    body.append(Assign(b, f"{b}+{a}"))
+                    used_assign += 1
+                else:
+                    xp = params[0] if params else src
+                    set_init(a, "0")
+                    set_init(b, "0")
+                    guard = f"{b}<{lim}"
+                    body.append(Assign(a, f"{a}+{xp}"))
+                    body.append(Assign(b, f"{b}+1"))
+                    used_assign += 2
                 core_applied = True
-            elif chosen == "triangular_progress":
-                # i = i + 1; j = j + i
-                body.append(Assign(a, f"{a}+1"))
-                body.append(Assign(b, f"{b}+{a}"))
+            elif chosen == "prefix_sum_family":
+                # Merged family:
+                # - triangular_progress: i++; sum+=i
+                # - sum_before_incr: sum+=i; i++
+                # - prefix_sum_progression: s+=i; i++
+                mode = self.rng.choice(["triangular", "sum_before", "prefix"])
+                if mode == "triangular":
+                    body.append(Assign(a, f"{a}+1"))
+                    body.append(Assign(b, f"{b}+{a}"))
+                elif mode == "sum_before":
+                    set_init(a, "0")
+                    set_init(b, "0")
+                    guard = f"{a}<{lim}"
+                    body.append(Assign(b, f"{b}+{a}"))
+                    body.append(Assign(a, f"{a}+1"))
+                else:
+                    set_init(a, "0")
+                    set_init(b, "1")
+                    guard = f"{b}<={lim}"
+                    body.append(Assign(a, f"{a}+{b}"))
+                    body.append(Assign(b, f"{b}+1"))
                 used_assign += 2
                 core_applied = True
             elif chosen == "mul_affine_param_pair":
@@ -1094,15 +1165,6 @@ class ProbabilisticLoopFactory:
                 guard = f"{a}!={b}"
                 body.append(Assign(b, a))
                 body.append(Assign(a, f"({a}+{lim}/{a})/2"))
-                used_assign += 2
-                core_applied = True
-            elif chosen == "prefix_sum_progression":
-                # Triangular-like prefix sum with explicit monotone index.
-                set_init(a, "0")
-                set_init(b, "1")
-                guard = f"{b}<={lim}"
-                body.append(Assign(a, f"{a}+{b}"))
-                body.append(Assign(b, f"{b}+1"))
                 used_assign += 2
                 core_applied = True
             elif chosen == "residual_branch_walk":
@@ -1290,17 +1352,6 @@ class ProbabilisticLoopFactory:
                 used_if += 2
                 used_assign += 6
                 core_applied = True
-            elif chosen == "snapshot_chase":
-                # Save snapshot of a; synchronized decrement until a reaches 0.
-                # linear/124-127, 160, 270: i=x; j=y; while(x!=0){x--;y--;} inv: x-y==i-j
-                set_init(c, a)
-                set_init(a, f"({src}%18)+5")
-                set_init(b, f"({src}%15)+3")
-                guard = f"{a}!=0"
-                body.append(Assign(a, f"{a}-1"))
-                body.append(Assign(b, f"{b}-1"))
-                used_assign += 2
-                core_applied = True
             elif chosen == "parity_alternating":
                 # Flip-flop bit flag; increments alternating counters.
                 # linear/176: b=1; n=0; i=0; j=0; while(n<2k){n++;if(b==1){b=0;i++;}else{b=1;j++;}}
@@ -1319,28 +1370,6 @@ class ProbabilisticLoopFactory:
                 )
                 body.append(Assign(a, f"{a}+1"))
                 used_if += 1
-                used_assign += 2
-                core_applied = True
-            elif chosen == "proportional_stride":
-                # Two variables increment at proportional fixed rates.
-                # linear/154: while(i<n){j+=2; i++;} inv: j==2*i
-                step_ratio = self.rng.randint(2, 5)
-                set_init(a, "0")   # i
-                set_init(b, "0")   # j
-                guard = f"{a}<{lim}"
-                body.append(Assign(b, f"{b}+{step_ratio}"))
-                body.append(Assign(a, f"{a}+1"))
-                used_assign += 2
-                core_applied = True
-            elif chosen == "sum_before_incr":
-                # Accumulate counter before incrementing: sum+=i; i++
-                # linear/172,175, NLA/39: while(i<n){sum+=i; i++;} inv: 2*sum==i*(i-1)
-                # Note: differs from triangular_progress (i++;sum+=i gives sum=i*(i+1)/2)
-                set_init(a, "0")   # i
-                set_init(b, "0")   # sum
-                guard = f"{a}<{lim}"
-                body.append(Assign(b, f"{b}+{a}"))
-                body.append(Assign(a, f"{a}+1"))
                 used_assign += 2
                 core_applied = True
             elif chosen == "russian_multiply":
@@ -1373,17 +1402,6 @@ class ProbabilisticLoopFactory:
                 body.append(Assign(d, f"{d}-1"))
                 used_assign += 4
                 core_applied = True
-            elif chosen == "linear_product_reduce":
-                # Repeated addition accumulates a product.
-                # NLA/42: product=0; i=0; while(i<b){product+=a; i++;} inv: product==a*i
-                xp = params[0] if params else src
-                set_init(a, "0")   # product
-                set_init(b, "0")   # i
-                guard = f"{b}<{lim}"
-                body.append(Assign(a, f"{a}+{xp}"))
-                body.append(Assign(b, f"{b}+1"))
-                used_assign += 2
-                core_applied = True
             elif chosen == "int_sqrt_sieve":
                 # Integer square root by successive subtraction.
                 # NLA/36,43,44: r=0; x=A/2; while(x>r){x-=r; r++;} inv: A==2*x+r²-r
@@ -1407,6 +1425,95 @@ class ProbabilisticLoopFactory:
                 body.append(Assign(b, f"{b}-1"))
                 body.append(Assign(c, f"{c}-1"))
                 used_assign += 3
+                core_applied = True
+            elif chosen == "binary_toggle":
+                # Two-state toggling system.
+                set_init(a, "1" if self.rng.random() < 0.5 else "2")
+                body.append(
+                    IfElse(
+                        cond=f"{a}==1",
+                        then_body=[Assign(a, "2")],
+                        else_body=[IfOnly(cond=f"{a}==2", then_body=[Assign(a, "1")])],
+                    )
+                )
+                used_if += 1
+                used_assign += 1
+                core_applied = True
+            elif chosen == "gap_drift_piecewise":
+                # Piecewise drift driven by inter-variable gap.
+                k = self.rng.randint(1, 4)
+                body.append(
+                    IfElse(
+                        cond=f"{a}-{b}<{k}",
+                        then_body=[Assign(a, f"{a}-1"), Assign(b, f"{b}+2")],
+                        else_body=[Assign(b, f"{b}+1")],
+                    )
+                )
+                used_if += 1
+                used_assign += 3
+                core_applied = True
+            elif chosen == "alternating_series_accumulator":
+                # Series-like term recurrence with parity-controlled sign.
+                srcv = params[0] if params else src
+                set_init(a, "1")  # term
+                set_init(b, "1")  # sum
+                set_init(c, "1")  # count
+                set_init(d, "1")  # sign
+                guard = f"{c}<={lim}"
+                body.append(Assign(a, f"{a}*({srcv}/{c})"))
+                body.append(
+                    IfElse(
+                        cond=f"({c}/2)%2==0",
+                        then_body=[Assign(d, "1")],
+                        else_body=[Assign(d, "-1")],
+                    )
+                )
+                body.append(Assign(b, f"{b}+{d}*{a}"))
+                body.append(Assign(c, f"{c}+1"))
+                body.append(Assign(a, f"{a}*({srcv}/{c})"))
+                used_if += 1
+                used_assign += 5
+                core_applied = True
+            elif chosen == "turn_based_state_machine":
+                # Turn variable orchestrates a small multi-phase state machine.
+                set_init(a, "0")  # turn
+                set_init(b, "1")  # i
+                set_init(c, "0")  # j
+                guard = f"{a}>=0&&{a}<3"
+                body.append(
+                    IfElse(
+                        cond=f"{a}==0&&{b}>={lim}",
+                        then_body=[Assign(a, "3")],
+                        else_body=[
+                            IfElse(
+                                cond=f"{a}==1&&{c}<{b}",
+                                then_body=[Assign(d, f"{d}+{b}-{c}"), Assign(c, f"{c}+1")],
+                                else_body=[
+                                    IfElse(
+                                        cond=f"{a}==1&&{c}>={b}",
+                                        then_body=[Assign(a, "2")],
+                                        else_body=[IfOnly(cond=f"{a}==2", then_body=[Assign(b, f"{b}+1"), Assign(a, "0")])],
+                                    )
+                                ],
+                            )
+                        ],
+                    )
+                )
+                used_if += 3
+                used_assign += 5
+                core_applied = True
+            elif chosen == "equal_pair_piecewise_increment":
+                # Keep two accumulators synchronized under piecewise increments.
+                body.append(
+                    IfElse(
+                        cond=f"{c}=={lim}+1",
+                        then_body=[Assign(a, f"{a}+3"), Assign(b, f"{b}+3")],
+                        else_body=[Assign(a, f"{a}+2"), Assign(b, f"{b}+2")],
+                    )
+                )
+                body.append(IfOnly(cond=f"{c}=={lim}", then_body=[Assign(a, f"{a}+1"), Assign(c, f"{c}+1")]))
+                used_if += 2
+                used_assign += 5
                 core_applied = True
 
         if core_applied:

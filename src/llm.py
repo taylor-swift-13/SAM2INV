@@ -92,6 +92,8 @@ class BaseChatModel(ABC):
         """
         根据配置处理响应中的 <think> 标签。
         """
+        if not response_text:
+            return ""
         if not self.config.think_mode_enabled:
             # 如果 think_mode_enabled 为 False，则移除 <think>...</think> 部分
             return re.sub(r'<think>.*?</think>', '', response_text, flags=re.DOTALL)
@@ -114,7 +116,8 @@ class OpenAILLM(BaseChatModel):
         # 为 OpenAI API 使用其特定的模型Name和温度
         self.model_name = self.config.api_model
         self.temperature = self.config.api_temperature
-        self.top_p =self.config.api_top_p
+        self.top_p = self.config.api_top_p
+        self.max_tokens = max(1, int(getattr(self.config, "api_max_tokens", 256)))
 
     def _next_client(self):
         with self._rr_lock:
@@ -122,20 +125,73 @@ class OpenAILLM(BaseChatModel):
             self._rr_counter += 1
         return self._clients[idx]
 
+    def _coerce_message_content_to_text(self, content) -> str:
+        """Normalize OpenAI message.content (string/list/None) into plain text."""
+        if content is None:
+            return ""
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list):
+            parts: List[str] = []
+            for item in content:
+                if isinstance(item, str):
+                    if item:
+                        parts.append(item)
+                    continue
+                if isinstance(item, dict):
+                    if item.get("type") == "text":
+                        txt = item.get("text", "")
+                        if isinstance(txt, str) and txt:
+                            parts.append(txt)
+                    continue
+                item_type = getattr(item, "type", "")
+                if item_type == "text":
+                    txt = getattr(item, "text", "")
+                    if isinstance(txt, str) and txt:
+                        parts.append(txt)
+            return "\n".join(parts).strip()
+        return str(content)
+
     def generate_response(self, user_input: str) -> str:
         try:
             # 添加用户Input到消息历史
             self.messages.append({"role": "user", "content": user_input})
 
-            # 调用 OpenAI API
-            response = self._next_client().chat.completions.create(
-                model=self.model_name,
-                messages=self.messages,
-                temperature=self.temperature,
-                top_p = self.top_p
-            )
+            def _call_chat(max_tokens: int):
+                return self._next_client().chat.completions.create(
+                    model=self.model_name,
+                    messages=self.messages,
+                    temperature=self.temperature,
+                    top_p=self.top_p,
+                    max_tokens=max_tokens
+                )
 
-            assistant_response = response.choices[0].message.content
+            # 调用 OpenAI API（并在“空内容+length”时自动重试一次）
+            response = _call_chat(self.max_tokens)
+            choice = response.choices[0]
+            msg = choice.message
+
+            raw_content = msg.content
+            assistant_response = self._coerce_message_content_to_text(raw_content)
+            if not assistant_response:
+                fallback_refusal = getattr(msg, "refusal", None)
+                if isinstance(fallback_refusal, str) and fallback_refusal.strip():
+                    assistant_response = fallback_refusal.strip()
+            if (
+                not assistant_response
+                and getattr(choice, "finish_reason", None) == "length"
+                and self.max_tokens < 8192
+            ):
+                retry_max_tokens = min(8192, max(self.max_tokens * 4, 1024))
+                response = _call_chat(retry_max_tokens)
+                choice = response.choices[0]
+                msg = choice.message
+                raw_content = msg.content
+                assistant_response = self._coerce_message_content_to_text(raw_content)
+                if not assistant_response:
+                    fallback_refusal = getattr(msg, "refusal", None)
+                    if isinstance(fallback_refusal, str) and fallback_refusal.strip():
+                        assistant_response = fallback_refusal.strip()
             
             # 记录 token 使用情况
             if response.usage:
