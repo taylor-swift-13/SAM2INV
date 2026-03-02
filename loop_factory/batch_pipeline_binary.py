@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import concurrent.futures
+import copy
 import json
 import logging
 import os
@@ -239,19 +240,7 @@ def run_one_attempt(
 
         reset_token_stats()
         logger = make_logger(logs_dir / f"attempt_{attempt}.log")
-        local_cfg = LLMConfig()
-        local_cfg.api_model = llm_cfg.api_model
-        local_cfg.api_key = llm_cfg.api_key
-        local_cfg.base_url = llm_cfg.base_url
-        local_cfg.api_base_urls = llm_cfg.api_base_urls
-        local_cfg.use_api_model = llm_cfg.use_api_model
-        local_cfg.api_temperature = llm_cfg.api_temperature
-        local_cfg.api_top_p = llm_cfg.api_top_p
-        local_cfg.think_mode_enabled = llm_cfg.think_mode_enabled
-        local_cfg.local_model_path = llm_cfg.local_model_path
-        local_cfg.local_max_new_tokens = llm_cfg.local_max_new_tokens
-        local_cfg.local_temperature = llm_cfg.local_temperature
-        local_cfg.local_top_p = llm_cfg.local_top_p
+        local_cfg = copy.copy(llm_cfg)
 
         gen = InvariantGenerator(
             file_id,
@@ -381,6 +370,8 @@ def main() -> None:
     parser.add_argument("--input-dir", type=str, default="",
                         help="Read .c files from this directory instead of generating with loop_factory.")
     args = parser.parse_args()
+    if args.input_dir:
+        args.input_dir = str(Path(args.input_dir).resolve())
 
     os.chdir(SRC)
 
