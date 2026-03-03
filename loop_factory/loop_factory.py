@@ -2627,7 +2627,7 @@ class ProbabilisticLoopFactory:
             force_cores[0] = c1
             force_cores[1] = c2
 
-        max_local_vars = max(3, self.hp.m)
+        max_local_vars = self.hp.m
         for loop_idx in range(loop_count):
             remaining = max_local_vars - len(seen)
             force_c = force_cores[loop_idx] if loop_idx < len(force_cores) else None
