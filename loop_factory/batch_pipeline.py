@@ -464,6 +464,7 @@ def generate_one_loop(out_dir: Path, seed: int, lf_overrides: Dict[str, object])
         "--seed", str(hp["seed"]),
         "--max-vars", str(hp["max_vars"]),
         "--params", str(hp["params"]),
+        "--min-params", str(hp["min_params"]),
         "--min-loops", str(hp["min_loops"]),
         "--max-loops", str(hp["max_loops"]),
         "--max-assign", str(hp["max_assign"]),
@@ -498,6 +499,7 @@ def loop_factory_hyperparams(seed: int, out_dir: Path, overrides: Dict[str, obje
         # Bias generator toward harder, benchmark-like loops seen in src/input.
         "max_vars": 6,
         "params": 2,
+        "min_params": 1,
         "min_loops": 1,
         "max_loops": 1,
         "max_assign": 6,
@@ -664,7 +666,8 @@ def main() -> None:
     parser.add_argument("--work-dir", type=str, default=str(USER_CFG.get("work_dir", "")), help="Optional work dir under loop_factory/generated.")
     # Exposed loop_factory complexity controls.
     parser.add_argument("--max-vars", "--lf-max-vars", dest="max_vars", type=int, default=int(_lf_cfg("max_vars", 6)), help="Loop-factory max variable count.")
-    parser.add_argument("--params", "--lf-params", dest="params", type=int, default=int(_lf_cfg("params", 2)), help="Loop-factory parameter count.")
+    parser.add_argument("--params", "--max-params", "--lf-params", dest="params", type=int, default=int(_lf_cfg("params", 2)), help="Loop-factory max parameter count.")
+    parser.add_argument("--min-params", "--lf-min-params", dest="min_params", type=int, default=int(_lf_cfg("min_params", 1)), help="Loop-factory min parameter count.")
     parser.add_argument("--min-loops", "--lf-min-loops", dest="min_loops", type=int, default=int(_lf_cfg("min_loops", 1)), help="Loop-factory min loop count.")
     parser.add_argument("--max-loops", "--lf-max-loops", dest="max_loops", type=int, default=int(_lf_cfg("max_loops", 1)), help="Loop-factory max loop count.")
     parser.add_argument("--max-assign", "--lf-max-assign", dest="max_assign", type=int, default=int(_lf_cfg("max_assign", 6)), help="Loop-factory max assignments per loop.")
@@ -710,6 +713,7 @@ def main() -> None:
     lf_overrides: Dict[str, object] = {
         "max_vars": args.max_vars,
         "params": args.params,
+        "min_params": args.min_params,
         "min_loops": args.min_loops,
         "max_loops": args.max_loops,
         "max_assign": args.max_assign,

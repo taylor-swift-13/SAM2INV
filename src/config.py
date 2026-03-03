@@ -160,7 +160,8 @@ LOOP_FACTORY_USER_CONFIG = {
     # loop_factory complexity knobs (shared names with loop_factory.py)
     'max_vars': 4,
     'min_vars': 1,          # 每循环状态变量下界（1 = 不限）
-    'params': 2,
+    'params': 2,            # 函数参数数量上界
+    'min_params': 1,        # 函数参数数量下界（1 = 不限）
     'min_loops': 1,
     'max_loops': 1,
     'max_assign': 4,

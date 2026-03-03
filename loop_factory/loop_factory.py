@@ -467,7 +467,8 @@ def _cfg_or_default(name: str, default: float) -> float:
 @dataclass(frozen=True)
 class HyperParams:
     m: int = 10
-    p: int = 3
+    p: int = 3          # max params (upper bound)
+    min_params: int = 1 # min params (lower bound; sampled in [min_params, p])
     min_while_fuel: int = 0
     while_fuel: int = 3         # program-level upper bound for while loops
     assign_fuel: int = 6        # per-loop assign upper bound (including loop-step)
@@ -708,7 +709,9 @@ class ProbabilisticLoopFactory:
         self.var_extension_shortfall = 0
 
     def _pick_params(self) -> List[str]:
-        p = max(1, min(self.hp.p, len(self.param_candidates)))
+        hi = max(1, min(self.hp.p, len(self.param_candidates)))
+        lo = max(1, min(self.hp.min_params, hi))
+        p = self.rng.randint(lo, hi)
         return self.rng.sample(self.param_candidates, k=p)
 
     def _sample_loop_count(self) -> int:
@@ -2781,7 +2784,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--count", type=int, default=50, help="Number of generated C files")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--max-vars", type=int, default=10, help="Maximum number of variables")
-    parser.add_argument("--params", type=int, default=3, help="Number of parameter variables")
+    parser.add_argument("--params", "--max-params", type=int, default=3, help="Max number of parameter variables (upper bound)")
+    parser.add_argument("--min-params", type=int, default=1, help="Min number of parameter variables (lower bound, default 1)")
 
     parser.add_argument("--top-loops", type=int, default=3, help="Deprecated compatibility alias of --max-loops")
     parser.add_argument("--min-loops", type=int, default=1, help="Program-level while lower bound")
@@ -2841,6 +2845,7 @@ def main() -> None:
     hp = HyperParams(
         m=max(4, args.max_vars),
         p=max(1, args.params),
+        min_params=max(1, min(args.min_params, args.params)),
         min_while_fuel=max(1, args.min_loops),
         while_fuel=max(1, max_loops_arg),
         assign_fuel=max(1, args.max_assign),
