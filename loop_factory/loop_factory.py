@@ -611,8 +611,12 @@ class ForLoop(Stmt):
 
     def render(self, indent: int = 0) -> List[str]:
         pad = " " * indent
-        step_code = self.step.render_for_step() if self.step is not None else ""
-        out = [f"{pad}for (; {self.cond}; {step_code}) {{"]
+        if self.step is None:
+            # No step in header: render as while loop (init written in preamble)
+            out = [f"{pad}while ({self.cond}) {{"]
+        else:
+            step_code = self.step.render_for_step()
+            out = [f"{pad}for (; {self.cond}; {step_code}) {{"]
         for s in self.body:
             out.extend(s.render(indent + 4))
         out.append(f"{pad}}}")
@@ -2566,8 +2570,7 @@ class ProbabilisticLoopFactory:
             if form == "for":
                 if body and isinstance(body[-1], Assign) and body[-1] == step_stmt:
                     loop_stmt = ForLoop(cond=guard, step=step_stmt, body=body[:-1])
-                else:
-                    loop_stmt = ForLoop(cond=guard, step=None, body=body)
+                # else: step not available (core-managed) — fall through to default WhileLoop
             elif form == "while_one_break":
                 loop_stmt = WhileLoop(
                     cond="1",
@@ -2843,7 +2846,7 @@ def main() -> None:
     max_loops_arg = args.max_loops if args.max_loops is not None else args.top_loops
 
     hp = HyperParams(
-        m=max(4, args.max_vars),
+        m=max(1, args.max_vars),
         p=max(1, args.params),
         min_params=max(1, min(args.min_params, args.params)),
         min_while_fuel=max(1, args.min_loops),
