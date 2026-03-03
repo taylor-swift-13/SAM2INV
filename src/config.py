@@ -28,7 +28,7 @@ class LLMConfig:
     # ── 通用生成参数 ──────────────────────────────────────────────────────────
     api_temperature: float = 1.0
     api_top_p: float = 1.0
-    api_max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "8192"))
+    api_max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "16384"))
     think_mode_enabled: bool = False
 
 # 通用输入子目录配置：替代之前写死的 'linear'
@@ -126,7 +126,7 @@ TEMPLATE_CONFIG = {
 # enabled=True: split top-level && invariants and deduplicate by text ignoring whitespace.
 # enabled=False: keep Houdini output as-is.
 INVARIANT_DEDUP_CONFIG = {
-    'enabled': False,
+    'enabled': True,
 }
 
 # ==============================================================================

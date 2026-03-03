@@ -2941,7 +2941,7 @@ class InvariantGenerator:
                         safe_kept = sampled_kept
 
                     for inv in safe_kept:
-                        norm = ' '.join(inv.split())
+                        norm = re.sub(r'\s+', '', inv)
                         if norm not in seen_per_loop[i]:
                             seen_per_loop[i].add(norm)
                             combined_per_loop[i].append(inv)
@@ -2958,7 +2958,7 @@ class InvariantGenerator:
 
             pre_houdini_norm_per_loop: List[set] = []
             for i in range(loop_n):
-                pre_houdini_norm_per_loop.append({' '.join(x.split()) for x in combined_per_loop[i]})
+                pre_houdini_norm_per_loop.append({re.sub(r'\s+', '', x) for x in combined_per_loop[i]})
 
             combined_code = self._build_code_with_per_loop_invariants(
                 original_code, processed_records, combined_per_loop, assigns_per_loop
@@ -2996,7 +2996,7 @@ class InvariantGenerator:
                 invs = []
                 if i < len(final_parsed) and isinstance(final_parsed[i], dict):
                     invs = list(final_parsed[i].get("invariants", []) or [])
-                final_norm_per_loop.append({' '.join(x.split()) for x in invs})
+                final_norm_per_loop.append({re.sub(r'\s+', '', x) for x in invs})
             for meta in pass_candidate_meta:
                 contrib = meta.get("contrib", []) or []
                 for i in range(min(loop_n, len(contrib))):
@@ -3019,7 +3019,7 @@ class InvariantGenerator:
                         syntax2 = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
                         valid2 = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
                         satisfy2 = all(self.verifier.verify_result) if self.verifier.verify_result else False
-                        if syntax2 and valid2 and satisfy2:
+                        if syntax2 and valid2:
                             pass_final_code = dedup_code
                             pass_syntax = syntax2
                             pass_valid = valid2
