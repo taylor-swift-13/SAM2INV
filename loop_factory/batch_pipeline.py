@@ -311,19 +311,106 @@ def has_repetitive_loop_updates(loop_content: str) -> bool:
     return False
 
 
+def _strip_balanced_outer_parens(expr: str) -> str:
+    s = expr.strip()
+    while s.startswith("(") and s.endswith(")"):
+        depth = 0
+        balanced = True
+        for i, ch in enumerate(s):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth < 0:
+                    balanced = False
+                    break
+                if depth == 0 and i != len(s) - 1:
+                    balanced = False
+                    break
+        if not balanced or depth != 0:
+            break
+        s = s[1:-1].strip()
+    return s
+
+
+def _normalize_inv_expr(expr: str) -> str:
+    s = re.sub(r"\s+", "", expr)
+    s = _strip_balanced_outer_parens(s)
+    s = s.replace("(", "").replace(")", "")
+    # Canonicalize neutral operators so x, x+0, x*1, x/1 can collapse.
+    while True:
+        prev = s
+        s = re.sub(r"^1\*", "", s)
+        s = re.sub(r"\*1$", "", s)
+        s = re.sub(r"\+0$", "", s)
+        s = re.sub(r"-0$", "", s)
+        s = re.sub(r"/1$", "", s)
+        if s == prev:
+            break
+    return s
+
+
+def _split_top_level_comparison(inv: str) -> Tuple[str, str, str] | None:
+    s = inv.strip()
+    if not s:
+        return None
+    ops = ("<=", ">=", "==", "!=", "<", ">")
+    depth = 0
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            for op in ops:
+                if s.startswith(op, i):
+                    lhs = s[:i].strip()
+                    rhs = s[i + len(op) :].strip()
+                    if lhs and rhs:
+                        return lhs, op, rhs
+                    return None
+        i += 1
+    return None
+
+
+def invariant_dedup_key(inv: str) -> str:
+    cmp_parts = _split_top_level_comparison(inv)
+    if cmp_parts is None:
+        return _normalize_inv_expr(inv)
+    lhs, op, rhs = cmp_parts
+    lhs_n = _normalize_inv_expr(lhs)
+    rhs_n = _normalize_inv_expr(rhs)
+    if op in {"==", "!="}:
+        a, b = sorted([lhs_n, rhs_n])
+        return f"{a}{op}{b}"
+    return f"{lhs_n}{op}{rhs_n}"
+
+
 def is_tautological(inv: str) -> bool:
     x = re.sub(r"\s+", "", inv)
     if x in {"1", "true", "True"}:
         return True
 
-    m = re.match(r"^([A-Za-z_]\w*)==(.+)$", x)
-    if not m:
-        m2 = re.match(r"^(.+)==([A-Za-z_]\w*)$", x)
-        if not m2:
-            return False
-        lhs, rhs = m2.group(2), m2.group(1)
-    else:
-        lhs, rhs = m.group(1), m.group(2)
+    cmp_parts = _split_top_level_comparison(inv)
+    if cmp_parts is not None:
+        lhs, op, rhs = cmp_parts
+        lhs_n = _normalize_inv_expr(lhs)
+        rhs_n = _normalize_inv_expr(rhs)
+        # Identity/contradiction with identical sides after stripping brackets and neutral ops.
+        if lhs_n and rhs_n and lhs_n == rhs_n:
+            return True
+        # Explicitly reject x == (x + 0)-style equalities.
+        if op == "==":
+            if rhs_n.startswith(lhs_n + "+") and rhs_n[len(lhs_n) + 1 :] == "0":
+                return True
+            if rhs_n.startswith(lhs_n + "-") and rhs_n[len(lhs_n) + 1 :] == "0":
+                return True
+            if lhs_n.startswith(rhs_n + "+") and lhs_n[len(rhs_n) + 1 :] == "0":
+                return True
+            if lhs_n.startswith(rhs_n + "-") and lhs_n[len(rhs_n) + 1 :] == "0":
+                return True
 
     def strip_mul1(e: str) -> str:
         e = e.strip("()")
@@ -344,6 +431,15 @@ def is_tautological(inv: str) -> bool:
                 return True
         return False
 
+    m = re.match(r"^([A-Za-z_]\w*)==(.+)$", x)
+    if not m:
+        m2 = re.match(r"^(.+)==([A-Za-z_]\w*)$", x)
+        if not m2:
+            return False
+        lhs, rhs = m2.group(2), m2.group(1)
+    else:
+        lhs, rhs = m.group(1), m.group(2)
+
     rhs_norm = strip_mul1(rhs)
     if lhs == rhs_norm:
         return True
@@ -360,6 +456,89 @@ def is_nontrivial_inv(inv: str) -> bool:
     if not any(op in inv for op in ["==", "!=", "<=", ">=", "<", ">"]):
         return False
     return True
+
+
+def _attached_invariant_blocks(code: str) -> List[Tuple[int, int]]:
+    loop_matches = list(re.finditer(r"\b(?:while|for)\s*\(", code))
+    if not loop_matches:
+        return []
+    ann_pat = re.compile(r"/\*[\s\S]*?\*/")
+    blocks = list(ann_pat.finditer(code))
+    if not blocks:
+        return []
+    spans: List[Tuple[int, int]] = []
+    seen = set()
+    for lm in loop_matches:
+        prefix = code[: lm.start()]
+        cand = [b for b in blocks if b.end() <= lm.start()]
+        if not cand:
+            continue
+        last = cand[-1]
+        if prefix[last.end() :].strip():
+            continue
+        if "loop invariant" not in last.group(0):
+            continue
+        span = (last.start(), last.end())
+        if span not in seen:
+            seen.add(span)
+            spans.append(span)
+    return spans
+
+
+def _prune_invariant_block(block_text: str) -> Tuple[str, List[str]]:
+    line_pat = re.compile(r"^(\s*(?:\*\s*)?loop\s+invariant\s+)([^;]+)(;\s*(?:\r?\n)?)$")
+    lines = block_text.splitlines(keepends=True)
+    kept: List[str] = []
+    removed_reasons: List[str] = []
+    seen_keys: Set[str] = set()
+    for line in lines:
+        m = line_pat.match(line)
+        if not m:
+            kept.append(line)
+            continue
+        inv = m.group(2).strip()
+        if is_tautological(inv):
+            removed_reasons.append("identity_or_tautology")
+            continue
+        key = invariant_dedup_key(inv)
+        if key in seen_keys:
+            removed_reasons.append("duplicate_invariant")
+            continue
+        seen_keys.add(key)
+        kept.append(line)
+    return "".join(kept), removed_reasons
+
+
+def postprocess_invariants_for_quality(annotated_code: str) -> Tuple[str, List[Dict[str, str]]]:
+    blocks = _attached_invariant_blocks(annotated_code)
+    if not blocks:
+        return annotated_code, []
+
+    new_code = annotated_code
+    shift = 0
+    removed_any_dup = False
+    removed_any_identity = False
+    for start, end in blocks:
+        s = start + shift
+        e = end + shift
+        block = new_code[s:e]
+        pruned, reasons = _prune_invariant_block(block)
+        if reasons:
+            removed_any_dup = removed_any_dup or ("duplicate_invariant" in reasons)
+            removed_any_identity = removed_any_identity or ("identity_or_tautology" in reasons)
+            new_code = new_code[:s] + pruned + new_code[e:]
+            shift += len(pruned) - (e - s)
+
+    rejected_items: List[Dict[str, str]] = []
+    if removed_any_dup:
+        rejected_items.append({"reason": "pre_invariant_dedup", "code": annotated_code})
+    if removed_any_identity:
+        rejected_items.append({"reason": "pre_quality_identity", "code": annotated_code})
+    return new_code, rejected_items
+
+
+def strip_blank_lines(text: str) -> str:
+    return "\n".join(line for line in text.splitlines() if line.strip())
 
 
 def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) -> Tuple[bool, str]:
@@ -595,7 +774,11 @@ def run_one_attempt(
             return {"ok": False, "reason": "syntax/valid failed", "attempt": attempt, "seed": seed}
 
         out_c = src_output_dir / f"{file_id}.c"
-        annotated = out_c.read_text(encoding="utf-8") if out_c.exists() else (final_code or "")
+        annotated_raw = out_c.read_text(encoding="utf-8") if out_c.exists() else (final_code or "")
+        annotated, post_rejected_items = postprocess_invariants_for_quality(annotated_raw)
+        annotated = strip_blank_lines(annotated)
+        if out_c.exists() and annotated != annotated_raw:
+            out_c.write_text(annotated, encoding="utf-8")
 
         ok, reason = quality_gate(gen, raw_code, annotated)
         if not ok:
@@ -624,6 +807,7 @@ def run_one_attempt(
             "system_prompt": system_prompt,
             "loop_factory_hyperparams": hparams,
             "loop_dpo_records": loop_dpo_records,
+            "post_rejected_items": post_rejected_items,
         }
     finally:
         for d in [src_input_dir, src_output_dir, src_outer_dir]:
@@ -887,10 +1071,28 @@ def main() -> None:
                     # loop_dpo_records, which tracks every candidate marked dpo_reject=True
                     # (failed syntax filter, sampling filter, or Houdini pruning).
                     loop_dpo_records = result.get("loop_dpo_records", {})
+                    post_rejected_items = result.get("post_rejected_items", [])
                     dpo_written = 0
                     # Keep DPO chosen exactly aligned with SFT output, with invariant dedup applied.
                     chosen_code = (result["annotated"] or "").strip()
+                    # Hard guard: chosen must be the final, quality-gated, deduplicated annotation.
+                    if not chosen_code:
+                        reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has empty final chosen"})
+                        continue
                     seen_rejected = set()
+                    for rej in post_rejected_items:
+                        rej_code = (rej.get("code", "") or "").strip()
+                        if not rej_code or rej_code == chosen_code or rej_code in seen_rejected:
+                            continue
+                        seen_rejected.add(rej_code)
+                        dpo_item = {
+                            "instruction": result["system_prompt"],
+                            "input": prompt_text,
+                            "chosen": chosen_code,
+                            "rejected": rej_code,
+                        }
+                        dpo_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
+                        dpo_written += 1
                     for _loop_idx, loop_rec in sorted(loop_dpo_records.items()):
                         pre_dedup_code = (loop_rec.get("pre_dedup_code", "") or "").strip()
                         dedup_removed = int(loop_rec.get("dedup_removed", 0) or 0)
