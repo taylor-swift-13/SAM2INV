@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import atexit
+import copy
 import concurrent.futures
 import os
 import math
@@ -28,7 +29,7 @@ sys.path.insert(0, str(SRC))
 import config  # type: ignore
 import inv_generator as invgen_mod  # type: ignore
 from inv_generator import InvariantGenerator  # type: ignore
-from llm import LLMConfig, reset_token_stats, get_token_stats  # type: ignore
+from llm import LLMConfig, Chatbot, reset_token_stats, get_token_stats  # type: ignore
 
 USER_CFG = getattr(config, "LOOP_FACTORY_USER_CONFIG", {})
 
@@ -39,6 +40,23 @@ def _lf_cfg(name: str, default):
         return USER_CFG[name]
     legacy = f"lf_{name}"
     return USER_CFG.get(legacy, default)
+
+
+# Class-level Chatbot patch: intercepts ALL Chatbot.chat calls in the current thread
+# via thread-local storage, catching candidates created internally by _generate_multiple_candidates.
+_capture = threading.local()  # per-thread: .pairs = List[Tuple[str,str]] | None
+_orig_chatbot_chat = Chatbot.chat
+
+def _capturing_chat(self, user_input: str) -> str:
+    resp = _orig_chatbot_chat(self, user_input)
+    pairs_list = getattr(_capture, "pairs", None)
+    if pairs_list is not None:
+        p, r = (user_input or "").strip(), (resp or "").strip()
+        if p and r:
+            pairs_list.append((p, r))
+    return resp
+
+Chatbot.chat = _capturing_chat  # type: ignore[method-assign]
 
 
 CPP_KEYWORDS = {
@@ -449,7 +467,10 @@ def generate_one_loop(out_dir: Path, seed: int, lf_overrides: Dict[str, object])
         "--min-loops", str(hp["min_loops"]),
         "--max-loops", str(hp["max_loops"]),
         "--max-assign", str(hp["max_assign"]),
+        "--min-assign", str(hp["min_assign"]),
         "--max-ifelse", str(hp["max_ifelse"]),
+        "--min-ifelse", str(hp["min_ifelse"]),
+        "--min-vars",   str(hp["min_vars"]),
         "--max-depth", str(hp["max_depth"]),
         "--p-multi", str(hp["p_multi"]),
         "--q-nest", str(hp["q_nest"]),
@@ -480,7 +501,10 @@ def loop_factory_hyperparams(seed: int, out_dir: Path, overrides: Dict[str, obje
         "min_loops": 1,
         "max_loops": 1,
         "max_assign": 6,
+        "min_assign": 1,
         "max_ifelse": 3,
+        "min_ifelse": 0,
+        "min_vars": 1,
         "max_depth": 1,
         "p_multi": 0.0,
         "q_nest": 0.0,
@@ -534,61 +558,34 @@ def run_one_attempt(
 
         reset_token_stats()
         logger = make_logger(logs_dir / f"attempt_{attempt}.log")
+        local_cfg = copy.copy(llm_cfg)
         gen = InvariantGenerator(
             file_id,
-            llm_config=llm_cfg,
+            llm_config=local_cfg,
             logger=logger,
             output_dir=str(src_output_dir),
             input_subdir=src_input_dir.name,
         )
 
-        captured = {
-            "user_prompt": "",
-            "raw_response": "",
-            "prompt_count": 0,
-            "all_prompts": [],
-            "all_responses": [],  # raw LLM response per candidate call
-        }
-        original_chat = gen.llm.chat
-        original_select_prompt = getattr(gen, "_select_prompt_for_candidate", None)
-
-        def chat_capture(user_input: str) -> str:
+        # Thread-local capture: class-level patch intercepts ALL Chatbot.chat calls
+        # in this thread, including candidates created inside _generate_multiple_candidates.
+        pairs: List[Tuple[str, str]] = []
+        _capture.pairs = pairs
+        try:
             if stop_event.is_set():
-                raise RuntimeError("cancelled")
-            captured["prompt_count"] += 1
-            if isinstance(user_input, str) and user_input.strip():
-                captured["all_prompts"].append(user_input)
-            resp = original_chat(user_input)
-            if isinstance(resp, str) and resp.strip():
-                captured["all_responses"].append(resp)
-            # Fix: capture prompt and response independently so that
-            # select_prompt_capture setting user_prompt does not block
-            # raw_response from being recorded on the first actual LLM call.
-            if not captured["user_prompt"] and isinstance(user_input, str) and user_input.strip():
-                captured["user_prompt"] = user_input
-            if not captured["raw_response"] and isinstance(resp, str) and resp.strip():
-                captured["raw_response"] = resp
-            return resp
-
-        gen.llm.chat = chat_capture  # type: ignore[assignment]
-        if callable(original_select_prompt):
-            def select_prompt_capture(candidate_idx: int, loop_context: str, code_with_template: str):
-                prompt, prompt_name = original_select_prompt(candidate_idx, loop_context, code_with_template)
-                if isinstance(prompt, str) and prompt.strip():
-                    # In multi-candidate mode, real LLM calls may bypass gen.llm.chat.
-                    captured["all_prompts"].append(prompt)
-                    if not captured["user_prompt"]:
-                        captured["user_prompt"] = prompt
-                return prompt, prompt_name
-            gen._select_prompt_for_candidate = select_prompt_capture  # type: ignore[assignment]
-
-        if stop_event.is_set():
-            return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
-        final_code = gen.generate_all(max_iterations=1)
+                return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
+            final_code = gen.generate_all(max_iterations=1)
+        finally:
+            _capture.pairs = None
         gen.save_results(str(src_output_dir))
-        # Hard guard: keep only samples with a real captured prompt from an actual LLM call.
-        if not captured["user_prompt"].strip():
-            return {"ok": False, "reason": "empty captured prompt", "attempt": attempt, "seed": seed}
+        # Hard guard: keep only samples with at least one real captured LLM call.
+        if not pairs:
+            return {"ok": False, "reason": "no LLM calls captured", "attempt": attempt, "seed": seed}
+
+        user_prompt = pairs[0][0] if pairs else ""
+        raw_model_output = pairs[0][1] if pairs else ""
+        prompt_count = len(pairs)
+        all_prompts = [p[0] for p in pairs]
         first_pass = gen.first_pass or {}
         syntax_ok = first_pass.get("syntax") is not None
         valid_ok = first_pass.get("valid") is not None
@@ -616,10 +613,11 @@ def run_one_attempt(
             "raw_structure_key": raw_key,
             "first_pass": first_pass,
             "token_stats": get_token_stats(),
-            "user_prompt": captured["user_prompt"],
-            "raw_model_output": captured["raw_response"],
-            "prompt_count": captured["prompt_count"],
-            "all_prompts": captured["all_prompts"],
+            "user_prompt": user_prompt,
+            "raw_model_output": raw_model_output,
+            "prompt_count": prompt_count,
+            "all_prompts": all_prompts,
+            "all_pairs": pairs,
             "model": model_name,
             "system_prompt": system_prompt,
             "loop_factory_hyperparams": hparams,
@@ -670,7 +668,10 @@ def main() -> None:
     parser.add_argument("--min-loops", "--lf-min-loops", dest="min_loops", type=int, default=int(_lf_cfg("min_loops", 1)), help="Loop-factory min loop count.")
     parser.add_argument("--max-loops", "--lf-max-loops", dest="max_loops", type=int, default=int(_lf_cfg("max_loops", 1)), help="Loop-factory max loop count.")
     parser.add_argument("--max-assign", "--lf-max-assign", dest="max_assign", type=int, default=int(_lf_cfg("max_assign", 6)), help="Loop-factory max assignments per loop.")
+    parser.add_argument("--min-assign", "--lf-min-assign", dest="min_assign", type=int, default=int(_lf_cfg("min_assign", 1)), help="Loop-factory min assignments per loop.")
     parser.add_argument("--max-ifelse", "--lf-max-ifelse", dest="max_ifelse", type=int, default=int(_lf_cfg("max_ifelse", 3)), help="Loop-factory max if/else blocks per loop.")
+    parser.add_argument("--min-ifelse", "--lf-min-ifelse", dest="min_ifelse", type=int, default=int(_lf_cfg("min_ifelse", 0)), help="Loop-factory min if/else blocks per loop.")
+    parser.add_argument("--min-vars",   "--lf-min-vars",   dest="min_vars",   type=int, default=int(_lf_cfg("min_vars",   1)), help="Loop-factory min state-variable count.")
     parser.add_argument("--max-depth", "--lf-max-depth", dest="max_depth", type=int, default=int(_lf_cfg("max_depth", 1)), help="Loop-factory max loop nesting depth.")
     parser.add_argument("--p-multi", "--lf-p-multi", dest="p_multi", type=float, default=float(_lf_cfg("p_multi", 0.0)), help="Loop-factory p_multi.")
     parser.add_argument("--q-nest", "--lf-q-nest", dest="q_nest", type=float, default=float(_lf_cfg("q_nest", 0.0)), help="Loop-factory q_nest.")
@@ -705,13 +706,17 @@ def main() -> None:
     system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
     api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
     dpo_jsonl_path = work_root / "llama_factory_train_dpo.jsonl"
+    distill_jsonl_path = work_root / "llama_factory_train_distill_sft.jsonl"
     lf_overrides: Dict[str, object] = {
         "max_vars": args.max_vars,
         "params": args.params,
         "min_loops": args.min_loops,
         "max_loops": args.max_loops,
         "max_assign": args.max_assign,
+        "min_assign": args.min_assign,
         "max_ifelse": args.max_ifelse,
+        "min_ifelse": args.min_ifelse,
+        "min_vars":   args.min_vars,
         "max_depth": args.max_depth,
         "p_multi": args.p_multi,
         "q_nest": args.q_nest,
@@ -762,8 +767,10 @@ def main() -> None:
     pending: Dict[concurrent.futures.Future, Tuple[int, int]] = {}
     stop_event = threading.Event()
     file_mode = "a" if args.append else "w"
+    distill_count = 0
     with api_jsonl_path.open(file_mode, encoding="utf-8") as api_jsonl_file, \
-         dpo_jsonl_path.open(file_mode, encoding="utf-8") as dpo_jsonl_file:
+         dpo_jsonl_path.open(file_mode, encoding="utf-8") as dpo_jsonl_file, \
+         distill_jsonl_path.open(file_mode, encoding="utf-8") as distill_jsonl_file:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
             while next_attempt <= total_candidates or pending:
                 while next_attempt <= total_candidates and len(pending) < workers:
@@ -845,6 +852,20 @@ def main() -> None:
                             "augmentation": {"type": "none"},
                         }
                     )
+                    # Distill SFT: write all raw candidate (prompt, response) pairs
+                    # without verification — enables pure knowledge-distillation training.
+                    all_pairs = result.get("all_pairs", [])
+                    for pr_prompt, pr_resp in all_pairs:
+                        if pr_prompt and pr_resp:
+                            distill_jsonl_file.write(json.dumps({
+                                "instruction": result["system_prompt"],
+                                "input": pr_prompt,
+                                "output": pr_resp,
+                            }, ensure_ascii=False) + "\n")
+                    if all_pairs:
+                        distill_jsonl_file.flush()
+                    distill_count += len([p for p in all_pairs if p[0] and p[1]])
+
                     # SFT: one accepted program -> exactly one JSONL item.
                     # user_prompt is guaranteed non-empty by the hard guard above.
                     prompt_text = result["user_prompt"]
@@ -915,6 +936,7 @@ def main() -> None:
     )
     print(f"JSONL SFT (instruction/input/output): {api_jsonl_path}")
     print(f"JSONL DPO (instruction/input/chosen/rejected): {dpo_jsonl_path}")
+    print(f"JSONL Distill SFT (all raw candidates, {distill_count} items): {distill_jsonl_path}")
     print(f"Reject log: {reject_path}")
 
 

@@ -87,7 +87,7 @@ SAMPLING_DEBUG = False  # 是否输出采样策略调试信息
 # ==============================================================================
 
 # 主流程最大迭代次数
-MAX_ITERATION = 5
+MAX_ITERATION = 1
 
 # 不变量补强最大迭代次数（用于 syntax/valid 通过但 satisfy 失败时）
 MAX_STRENGTHEN_ITERATIONS = 0
@@ -98,11 +98,11 @@ MAX_STRENGTHEN_ITERATIONS = 0
 
 # 并行生成配置
 PARALLEL_GENERATION_CONFIG = {
-    'enabled': False,              # 是否启用并行生成多组候选不变式
-    'num_candidates': 1,          # 并行生成的候选组数
+    'enabled': True,              # 是否启用并行生成多组候选不变式
+    'num_candidates': 3,          # 并行生成的候选组数
     'temperature': 1.0,           # 生成温度，控制多样性
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
-    'use_houdini': False,         # 是否使用 Houdini 进一步筛选组合后的不变式
+    'use_houdini': True,         # 是否使用 Houdini 进一步筛选组合后的不变式
     'detect_conflicts': True,     # 是否检测并去除冲突的不变式
     'use_threading': True,        # 是否使用线程池实现真正的并行生成
     'max_workers': 20,            # API 模型：线程池最大并发数
@@ -135,8 +135,8 @@ INVARIANT_DEDUP_CONFIG = {
 
 # 语法过滤配置 (Syntax Filter Configuration)
 SYNTAX_FILTER_CONFIG = {
-    'enabled': False,          # 是否启用语法过滤（基于 unified_filter.py）
-    'verbose': False    # 是否输出详细的过滤日志
+    'enabled': True,          # 是否启用语法过滤（基于 unified_filter.py）
+    'verbose': True     # 是否输出详细的过滤日志
 }
 
 # Filter is always enabled and uses variables from symbolic execution record
@@ -159,11 +159,14 @@ LOOP_FACTORY_USER_CONFIG = {
 
     # loop_factory complexity knobs (shared names with loop_factory.py)
     'max_vars': 4,
+    'min_vars': 1,          # 每循环状态变量下界（1 = 不限）
     'params': 2,
     'min_loops': 1,
     'max_loops': 1,
     'max_assign': 4,
+    'min_assign': 1,        # 每循环赋值语句下界（1 = 不限）
     'max_ifelse': 2,
+    'min_ifelse': 0,        # 每循环 if 块下界（0 = 不限）
     'max_depth': 1,
     'p_multi': 0.0,
     'q_nest': 0.0,
