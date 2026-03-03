@@ -3019,7 +3019,9 @@ class InvariantGenerator:
                         syntax2 = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
                         valid2 = bool(self.verifier.validate_result) and all(self.verifier.validate_result)
                         satisfy2 = all(self.verifier.verify_result) if self.verifier.verify_result else False
-                        if syntax2 and valid2:
+                        has_assert = re.search(r"/\*@\s*assert\b", dedup_code) is not None
+                        satisfy_ok = satisfy2 or not has_assert
+                        if syntax2 and valid2 and satisfy_ok:
                             pass_final_code = dedup_code
                             pass_syntax = syntax2
                             pass_valid = valid2
@@ -3027,7 +3029,7 @@ class InvariantGenerator:
                         else:
                             self.logger.warning(
                                 f"Dedup result failed verification, keeping original final code: "
-                                f"syntax={syntax2}, valid={valid2}, satisfy={satisfy2}"
+                                f"syntax={syntax2}, valid={valid2}, satisfy={satisfy2}, has_assert={has_assert}"
                             )
                     finally:
                         if os.path.exists(dedup_temp):
