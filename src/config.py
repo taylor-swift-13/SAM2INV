@@ -150,28 +150,28 @@ SYNTAX_FILTER_CONFIG = {
 LOOP_FACTORY_USER_CONFIG = {
     # batch pipeline runtime
     'target_count': 100,
-    'max_attempts': 1200,
-    'seed': 2026,
+    'max_attempts': 100,
+    'seed': 198964,
     'workers': 20,
-    'max_skeleton_repeat': 10,
+    'max_skeleton_repeat': 4,
     'append': True,
     'work_dir': '',
 
     # loop_factory complexity knobs (shared names with loop_factory.py)
-    'max_vars': 4,
-    'min_vars': 1,          # 每循环状态变量下界（1 = 不限）
-    'params': 2,            # 函数参数数量上界
-    'min_params': 1,        # 函数参数数量下界（1 = 不限）
+    'max_vars': 2,
+    'min_vars': 1,      
+    'max_params': 2,       
+    'min_params': 0,       
     'min_loops': 1,
     'max_loops': 1,
-    'max_assign': 4,
-    'min_assign': 1,        # 每循环赋值语句下界（1 = 不限）
-    'max_ifelse': 2,
-    'min_ifelse': 0,        # 每循环 if 块下界（0 = 不限）
+    'max_assign': 3,
+    'min_assign': 2,        
+    'max_ifelse': 0,
+    'min_ifelse': 0,        
     'max_depth': 1,
     'p_multi': 0.0,
     'q_nest': 0.0,
-    'p_nonlinear': 0.40,
+    'p_nonlinear': 1.00,
     'p_semantic_core': 0.80
 }
 
