@@ -100,6 +100,10 @@ CORE_NATIVE_EXTENSION_STYLE: Dict[str, str] = {
     "bouncing_counter": "state",
     "modular_equality_race": "modular",
     "transfer_conservation": "linear",
+    "carry_pair_counter": "linear",
+    "ramped_transfer_conservation": "linear",
+    "alternating_swap_transfer": "state",
+    "scheduled_queue_occupancy": "state",
     "random_walk_bounded": "branch",
     "ghost_sync_pair": "linear",
     "product_reduction_walk": "multiplicative",
@@ -175,6 +179,10 @@ SEMANTIC_TEMPLATES: Dict[str, Dict] = {
     "X18_matrix_trace":           {"family": "linear", "cores": ["linear_conservation_family"]},
     "X19_rolling_sum_window":     {"family": "linear", "cores": ["x19_rolling_sum_window"]},
     "X20_amortized_credit":       {"family": "linear", "cores": ["complement_step"]},
+    "X21_carry_pair_counter":     {"family": "linear", "cores": ["carry_pair_counter"]},
+    "X22_ramped_transfer_conservation": {"family": "linear", "cores": ["ramped_transfer_conservation"]},
+    "X23_alternating_swap_transfer": {"family": "linear", "cores": ["alternating_swap_transfer"]},
+    "X24_scheduled_queue_occupancy": {"family": "linear", "cores": ["scheduled_queue_occupancy"]},
     "X1_geometric_growth_bound":  {"family": "linear", "cores": ["x1_geometric_growth_bound"]},
     "X7_carry_propagation_accumulator": {"family": "nla", "cores": ["x7_carry_propagation_accumulator"]},
 }
@@ -1321,6 +1329,10 @@ class ProbabilisticLoopFactory:
                 allow("modular_equality_race",     lin_w + 1.2, 0, 2, 2)           # X12: a%m==b%m
                 # ── New cores from benchmark analysis (10 new semantic classes) ────────────
                 allow("transfer_conservation",    lin_w + 1.0, 0, 2, 2)           # linear/100: x=N,y=0;y+=S;x-=S; x+y==N
+                allow("carry_pair_counter",      lin_w + 1.0, 1, 3, 3)           # radix-B carry pair: t=q*B+r, 0<=r<B
+                allow("ramped_transfer_conservation", lin_w + 1.0, 1, 4, 4)      # capped transfer with ramped step
+                allow("alternating_swap_transfer", lin_w + cond_w + 0.7, 1, 4, 3) # toggle-based two-way transfer
+                allow("scheduled_queue_occupancy", lin_w + cond_w + 0.8, 2, 5, 5) # periodic push/pop occupancy tracking
                 allow("random_walk_bounded",      lin_w + cond_w + 0.8, 1, 3, 2)  # linear/158: ±1 walk; |a|<=step_counter
                 allow("ghost_sync_pair",          lin_w + 1.0, 1, 3, 2)           # linear/220: x=w; always move together
                 allow("product_reduction_walk",   cond_w if nla_family else (lin_w * 0.5), 0, 2, 3)  # NLA/24,27: z=x*y;x--;z-=y
@@ -2305,6 +2317,92 @@ class ProbabilisticLoopFactory:
                 body.append(Assign(b, f"{b}+{S_val}"))
                 body.append(Assign(a, f"{a}-{S_val}"))
                 used_assign += 2
+                core_applied = True
+            elif chosen == "carry_pair_counter":
+                # Radix-B two-digit counter.
+                # inv: t == q*B + r, 0 <= r < B
+                base = self.rng.randint(2, 7)
+                set_init(a, "0")   # q: high digit
+                set_init(b, "0")   # r: low digit
+                set_init(c, "0")   # t: total count
+                guard = f"{ctr}<{lim}"
+                body.append(Assign(c, f"{c}+1"))
+                body.append(Assign(b, f"{b}+1"))
+                body.append(
+                    IfOnly(
+                        cond=f"{b}>={base}",
+                        then_body=[Assign(b, f"{b}-{base}"), Assign(a, f"{a}+1")],
+                    )
+                )
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_if += 1
+                used_assign += 6
+                core_applied = True
+            elif chosen == "ramped_transfer_conservation":
+                # Transfer from src to dst with a growing step cap.
+                # inv: src + dst == src_init, src >= 0, step grows monotonically.
+                src_init = self.rng.randint(10, 30)
+                set_init(a, str(src_init))   # src
+                set_init(b, "0")             # dst
+                set_init(c, "1")             # step cap
+                set_init(d, "0")             # pay this round
+                guard = f"{a}>0&&{ctr}<{lim}"
+                body.append(
+                    IfElse(
+                        cond=f"{a}<{c}",
+                        then_body=[Assign(d, a)],
+                        else_body=[Assign(d, c)],
+                    )
+                )
+                body.append(Assign(a, f"{a}-{d}"))
+                body.append(Assign(b, f"{b}+{d}"))
+                body.append(Assign(c, f"{c}+1"))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_if += 1
+                used_assign += 6
+                core_applied = True
+            elif chosen == "alternating_swap_transfer":
+                # Alternating two-way transfer controlled by a binary flag.
+                # inv: a + b == const, flag in {0,1}
+                delta = self.rng.randint(1, 3)
+                set_init(a, str(self.rng.randint(8, 20)))
+                set_init(b, str(self.rng.randint(8, 20)))
+                set_init(c, "0")   # flag
+                guard = f"{ctr}<{lim}"
+                body.append(
+                    IfElse(
+                        cond=f"{c}==0",
+                        then_body=[Assign(a, f"{a}+{delta}"), Assign(b, f"{b}-{delta}"), Assign(c, "1")],
+                        else_body=[Assign(a, f"{a}-{delta}"), Assign(b, f"{b}+{delta}"), Assign(c, "0")],
+                    )
+                )
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_if += 1
+                used_assign += 7
+                core_applied = True
+            elif chosen == "scheduled_queue_occupancy":
+                # Periodic queue push/pop schedule with hard capacity.
+                # inv: 0 <= q <= cap, q == push - pop
+                e = state_vars[4]
+                cap = self.rng.randint(3, 8)
+                q0 = self.rng.randint(0, cap)
+                set_init(a, str(q0))   # q
+                set_init(b, str(q0))   # push
+                set_init(c, "0")       # pop
+                set_init(d, str(cap))  # cap
+                set_init(e, "0")       # epoch marker
+                guard = f"{ctr}<{lim}"
+                body.append(
+                    IfElse(
+                        cond=f"{ctr}%3==0",
+                        then_body=[IfOnly(cond=f"{a}>0", then_body=[Assign(a, f"{a}-1"), Assign(c, f"{c}+1")])],
+                        else_body=[IfOnly(cond=f"{a}<{d}", then_body=[Assign(a, f"{a}+1"), Assign(b, f"{b}+1")])],
+                    )
+                )
+                body.append(Assign(e, f"{e}+1"))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_if += 3
+                used_assign += 6
                 core_applied = True
             elif chosen == "random_walk_bounded":
                 # linear/158: j=1; a=0; while(j<=m){if(even) a++; else a--; j++;}

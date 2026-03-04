@@ -1,6 +1,9 @@
 import os
 from dataclasses import dataclass
 
+# 防止 vllm 导入时调用 dictConfig 导致已有 FileHandler 的 stream 变成 None
+os.environ.setdefault("VLLM_CONFIGURE_LOGGING", "0")
+
 
 @dataclass
 class LLMConfig:
