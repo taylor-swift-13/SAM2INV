@@ -2,7 +2,7 @@ import os
 from dataclasses import dataclass
 
 # 防止 vllm 导入时调用 dictConfig 导致已有 FileHandler 的 stream 变成 None
-os.environ.setdefault("VLLM_CONFIGURE_LOGGING", "0")
+os.environ["VLLM_CONFIGURE_LOGGING"] = "0"
 
 
 @dataclass
@@ -10,28 +10,28 @@ class LLMConfig:
     # ── 模式开关 ──────────────────────────────────────────────────────────────
     # True  → 本地推理（vLLM 或 Transformers，由 use_vllm 进一步决定）
     # False → 云端服务商（yunwu.ai / OpenAI 等）
-    # 也可通过环境变量 USE_LOCAL=1 / USE_LOCAL=0 控制
-    use_local: bool = os.getenv("USE_LOCAL", "0").strip() in {"1", "true", "True", "yes"}
+    # 本地写死配置，不读取环境变量
+    use_local: bool = False
 
     # ── 云端服务商配置 ────────────────────────────────────────────────────────
-    api_model: str = os.getenv("OPENAI_MODEL", "gpt-5-nano")
-    api_key: str = os.getenv("OPENAI_API_KEY", "")
-    base_url: str = os.getenv("OPENAI_BASE_URL", "https://yunwu.ai/v1")
+    api_model: str = "gpt-5-nano"
+    api_key: str = ""
+    base_url: str = "https://yunwu.ai/v1"
 
     # ── 本地推理配置 ──────────────────────────────────────────────────────────
     # use_local=True 时生效；通过 use_vllm 选择后端：
     #   True  → vLLM（高吞吐，推荐多卡）
     #   False → Transformers（单卡或 CPU，无需 vllm 安装）
-    # 也可通过环境变量 USE_VLLM=1 / USE_VLLM=0 控制
-    use_vllm: bool = os.getenv("USE_VLLM", "1").strip() in {"1", "true", "True", "yes"}
-    vllm_model_path: str = os.getenv("VLLM_MODEL_PATH", "")
-    vllm_gpu_count: int = int(os.getenv("VLLM_GPU_COUNT", "1"))
-    vllm_gpu_mem: float = float(os.getenv("VLLM_GPU_MEM", "0.90"))
+    # 本地写死配置，不读取环境变量
+    use_vllm: bool = True
+    vllm_model_path: str = ""
+    vllm_gpu_count: int = 1
+    vllm_gpu_mem: float = 0.90
 
     # ── 通用生成参数 ──────────────────────────────────────────────────────────
     api_temperature: float = 1.0
     api_top_p: float = 1.0
-    api_max_tokens: int = int(os.getenv("OPENAI_MAX_TOKENS", "16384"))
+    api_max_tokens: int = 8192
     think_mode_enabled: bool = False
 
 # 通用输入子目录配置：替代之前写死的 'linear'
