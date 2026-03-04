@@ -15,7 +15,7 @@ class LLMConfig:
 
     # ── 云端服务商配置 ────────────────────────────────────────────────────────
     api_model: str = "gpt-5-nano"
-    api_key: str = ""
+    api_key: str = "sk-afVplv2————————————zxrD1B7zWzgNWGA"
     base_url: str = "https://yunwu.ai/v1"
 
     # ── 本地推理配置 ──────────────────────────────────────────────────────────

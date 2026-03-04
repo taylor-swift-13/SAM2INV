@@ -71,6 +71,7 @@ def call_once(system_prompt: str, user_msg: str) -> str:
                 temperature=_cfg.api_temperature,
                 top_p=_cfg.api_top_p,
                 max_tokens=_cfg.api_max_tokens,
+                #extra_body={"enable_thinking": False},
             )
             return (resp.choices[0].message.content or "").strip()
         except Exception as exc:
