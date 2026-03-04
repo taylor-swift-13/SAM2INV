@@ -2326,6 +2326,17 @@ class InvariantGenerator:
         finally:
             # 恢复原始温度
             self.llm_config.api_temperature = original_temp
+
+        # Debug log: print all generated candidates (including extraction failures).
+        for idx, candidate_code in enumerate(candidates, 1):
+            if candidate_code is None:
+                self.logger.warning(f"Candidate {idx}/{num_candidates} full code: <None> (failed to extract)")
+                continue
+            self.logger.info(
+                f"\n----- Candidate {idx}/{num_candidates} full code begin -----\n"
+                f"{candidate_code}\n"
+                f"----- Candidate {idx}/{num_candidates} full code end -----"
+            )
         
         # 过滤掉None值
         valid_candidates = [c for c in candidates if c is not None]
