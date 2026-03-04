@@ -104,6 +104,9 @@ CORE_NATIVE_EXTENSION_STYLE: Dict[str, str] = {
     "ramped_transfer_conservation": "linear",
     "alternating_swap_transfer": "state",
     "scheduled_queue_occupancy": "state",
+    "x1_geometric_growth_bound": "multiplicative",
+    "x17_harmonic_step_reduction": "branch",
+    "x19_rolling_sum_window": "state",
     "random_walk_bounded": "branch",
     "ghost_sync_pair": "linear",
     "product_reduction_walk": "multiplicative",
@@ -1333,6 +1336,9 @@ class ProbabilisticLoopFactory:
                 allow("ramped_transfer_conservation", lin_w + 1.0, 1, 4, 4)      # capped transfer with ramped step
                 allow("alternating_swap_transfer", lin_w + cond_w + 0.7, 1, 4, 3) # toggle-based two-way transfer
                 allow("scheduled_queue_occupancy", lin_w + cond_w + 0.8, 2, 5, 5) # periodic push/pop occupancy tracking
+                allow("x1_geometric_growth_bound", lin_w + 0.9, 0, 2, 2)          # doubling growth until bound exceeded
+                allow("x17_harmonic_step_reduction", lin_w + cond_w + 0.7, 1, 4, 3) # denominator-ladder reduction pattern
+                allow("x19_rolling_sum_window", lin_w + cond_w + 0.8, 1, 5, 4)    # rolling add/remove window sum
                 allow("random_walk_bounded",      lin_w + cond_w + 0.8, 1, 3, 2)  # linear/158: ±1 walk; |a|<=step_counter
                 allow("ghost_sync_pair",          lin_w + 1.0, 1, 3, 2)           # linear/220: x=w; always move together
                 allow("product_reduction_walk",   cond_w if nla_family else (lin_w * 0.5), 0, 2, 3)  # NLA/24,27: z=x*y;x--;z-=y
@@ -2403,6 +2409,61 @@ class ProbabilisticLoopFactory:
                 body.append(Assign(ctr, f"{ctr}+1"))
                 used_if += 3
                 used_assign += 6
+                core_applied = True
+            elif chosen == "x1_geometric_growth_bound":
+                # Geometric growth against a linear bound.
+                # inv: a >= 1 and a strictly increases; when loop exits a > lim.
+                set_init(a, "1")
+                set_init(b, "0")
+                guard = f"{a}<={lim}"
+                body.append(Assign(a, f"2*{a}"))
+                body.append(Assign(b, f"{b}+1"))
+                used_assign += 2
+                core_applied = True
+            elif chosen == "x17_harmonic_step_reduction":
+                # Denominator-ladder style reduction with bounded decrement.
+                # inv: debt >= 0, step increases monotonically.
+                debt_init = self.rng.randint(10, 40)
+                set_init(a, str(debt_init))  # debt
+                set_init(b, "1")             # step
+                set_init(c, "0")             # rounds
+                guard = f"{a}>0&&{b}<={lim}"
+                body.append(
+                    IfElse(
+                        cond=f"{a}>{b}",
+                        then_body=[Assign(a, f"{a}-{b}")],
+                        else_body=[Assign(a, "0")],
+                    )
+                )
+                body.append(Assign(c, f"{c}+1"))
+                body.append(Assign(b, f"{b}+1"))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_if += 1
+                used_assign += 5
+                core_applied = True
+            elif chosen == "x19_rolling_sum_window":
+                # Rolling sum with add/remove update once the window is full.
+                # inv: win_sum tracks last W inserted pseudo-items.
+                W = self.rng.randint(3, 7)
+                set_init(a, "0")       # win_sum
+                set_init(b, "0")       # incoming
+                set_init(c, "0")       # outgoing
+                set_init(d, str(W))    # window length
+                guard = f"{ctr}<{lim}"
+                body.append(Assign(b, f"{ctr}%5"))
+                body.append(
+                    IfElse(
+                        cond=f"{ctr}>={d}",
+                        then_body=[
+                            Assign(c, f"({ctr}-{d})%5"),
+                            Assign(a, f"{a}+{b}-{c}"),
+                        ],
+                        else_body=[Assign(a, f"{a}+{b}")],
+                    )
+                )
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_if += 1
+                used_assign += 5
                 core_applied = True
             elif chosen == "random_walk_bounded":
                 # linear/158: j=1; a=0; while(j<=m){if(even) a++; else a--; j++;}
