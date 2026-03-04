@@ -25,34 +25,38 @@ Require Import int_array_strategy_proof.
 (*----- Function foo -----*)
 
 Definition foo_safety_wit_1 := 
-forall (s_pre: Z) ,
+forall (s_pre: Z) (unknown_pre: Z) ,
   ((( &( "s" ) )) # Int  |-> s_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_2 := 
-forall (s_pre: Z) ,
+forall (s_pre: Z) (unknown_pre: Z) ,
   ((( &( "s" ) )) # Int  |-> s_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (0 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 0) |]
 .
 
 Definition foo_safety_wit_3 := 
-forall (s_pre: Z) ,
+forall (s_pre: Z) (unknown_pre: Z) ,
   [| (s_pre <> 0) |]
   &&  ((( &( "s" ) )) # Int  |-> s_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((s_pre + 1 ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (s_pre + 1 )) |]
 .
 
 Definition foo_safety_wit_4 := 
-forall (s_pre: Z) ,
+forall (s_pre: Z) (unknown_pre: Z) ,
   [| (s_pre <> 0) |]
   &&  ((( &( "s" ) )) # Int  |-> s_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]

@@ -25,111 +25,119 @@ Require Import int_array_strategy_proof.
 (*----- Function foo -----*)
 
 Definition foo_safety_wit_1 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
   **  ((( &( "multFactor" ) )) # Int  |-> multFactor_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> term_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_2 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
   **  ((( &( "multFactor" ) )) # Int  |-> multFactor_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> term_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((term_pre * (x_pre ÷ count_pre ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (term_pre * (x_pre ÷ count_pre ) )) |]
 .
 
 Definition foo_safety_wit_3 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
   **  ((( &( "multFactor" ) )) # Int  |-> multFactor_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> term_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((x_pre <> (INT_MIN)) \/ (count_pre <> (-1))) |] 
   &&  [| (count_pre <> 0) |]
 .
 
 Definition foo_safety_wit_4 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
   **  ((( &( "multFactor" ) )) # Int  |-> multFactor_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (((count_pre ÷ 2 ) <> (INT_MIN)) \/ (2 <> (-1))) |] 
   &&  [| (2 <> 0) |]
 .
 
 Definition foo_safety_wit_5 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
   **  ((( &( "multFactor" ) )) # Int  |-> multFactor_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((count_pre <> (INT_MIN)) \/ (2 <> (-1))) |] 
   &&  [| (2 <> 0) |]
 .
 
 Definition foo_safety_wit_6 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
   **  ((( &( "multFactor" ) )) # Int  |-> multFactor_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (2 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 2) |]
 .
 
 Definition foo_safety_wit_7 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
   **  ((( &( "multFactor" ) )) # Int  |-> multFactor_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (2 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 2) |]
 .
 
 Definition foo_safety_wit_8 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
   **  ((( &( "multFactor" ) )) # Int  |-> multFactor_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (0 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 0) |]
 .
 
 Definition foo_safety_wit_9 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
@@ -137,13 +145,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pr
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_10 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
@@ -151,12 +160,13 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pr
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <> (INT_MIN)) |]
 .
 
 Definition foo_safety_wit_11 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
@@ -164,13 +174,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (multFactor_pre: Z) (count_pre: Z) (x_pr
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_12 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
@@ -178,13 +189,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) )) |]
 .
 
 Definition foo_safety_wit_13 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
@@ -192,13 +204,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((1 * (term_pre * (x_pre ÷ count_pre ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (1 * (term_pre * (x_pre ÷ count_pre ) ) )) |]
 .
 
 Definition foo_safety_wit_14 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
@@ -206,13 +219,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) )) |]
 .
 
 Definition foo_safety_wit_15 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> evenExp_pre)
@@ -220,13 +234,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= ((-1) * (term_pre * (x_pre ÷ count_pre ) ) )) |]
 .
 
 Definition foo_safety_wit_16 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -234,13 +249,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((count_pre + 1 ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (count_pre + 1 )) |]
 .
 
 Definition foo_safety_wit_17 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -248,13 +264,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_18 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -262,13 +279,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((count_pre + 1 ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (count_pre + 1 )) |]
 .
 
 Definition foo_safety_wit_19 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -276,13 +294,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_20 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -290,13 +309,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) )) |]
 .
 
 Definition foo_safety_wit_21 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -304,13 +324,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((x_pre <> (INT_MIN)) \/ ((count_pre + 1 ) <> (-1))) |] 
   &&  [| ((count_pre + 1 ) <> 0) |]
 .
 
 Definition foo_safety_wit_22 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -318,13 +339,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) )) |]
 .
 
 Definition foo_safety_wit_23 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -332,13 +354,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((x_pre <> (INT_MIN)) \/ ((count_pre + 1 ) <> (-1))) |] 
   &&  [| ((count_pre + 1 ) <> 0) |]
 .
 
 Definition foo_safety_wit_24 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -346,13 +369,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((oddExp_pre + ((-1) * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (oddExp_pre + ((-1) * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) )) |]
 .
 
 Definition foo_safety_wit_25 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -360,13 +384,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (((-1) * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= ((-1) * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) )) |]
 .
 
 Definition foo_safety_wit_26 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -374,13 +399,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((oddExp_pre + (1 * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (oddExp_pre + (1 * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) )) |]
 .
 
 Definition foo_safety_wit_27 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> oddExp_pre)
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -388,13 +414,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((1 * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (1 * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) )) |]
 .
 
 Definition foo_safety_wit_28 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> (oddExp_pre + (1 * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) ))
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -402,13 +429,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (((count_pre + 1 ) + 1 ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= ((count_pre + 1 ) + 1 )) |]
 .
 
 Definition foo_safety_wit_29 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) = 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> (oddExp_pre + (1 * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) ))
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + (1 * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -416,13 +444,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_30 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> (oddExp_pre + ((-1) * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) ))
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -430,13 +459,14 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (((count_pre + 1 ) + 1 ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= ((count_pre + 1 ) + 1 )) |]
 .
 
 Definition foo_safety_wit_31 := 
-forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   [| (((count_pre ÷ 2 ) % ( 2 ) ) <> 0) |]
   &&  ((( &( "oddExp" ) )) # Int  |-> (oddExp_pre + ((-1) * ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ) ) ))
   **  ((( &( "evenExp" ) )) # Int  |-> (evenExp_pre + ((-1) * (term_pre * (x_pre ÷ count_pre ) ) ) ))
@@ -444,6 +474,7 @@ forall (oddExp_pre: Z) (evenExp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) 
   **  ((( &( "count" ) )) # Int  |-> (count_pre + 1 ))
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> ((term_pre * (x_pre ÷ count_pre ) ) * (x_pre ÷ (count_pre + 1 ) ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]

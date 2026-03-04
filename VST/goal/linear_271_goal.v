@@ -25,28 +25,31 @@ Require Import int_array_strategy_proof.
 (*----- Function foo -----*)
 
 Definition foo_safety_wit_1 := 
-forall (y_pre: Z) (x_pre: Z) ,
+forall (y_pre: Z) (x_pre: Z) (unknown_pre: Z) ,
   ((( &( "y" ) )) # Int  |-> y_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_2 := 
-forall (y_pre: Z) (x_pre: Z) ,
+forall (y_pre: Z) (x_pre: Z) (unknown_pre: Z) ,
   ((( &( "y" ) )) # Int  |-> y_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (0 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 0) |]
 .
 
 Definition foo_safety_wit_3 := 
-forall (y_pre: Z) (x_pre: Z) ,
+forall (y_pre: Z) (x_pre: Z) (unknown_pre: Z) ,
   [| (x_pre > 0) |]
   &&  ((( &( "y" ) )) # Int  |-> y_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((y_pre + x_pre ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (y_pre + x_pre )) |]

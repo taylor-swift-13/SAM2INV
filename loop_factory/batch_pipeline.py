@@ -19,7 +19,7 @@ import threading
 import time
 import signal
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 ROOT = Path(__file__).resolve().parent
 SRC = (ROOT / "../src").resolve()
@@ -629,11 +629,7 @@ def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) ->
     return True, "ok"
 
 
-def generate_one_loop(out_dir: Path, seed: int, lf_overrides: Dict[str, object]) -> Path:
-    if out_dir.exists():
-        shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    hp = loop_factory_hyperparams(seed, out_dir, lf_overrides)
+def _loop_factory_base_cmd(hp: Dict[str, object], force_core: Optional[str] = None) -> List[str]:
     cmd = [
         sys.executable,
         str(ROOT / "loop_factory.py"),
@@ -658,6 +654,46 @@ def generate_one_loop(out_dir: Path, seed: int, lf_overrides: Dict[str, object])
         "--nonlinear-strength", str(hp["nonlinear_strength"]),
         "--p-semantic-core", str(hp["p_semantic_core"]),
     ]
+    if force_core:
+        cmd.extend(["--force-core", force_core])
+    return cmd
+
+
+def probe_usable_semantic_cores(seed: int, lf_overrides: Dict[str, object], probe_max_resample: int = 128) -> List[str]:
+    hp = loop_factory_hyperparams(seed, ROOT / "generated" / "_core_probe_tmp", lf_overrides)
+    cmd = _loop_factory_base_cmd(hp)
+    cmd.extend(["--print-usable-cores-json", "--probe-max-resample", str(max(1, probe_max_resample))])
+    out = subprocess.check_output(cmd, text=True).strip()
+    try:
+        parsed = json.loads(out)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"Failed to parse usable-core JSON from loop_factory: {out}") from e
+    if not isinstance(parsed, list):
+        raise RuntimeError(f"Usable-core probe returned non-list payload: {parsed!r}")
+    return [str(x) for x in parsed if isinstance(x, str) and x]
+
+
+def build_even_core_plan(total_attempts: int, cores: List[str]) -> List[Optional[str]]:
+    if total_attempts <= 0:
+        return []
+    if not cores:
+        return [None] * total_attempts
+    k = len(cores)
+    base = total_attempts // k
+    rem = total_attempts % k
+    plan: List[Optional[str]] = []
+    for i, c in enumerate(cores):
+        quota = base + (1 if i < rem else 0)
+        plan.extend([c] * quota)
+    return plan
+
+
+def generate_one_loop(out_dir: Path, seed: int, lf_overrides: Dict[str, object], force_core: Optional[str] = None) -> Path:
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    hp = loop_factory_hyperparams(seed, out_dir, lf_overrides)
+    cmd = _loop_factory_base_cmd(hp, force_core=force_core)
     subprocess.run(cmd, check=True)
     c_files = sorted(out_dir.glob("*.c"), key=lambda p: int(p.stem))
     if not c_files:
@@ -711,6 +747,7 @@ def run_one_attempt(
     run_tag: str,
     stop_event: threading.Event,
     lf_overrides: Dict[str, object],
+    force_core: Optional[str] = None,
 ) -> Dict:
     if stop_event.is_set():
         return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
@@ -726,7 +763,7 @@ def run_one_attempt(
     try:
         if stop_event.is_set():
             return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
-        src_c = generate_one_loop(attempt_tmp_loops, seed, lf_overrides)
+        src_c = generate_one_loop(attempt_tmp_loops, seed, lf_overrides, force_core=force_core)
         raw_code = src_c.read_text(encoding="utf-8")
         if not has_no_assert(raw_code):
             return {"ok": False, "reason": "input has assert", "attempt": attempt, "seed": seed}
@@ -894,6 +931,7 @@ def main() -> None:
     api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
     dpo_jsonl_path = work_root / "llama_factory_train_dpo.jsonl"
     distill_jsonl_path = work_root / "llama_factory_train_distill_sft.jsonl"
+    template_map_jsonl_path = work_root / "file_template_map.jsonl"
     lf_overrides: Dict[str, object] = {
         "max_vars": args.max_vars,
         "max_params": args.max_params,
@@ -935,6 +973,17 @@ def main() -> None:
     if args.max_attempts > 0:
         total_candidates = min(total_candidates, args.max_attempts)
 
+    usable_cores = probe_usable_semantic_cores(args.seed, lf_overrides, probe_max_resample=128)
+    core_plan = build_even_core_plan(total_candidates, usable_cores)
+    core_quota: Dict[str, int] = {c: core_plan.count(c) for c in usable_cores}
+    if usable_cores:
+        print(
+            f"Template balancing enabled: usable_cores={len(usable_cores)}, "
+            f"attempts={total_candidates}, min_quota={min(core_quota.values())}, max_quota={max(core_quota.values())}"
+        )
+    else:
+        print("Template balancing disabled: no usable semantic core found under current parameters.")
+
     accepted_records: List[Dict] = []
     reject_log: List[Dict] = []
     workers = max(1, args.workers)
@@ -949,22 +998,32 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _cleanup_on_signal)
     signal.signal(signal.SIGINT, _cleanup_on_signal)
 
-    # In append mode, offset seeds to avoid regenerating loops already accepted.
+    # Seed generation policy:
+    # - deterministic from user-provided base seed
+    # - randomized per attempt (not linear seed+attempt)
+    # - append mode shifts RNG stream to reduce overlap with previously accepted files
     seed_offset = existing_max_idx if args.append else 0
+    seed_rng = random.Random(args.seed + seed_offset)
+    used_attempt_seeds: Set[int] = set()
     next_attempt = 1
-    pending: Dict[concurrent.futures.Future, Tuple[int, int]] = {}
+    pending: Dict[concurrent.futures.Future, Tuple[int, int, Optional[str]]] = {}
     stop_event = threading.Event()
     file_mode = "a" if args.append else "w"
     distill_count = 0
     with api_jsonl_path.open(file_mode, encoding="utf-8") as api_jsonl_file, \
          dpo_jsonl_path.open(file_mode, encoding="utf-8") as dpo_jsonl_file, \
-         distill_jsonl_path.open(file_mode, encoding="utf-8") as distill_jsonl_file:
+         distill_jsonl_path.open(file_mode, encoding="utf-8") as distill_jsonl_file, \
+         template_map_jsonl_path.open(file_mode, encoding="utf-8") as template_map_file:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
             while next_attempt <= total_candidates or pending:
                 while next_attempt <= total_candidates and len(pending) < workers:
                     attempt = next_attempt
                     next_attempt += 1
-                    seed = args.seed + seed_offset + (attempt - 1)
+                    seed = seed_rng.randint(1, 2_147_483_647)
+                    while seed in used_attempt_seeds:
+                        seed = seed_rng.randint(1, 2_147_483_647)
+                    used_attempt_seeds.add(seed)
+                    forced_core = core_plan[attempt - 1] if attempt - 1 < len(core_plan) else None
                     fut = ex.submit(
                         run_one_attempt,
                         attempt,
@@ -977,8 +1036,9 @@ def main() -> None:
                         run_tag,
                         stop_event,
                         lf_overrides,
+                        forced_core,
                     )
-                    pending[fut] = (attempt, seed)
+                    pending[fut] = (attempt, seed, forced_core)
 
                 if not pending:
                     break
@@ -988,7 +1048,7 @@ def main() -> None:
                     return_when=concurrent.futures.FIRST_COMPLETED,
                 )
                 for fut in done:
-                    attempt, seed = pending.pop(fut)
+                    attempt, seed, forced_core = pending.pop(fut)
                     try:
                         result = fut.result()
                     except Exception as e:
@@ -1019,6 +1079,15 @@ def main() -> None:
                     idx = existing_max_idx + len(accepted_records) + 1
                     (raw_dir / f"{idx}.c").write_text(result["raw_code"], encoding="utf-8")
                     (ann_dir / f"{idx}.c").write_text(result["annotated"], encoding="utf-8")
+                    template_map_file.write(json.dumps({
+                        "id": f"loop_factory_{idx}",
+                        "raw_file": f"raw/{idx}.c",
+                        "annotated_file": f"annotated/{idx}.c",
+                        "attempt": attempt,
+                        "seed": result["seed"],
+                        "template": forced_core or "none",
+                    }, ensure_ascii=False) + "\n")
+                    template_map_file.flush()
 
                     accepted_records.append(
                         {
@@ -1143,6 +1212,7 @@ def main() -> None:
     print(f"JSONL SFT (instruction/input/output): {api_jsonl_path}")
     print(f"JSONL DPO (instruction/input/chosen/rejected): {dpo_jsonl_path}")
     print(f"JSONL Distill SFT (all raw candidates, {distill_count} items): {distill_jsonl_path}")
+    print(f"Template map JSONL (file -> semantic core): {template_map_jsonl_path}")
     print(f"Reject log: {reject_path}")
 
 

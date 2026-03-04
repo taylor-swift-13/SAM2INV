@@ -25,8 +25,9 @@ Require Import int_array_strategy_proof.
 (*----- Function foo -----*)
 
 Definition foo_safety_wit_1 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -36,8 +37,9 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_2 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -47,9 +49,10 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_3 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -59,11 +62,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_4 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (1 = 0) |] 
   &&  [| (invalid_pre >= 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -72,11 +76,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_5 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (0 <> 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -85,10 +90,11 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_6 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (0 <> 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -97,10 +103,11 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_7 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -110,11 +117,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_8 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -124,12 +132,13 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_9 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre >= 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -138,11 +147,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_10 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre >= 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -152,11 +162,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_11 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre >= 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -166,11 +177,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_12 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre >= 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> (nonexclusive_pre + exclusive_pre ))
@@ -180,11 +192,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_13 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre >= 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> 0)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> (nonexclusive_pre + exclusive_pre ))
@@ -194,11 +207,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_14 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre >= 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> 0)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> (nonexclusive_pre + exclusive_pre ))
@@ -208,11 +222,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_15 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre >= 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> 0)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> (invalid_pre - 1 ))
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> (nonexclusive_pre + exclusive_pre ))
@@ -222,11 +237,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_16 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre >= 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> 0)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> (invalid_pre - 1 ))
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> (nonexclusive_pre + exclusive_pre ))
@@ -236,11 +252,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_17 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -250,11 +267,12 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_18 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -264,12 +282,13 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_19 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) < 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -278,12 +297,13 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_20 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -293,12 +313,13 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_21 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -308,13 +329,14 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_22 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) < 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -323,13 +345,14 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_23 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -339,13 +362,14 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_24 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -355,13 +379,14 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_25 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -371,13 +396,14 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_26 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> invalid_pre)
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -387,13 +413,14 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_27 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> (((invalid_pre + unowned_pre ) + nonexclusive_pre ) - 1 ))
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> nonexclusive_pre)
@@ -403,13 +430,14 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_28 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> (((invalid_pre + unowned_pre ) + nonexclusive_pre ) - 1 ))
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> 0)
@@ -419,13 +447,14 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_29 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> exclusive_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> (((invalid_pre + unowned_pre ) + nonexclusive_pre ) - 1 ))
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> 0)
@@ -435,13 +464,14 @@ forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z
 .
 
 Definition foo_safety_wit_30 := 
-forall (exclusive_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
+forall (exclusive_pre: Z) (unknown_pre: Z) (invalid_pre: Z) (unowned_pre: Z) (nonexclusive_pre: Z) ,
   [| ((nonexclusive_pre + unowned_pre ) >= 1) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| (0 = 0) |] 
   &&  [| (invalid_pre < 1) |] 
   &&  [| ((nonexclusive_pre + unowned_pre ) >= 1) |]
   &&  ((( &( "exclusive" ) )) # Int  |-> (exclusive_pre + 1 ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
   **  ((( &( "invalid" ) )) # Int  |-> (((invalid_pre + unowned_pre ) + nonexclusive_pre ) - 1 ))
   **  ((( &( "unowned" ) )) # Int  |-> unowned_pre)
   **  ((( &( "nonexclusive" ) )) # Int  |-> 0)

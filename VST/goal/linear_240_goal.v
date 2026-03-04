@@ -25,55 +25,60 @@ Require Import int_array_strategy_proof.
 (*----- Function foo -----*)
 
 Definition foo_safety_wit_1 := 
-forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "exp" ) )) # Int  |-> exp_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> term_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_2 := 
-forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "exp" ) )) # Int  |-> exp_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> term_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((term_pre * (x_pre ÷ count_pre ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (term_pre * (x_pre ÷ count_pre ) )) |]
 .
 
 Definition foo_safety_wit_3 := 
-forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "exp" ) )) # Int  |-> exp_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> term_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((x_pre <> (INT_MIN)) \/ (count_pre <> (-1))) |] 
   &&  [| (count_pre <> 0) |]
 .
 
 Definition foo_safety_wit_4 := 
-forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "exp" ) )) # Int  |-> exp_pre)
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((exp_pre + (term_pre * (x_pre ÷ count_pre ) ) ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (exp_pre + (term_pre * (x_pre ÷ count_pre ) ) )) |]
 .
 
 Definition foo_safety_wit_5 := 
-forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) ,
+forall (exp_pre: Z) (count_pre: Z) (x_pre: Z) (term_pre: Z) (unknown_pre: Z) ,
   ((( &( "exp" ) )) # Int  |-> (exp_pre + (term_pre * (x_pre ÷ count_pre ) ) ))
   **  ((( &( "count" ) )) # Int  |-> count_pre)
   **  ((( &( "x" ) )) # Int  |-> x_pre)
   **  ((( &( "term" ) )) # Int  |-> (term_pre * (x_pre ÷ count_pre ) ))
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| ((count_pre + 1 ) <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= (count_pre + 1 )) |]

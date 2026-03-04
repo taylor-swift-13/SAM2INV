@@ -25,25 +25,28 @@ Require Import int_array_strategy_proof.
 (*----- Function foo -----*)
 
 Definition foo_safety_wit_1 := 
-forall (x_pre: Z) ,
+forall (x_pre: Z) (unknown_pre: Z) ,
   ((( &( "x" ) )) # Int  |-> x_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]
 .
 
 Definition foo_safety_wit_2 := 
-forall (x_pre: Z) ,
+forall (x_pre: Z) (unknown_pre: Z) ,
   ((( &( "x" ) )) # Int  |-> x_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (0 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 0) |]
 .
 
 Definition foo_safety_wit_3 := 
-forall (x_pre: Z) ,
+forall (x_pre: Z) (unknown_pre: Z) ,
   [| (x_pre = 0) |]
   &&  ((( &( "x" ) )) # Int  |-> x_pre)
+  **  ((( &( "unknown" ) )) # Int  |-> unknown_pre)
 |--
   [| (1 <= INT_MAX) |] 
   &&  [| ((INT_MIN) <= 1) |]

@@ -1,6 +1,7 @@
 import openai
 import re
 import threading
+import sys
 from config import LLMConfig
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple
@@ -224,6 +225,14 @@ class VLLMClient:
     """
 
     def __init__(self, model_path: str, gpu_count: int = 1, gpu_mem: float = 0.90):
+        if sys.version_info < (3, 10):
+            raise RuntimeError(
+                "vLLM 需要 Python 3.10+，当前版本为 "
+                f"{sys.version_info.major}.{sys.version_info.minor}。"
+                " 解决方案：升级 Python 到 3.10+，或设置 USE_VLLM=0 切换到 Transformers 后端，"
+                "或设置 USE_LOCAL=0 使用云端 API。"
+            )
+
         from vllm import LLM, SamplingParams  # 延迟导入，仅 use_local=True 时才需要 vllm
 
         print(f"[VLLMClient] 正在初始化 vLLM 引擎 [model={model_path}, GPUs={gpu_count}] ...")

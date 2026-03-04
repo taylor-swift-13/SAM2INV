@@ -5,6 +5,7 @@ import argparse
 import csv
 import random
 import re
+import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -468,7 +469,7 @@ def _cfg_or_default(name: str, default: float) -> float:
 class HyperParams:
     m: int = 10
     p: int = 3          # max params (upper bound)
-    min_params: int = 1 # min params (lower bound; sampled in [min_params, p])
+    min_params: int = 1 # min params (lower bound; sampled in [min_params, p], can be 0)
     min_while_fuel: int = 0
     while_fuel: int = 3         # program-level upper bound for while loops
     assign_fuel: int = 6        # per-loop assign upper bound (including loop-step)
@@ -713,8 +714,8 @@ class ProbabilisticLoopFactory:
         self.var_extension_shortfall = 0
 
     def _pick_params(self) -> List[str]:
-        hi = max(1, min(self.hp.p, len(self.param_candidates)))
-        lo = max(1, min(self.hp.min_params, hi))
+        hi = max(0, min(self.hp.p, len(self.param_candidates)))
+        lo = max(0, min(self.hp.min_params, hi))
         p = self.rng.randint(lo, hi)
         return self.rng.sample(self.param_candidates, k=p)
 
@@ -1072,7 +1073,14 @@ class ProbabilisticLoopFactory:
             if tgt:
                 d = self.rng.choice(symbol_pool or [ctr])
                 body[last_added_idx] = Assign(tgt, f"{tgt}+{d}")
-        if considered > 0 and added == 0:
+        # Guarantee: if probabilistic pass skipped every free var despite having
+        # budget, force-assign at least one so no program has purely dead state vars.
+        if added == 0 and untouched and assign_budget_left > 0:
+            v = untouched[0]
+            d = self.rng.choice(symbol_pool or [ctr])
+            body.append(Assign(v, f"{v}+{d}"))
+            added = 1
+        elif considered > 0 and added == 0:
             self.var_extension_shortfall += 1
         return added
 
@@ -2476,6 +2484,15 @@ class ProbabilisticLoopFactory:
 
         assign_budget = max(0, assign_total - (1 if append_step else 0))
 
+        # Guarantee extension slots: when free vars exist, ensure assign_budget
+        # covers at least used_assign + len(_free) so every free var has a chance
+        # to receive a loop-body update.  Hard-capped at assign_fuel to avoid bloat.
+        if core_applied and _free:
+            assign_budget = min(
+                max(assign_budget, used_assign + len(_free)),
+                self.hp.assign_fuel,
+            )
+
         # ── Minimum if/else floor enforcement ───────────────────────────────────
         # Inject guaranteed if-blocks when the core has used fewer ifs than min_ifelse.
         # These are appended before the extension phase so free_vars are already known.
@@ -2605,7 +2622,7 @@ class ProbabilisticLoopFactory:
 
         return top_level
 
-    def sample_program(self, idx: int) -> Program:
+    def sample_program(self, idx: int, forced_loop_cores: Optional[List[Optional[str]]] = None) -> Program:
         params = self._pick_params()
         alloc = NameAllocator(params=params, rng=self.rng)
 
@@ -2621,6 +2638,10 @@ class ProbabilisticLoopFactory:
         # p_multi_semantic gate fires, pick a paired template (ML-series) so
         # Loop 1 and Loop 2 share a coherent inter-loop invariant.
         force_cores: List[Optional[str]] = [None] * loop_count
+        if forced_loop_cores:
+            for i, c in enumerate(forced_loop_cores):
+                if i < loop_count and c:
+                    force_cores[i] = c
         if loop_count >= 2 and self.rng.random() < self.hp.p_multi_semantic:
             ml_key = self.rng.choice(list(MULTI_LOOP_TEMPLATES.keys()))
             c1, c2 = MULTI_LOOP_TEMPLATES[ml_key]
@@ -2642,7 +2663,29 @@ class ProbabilisticLoopFactory:
             universe.extend(produced)
             core_usage[core_name] = core_usage.get(core_name, 0) + 1
 
-        return Program(name=f"main{idx + 1}", params=params, local_inits=local_inits, body=self._arrange_loops(loops))
+        arranged = self._arrange_loops(loops)
+
+        # ── Dead-local pruning ────────────────────────────────────────────────
+        # Collect every identifier mentioned in any loop (guard + body).
+        # Then expand transitively: if local v is needed, every var in its
+        # init expression is also needed (so the C declaration stays valid).
+        # Drop locals that are unreachable by this closure — they are truly
+        # dead and inflate the declared-variable count beyond hp.m's intent.
+        loop_text = "\n".join(line for s in arranged for line in s.render(0))
+        needed: set = set(re.findall(r"\b([a-z_]\w*)\b", loop_text))
+        init_map = {v: e for v, e in local_inits}
+        changed = True
+        while changed:
+            changed = False
+            for v, e in local_inits:
+                if v in needed:
+                    for dep in re.findall(r"\b([a-z_]\w*)\b", e):
+                        if dep not in needed and dep in init_map:
+                            needed.add(dep)
+                            changed = True
+        local_inits = [(v, e) for v, e in local_inits if v in needed]
+
+        return Program(name=f"main{idx + 1}", params=params, local_inits=local_inits, body=arranged)
 
 
 # ─── Trace-based semantic scorer ─────────────────────────────────────────────
@@ -2788,7 +2831,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--max-vars", type=int, default=10, help="Maximum number of variables")
     parser.add_argument("--params", "--max-params", type=int, default=3, help="Max number of parameter variables (upper bound)")
-    parser.add_argument("--min-params", type=int, default=1, help="Min number of parameter variables (lower bound, default 1)")
+    parser.add_argument("--min-params", type=int, default=1, help="Min number of parameter variables (lower bound, can be 0)")
 
     parser.add_argument("--top-loops", type=int, default=3, help="Deprecated compatibility alias of --max-loops")
     parser.add_argument("--min-loops", type=int, default=1, help="Program-level while lower bound")
@@ -2807,6 +2850,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--nonlinear-strength", type=float, default=0.70, help="Strength of nonlinear updates in NLA-like loops")
     parser.add_argument("--p-semantic-core", type=float, default=_cfg_or_default("p_semantic_core", 1.0), help="Probability to inject one semantic core rule in a loop")
     parser.add_argument("--p-multi-semantic", type=float, default=0.75, help="Probability that a multi-loop program uses an ML-series semantic pairing")
+    parser.add_argument("--force-core", type=str, default="", help="Force semantic core for loop 0 (single-loop generation is recommended).")
+    parser.add_argument("--print-usable-cores-json", action="store_true", help="Print usable semantic cores as JSON and exit.")
+    parser.add_argument("--probe-max-resample", type=int, default=128, help="Max resamples per core when probing usable semantic cores.")
     parser.add_argument(
         "--dump-input-template-map-csv",
         type=Path,
@@ -2825,6 +2871,106 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Audit that all loop-containing input files are covered by template mapping and exit.",
     )
     return parser
+
+
+def _iter_loops(stmts: Sequence[Stmt]) -> List[Stmt]:
+    out: List[Stmt] = []
+    for s in stmts:
+        if isinstance(s, (WhileLoop, ForLoop)):
+            out.append(s)
+            out.extend(_iter_loops(s.body))
+        elif isinstance(s, IfOnly):
+            out.extend(_iter_loops(s.then_body))
+        elif isinstance(s, IfElse):
+            out.extend(_iter_loops(s.then_body))
+            out.extend(_iter_loops(s.else_body))
+    return out
+
+
+def _declared_semantic_cores() -> List[str]:
+    """
+    Parse core names from allow("...") declarations in this source file.
+    Keeps probe/list behavior aligned with the actual candidate registry.
+    """
+    src = Path(__file__).read_text(encoding="utf-8")
+    names = sorted(set(re.findall(r'allow\("([A-Za-z0-9_]+)"', src)))
+    return names
+
+
+def _count_assigns_in_loop(loop_stmt: Stmt) -> int:
+    def _count(stmts: Sequence[Stmt]) -> int:
+        n = 0
+        for s in stmts:
+            if isinstance(s, Assign):
+                n += 1
+            elif isinstance(s, IfOnly):
+                n += _count(s.then_body)
+            elif isinstance(s, IfElse):
+                n += _count(s.then_body) + _count(s.else_body)
+        return n
+
+    if isinstance(loop_stmt, ForLoop):
+        return _count(loop_stmt.body) + (1 if loop_stmt.step is not None else 0)
+    if isinstance(loop_stmt, WhileLoop):
+        return _count(loop_stmt.body)
+    return 0
+
+
+def _count_if_nodes_in_loop(loop_stmt: Stmt) -> int:
+    def _count(stmts: Sequence[Stmt]) -> int:
+        n = 0
+        for s in stmts:
+            if isinstance(s, IfOnly):
+                n += 1 + _count(s.then_body)
+            elif isinstance(s, IfElse):
+                n += 1 + _count(s.then_body) + _count(s.else_body)
+        return n
+
+    if isinstance(loop_stmt, (WhileLoop, ForLoop)):
+        return _count(loop_stmt.body)
+    return 0
+
+
+def _satisfy_hard_constraints(program: Program, hp: HyperParams) -> bool:
+    if not (hp.min_params <= len(program.params) <= hp.p):
+        return False
+    if len(program.local_inits) > hp.m:
+        return False
+
+    loops = _iter_loops(program.body)
+    if not (hp.min_while_fuel <= len(loops) <= hp.while_fuel):
+        return False
+
+    for lp in loops:
+        n_assign = _count_assigns_in_loop(lp)
+        if not (hp.min_assign <= n_assign <= hp.assign_fuel):
+            return False
+        n_if = _count_if_nodes_in_loop(lp)
+        if not (hp.min_ifelse <= n_if <= hp.ifelse_fuel):
+            return False
+    return True
+
+
+def _probe_usable_semantic_cores(hp: HyperParams, base_seed: int, max_resample: int) -> List[str]:
+    usable: List[str] = []
+    declared = _declared_semantic_cores()
+    for idx, core in enumerate(declared):
+        # Keep each core probe deterministic and independent.
+        rng = random.Random(base_seed + 1000003 * (idx + 1))
+        factory = ProbabilisticLoopFactory(hp, rng)
+        ok = False
+        for _ in range(max_resample):
+            try:
+                cand = factory.sample_program(0, forced_loop_cores=[core])
+                if _satisfy_hard_constraints(cand, hp):
+                    ok = True
+                    break
+            except Exception:
+                # Forced core may be incompatible with sampled variable budgets; treat as unusable.
+                continue
+        if ok:
+            usable.append(core)
+    return usable
 
 
 def main() -> None:
@@ -2847,8 +2993,8 @@ def main() -> None:
 
     hp = HyperParams(
         m=max(1, args.max_vars),
-        p=max(1, args.params),
-        min_params=max(1, min(args.min_params, args.params)),
+        p=max(0, args.params),
+        min_params=max(0, min(args.min_params, args.params)),
         min_while_fuel=max(1, args.min_loops),
         while_fuel=max(1, max_loops_arg),
         assign_fuel=max(1, args.max_assign),
@@ -2871,12 +3017,33 @@ def main() -> None:
         w_core_euclid_matrix=DEFAULT_CORE_KNOBS["w_core_euclid_matrix"],
     )
 
+    if args.print_usable_cores_json:
+        usable = _probe_usable_semantic_cores(hp, args.seed, max(1, args.probe_max_resample))
+        print(json.dumps(usable, ensure_ascii=False))
+        return
+
     rng = random.Random(args.seed)
     factory = ProbabilisticLoopFactory(hp, rng)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
+    max_resample = 512
     for i in range(args.count):
-        program = factory.sample_program(i)
+        program = None
+        for _ in range(max_resample):
+            forced = [args.force_core] if args.force_core else None
+            candidate = factory.sample_program(i, forced_loop_cores=forced)
+            if _satisfy_hard_constraints(candidate, hp):
+                program = candidate
+                break
+        if program is None:
+            raise RuntimeError(
+                "Failed to satisfy hard constraints after "
+                f"{max_resample} tries for index={i} with "
+                f"max_vars={hp.m}, min/max params={hp.min_params}/{hp.p}, "
+                f"min/max loops={hp.min_while_fuel}/{hp.while_fuel}, "
+                f"min/max assign={hp.min_assign}/{hp.assign_fuel}, "
+                f"min/max ifelse={hp.min_ifelse}/{hp.ifelse_fuel}."
+            )
         out_file = args.out_dir / f"{i + 1}.c"
         out_file.write_text(program.render() + "\n", encoding="utf-8")
 

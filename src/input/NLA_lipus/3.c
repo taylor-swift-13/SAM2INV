@@ -1,11 +1,12 @@
-/*@ requires x>0;
-    requires y>0;
+
+/*@
+    requires x > 0;
+    requires y > 0;
 */
-int main3(int x,int y){
- 
+int main(int x, int y) {
     int q=0;
     int r=0;
-    
+    // loop body
     while(x > y * q + r) {
         if (r == y - 1){
             r = 0;
@@ -14,8 +15,6 @@ int main3(int x,int y){
         else{
             r += 1;
         }
-  
     }
-    /*@ assert(x == q*y+r);*/
-  }
-  
+    /*@ assert r == x % y;*/
+}
