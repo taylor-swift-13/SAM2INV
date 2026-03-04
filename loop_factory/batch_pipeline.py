@@ -509,31 +509,132 @@ def _prune_invariant_block(block_text: str) -> Tuple[str, List[str]]:
     return "".join(kept), removed_reasons
 
 
-def postprocess_invariants_for_quality(annotated_code: str) -> Tuple[str, List[Dict[str, str]]]:
+def _extract_invariant_entries(block_text: str) -> List[Tuple[int, str, str, str]]:
+    line_pat = re.compile(r"^(\s*(?:\*\s*)?loop\s+invariant\s+)([^;]+)(;\s*(?:\r?\n)?)$")
+    entries: List[Tuple[int, str, str, str]] = []
+    for i, line in enumerate(block_text.splitlines(keepends=True)):
+        m = line_pat.match(line)
+        if not m:
+            continue
+        entries.append((i, m.group(1), m.group(2).strip(), m.group(3)))
+    return entries
+
+
+def _extract_json_object(text: str) -> Optional[Dict]:
+    if not text:
+        return None
+    s = text.strip()
+    try:
+        obj = json.loads(s)
+        return obj if isinstance(obj, dict) else None
+    except Exception:
+        pass
+    m = re.search(r"\{[\s\S]*\}", s)
+    if not m:
+        return None
+    try:
+        obj = json.loads(m.group(0))
+        return obj if isinstance(obj, dict) else None
+    except Exception:
+        return None
+
+
+def _llm_semantic_dedup_invariant_block(
+    block_text: str,
+    llm_cfg: LLMConfig,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[str, int]:
+    entries = _extract_invariant_entries(block_text)
+    if len(entries) < 2:
+        return block_text, 0
+
+    invs = [expr for _, _, expr, _ in entries]
+    prompt = (
+        "You are deduplicating ACSL loop invariants.\n"
+        "Task: remove only logically redundant invariants that are implied by others.\n"
+        "Do NOT remove stronger invariants in favor of weaker ones.\n"
+        "Do NOT rewrite expressions.\n"
+        "Return strict JSON only: {\"remove_indices\": [int,...]}.\n"
+        "Indices are 0-based within this list:\n"
+    )
+    for i, inv in enumerate(invs):
+        prompt += f"{i}: {inv}\n"
+    prompt += (
+        "Rules:\n"
+        "- Remove exact duplicates and obvious semantic duplicates/subsumed bounds.\n"
+        "- If uncertain, keep the invariant.\n"
+        "- Never return indices outside range.\n"
+        "- Prefer minimal removals.\n"
+    )
+
+    try:
+        dedup_cfg = copy.copy(llm_cfg)
+        dedup_cfg.api_temperature = 0.0
+        bot = Chatbot(dedup_cfg)
+        resp = bot.chat(prompt)
+        obj = _extract_json_object(resp)
+        if not obj:
+            if logger:
+                logger.info("LLM dedup skipped: non-JSON response")
+            return block_text, 0
+        raw_indices = obj.get("remove_indices", [])
+        if not isinstance(raw_indices, list):
+            return block_text, 0
+        remove_idx = set()
+        for x in raw_indices:
+            try:
+                xi = int(x)
+            except Exception:
+                continue
+            if 0 <= xi < len(entries):
+                remove_idx.add(xi)
+        if not remove_idx:
+            return block_text, 0
+
+        lines = block_text.splitlines(keepends=True)
+        remove_line_indices = {entries[i][0] for i in sorted(remove_idx)}
+        kept_lines = [line for i, line in enumerate(lines) if i not in remove_line_indices]
+        return "".join(kept_lines), len(remove_line_indices)
+    except Exception as e:
+        if logger:
+            logger.warning(f"LLM dedup failed, skip this block: {e}")
+        return block_text, 0
+
+
+def postprocess_invariants_for_quality(
+    annotated_code: str,
+    llm_cfg: Optional[LLMConfig] = None,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[str, List[Dict[str, str]]]:
+    use_llm_semantic_dedup = bool(_lf_cfg("llm_semantic_dedup_enabled", False))
     blocks = _attached_invariant_blocks(annotated_code)
     if not blocks:
         return annotated_code, []
 
     new_code = annotated_code
     shift = 0
-    removed_any_dup = False
-    removed_any_identity = False
+    removed_any_rule = False
+    removed_any_llm = False
     for start, end in blocks:
         s = start + shift
         e = end + shift
         block = new_code[s:e]
         pruned, reasons = _prune_invariant_block(block)
         if reasons:
-            removed_any_dup = removed_any_dup or ("duplicate_invariant" in reasons)
-            removed_any_identity = removed_any_identity or ("identity_or_tautology" in reasons)
-            new_code = new_code[:s] + pruned + new_code[e:]
-            shift += len(pruned) - (e - s)
+            removed_any_rule = True
+        updated_block = pruned
+        if use_llm_semantic_dedup and llm_cfg is not None:
+            llm_dedup_block, llm_removed = _llm_semantic_dedup_invariant_block(updated_block, llm_cfg, logger=logger)
+            if llm_removed > 0:
+                updated_block = llm_dedup_block
+                removed_any_llm = True
+        if updated_block != block:
+            new_code = new_code[:s] + updated_block + new_code[e:]
+            shift += len(updated_block) - (e - s)
 
     rejected_items: List[Dict[str, str]] = []
-    if removed_any_dup:
+    if removed_any_rule or removed_any_llm:
         rejected_items.append({"reason": "pre_invariant_dedup", "code": annotated_code})
-    if removed_any_identity:
-        rejected_items.append({"reason": "pre_quality_identity", "code": annotated_code})
     return new_code, rejected_items
 
 
@@ -816,7 +917,11 @@ def run_one_attempt(
 
         out_c = src_output_dir / f"{file_id}.c"
         annotated_raw = out_c.read_text(encoding="utf-8") if out_c.exists() else (final_code or "")
-        annotated, post_rejected_items = postprocess_invariants_for_quality(annotated_raw)
+        annotated, post_rejected_items = postprocess_invariants_for_quality(
+            annotated_raw,
+            llm_cfg=llm_cfg,
+            logger=logger,
+        )
         annotated = strip_blank_lines(annotated)
         if out_c.exists() and annotated != annotated_raw:
             out_c.write_text(annotated, encoding="utf-8")
