@@ -7,7 +7,6 @@ import copy
 import itertools
 import concurrent.futures
 import os
-import math
 import hashlib
 import json
 import logging
@@ -403,92 +402,65 @@ def _aug_houdini_rejects(
     return new_rejects
 
 
-def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) -> Tuple[bool, str]:
-    input_loops = count_loops(raw_code)
-    if input_loops < 1:
-        return False, "no loop in input"
-    covered_loops, total_loops = count_loops_with_invariants(annotated_code)
-    if total_loops < input_loops:
-        return False, f"loop count mismatch after generation: {total_loops}/{input_loops}"
-    if covered_loops < input_loops:
-        return False, f"missing loop invariants: {covered_loops}/{input_loops}"
+def _extract_first_json_object(text: str) -> Optional[Dict]:
+    if not text:
+        return None
+    s = text.strip()
+    if s.startswith("{") and s.endswith("}"):
+        try:
+            obj = json.loads(s)
+            return obj if isinstance(obj, dict) else None
+        except json.JSONDecodeError:
+            pass
+    m = re.search(r"\{[\s\S]*\}", s)
+    if not m:
+        return None
+    try:
+        obj = json.loads(m.group(0))
+        return obj if isinstance(obj, dict) else None
+    except json.JSONDecodeError:
+        return None
 
-    invariants = gen._extract_invariants_from_code(annotated_code)
-    if not invariants:
-        return False, "empty invariants"
-    if any(is_tautological(inv) for inv in invariants):
-        return False, "contains tautology"
-    if not [inv for inv in invariants if is_nontrivial_inv(inv)]:
-        return False, "no nontrivial invariants"
 
-    per_loop_invs = extract_per_loop_invariants(annotated_code)
-    if len(per_loop_invs) < input_loops:
-        return False, f"per-loop invariant extraction mismatch: {len(per_loop_invs)}/{input_loops}"
-
-    if not gen.sampler.records or len(gen.sampler.records) < input_loops:
-        return False, f"loop records missing: {len(gen.sampler.records) if gen.sampler.records else 0}/{input_loops}"
-
-    for i in range(input_loops):
-        loop_content = gen.sampler.records[i].get("loop_content", "")
-        loop_invs = per_loop_invs[i]
-
-        if len(loop_invs) < 2:
-            return False, f"loop {i}: too few invariants"
-        if any(is_tautological(inv) for inv in loop_invs):
-            return False, f"loop {i}: contains tautology"
-        useful_invs = [inv for inv in loop_invs if is_nontrivial_inv(inv)]
-        if not useful_invs:
-            return False, f"loop {i}: no nontrivial invariants"
-
-        if has_repetitive_loop_updates(loop_content):
-            return False, f"loop {i}: repetitive loop updates"
-        updated_vars = extract_updated_vars(loop_content)
-        if not updated_vars:
-            return False, f"loop {i}: no updated vars extracted from loop"
-        loop_var = gen._extract_loop_variable(loop_content) if loop_content else None
-        non_loop_updated = [v for v in sorted(updated_vars) if v != loop_var]
-        # Allow counter-only loops as long as loop-variable invariants remain sound.
-
-        vars_to_cover = set(updated_vars)
-        if loop_var:
-            vars_to_cover.add(loop_var)
-
-        for v in sorted(vars_to_cover):
-            if not any(re.search(rf"\b{re.escape(v)}\b", inv) for inv in useful_invs):
-                return False, f"loop {i}: var lacks nontrivial invariant: {v}"
-
-        # Prefer equality constraints for changed non-loop variables (soft ratio).
-        eq_covered = 0
-        for v in sorted(updated_vars):
-            if v == loop_var:
-                continue
-            has_eq = any(("==" in inv) and re.search(rf"\b{re.escape(v)}\b", inv) for inv in useful_invs)
-            if has_eq:
-                eq_covered += 1
-        if non_loop_updated:
-            need_eq = max(1, math.ceil(0.7 * len(non_loop_updated)))
-            if eq_covered < need_eq:
-                return False, f"loop {i}: insufficient equality coverage: {eq_covered}/{len(non_loop_updated)}"
-
-        # Loop variable should have explicit lower + upper bound.
-        # Exception: canonical infinite loop `while(1)` does not require this bound pair.
-        if loop_var and not is_canonical_infinite_loop(loop_content):
-            lo_ok = any(
-                re.search(rf"\b{re.escape(loop_var)}\b\s*(>=|>)", inv)
-                or re.search(rf"(<=|<)\s*\b{re.escape(loop_var)}\b", inv)
-                for inv in useful_invs
-            )
-            hi_ok = any(
-                re.search(rf"\b{re.escape(loop_var)}\b\s*(<=|<)", inv)
-                or re.search(rf"(>=|>)\s*\b{re.escape(loop_var)}\b", inv)
-                for inv in useful_invs
-            )
-            if not (lo_ok and hi_ok):
-                return False, f"loop {i}: loop var lacks explicit bounds: {loop_var}"
-
-    if not has_no_assert(raw_code):
-        return False, "input unexpectedly contains assert"
-    return True, "ok"
+def quality_gate(
+    gen: InvariantGenerator,
+    raw_code: str,
+    annotated_code: str,
+    llm_cfg: LLMConfig,
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[bool, str]:
+    gate_cfg = copy.copy(llm_cfg)
+    # 门控评审稳定性优先，降低采样温度。
+    gate_cfg.api_temperature = 0.0
+    reviewer = Chatbot(gate_cfg)
+    invs = gen._extract_invariants_from_code(annotated_code)
+    judge_prompt = (
+        "You are a C/ACSL loop-invariant quality reviewer. Return JSON only; no explanation.\n"
+        "Goal: decide whether loop invariants in annotated_code are high quality.\n"
+        "Judging criteria (semantic, not template-based):\n"
+        "1) Invariants must be non-trivial, not unrelated identities or filler statements.\n"
+        "2) They must effectively summarize loop behavior (update relations, bounds, conservation laws, etc.).\n"
+        "3) Every variable modified inside the loop should be covered by the invariant set; do not miss key variables.\n"
+        "\n"
+        "Return strict JSON:\n"
+        "{\n"
+        "  \"ok\": true/false,\n"
+        "  \"reason\": \"one-sentence reason\",\n"
+        "  \"loop_feedback\": [\"loop0: ...\", \"loop1: ...\"]\n"
+        "}\n\n"
+        f"raw_code:\n```c\n{raw_code}\n```\n\n"
+        f"annotated_code:\n```c\n{annotated_code}\n```\n\n"
+        f"extracted_invariants:\n{json.dumps(invs, ensure_ascii=False)}\n"
+    )
+    resp = reviewer.chat(judge_prompt)
+    parsed = _extract_first_json_object(resp)
+    if logger:
+        logger.info("LLM quality-gate raw response: %s", (resp or "").strip())
+    if not parsed:
+        return False, "llm_gate_invalid_json"
+    ok = bool(parsed.get("ok", False))
+    reason = str(parsed.get("reason", "") or "").strip() or ("ok" if ok else "llm_gate_rejected")
+    return ok, reason
 
 
 def _loop_factory_base_cmd(hp: Dict[str, object], force_core: Optional[str] = None) -> List[str]:
@@ -686,17 +658,13 @@ def run_one_attempt(
         if out_c.exists() and annotated != annotated_raw:
             out_c.write_text(annotated, encoding="utf-8")
 
-        ok, reason = quality_gate(gen, raw_code, annotated)
+        ok, reason = quality_gate(gen, raw_code, annotated, llm_cfg=local_cfg, logger=logger)
         if not ok:
             return {
                 "ok": False,
                 "reason": reason,
                 "attempt": attempt,
                 "seed": seed,
-                "qg_fail_annotated": annotated,
-                "qg_fail_user_prompt": user_prompt,
-                "qg_fail_raw_code": raw_code,
-                "is_retry": forced_raw_code is not None,
             }
 
         invariants = gen._extract_invariants_from_code(annotated)
@@ -881,10 +849,6 @@ def main() -> None:
     reject_log: List[Dict] = []
     workers = max(1, args.workers)
     run_tag = f"{os.getpid()}_{int(time.time())}"
-    # quality_gate-failed annotations: user_prompt_hash -> annotated_code
-    qg_fail_pool: Dict[str, str] = {}
-    # raw_codes to retry with a fresh LLM seed: {raw_code, force_core}
-    retry_queue: List[Dict] = []
     # Houdini DPO augmentation resources (main-thread only, single temp file)
     use_houdini_aug = bool(_lf_cfg("houdini_dpo_augment", False))
     houdini_aug_patience = int(HOUDINI_CFG.get("patience", 2))
@@ -923,23 +887,18 @@ def main() -> None:
     with api_jsonl_path.open(file_mode, encoding="utf-8") as api_jsonl_file, \
          dpo_jsonl_path.open(file_mode, encoding="utf-8") as dpo_jsonl_file, \
          distill_jsonl_path.open(file_mode, encoding="utf-8") as distill_jsonl_file, \
-         template_map_jsonl_path.open(file_mode, encoding="utf-8") as template_map_file:
+        template_map_jsonl_path.open(file_mode, encoding="utf-8") as template_map_file:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            while next_attempt <= total_candidates or pending or retry_queue:
-                while (next_attempt <= total_candidates or retry_queue) and len(pending) < workers:
+            while next_attempt <= total_candidates or pending:
+                while next_attempt <= total_candidates and len(pending) < workers:
                     attempt = next_attempt
                     next_attempt += 1
                     seed = seed_rng.randint(1, 2_147_483_647)
                     while seed in used_attempt_seeds:
                         seed = seed_rng.randint(1, 2_147_483_647)
                     used_attempt_seeds.add(seed)
-                    if retry_queue:
-                        retry_item = retry_queue.pop(0)
-                        forced_core = retry_item.get("force_core")
-                        forced_raw = retry_item["raw_code"]
-                    else:
-                        forced_core = core_plan[attempt - 1] if attempt - 1 < len(core_plan) else None
-                        forced_raw = None
+                    forced_core = core_plan[attempt - 1] if attempt - 1 < len(core_plan) else None
+                    forced_raw = None
                     fut = ex.submit(
                         run_one_attempt,
                         attempt,
@@ -980,15 +939,6 @@ def main() -> None:
                                 "reason": result.get("reason", "unknown"),
                             }
                         )
-                        # Quality-gate failures that passed Frama-C are worth retrying:
-                        # save annotation and re-run LLM on same raw_code with new seed.
-                        qg_ann = result.get("qg_fail_annotated", "")
-                        qg_prompt = result.get("qg_fail_user_prompt", "")
-                        qg_raw = result.get("qg_fail_raw_code", "")
-                        if qg_ann and qg_prompt and qg_raw and not result.get("is_retry"):
-                            prompt_key = hashlib.md5(qg_prompt.encode()).hexdigest()
-                            qg_fail_pool[prompt_key] = qg_ann
-                            retry_queue.append({"raw_code": qg_raw, "force_core": forced_core})
                         continue
 
                     raw_key = result["raw_structure_key"]
@@ -1074,19 +1024,6 @@ def main() -> None:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has empty final chosen"})
                         continue
                     seen_rejected = set()
-                    #途径 3: 同一 raw_code 上次质量门失败的 annotated（经 Frama-C 验证但结构不足）
-                    prompt_key = hashlib.md5(prompt_text.encode()).hexdigest()
-                    qg_fail_code = (qg_fail_pool.pop(prompt_key, None) or "").strip()
-                    if qg_fail_code and qg_fail_code != chosen_code:
-                        seen_rejected.add(qg_fail_code)
-                        dpo_item = {
-                            "instruction": result["system_prompt"],
-                            "input": prompt_text,
-                            "chosen": chosen_code,
-                            "rejected": qg_fail_code,
-                        }
-                        dpo_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
-                        dpo_written += 1
                     for _loop_idx, loop_rec in sorted(loop_dpo_records.items()):
                         pre_dedup_code = (loop_rec.get("pre_dedup_code", "") or "").strip()
                         dedup_removed = int(loop_rec.get("dedup_removed", 0) or 0)
