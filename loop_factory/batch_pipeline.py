@@ -876,6 +876,14 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=int(USER_CFG.get("seed", 2026)), help="Base random seed.")
     parser.add_argument("--workers", type=int, default=int(USER_CFG.get("workers", 20)), help="Number of concurrent workers.")
     parser.add_argument(
+        "--num-candidates",
+        "--nums-candidate",
+        dest="num_candidates",
+        type=int,
+        default=5,
+        help="Number of candidate invariant sets generated per attempt.",
+    )
+    parser.add_argument(
         "--model",
         type=str,
         default=LLMConfig().api_model,
@@ -926,8 +934,7 @@ def main() -> None:
     for d in [raw_dir, ann_dir, tmp_loops, logs_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
-    # Keep one-candidate path; outer pipeline handles concurrency.
-    config.PARALLEL_GENERATION_CONFIG["num_candidates"] = 5
+    config.PARALLEL_GENERATION_CONFIG["num_candidates"] = max(1, args.num_candidates)
     config.PARALLEL_GENERATION_CONFIG["use_threading"] = False
     config.PARALLEL_GENERATION_CONFIG["max_workers"] = 1
     config.PARALLEL_GENERATION_CONFIG["temperature"] = 1.0
