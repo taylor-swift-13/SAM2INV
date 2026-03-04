@@ -175,7 +175,13 @@ LOOP_FACTORY_USER_CONFIG = {
     'p_multi': 0.0,
     'q_nest': 0.0,
     'p_nonlinear': 1.00,
-    'p_semantic_core': 0.80
+    'p_semantic_core': 0.80,
+    # 允许生成的模板白名单（支持“语义模板名”或“core名”）。
+    # 空列表表示不做限制（即全集）。
+    # 示例:
+    #   ['L1_affine_accumulator', 'L4_conservation']
+    #   ['affine_chain', 'linear_conservation_family']
+    'allowed_templates': [],
 }
 
 

@@ -654,6 +654,9 @@ def _loop_factory_base_cmd(hp: Dict[str, object], force_core: Optional[str] = No
         "--nonlinear-strength", str(hp["nonlinear_strength"]),
         "--p-semantic-core", str(hp["p_semantic_core"]),
     ]
+    allowed_templates = str(hp.get("allowed_templates", "") or "").strip()
+    if allowed_templates:
+        cmd.extend(["--allowed-templates", allowed_templates])
     if force_core:
         cmd.extend(["--force-core", force_core])
     return cmd
@@ -728,6 +731,7 @@ def loop_factory_hyperparams(seed: int, out_dir: Path, overrides: Dict[str, obje
         "p_nonlinear": 0.75,
         "nonlinear_strength": 0.82,
         "p_semantic_core": 0.88,
+        "allowed_templates": "",
     }
     if overrides:
         for k, v in overrides.items():
@@ -901,6 +905,14 @@ def main() -> None:
     parser.add_argument("--q-nest", "--lf-q-nest", dest="q_nest", type=float, default=float(_lf_cfg("q_nest", 0.0)), help="Loop-factory q_nest.")
     parser.add_argument("--p-nonlinear", "--lf-p-nonlinear", dest="p_nonlinear", type=float, default=float(_lf_cfg("p_nonlinear", 0.75)), help="Loop-factory nonlinear family probability.")
     parser.add_argument("--p-semantic-core", "--lf-p-semantic-core", dest="p_semantic_core", type=float, default=float(_lf_cfg("p_semantic_core", 0.88)), help="Loop-factory semantic core probability.")
+    parser.add_argument(
+        "--allowed-templates",
+        "--lf-allowed-templates",
+        dest="allowed_templates",
+        type=str,
+        default=str(_lf_cfg("allowed_templates", "")),
+        help="Comma-separated whitelist of semantic template/core names passed to loop_factory.",
+    )
     args = parser.parse_args()
 
     # LoopSampler uses relative paths assuming CWD is src/
@@ -948,6 +960,7 @@ def main() -> None:
         "q_nest": args.q_nest,
         "p_nonlinear": args.p_nonlinear,
         "p_semantic_core": args.p_semantic_core,
+        "allowed_templates": args.allowed_templates,
     }
 
     # Build in-memory dedup sets from existing raw/annotated pairs.

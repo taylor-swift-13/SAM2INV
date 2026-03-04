@@ -9,7 +9,7 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 DEFAULT_CORE_KNOBS = {
     "w_core_rel_guard": 0.5,
@@ -476,6 +476,50 @@ def _cfg_or_default(name: str, default: float) -> float:
     return float(default)
 
 
+def _cfg_list(name: str) -> List[str]:
+    """Read list-like config key with backward-compatible lf_* fallback."""
+    raw = USER_CFG.get(name, USER_CFG.get(f"lf_{name}", []))
+    if raw is None:
+        return []
+    if isinstance(raw, str):
+        return [x.strip() for x in raw.split(",") if x.strip()]
+    if isinstance(raw, (list, tuple, set)):
+        out: List[str] = []
+        for x in raw:
+            if x is None:
+                continue
+            s = str(x).strip()
+            if s:
+                out.append(s)
+        return out
+    return []
+
+
+def _resolve_allowed_cores(items: Sequence[str]) -> Set[str]:
+    """
+    Resolve user-specified template/core selectors into concrete core names.
+    Supports:
+    - semantic template names in SEMANTIC_TEMPLATES (e.g. L1_affine_accumulator)
+    - core names (e.g. affine_chain)
+    """
+    allowed: Set[str] = set()
+    declared = set(_declared_semantic_cores())
+    for token in items:
+        t = token.strip()
+        if not t:
+            continue
+        meta = SEMANTIC_TEMPLATES.get(t)
+        if isinstance(meta, dict):
+            for c in meta.get("cores", []):
+                cs = str(c).strip()
+                if cs:
+                    allowed.add(cs)
+            continue
+        if t in declared:
+            allowed.add(t)
+    return allowed
+
+
 @dataclass(frozen=True)
 class HyperParams:
     m: int = 10
@@ -502,6 +546,7 @@ class HyperParams:
     w_core_min_update: float = DEFAULT_CORE_KNOBS["w_core_min_update"]
     w_core_qr_division: float = DEFAULT_CORE_KNOBS["w_core_qr_division"]
     w_core_euclid_matrix: float = DEFAULT_CORE_KNOBS["w_core_euclid_matrix"]
+    allowed_cores: Tuple[str, ...] = ()
 
 
 class Stmt:
@@ -1238,11 +1283,15 @@ class ProbabilisticLoopFactory:
         # Enters if: (a) force_core specified by multi-loop pairing, or (b) passes probabilistic gate.
         if force_core is not None or self.rng.random() < self.hp.p_semantic_core:
             chosen = force_core if force_core is not None else ""
+            if chosen and self.hp.allowed_cores and chosen not in self.hp.allowed_cores:
+                chosen = ""
             if not chosen:
                 candidates: List[str] = []
                 weights: List[float] = []
 
                 def allow(name: str, w: float, need_if: int, need_asg: int, need_vars: int) -> None:
+                    if self.hp.allowed_cores and name not in self.hp.allowed_cores:
+                        return
                     if w > 0 and if_budget >= need_if and assign_total >= need_asg and len(state_vars) >= need_vars:
                         repeat = core_usage.get(name, 0)
                         # Flatten core selection and penalize repeated motifs per program.
@@ -3009,6 +3058,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--nonlinear-strength", type=float, default=0.70, help="Strength of nonlinear updates in NLA-like loops")
     parser.add_argument("--p-semantic-core", type=float, default=_cfg_or_default("p_semantic_core", 1.0), help="Probability to inject one semantic core rule in a loop")
     parser.add_argument("--p-multi-semantic", type=float, default=0.75, help="Probability that a multi-loop program uses an ML-series semantic pairing")
+    parser.add_argument("--allowed-templates", type=str, default="", help="Comma-separated whitelist of template names and/or core names. Empty means all templates.")
     parser.add_argument("--force-core", type=str, default="", help="Force semantic core for loop 0 (single-loop generation is recommended).")
     parser.add_argument("--print-usable-cores-json", action="store_true", help="Print usable semantic cores as JSON and exit.")
     parser.add_argument("--probe-max-resample", type=int, default=128, help="Max resamples per core when probing usable semantic cores.")
@@ -3113,6 +3163,8 @@ def _satisfy_hard_constraints(program: Program, hp: HyperParams) -> bool:
 def _probe_usable_semantic_cores(hp: HyperParams, base_seed: int, max_resample: int) -> List[str]:
     usable: List[str] = []
     declared = _declared_semantic_cores()
+    if hp.allowed_cores:
+        declared = [c for c in declared if c in set(hp.allowed_cores)]
     for idx, core in enumerate(declared):
         # Keep each core probe deterministic and independent.
         rng = random.Random(base_seed + 1000003 * (idx + 1))
@@ -3149,6 +3201,10 @@ def main() -> None:
         )
         return
     max_loops_arg = args.max_loops if args.max_loops is not None else args.top_loops
+    allowed_items = _cfg_list("allowed_templates")
+    if args.allowed_templates.strip():
+        allowed_items = [x.strip() for x in args.allowed_templates.split(",") if x.strip()]
+    allowed_cores = tuple(sorted(_resolve_allowed_cores(allowed_items)))
 
     hp = HyperParams(
         m=max(1, args.max_vars),
@@ -3174,6 +3230,7 @@ def main() -> None:
         w_core_min_update=DEFAULT_CORE_KNOBS["w_core_min_update"],
         w_core_qr_division=DEFAULT_CORE_KNOBS["w_core_qr_division"],
         w_core_euclid_matrix=DEFAULT_CORE_KNOBS["w_core_euclid_matrix"],
+        allowed_cores=allowed_cores,
     )
 
     if args.print_usable_cores_json:
