@@ -105,7 +105,6 @@ PARALLEL_GENERATION_CONFIG = {
     'num_candidates': 3,          # 并行生成的候选组数
     'temperature': 1.0,           # 生成温度，控制多样性
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
-    'use_houdini': True,         # 是否使用 Houdini 进一步筛选组合后的不变式
     'detect_conflicts': True,     # 是否检测并去除冲突的不变式
     'use_threading': True,        # 是否使用线程池实现真正的并行生成
     'max_workers': 20,            # API 模型：线程池最大并发数
@@ -128,8 +127,10 @@ TEMPLATE_CONFIG = {
 # Invariant dedup configuration
 # enabled=True: split top-level && invariants and deduplicate by text ignoring whitespace.
 # enabled=False: keep Houdini output as-is.
+# llm_semantic_dedup_enabled=True: additionally call LLM to remove logically redundant invariants.
 INVARIANT_DEDUP_CONFIG = {
     'enabled': True,
+    'llm_semantic_dedup_enabled': True,
 }
 
 # ==============================================================================
@@ -182,6 +183,25 @@ LOOP_FACTORY_USER_CONFIG = {
     #   ['L1_affine_accumulator', 'L4_conservation']
     #   ['affine_chain', 'linear_conservation_family']
     'allowed_templates': [],
+
+    # Houdini-based DPO augmentation:
+    # For each gate-filtered rejected code, run Frama-C Houdini rounds to generate
+    # additional "all valid + 1 bad invariant" rejected variants.
+    'houdini_dpo_augment': False,
+}
+
+
+# ==============================================================================
+# Houdini Configuration (shared by houdini_pruner.py and DPO augmentation)
+# ==============================================================================
+HOUDINI_CONFIG = {
+    # 是否启用 Houdini 筛选（生成侧：筛选组合后的不变式；DPO 侧：生成 augmentation）
+    'enabled': True,
+    # 最大迭代次数安全上界（理论上等于不变量数量，此值远大于实际上界）
+    'max_iterations': 500,
+    # no-progress 轮数上限（防止 Houdini bug 导致死循环）
+    # 正常情况下不会触发；仅作保险
+    'patience': 2,
 }
 
 

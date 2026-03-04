@@ -2,12 +2,14 @@
 Invariant Generator - Integrates sampling, generation, verification and repair
 References ASGSE's implementation but more concise
 """
+import copy
+import json
 import os
 import re
 import logging
 import tempfile
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Set, Tuple
 from loop_sampler import LoopSampler
 from template_generator import TemplateGenerator
 from prompt import PromptFormatter
@@ -16,7 +18,7 @@ from output_verify import OutputVerifier
 from syntax_checker import SyntaxChecker
 from inv_repairer import InvariantRepairer
 from houdini_pruner import HoudiniPruner
-from config import SUBDIR, USE_TRACES, MAX_ITERATION, MAX_STRENGTHEN_ITERATIONS, SYNTAX_FILTER_CONFIG, TEMPLATE_CONFIG, INVARIANT_DEDUP_CONFIG
+from config import SUBDIR, USE_TRACES, MAX_ITERATION, MAX_STRENGTHEN_ITERATIONS, SYNTAX_FILTER_CONFIG, TEMPLATE_CONFIG, INVARIANT_DEDUP_CONFIG, HOUDINI_CONFIG
 from unified_filter import filter_invariants, validate_code_structure
 from run_dirs import resolve_run_dirs
 
@@ -44,6 +46,351 @@ def to_nl_transition_text(text: str) -> str:
     out = re.sub(r"\b([A-Za-z_]\w*)@pre\b", r"initial \1", out, flags=re.IGNORECASE)
     out = re.sub(r"\s+", " ", out).strip()
     return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Module-level invariant deduplication helpers (also exported for batch_pipeline)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _strip_balanced_outer_parens(expr: str) -> str:
+    s = expr.strip()
+    while s.startswith("(") and s.endswith(")"):
+        depth = 0
+        balanced = True
+        for i, ch in enumerate(s):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth < 0:
+                    balanced = False
+                    break
+                if depth == 0 and i != len(s) - 1:
+                    balanced = False
+                    break
+        if not balanced or depth != 0:
+            break
+        s = s[1:-1].strip()
+    return s
+
+
+def _normalize_inv_expr(expr: str) -> str:
+    s = re.sub(r"\s+", "", expr)
+    s = _strip_balanced_outer_parens(s)
+    s = s.replace("(", "").replace(")", "")
+    while True:
+        prev = s
+        s = re.sub(r"^1\*", "", s)
+        s = re.sub(r"\*1$", "", s)
+        s = re.sub(r"\+0$", "", s)
+        s = re.sub(r"-0$", "", s)
+        s = re.sub(r"/1$", "", s)
+        if s == prev:
+            break
+    return s
+
+
+def _split_top_level_comparison(inv: str) -> "Tuple[str, str, str] | None":
+    s = inv.strip()
+    if not s:
+        return None
+    ops = ("<=", ">=", "==", "!=", "<", ">")
+    depth = 0
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            for op in ops:
+                if s.startswith(op, i):
+                    lhs = s[:i].strip()
+                    rhs = s[i + len(op):].strip()
+                    if lhs and rhs:
+                        return lhs, op, rhs
+                    return None
+        i += 1
+    return None
+
+
+def invariant_dedup_key(inv: str) -> str:
+    cmp_parts = _split_top_level_comparison(inv)
+    if cmp_parts is None:
+        return _normalize_inv_expr(inv)
+    lhs, op, rhs = cmp_parts
+    lhs_n = _normalize_inv_expr(lhs)
+    rhs_n = _normalize_inv_expr(rhs)
+    if op in {"==", "!="}:
+        a, b = sorted([lhs_n, rhs_n])
+        return f"{a}{op}{b}"
+    return f"{lhs_n}{op}{rhs_n}"
+
+
+def is_tautological(inv: str) -> bool:
+    x = re.sub(r"\s+", "", inv)
+    if x in {"1", "true", "True"}:
+        return True
+
+    cmp_parts = _split_top_level_comparison(inv)
+    if cmp_parts is not None:
+        lhs, op, rhs = cmp_parts
+        lhs_n = _normalize_inv_expr(lhs)
+        rhs_n = _normalize_inv_expr(rhs)
+        if lhs_n and rhs_n and lhs_n == rhs_n:
+            return True
+        if op == "==":
+            if rhs_n.startswith(lhs_n + "+") and rhs_n[len(lhs_n) + 1:] == "0":
+                return True
+            if rhs_n.startswith(lhs_n + "-") and rhs_n[len(lhs_n) + 1:] == "0":
+                return True
+            if lhs_n.startswith(rhs_n + "+") and lhs_n[len(rhs_n) + 1:] == "0":
+                return True
+            if lhs_n.startswith(rhs_n + "-") and lhs_n[len(rhs_n) + 1:] == "0":
+                return True
+
+    def strip_mul1(e: str) -> str:
+        e = e.strip("()")
+        e = re.sub(r"^1\*", "", e)
+        e = re.sub(r"\*1$", "", e)
+        e = re.sub(r"\+0$", "", e)
+        e = re.sub(r"-0$", "", e)
+        e = re.sub(r"/1$", "", e)
+        return e
+
+    def is_zero_expr(e: str) -> bool:
+        e = e.strip("()")
+        if e == "0":
+            return True
+        if "-" in e and e.count("-") == 1:
+            a, b = e.split("-", 1)
+            if strip_mul1(a) == strip_mul1(b):
+                return True
+        return False
+
+    m = re.match(r"^([A-Za-z_]\w*)==(.+)$", x)
+    if not m:
+        m2 = re.match(r"^(.+)==([A-Za-z_]\w*)$", x)
+        if not m2:
+            return False
+        lhs, rhs = m2.group(2), m2.group(1)
+    else:
+        lhs, rhs = m.group(1), m.group(2)
+
+    rhs_norm = strip_mul1(rhs)
+    if lhs == rhs_norm:
+        return True
+    if rhs.startswith(lhs + "+") and is_zero_expr(rhs[len(lhs) + 1:]):
+        return True
+    if rhs.startswith(lhs + "-") and is_zero_expr(rhs[len(lhs) + 1:]):
+        return True
+    return False
+
+
+def is_nontrivial_inv(inv: str) -> bool:
+    if is_tautological(inv):
+        return False
+    if not any(op in inv for op in ["==", "!=", "<=", ">=", "<", ">"]):
+        return False
+    return True
+
+
+def _split_top_level_conjuncts(expr: str) -> List[str]:
+    """Split by top-level && only (ignore nested parentheses)."""
+    parts: List[str] = []
+    cur: List[str] = []
+    depth = 0
+    i = 0
+    while i < len(expr):
+        ch = expr[i]
+        if ch == "(":
+            depth += 1
+            cur.append(ch)
+            i += 1
+            continue
+        if ch == ")":
+            depth = max(0, depth - 1)
+            cur.append(ch)
+            i += 1
+            continue
+        if depth == 0 and i + 1 < len(expr) and expr[i:i+2] == "&&":
+            part = "".join(cur).strip()
+            if part:
+                parts.append(part)
+            cur = []
+            i += 2
+            continue
+        cur.append(ch)
+        i += 1
+    tail = "".join(cur).strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def _safe_split_for_dedup(expr: str) -> List[str]:
+    """Conservative splitter: only split && when no implication/disjunction/ternary."""
+    text = (expr or "").strip()
+    if not text:
+        return []
+    if "==>" in text or "||" in text or "?" in text:
+        return [text]
+    parts = _split_top_level_conjuncts(text)
+    return parts if parts else [text]
+
+
+def _find_attached_invariant_block_spans(code: str) -> List[Tuple[int, int]]:
+    """Return (start, end) char spans of ACSL blocks that are immediately before a loop."""
+    loop_matches = list(re.finditer(r"\b(?:while|for)\s*\(", code))
+    if not loop_matches:
+        return []
+    ann_pat = re.compile(r"/\*[\s\S]*?\*/")
+    blocks = list(ann_pat.finditer(code))
+    if not blocks:
+        return []
+    spans: List[Tuple[int, int]] = []
+    seen: Set[Tuple[int, int]] = set()
+    for lm in loop_matches:
+        prefix = code[: lm.start()]
+        cand = [b for b in blocks if b.end() <= lm.start()]
+        if not cand:
+            continue
+        last = cand[-1]
+        if prefix[last.end():].strip():
+            continue
+        if "loop invariant" not in last.group(0):
+            continue
+        span = (last.start(), last.end())
+        if span not in seen:
+            seen.add(span)
+            spans.append(span)
+    return spans
+
+
+def _extract_invariant_entries(block_text: str) -> List[Tuple[int, str, str, str]]:
+    """Return (line_index, prefix, expr, suffix) for each loop invariant line."""
+    line_pat = re.compile(r"^(\s*(?:\*\s*)?loop\s+invariant\s+)([^;]+)(;\s*(?:\r?\n)?)$")
+    entries: List[Tuple[int, str, str, str]] = []
+    for i, line in enumerate(block_text.splitlines(keepends=True)):
+        m = line_pat.match(line)
+        if not m:
+            continue
+        entries.append((i, m.group(1), m.group(2).strip(), m.group(3)))
+    return entries
+
+
+def _extract_json_object(text: str) -> "Optional[Dict]":
+    if not text:
+        return None
+    s = text.strip()
+    try:
+        obj = json.loads(s)
+        return obj if isinstance(obj, dict) else None
+    except Exception:
+        pass
+    m = re.search(r"\{[\s\S]*\}", s)
+    if not m:
+        return None
+    try:
+        obj = json.loads(m.group(0))
+        return obj if isinstance(obj, dict) else None
+    except Exception:
+        return None
+
+
+def _prune_invariant_block(block_text: str) -> Tuple[str, List[str]]:
+    """Stage-1 dedup: split top-level && conjuncts, remove tautologies, remove key-duplicates."""
+    line_pat = re.compile(r"^(\s*(?:\*\s*)?loop\s+invariant\s+)([^;]+)(;\s*(?:\r?\n)?)$")
+    lines = block_text.splitlines(keepends=True)
+    kept: List[str] = []
+    removed_reasons: List[str] = []
+    seen_keys: Set[str] = set()
+    for line in lines:
+        m = line_pat.match(line)
+        if not m:
+            kept.append(line)
+            continue
+        prefix = m.group(1)
+        raw_expr = m.group(2).strip()
+        suffix = m.group(3)
+        conjuncts = _safe_split_for_dedup(raw_expr)
+        if len(conjuncts) > 1:
+            removed_reasons.append("split_conjunction")
+        for c in conjuncts:
+            if is_tautological(c):
+                removed_reasons.append("identity_or_tautology")
+                continue
+            key = invariant_dedup_key(c)
+            if key in seen_keys:
+                removed_reasons.append("duplicate_invariant")
+                continue
+            seen_keys.add(key)
+            kept.append(f"{prefix}{c}{suffix}")
+    return "".join(kept), removed_reasons
+
+
+def _llm_semantic_dedup_invariant_block(
+    block_text: str,
+    llm_config: "LLMConfig",
+    logger: Optional[logging.Logger] = None,
+) -> Tuple[str, int]:
+    """Stage-2 dedup: call LLM to remove logically redundant invariants."""
+    from llm import Chatbot  # local import to avoid circular at module level
+    entries = _extract_invariant_entries(block_text)
+    if len(entries) < 2:
+        return block_text, 0
+
+    invs = [expr for _, _, expr, _ in entries]
+    prompt = (
+        "You are deduplicating ACSL loop invariants.\n"
+        "Task: remove only logically redundant invariants that are implied by others.\n"
+        "Do NOT remove stronger invariants in favor of weaker ones.\n"
+        "Do NOT rewrite expressions.\n"
+        "Return strict JSON only: {\"remove_indices\": [int,...]}.\n"
+        "Indices are 0-based within this list:\n"
+    )
+    for i, inv in enumerate(invs):
+        prompt += f"{i}: {inv}\n"
+    prompt += (
+        "Rules:\n"
+        "- Remove exact duplicates and obvious semantic duplicates/subsumed bounds.\n"
+        "- If uncertain, keep the invariant.\n"
+        "- Never return indices outside range.\n"
+        "- Prefer minimal removals.\n"
+    )
+
+    try:
+        dedup_cfg = copy.copy(llm_config)
+        dedup_cfg.api_temperature = 0.0
+        bot = Chatbot(dedup_cfg)
+        resp = bot.chat(prompt)
+        obj = _extract_json_object(resp)
+        if not obj:
+            if logger:
+                logger.info("LLM dedup skipped: non-JSON response")
+            return block_text, 0
+        raw_indices = obj.get("remove_indices", [])
+        if not isinstance(raw_indices, list):
+            return block_text, 0
+        remove_idx: Set[int] = set()
+        for x in raw_indices:
+            try:
+                xi = int(x)
+            except Exception:
+                continue
+            if 0 <= xi < len(entries):
+                remove_idx.add(xi)
+        if not remove_idx:
+            return block_text, 0
+        lines = block_text.splitlines(keepends=True)
+        remove_line_indices = {entries[i][0] for i in sorted(remove_idx)}
+        kept_lines = [line for i, line in enumerate(lines) if i not in remove_line_indices]
+        return "".join(kept_lines), len(remove_line_indices)
+    except Exception as e:
+        if logger:
+            logger.warning(f"LLM dedup failed, skip this block: {e}")
+        return block_text, 0
 
 
 class InvariantGenerator:
@@ -423,7 +770,7 @@ class InvariantGenerator:
         num_candidates = PARALLEL_GENERATION_CONFIG.get('num_candidates', 10)
         temperature = PARALLEL_GENERATION_CONFIG.get('temperature', 0.9)
         filter_by_sampling = PARALLEL_GENERATION_CONFIG.get('filter_by_sampling', True) and USE_TRACES
-        use_houdini = PARALLEL_GENERATION_CONFIG.get('use_houdini', True)
+        use_houdini = HOUDINI_CONFIG.get('enabled', True)
         select_best = PARALLEL_GENERATION_CONFIG.get('select_best', True)
         use_threading = PARALLEL_GENERATION_CONFIG.get('use_threading', True)
         max_workers = PARALLEL_GENERATION_CONFIG.get('max_workers', 5)
@@ -2686,106 +3033,36 @@ class InvariantGenerator:
             code = self._replace_loop_content(code, filled, idx)
         return code
 
-    @staticmethod
-    def _split_top_level_conjuncts(expr: str) -> List[str]:
-        """Split by top-level && only (ignore nested parentheses)."""
-        parts: List[str] = []
-        cur: List[str] = []
-        depth = 0
-        i = 0
-        while i < len(expr):
-            ch = expr[i]
-            if ch == '(':
-                depth += 1
-                cur.append(ch)
-                i += 1
-                continue
-            if ch == ')':
-                depth = max(0, depth - 1)
-                cur.append(ch)
-                i += 1
-                continue
-            if depth == 0 and i + 1 < len(expr) and expr[i:i+2] == '&&':
-                part = ''.join(cur).strip()
-                if part:
-                    parts.append(part)
-                cur = []
-                i += 2
-                continue
-            cur.append(ch)
-            i += 1
-        tail = ''.join(cur).strip()
-        if tail:
-            parts.append(tail)
-        return parts
-
-    @staticmethod
-    def _safe_split_for_dedup(expr: str) -> List[str]:
-        """
-        Conservative splitter used by final dedup.
-        Only split conjunctions when semantics are unambiguous.
-        """
-        text = (expr or "").strip()
-        if not text:
-            return []
-        # Do not split if implication/disjunction/ternary appears: splitting could change meaning.
-        if "==>" in text or "||" in text or "?" in text:
-            return [text]
-        parts = InvariantGenerator._split_top_level_conjuncts(text)
-        return parts if parts else [text]
-
-    def _dedup_loop_invariants_in_attached_blocks(self, code: str) -> tuple[str, int]:
+    def _dedup_loop_invariants_in_attached_blocks(self, code: str) -> Tuple[str, int]:
         """
         For each loop-adjacent annotation block:
-        1) split `A && B` invariants into multiple lines
-        2) deduplicate by invariant text normalized with whitespace removal.
+        Stage 1: split top-level && conjuncts, remove tautologies, remove key-duplicates.
+        Stage 2 (optional): call LLM to remove logically redundant invariants.
         """
-        loop_matches = list(re.finditer(r'\b(?:while|for)\s*\(', code))
-        if not loop_matches:
+        blocks = _find_attached_invariant_block_spans(code)
+        if not blocks:
             return code, 0
 
-        ann_pat = re.compile(r'/\*[\s\S]*?\*/')
+        use_llm = INVARIANT_DEDUP_CONFIG.get("llm_semantic_dedup_enabled", False)
         updated = code
         total_removed = 0
 
-        for lm in reversed(loop_matches):
-            prefix = updated[: lm.start()]
-            blocks = list(ann_pat.finditer(prefix))
-            if not blocks:
-                continue
-            last = blocks[-1]
-            if prefix[last.end():].strip():
-                continue
-
-            block = last.group(0)
-            lines = block.splitlines()
-            seen = set()
-            new_lines: List[str] = []
-            removed_here = 0
-
-            for line in lines:
-                m = re.match(r'^(\s*)loop\s+invariant\s+(.+?)\s*;\s*$', line)
-                if not m:
-                    new_lines.append(line)
-                    continue
-
-                indent = m.group(1)
-                raw_expr = m.group(2)
-                conjuncts = self._safe_split_for_dedup(raw_expr)
-                if len(conjuncts) > 1:
-                    removed_here += 1
-
-                for c in conjuncts:
-                    key = re.sub(r'\s+', '', c)
-                    if key in seen:
-                        removed_here += 1
-                        continue
-                    seen.add(key)
-                    new_lines.append(f"{indent}loop invariant {c};")
-
-            if removed_here > 0:
-                new_block = '\n'.join(new_lines)
-                updated = updated[: last.start()] + new_block + updated[last.end():]
+        for (start, end) in reversed(blocks):
+            block = updated[start:end]
+            # Stage 1: && split + tautology removal + key dedup
+            pruned, reasons = _prune_invariant_block(block)
+            removed_here = len(reasons)
+            updated_block = pruned
+            # Stage 2: LLM semantic dedup (optional)
+            if use_llm and self.llm_config is not None:
+                llm_block, llm_removed = _llm_semantic_dedup_invariant_block(
+                    updated_block, self.llm_config, logger=self.logger
+                )
+                if llm_removed > 0:
+                    updated_block = llm_block
+                    removed_here += llm_removed
+            if updated_block != block:
+                updated = updated[:start] + updated_block + updated[end:]
                 total_removed += removed_here
 
         return updated, total_removed
@@ -2864,7 +3141,7 @@ class InvariantGenerator:
         max_workers = PARALLEL_GENERATION_CONFIG.get('max_workers', 5)
         filter_by_sampling = PARALLEL_GENERATION_CONFIG.get('filter_by_sampling', True) and USE_TRACES
         detect_conflicts = PARALLEL_GENERATION_CONFIG.get('detect_conflicts', True)
-        use_houdini = PARALLEL_GENERATION_CONFIG.get('use_houdini', True)
+        use_houdini = HOUDINI_CONFIG.get('enabled', True)
 
         prompt_template = self._get_gen_template()
         function_context = "\n\n".join(loop_contexts)
@@ -3177,8 +3454,7 @@ class InvariantGenerator:
                     self.logger.info(f"Invariants removed by Houdini:\n{self._last_failed_invariants}")
 
                 # 补强后可能引入无效不变量；若开启 Houdini 则先剪枝回到 valid。
-                from config import PARALLEL_GENERATION_CONFIG
-                use_houdini = PARALLEL_GENERATION_CONFIG.get('use_houdini', True)
+                use_houdini = HOUDINI_CONFIG.get('enabled', True)
                 if use_houdini:
                     pruned_code, houdini_valid = self.repairer.hudini(current_code, self.verifier, c_file_path)
                     if pruned_code is None:

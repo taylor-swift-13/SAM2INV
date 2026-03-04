@@ -8,6 +8,7 @@ import re
 import logging
 from typing import Optional, List, Tuple
 from unified_filter import validate_code_structure
+from config import HOUDINI_CONFIG
 
 
 class HoudiniPruner:
@@ -142,10 +143,9 @@ class HoudiniPruner:
         current_code = code
         valid = False
         iteration = 0
-        # Upper bound: invariant count can only decrease each round, so this
-        # is generous. Also guards against the hudini_annotations count-mismatch
-        # early-return path which leaves the code unchanged and would loop forever.
-        MAX_HOUDINI_ITERATIONS = 500
+        no_progress_count = 0
+        max_iterations = HOUDINI_CONFIG.get('max_iterations', 500)
+        patience = HOUDINI_CONFIG.get('patience', 2)
 
         while True:
             # 在写入文件前验证代码结构
@@ -200,11 +200,15 @@ class HoudiniPruner:
             self.logger.info(f"  After: {len(after_invariants)} invariants")
 
             if current_code == prev_code:
+                no_progress_count += 1
                 self.logger.warning(
-                    "Houdini: code unchanged after annotation removal; "
-                    "stopping pruning and keeping current invariants."
+                    f"Houdini: code unchanged after annotation removal "
+                    f"(no-progress {no_progress_count}/{patience})."
                 )
-                break
+                if no_progress_count >= patience:
+                    self.logger.warning("Houdini: patience exhausted; stopping.")
+                    break
+                continue
 
             # 检查是否所有不变量都被删除
             if len(after_invariants) == 0:
@@ -217,9 +221,9 @@ class HoudiniPruner:
                     self.logger.info(f"    [{i}] {inv}")
 
             iteration += 1
-            if iteration >= MAX_HOUDINI_ITERATIONS:
+            if iteration >= max_iterations:
                 self.logger.error(
-                    f"Houdini: reached maximum iteration limit ({MAX_HOUDINI_ITERATIONS}). "
+                    f"Houdini: reached maximum iteration limit ({max_iterations}). "
                     "Aborting to prevent infinite loop."
                 )
                 return None, False

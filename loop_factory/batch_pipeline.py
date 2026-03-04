@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import copy
+import itertools
 import concurrent.futures
 import os
 import math
@@ -28,10 +29,13 @@ sys.path.insert(0, str(SRC))
 
 import config  # type: ignore
 import inv_generator as invgen_mod  # type: ignore
-from inv_generator import InvariantGenerator  # type: ignore
+from inv_generator import InvariantGenerator, is_tautological, is_nontrivial_inv  # type: ignore
 from llm import LLMConfig, Chatbot, reset_token_stats, get_token_stats  # type: ignore
+from houdini_pruner import HoudiniPruner  # type: ignore
+from output_verify import OutputVerifier  # type: ignore
 
 USER_CFG = getattr(config, "LOOP_FACTORY_USER_CONFIG", {})
+HOUDINI_CFG = getattr(config, "HOUDINI_CONFIG", {})
 
 
 def _lf_cfg(name: str, default):
@@ -311,335 +315,92 @@ def has_repetitive_loop_updates(loop_content: str) -> bool:
     return False
 
 
-def _strip_balanced_outer_parens(expr: str) -> str:
-    s = expr.strip()
-    while s.startswith("(") and s.endswith(")"):
-        depth = 0
-        balanced = True
-        for i, ch in enumerate(s):
-            if ch == "(":
-                depth += 1
-            elif ch == ")":
-                depth -= 1
-                if depth < 0:
-                    balanced = False
-                    break
-                if depth == 0 and i != len(s) - 1:
-                    balanced = False
-                    break
-        if not balanced or depth != 0:
-            break
-        s = s[1:-1].strip()
-    return s
-
-
-def _normalize_inv_expr(expr: str) -> str:
-    s = re.sub(r"\s+", "", expr)
-    s = _strip_balanced_outer_parens(s)
-    s = s.replace("(", "").replace(")", "")
-    # Canonicalize neutral operators so x, x+0, x*1, x/1 can collapse.
-    while True:
-        prev = s
-        s = re.sub(r"^1\*", "", s)
-        s = re.sub(r"\*1$", "", s)
-        s = re.sub(r"\+0$", "", s)
-        s = re.sub(r"-0$", "", s)
-        s = re.sub(r"/1$", "", s)
-        if s == prev:
-            break
-    return s
-
-
-def _split_top_level_comparison(inv: str) -> Tuple[str, str, str] | None:
-    s = inv.strip()
-    if not s:
-        return None
-    ops = ("<=", ">=", "==", "!=", "<", ">")
-    depth = 0
-    i = 0
-    while i < len(s):
-        ch = s[i]
-        if ch == "(":
-            depth += 1
-        elif ch == ")":
-            depth = max(0, depth - 1)
-        elif depth == 0:
-            for op in ops:
-                if s.startswith(op, i):
-                    lhs = s[:i].strip()
-                    rhs = s[i + len(op) :].strip()
-                    if lhs and rhs:
-                        return lhs, op, rhs
-                    return None
-        i += 1
-    return None
-
-
-def invariant_dedup_key(inv: str) -> str:
-    cmp_parts = _split_top_level_comparison(inv)
-    if cmp_parts is None:
-        return _normalize_inv_expr(inv)
-    lhs, op, rhs = cmp_parts
-    lhs_n = _normalize_inv_expr(lhs)
-    rhs_n = _normalize_inv_expr(rhs)
-    if op in {"==", "!="}:
-        a, b = sorted([lhs_n, rhs_n])
-        return f"{a}{op}{b}"
-    return f"{lhs_n}{op}{rhs_n}"
-
-
-def is_tautological(inv: str) -> bool:
-    x = re.sub(r"\s+", "", inv)
-    if x in {"1", "true", "True"}:
-        return True
-
-    cmp_parts = _split_top_level_comparison(inv)
-    if cmp_parts is not None:
-        lhs, op, rhs = cmp_parts
-        lhs_n = _normalize_inv_expr(lhs)
-        rhs_n = _normalize_inv_expr(rhs)
-        # Identity/contradiction with identical sides after stripping brackets and neutral ops.
-        if lhs_n and rhs_n and lhs_n == rhs_n:
-            return True
-        # Explicitly reject x == (x + 0)-style equalities.
-        if op == "==":
-            if rhs_n.startswith(lhs_n + "+") and rhs_n[len(lhs_n) + 1 :] == "0":
-                return True
-            if rhs_n.startswith(lhs_n + "-") and rhs_n[len(lhs_n) + 1 :] == "0":
-                return True
-            if lhs_n.startswith(rhs_n + "+") and lhs_n[len(rhs_n) + 1 :] == "0":
-                return True
-            if lhs_n.startswith(rhs_n + "-") and lhs_n[len(rhs_n) + 1 :] == "0":
-                return True
-
-    def strip_mul1(e: str) -> str:
-        e = e.strip("()")
-        e = re.sub(r"^1\*", "", e)
-        e = re.sub(r"\*1$", "", e)
-        e = re.sub(r"\+0$", "", e)
-        e = re.sub(r"-0$", "", e)
-        e = re.sub(r"/1$", "", e)
-        return e
-
-    def is_zero_expr(e: str) -> bool:
-        e = e.strip("()")
-        if e == "0":
-            return True
-        if "-" in e and e.count("-") == 1:
-            a, b = e.split("-", 1)
-            if strip_mul1(a) == strip_mul1(b):
-                return True
-        return False
-
-    m = re.match(r"^([A-Za-z_]\w*)==(.+)$", x)
-    if not m:
-        m2 = re.match(r"^(.+)==([A-Za-z_]\w*)$", x)
-        if not m2:
-            return False
-        lhs, rhs = m2.group(2), m2.group(1)
-    else:
-        lhs, rhs = m.group(1), m.group(2)
-
-    rhs_norm = strip_mul1(rhs)
-    if lhs == rhs_norm:
-        return True
-    if rhs.startswith(lhs + "+") and is_zero_expr(rhs[len(lhs) + 1 :]):
-        return True
-    if rhs.startswith(lhs + "-") and is_zero_expr(rhs[len(lhs) + 1 :]):
-        return True
-    return False
-
-
-def is_nontrivial_inv(inv: str) -> bool:
-    if is_tautological(inv):
-        return False
-    if not any(op in inv for op in ["==", "!=", "<=", ">=", "<", ">"]):
-        return False
-    return True
-
-
-def _attached_invariant_blocks(code: str) -> List[Tuple[int, int]]:
-    loop_matches = list(re.finditer(r"\b(?:while|for)\s*\(", code))
-    if not loop_matches:
-        return []
-    ann_pat = re.compile(r"/\*[\s\S]*?\*/")
-    blocks = list(ann_pat.finditer(code))
-    if not blocks:
-        return []
-    spans: List[Tuple[int, int]] = []
-    seen = set()
-    for lm in loop_matches:
-        prefix = code[: lm.start()]
-        cand = [b for b in blocks if b.end() <= lm.start()]
-        if not cand:
-            continue
-        last = cand[-1]
-        if prefix[last.end() :].strip():
-            continue
-        if "loop invariant" not in last.group(0):
-            continue
-        span = (last.start(), last.end())
-        if span not in seen:
-            seen.add(span)
-            spans.append(span)
-    return spans
-
-
-def _prune_invariant_block(block_text: str) -> Tuple[str, List[str]]:
-    line_pat = re.compile(r"^(\s*(?:\*\s*)?loop\s+invariant\s+)([^;]+)(;\s*(?:\r?\n)?)$")
-    lines = block_text.splitlines(keepends=True)
-    kept: List[str] = []
-    removed_reasons: List[str] = []
-    seen_keys: Set[str] = set()
-    for line in lines:
-        m = line_pat.match(line)
-        if not m:
-            kept.append(line)
-            continue
-        inv = m.group(2).strip()
-        if is_tautological(inv):
-            removed_reasons.append("identity_or_tautology")
-            continue
-        key = invariant_dedup_key(inv)
-        if key in seen_keys:
-            removed_reasons.append("duplicate_invariant")
-            continue
-        seen_keys.add(key)
-        kept.append(line)
-    return "".join(kept), removed_reasons
-
-
-def _extract_invariant_entries(block_text: str) -> List[Tuple[int, str, str, str]]:
-    line_pat = re.compile(r"^(\s*(?:\*\s*)?loop\s+invariant\s+)([^;]+)(;\s*(?:\r?\n)?)$")
-    entries: List[Tuple[int, str, str, str]] = []
-    for i, line in enumerate(block_text.splitlines(keepends=True)):
-        m = line_pat.match(line)
-        if not m:
-            continue
-        entries.append((i, m.group(1), m.group(2).strip(), m.group(3)))
-    return entries
-
-
-def _extract_json_object(text: str) -> Optional[Dict]:
-    if not text:
-        return None
-    s = text.strip()
-    try:
-        obj = json.loads(s)
-        return obj if isinstance(obj, dict) else None
-    except Exception:
-        pass
-    m = re.search(r"\{[\s\S]*\}", s)
-    if not m:
-        return None
-    try:
-        obj = json.loads(m.group(0))
-        return obj if isinstance(obj, dict) else None
-    except Exception:
-        return None
-
-
-def _llm_semantic_dedup_invariant_block(
-    block_text: str,
-    llm_cfg: LLMConfig,
-    logger: Optional[logging.Logger] = None,
-) -> Tuple[str, int]:
-    entries = _extract_invariant_entries(block_text)
-    if len(entries) < 2:
-        return block_text, 0
-
-    invs = [expr for _, _, expr, _ in entries]
-    prompt = (
-        "You are deduplicating ACSL loop invariants.\n"
-        "Task: remove only logically redundant invariants that are implied by others.\n"
-        "Do NOT remove stronger invariants in favor of weaker ones.\n"
-        "Do NOT rewrite expressions.\n"
-        "Return strict JSON only: {\"remove_indices\": [int,...]}.\n"
-        "Indices are 0-based within this list:\n"
-    )
-    for i, inv in enumerate(invs):
-        prompt += f"{i}: {inv}\n"
-    prompt += (
-        "Rules:\n"
-        "- Remove exact duplicates and obvious semantic duplicates/subsumed bounds.\n"
-        "- If uncertain, keep the invariant.\n"
-        "- Never return indices outside range.\n"
-        "- Prefer minimal removals.\n"
-    )
-
-    try:
-        dedup_cfg = copy.copy(llm_cfg)
-        dedup_cfg.api_temperature = 0.0
-        bot = Chatbot(dedup_cfg)
-        resp = bot.chat(prompt)
-        obj = _extract_json_object(resp)
-        if not obj:
-            if logger:
-                logger.info("LLM dedup skipped: non-JSON response")
-            return block_text, 0
-        raw_indices = obj.get("remove_indices", [])
-        if not isinstance(raw_indices, list):
-            return block_text, 0
-        remove_idx = set()
-        for x in raw_indices:
-            try:
-                xi = int(x)
-            except Exception:
-                continue
-            if 0 <= xi < len(entries):
-                remove_idx.add(xi)
-        if not remove_idx:
-            return block_text, 0
-
-        lines = block_text.splitlines(keepends=True)
-        remove_line_indices = {entries[i][0] for i in sorted(remove_idx)}
-        kept_lines = [line for i, line in enumerate(lines) if i not in remove_line_indices]
-        return "".join(kept_lines), len(remove_line_indices)
-    except Exception as e:
-        if logger:
-            logger.warning(f"LLM dedup failed, skip this block: {e}")
-        return block_text, 0
-
-
-def postprocess_invariants_for_quality(
-    annotated_code: str,
-    llm_cfg: Optional[LLMConfig] = None,
-    logger: Optional[logging.Logger] = None,
-) -> Tuple[str, List[Dict[str, str]]]:
-    use_llm_semantic_dedup = bool(_lf_cfg("llm_semantic_dedup_enabled", False))
-    blocks = _attached_invariant_blocks(annotated_code)
-    if not blocks:
-        return annotated_code, []
-
-    new_code = annotated_code
-    shift = 0
-    removed_any_rule = False
-    removed_any_llm = False
-    for start, end in blocks:
-        s = start + shift
-        e = end + shift
-        block = new_code[s:e]
-        pruned, reasons = _prune_invariant_block(block)
-        if reasons:
-            removed_any_rule = True
-        updated_block = pruned
-        if use_llm_semantic_dedup and llm_cfg is not None:
-            llm_dedup_block, llm_removed = _llm_semantic_dedup_invariant_block(updated_block, llm_cfg, logger=logger)
-            if llm_removed > 0:
-                updated_block = llm_dedup_block
-                removed_any_llm = True
-        if updated_block != block:
-            new_code = new_code[:s] + updated_block + new_code[e:]
-            shift += len(updated_block) - (e - s)
-
-    rejected_items: List[Dict[str, str]] = []
-    if removed_any_rule or removed_any_llm:
-        rejected_items.append({"reason": "pre_invariant_dedup", "code": annotated_code})
-    return new_code, rejected_items
 
 
 def strip_blank_lines(text: str) -> str:
     return "\n".join(line for line in text.splitlines() if line.strip())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Houdini-based DPO augmentation helpers
+# Mirrors HoudiniPruner.hudini() but collects "all valid + 1 bad" rejected
+# variants at each round instead of returning the final pruned code.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _aug_single_bad_rejects(code: str, validate_result: List[bool], pruner: HoudiniPruner) -> List[str]:
+    """Generate rejected variants by freely combining failing invariants with all valid ones.
+
+    Iterates over subsets of failing invariants (size 1, 2, …) in order and stops once
+    2 * K distinct variants have been collected, where K = number of failing invariants.
+    The full failing set (= code itself) is already in DPO; subsets that reproduce it
+    are filtered out by `variant != code`.
+    """
+    failed_indices = [i for i, ok in enumerate(validate_result) if not ok]
+    if not failed_indices:
+        return []
+    limit = 2 * len(failed_indices)
+    out: List[str] = []
+    for size in range(1, len(failed_indices) + 1):
+        for combo in itertools.combinations(failed_indices, size):
+            if len(out) >= limit:
+                return out
+            keep_flags = list(validate_result)
+            for idx in combo:
+                keep_flags[idx] = True
+            variant = pruner.hudini_annotations(keep_flags, code, validate_result_by_line=None).strip()
+            if variant and variant != code:
+                out.append(variant)
+    return out
+
+
+def _aug_houdini_rejects(
+    rejected_code: str,
+    verifier: OutputVerifier,
+    pruner: HoudiniPruner,
+    tmp_c_path: Path,
+    patience: int = 2,
+) -> List[str]:
+    """Run Houdini rounds on a rejected code and return fine-grained rejected variants.
+
+    Mirrors HoudiniPruner.hudini(): uses verifier.validate_result directly (positional),
+    validate_result_by_line=None, and _extract_invariants_from_code to detect empty pruning.
+    Stops when all invariants become valid or the annotation is pruned empty (natural
+    convergence). `patience` is a safety guard: if the pruner makes no progress for that
+    many consecutive rounds (should not occur in theory), abort to prevent infinite loops.
+    """
+    current = (rejected_code or "").strip()
+    if not current:
+        return []
+    new_rejects: List[str] = []
+    seen: Set[str] = set()
+    no_progress = 0
+    while True:
+        tmp_c_path.write_text(current, encoding="utf-8")
+        verifier.run(str(tmp_c_path))
+        if not verifier.syntax_correct:
+            break
+        validate_result = list(getattr(verifier, "validate_result", []) or [])
+        # Mirrors hudini(): if not validate_result → break; if all valid → break
+        if not validate_result or all(validate_result):
+            break
+        for rej in _aug_single_bad_rejects(current, validate_result, pruner):
+            if rej not in seen:
+                seen.add(rej)
+                new_rejects.append(rej)
+        prev_code = current
+        current = pruner.hudini_annotations(validate_result, current, validate_result_by_line=None).strip()
+        # All invariants pruned away (mirrors hudini()'s after_invariants == 0 check)
+        if not pruner._extract_invariants_from_code(current):
+            break
+        # No-progress guard (mirrors hudini()'s defensive break; patience allows for
+        # transient Houdini bugs before giving up)
+        if current == prev_code:
+            no_progress += 1
+            if no_progress >= patience:
+                break
+        else:
+            no_progress = 0
+    return new_rejects
 
 
 def quality_gate(gen: InvariantGenerator, raw_code: str, annotated_code: str) -> Tuple[bool, str]:
@@ -853,6 +614,7 @@ def run_one_attempt(
     stop_event: threading.Event,
     lf_overrides: Dict[str, object],
     force_core: Optional[str] = None,
+    forced_raw_code: Optional[str] = None,
 ) -> Dict:
     if stop_event.is_set():
         return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
@@ -868,10 +630,13 @@ def run_one_attempt(
     try:
         if stop_event.is_set():
             return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
-        src_c = generate_one_loop(attempt_tmp_loops, seed, lf_overrides, force_core=force_core)
-        raw_code = src_c.read_text(encoding="utf-8")
-        if not has_no_assert(raw_code):
-            return {"ok": False, "reason": "input has assert", "attempt": attempt, "seed": seed}
+        if forced_raw_code is not None:
+            raw_code = forced_raw_code
+        else:
+            src_c = generate_one_loop(attempt_tmp_loops, seed, lf_overrides, force_core=force_core)
+            raw_code = src_c.read_text(encoding="utf-8")
+            if not has_no_assert(raw_code):
+                return {"ok": False, "reason": "input has assert", "attempt": attempt, "seed": seed}
 
         # Keep function naming stable (main1) for invariant insertion compatibility.
         file_id = "1"
@@ -917,18 +682,22 @@ def run_one_attempt(
 
         out_c = src_output_dir / f"{file_id}.c"
         annotated_raw = out_c.read_text(encoding="utf-8") if out_c.exists() else (final_code or "")
-        annotated, post_rejected_items = postprocess_invariants_for_quality(
-            annotated_raw,
-            llm_cfg=llm_cfg,
-            logger=logger,
-        )
-        annotated = strip_blank_lines(annotated)
+        annotated = strip_blank_lines(annotated_raw)
         if out_c.exists() and annotated != annotated_raw:
             out_c.write_text(annotated, encoding="utf-8")
 
         ok, reason = quality_gate(gen, raw_code, annotated)
         if not ok:
-            return {"ok": False, "reason": reason, "attempt": attempt, "seed": seed}
+            return {
+                "ok": False,
+                "reason": reason,
+                "attempt": attempt,
+                "seed": seed,
+                "qg_fail_annotated": annotated,
+                "qg_fail_user_prompt": user_prompt,
+                "qg_fail_raw_code": raw_code,
+                "is_retry": forced_raw_code is not None,
+            }
 
         invariants = gen._extract_invariants_from_code(annotated)
         raw_key = compute_raw_structure_key(raw_code)
@@ -953,7 +722,6 @@ def run_one_attempt(
             "system_prompt": system_prompt,
             "loop_factory_hyperparams": hparams,
             "loop_dpo_records": loop_dpo_records,
-            "post_rejected_items": post_rejected_items,
         }
     finally:
         for d in [src_input_dir, src_output_dir, src_outer_dir]:
@@ -1113,6 +881,23 @@ def main() -> None:
     reject_log: List[Dict] = []
     workers = max(1, args.workers)
     run_tag = f"{os.getpid()}_{int(time.time())}"
+    # quality_gate-failed annotations: user_prompt_hash -> annotated_code
+    qg_fail_pool: Dict[str, str] = {}
+    # raw_codes to retry with a fresh LLM seed: {raw_code, force_core}
+    retry_queue: List[Dict] = []
+    # Houdini DPO augmentation resources (main-thread only, single temp file)
+    use_houdini_aug = bool(_lf_cfg("houdini_dpo_augment", False))
+    houdini_aug_patience = int(HOUDINI_CFG.get("patience", 2))
+    _aug_verifier: Optional[OutputVerifier] = None
+    _aug_pruner: Optional[HoudiniPruner] = None
+    _aug_tmp_c: Optional[Path] = None
+    if use_houdini_aug:
+        _aug_log = logging.getLogger("houdini_aug")
+        _aug_verifier = OutputVerifier(logger=_aug_log, output=False)
+        _aug_pruner = HoudiniPruner(logger=_aug_log)
+        _aug_tmp_dir = work_root / "tmp_houdini_aug"
+        _aug_tmp_dir.mkdir(parents=True, exist_ok=True)
+        _aug_tmp_c = _aug_tmp_dir / "tmp.c"
     cleanup_transient_artifacts()
     atexit.register(lambda: cleanup_transient_artifacts(run_tag))
 
@@ -1140,15 +925,21 @@ def main() -> None:
          distill_jsonl_path.open(file_mode, encoding="utf-8") as distill_jsonl_file, \
          template_map_jsonl_path.open(file_mode, encoding="utf-8") as template_map_file:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
-            while next_attempt <= total_candidates or pending:
-                while next_attempt <= total_candidates and len(pending) < workers:
+            while next_attempt <= total_candidates or pending or retry_queue:
+                while (next_attempt <= total_candidates or retry_queue) and len(pending) < workers:
                     attempt = next_attempt
                     next_attempt += 1
                     seed = seed_rng.randint(1, 2_147_483_647)
                     while seed in used_attempt_seeds:
                         seed = seed_rng.randint(1, 2_147_483_647)
                     used_attempt_seeds.add(seed)
-                    forced_core = core_plan[attempt - 1] if attempt - 1 < len(core_plan) else None
+                    if retry_queue:
+                        retry_item = retry_queue.pop(0)
+                        forced_core = retry_item.get("force_core")
+                        forced_raw = retry_item["raw_code"]
+                    else:
+                        forced_core = core_plan[attempt - 1] if attempt - 1 < len(core_plan) else None
+                        forced_raw = None
                     fut = ex.submit(
                         run_one_attempt,
                         attempt,
@@ -1162,6 +953,7 @@ def main() -> None:
                         stop_event,
                         lf_overrides,
                         forced_core,
+                        forced_raw,
                     )
                     pending[fut] = (attempt, seed, forced_core)
 
@@ -1188,6 +980,15 @@ def main() -> None:
                                 "reason": result.get("reason", "unknown"),
                             }
                         )
+                        # Quality-gate failures that passed Frama-C are worth retrying:
+                        # save annotation and re-run LLM on same raw_code with new seed.
+                        qg_ann = result.get("qg_fail_annotated", "")
+                        qg_prompt = result.get("qg_fail_user_prompt", "")
+                        qg_raw = result.get("qg_fail_raw_code", "")
+                        if qg_ann and qg_prompt and qg_raw and not result.get("is_retry"):
+                            prompt_key = hashlib.md5(qg_prompt.encode()).hexdigest()
+                            qg_fail_pool[prompt_key] = qg_ann
+                            retry_queue.append({"raw_code": qg_raw, "force_core": forced_core})
                         continue
 
                     raw_key = result["raw_structure_key"]
@@ -1265,7 +1066,6 @@ def main() -> None:
                     # loop_dpo_records, which tracks every candidate marked dpo_reject=True
                     # (failed syntax filter, sampling filter, or Houdini pruning).
                     loop_dpo_records = result.get("loop_dpo_records", {})
-                    post_rejected_items = result.get("post_rejected_items", [])
                     dpo_written = 0
                     # Keep DPO chosen exactly aligned with SFT output, with invariant dedup applied.
                     chosen_code = (result["annotated"] or "").strip()
@@ -1274,16 +1074,16 @@ def main() -> None:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has empty final chosen"})
                         continue
                     seen_rejected = set()
-                    for rej in post_rejected_items:
-                        rej_code = (rej.get("code", "") or "").strip()
-                        if not rej_code or rej_code == chosen_code or rej_code in seen_rejected:
-                            continue
-                        seen_rejected.add(rej_code)
+                    #途径 3: 同一 raw_code 上次质量门失败的 annotated（经 Frama-C 验证但结构不足）
+                    prompt_key = hashlib.md5(prompt_text.encode()).hexdigest()
+                    qg_fail_code = (qg_fail_pool.pop(prompt_key, None) or "").strip()
+                    if qg_fail_code and qg_fail_code != chosen_code:
+                        seen_rejected.add(qg_fail_code)
                         dpo_item = {
                             "instruction": result["system_prompt"],
                             "input": prompt_text,
                             "chosen": chosen_code,
-                            "rejected": rej_code,
+                            "rejected": qg_fail_code,
                         }
                         dpo_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
                         dpo_written += 1
@@ -1316,6 +1116,22 @@ def main() -> None:
                             }
                             dpo_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
                             dpo_written += 1
+                            # Houdini augmentation: "all valid + 1 bad" variants of this rejected
+                            if use_houdini_aug and _aug_verifier and _aug_pruner and _aug_tmp_c:
+                                for aug_code in _aug_houdini_rejects(
+                                    rej_code, _aug_verifier, _aug_pruner,
+                                    _aug_tmp_c, houdini_aug_patience,
+                                ):
+                                    aug_code = aug_code.strip()
+                                    if aug_code and aug_code != chosen_code and aug_code not in seen_rejected:
+                                        seen_rejected.add(aug_code)
+                                        dpo_jsonl_file.write(json.dumps({
+                                            "instruction": result["system_prompt"],
+                                            "input": prompt_text,
+                                            "chosen": chosen_code,
+                                            "rejected": aug_code,
+                                        }, ensure_ascii=False) + "\n")
+                                        dpo_written += 1
                     if dpo_written:
                         dpo_jsonl_file.flush()
                     else:
