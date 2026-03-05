@@ -158,7 +158,7 @@ class OpenAILLM(BaseChatModel):
                     temperature=self.temperature,
                     top_p=self.top_p,
                     max_tokens=max_tokens,
-                    extra_body={"enable_thinking": False},
+                    # extra_body={"enable_thinking": False},
                 )
 
             # 调用 OpenAI API（并在“空内容+length”时自动重试一次）

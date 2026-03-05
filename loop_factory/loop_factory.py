@@ -785,7 +785,104 @@ class ProbabilisticLoopFactory:
         return count
 
     def _sample_const(self) -> int:
+        if self.rng.random() < 0.15:
+            return self.rng.choice([7, 10, 11, 12, 13, 16, 20, 25])
         return self.rng.choice([-8, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 8])
+
+    def _scale_init(self, val: int) -> int:
+        """Occasionally multiply an initial value to produce larger-scale loops (20% chance)."""
+        if self.rng.random() < 0.20:
+            return val * self.rng.choice([2, 3, 5])
+        return val
+
+    def _core_const(self, lo: int, hi: int) -> int:
+        """Sample constant from [lo,hi] with 15% chance of outlier."""
+        if self.rng.random() < 0.15:
+            return self.rng.choice([max(1, lo - 2), hi + 3, min(hi * 2, 99)])
+        return self.rng.randint(lo, hi)
+
+    def _diverse_init(self, base: int, role: str = "acc", src: str = "1") -> str:
+        """Diversify init value. role='acc'|'ctr'|'param'."""
+        if role == "acc" and self.rng.random() < 0.20:
+            offset = self.rng.randint(1, 5)
+            return str(base + offset)
+        if role == "ctr" and self.rng.random() < 0.10:
+            return str(-self.rng.randint(1, 4))
+        if role == "param" and self.rng.random() < 0.15:
+            if self.rng.random() < 0.5:
+                return f"{src}+{self.rng.randint(1, 6)}"
+            return f"{src}*{self.rng.randint(2, 4)}"
+        return str(self._scale_init(base))
+
+    def _diversify_guard(self, guard: str) -> str:
+        """Randomly rewrite guard to an equivalent form."""
+        r = self.rng.random()
+        # Pattern: "x>0" → "x>=1"
+        m = re.match(r'^(\w+)>(\d+)$', guard)
+        if m and r < 0.30:
+            return f"{m.group(1)}>={int(m.group(2))+1}"
+        # Pattern: "i<n" → "i<=n-1"
+        m = re.match(r'^(\w+)<(\w+)$', guard)
+        if m and r < 0.25:
+            return f"{m.group(1)}<={m.group(2)}-1"
+        # Pattern: "x>0" → "x!=0" (only for non-negative loops)
+        m = re.match(r'^(\w+)>0$', guard)
+        if m and r < 0.15:
+            return f"{m.group(1)}!=0"
+        # Pattern: "i<n" → "!(i>=n)"
+        m = re.match(r'^(\w+)<(\w+)$', guard)
+        if m and r < 0.10:
+            return f"!({m.group(1)}>={m.group(2)})"
+        return guard
+
+    def _shuffle_independent(self, body: list) -> list:
+        """Shuffle consecutive statements that don't have data dependencies."""
+        if len(body) <= 1:
+            return body
+
+        def _reads(stmt: Stmt) -> Set[str]:
+            if isinstance(stmt, Assign):
+                return set(re.findall(r'\b([a-zA-Z_]\w*)\b', stmt.expr))
+            return set()  # barrier: don't analyze IfOnly/IfElse
+
+        def _writes(stmt: Stmt) -> Set[str]:
+            if isinstance(stmt, Assign):
+                return {stmt.target}
+            return set()
+
+        result: list = []
+        run: list = []
+
+        def flush_run():
+            if len(run) > 1:
+                self.rng.shuffle(run)
+            result.extend(run)
+            run.clear()
+
+        for st in body:
+            if not isinstance(st, Assign):
+                flush_run()
+                result.append(st)
+                continue
+            # Check if this stmt depends on anything in the current run
+            st_reads = _reads(st)
+            conflict = False
+            for prev in run:
+                if _writes(prev) & st_reads:
+                    conflict = True
+                    break
+                if _reads(prev) & _writes(st):
+                    conflict = True
+                    break
+                if _writes(prev) & _writes(st):
+                    conflict = True
+                    break
+            if conflict:
+                flush_run()
+            run.append(st)
+
+        flush_run()
+        return result
 
     def _sample_operand(self, vars_pool: Sequence[str], allow_const: bool = True) -> str:
         if allow_const and self.rng.random() < 0.35:
@@ -817,11 +914,14 @@ class ProbabilisticLoopFactory:
     def _sample_limit_expr(self, src: str) -> str:
         # Diversify loop-limit initialization: constant, parameter, or simple affine/mod form.
         mode = self.rng.choices(
-            ["const", "src", "src_plus", "src_minus", "src_mod"],
-            weights=[0.28, 0.22, 0.24, 0.08, 0.18],
+            ["const", "src", "src_plus", "src_minus", "src_mod", "src_product"],
+            weights=[0.25, 0.20, 0.22, 0.07, 0.16, 0.10],
             k=1,
         )[0]
         if mode == "const":
+            # 20% chance of a larger bound (50-200) for more loop iterations
+            if self.rng.random() < 0.20:
+                return str(self.rng.randint(50, 200))
             return str(self.rng.randint(8, 80))
         if mode == "src":
             return src
@@ -829,6 +929,9 @@ class ProbabilisticLoopFactory:
             return f"{src}+{self.rng.randint(3, 25)}"
         if mode == "src_minus":
             return f"{src}-{self.rng.randint(1, 10)}"
+        if mode == "src_product":
+            k = self.rng.randint(2, 5)
+            return f"{src}*{k}"
         base = self.rng.randint(6, 40)
         off = self.rng.randint(4, 20)
         return f"({src}%{base})+{off}"
@@ -853,7 +956,13 @@ class ProbabilisticLoopFactory:
         )[0]
 
         if mode == "inc1":
-            start = "0" if self.rng.random() < 0.75 else str(self.rng.randint(1, 4))
+            r = self.rng.random()
+            if r < 0.15:
+                start = str(self.rng.randint(-6, -1))   # negative start
+            elif r < 0.85:
+                start = "0"
+            else:
+                start = str(self.rng.randint(1, 4))
             g = self.rng.choice([f"{ctr}<{lim}", f"{ctr}<={lim}-1", f"{ctr}+1<={lim}"])
             return [(lim, lim_expr), (ctr, start)], g, Assign(ctr, f"{ctr}+1")
 
@@ -862,18 +971,18 @@ class ProbabilisticLoopFactory:
             return [(lim, lim_expr), (ctr, lim)], g, Assign(ctr, f"{ctr}-1")
 
         if mode == "inc_step":
-            d = self.rng.randint(2, 5)
+            d = self.rng.randint(2, 8)
             start = "0" if self.rng.random() < 0.8 else str(self.rng.randint(1, d))
             g = self.rng.choice([f"{ctr}<{lim}", f"{ctr}+{d}<={lim}", f"{ctr}<={lim}-{d}"])
             return [(lim, lim_expr), (ctr, start)], g, Assign(ctr, f"{ctr}+{d}")
 
         if mode == "dec_step":
-            d = self.rng.randint(2, 4)
+            d = self.rng.randint(2, 6)
             g = self.rng.choice([f"{ctr}>{d-1}", f"{ctr}>={d}", f"{ctr}-{d}>=0"])
             return [(lim, lim_expr), (ctr, lim)], g, Assign(ctr, f"{ctr}-{d}")
 
         if mode == "mul_up":
-            mul = self.rng.randint(2, 3)
+            mul = self.rng.randint(2, 4)
             g = self.rng.choice([f"{ctr}<{lim}", f"{ctr}*{mul}<={lim}", f"{ctr}<={lim}/{mul}"])
             return [(lim, lim_expr), (ctr, "1")], g, Assign(ctr, f"{ctr}*{mul}")
 
@@ -1238,7 +1347,10 @@ class ProbabilisticLoopFactory:
             inits.extend(ctrl_inits)
         for sv in state_vars:
             if not use_shared_locals or sv not in reusable:
-                inits.append((sv, self._sample_operand(init_pool, allow_const=True)))
+                if self.rng.random() < 0.15:
+                    inits.append((sv, self._diverse_init(0, role="param", src=src)))
+                else:
+                    inits.append((sv, self._sample_operand(init_pool, allow_const=True)))
 
         vars_pool = list(dict.fromkeys(universe + list(params) + state_vars + [ctr, lim]))
 
@@ -1442,9 +1554,27 @@ class ProbabilisticLoopFactory:
                     used_assign += 2
                 core_applied = True
             elif chosen == "affine_chain":
-                # Affine recurrence chain.
-                body.extend([Assign(a, f"{a}+{self.rng.randint(1,4)}"), Assign(b, f"{b}+{a}"), Assign(c, f"{c}+{b}")])
-                used_assign += 3
+                # Affine recurrence chain variants: 2/3-node chain or branch-conditioned chain.
+                mode = self.rng.choice(["chain2", "chain3", "branch_chain"])
+                k = self._core_const(1, 6)
+                body.append(Assign(a, f"{a}+{k}"))
+                if mode == "chain2":
+                    body.append(Assign(b, f"{b}+{a}"))
+                    used_assign += 2
+                elif mode == "chain3":
+                    body.append(Assign(b, f"{b}+{a}"))
+                    body.append(Assign(c, f"{c}+{b}"))
+                    used_assign += 3
+                else:
+                    body.append(
+                        IfElse(
+                            cond=f"{ctr}%2==0",
+                            then_body=[Assign(b, f"{b}+{a}")],
+                            else_body=[Assign(b, f"{b}+{c}")],
+                        )
+                    )
+                    used_if += 1
+                    used_assign += 3
                 core_applied = True
             elif chosen == "remainder_buckets":
                 # Remainder bucket counting with 2-way split (generalizable).
@@ -1457,11 +1587,25 @@ class ProbabilisticLoopFactory:
                 used_assign += 2
                 core_applied = True
             elif chosen == "monotone_bound":
-                # Monotone variable tied to guard.
+                # Monotone variable tied to guard, with speed variants.
                 guard = f"{a}<{lim}"
-                body.append(IfOnly(cond=f"{a}<{lim}", then_body=[Assign(a, f"{a}+1")]))
-                used_if += 1
-                used_assign += 1
+                mode = self.rng.choice(["base", "var_step", "piecewise"])
+                if mode == "base":
+                    body.append(Assign(a, f"{a}+1"))
+                    used_assign += 1
+                elif mode == "var_step":
+                    body.append(Assign(a, f"{a}+{self._core_const(1, 4)}"))
+                    used_assign += 1
+                else:
+                    body.append(
+                        IfElse(
+                            cond=f"{a}<{lim}/2",
+                            then_body=[Assign(a, f"{a}+2")],
+                            else_body=[Assign(a, f"{a}+1")],
+                        )
+                    )
+                    used_if += 1
+                    used_assign += 1
                 core_applied = True
             elif chosen == "phase_switch":
                 # Phase-dependent update law.
@@ -1505,9 +1649,9 @@ class ProbabilisticLoopFactory:
                 # - snapshot_step: m=x; x=x+c
                 # - guarded_snapshot: if(g<lim)m=x; x++
                 # - snapshot_chase: while(x!=0){x--;y--;}
-                mode = self.rng.choice(["snapshot_step", "guarded_snapshot", "snapshot_chase"])
+                mode = self.rng.choice(["snapshot_step", "guarded_snapshot", "offset_snapshot", "snapshot_chase"])
                 if mode == "snapshot_step":
-                    step = self.rng.randint(1, 3)
+                    step = self._core_const(1, 5)
                     body.extend([Assign(b, a), Assign(a, f"{a}+{step}")])
                     used_assign += 2
                 elif mode == "guarded_snapshot":
@@ -1515,6 +1659,11 @@ class ProbabilisticLoopFactory:
                     body.append(IfOnly(cond=f"{guard_var}<{lim}", then_body=[Assign(b, a)]))
                     body.append(Assign(a, f"{a}+1"))
                     used_if += 1
+                    used_assign += 2
+                elif mode == "offset_snapshot":
+                    off = self._core_const(1, 6)
+                    step = self._core_const(1, 4)
+                    body.extend([Assign(b, f"{a}+{off}"), Assign(a, f"{a}+{step}")])
                     used_assign += 2
                 else:
                     set_init(c, a)
@@ -1525,9 +1674,17 @@ class ProbabilisticLoopFactory:
                     used_assign += 2
                 core_applied = True
             elif chosen == "complement_step":
-                # linear motif: y=n-x; x=x+1
-                set_init(a, "0")
-                body.extend([Assign(b, f"{lim}-{a}"), Assign(a, f"{a}+1")])
+                # linear motif variants: y=n-x with variable/reordered step.
+                set_init(a, self._diverse_init(0, role="ctr"))
+                guard = f"{a}<{lim}"
+                mode = self.rng.choice(["base", "var_step", "reversed"])
+                if mode == "base":
+                    body.extend([Assign(b, f"{lim}-{a}"), Assign(a, f"{a}+1")])
+                elif mode == "var_step":
+                    step = self._core_const(1, 5)
+                    body.extend([Assign(b, f"{lim}-{a}"), Assign(a, f"{a}+{step}")])
+                else:
+                    body.extend([Assign(a, f"{a}+1"), Assign(b, f"{lim}-{a}")])
                 used_assign += 2
                 core_applied = True
             elif chosen == "triple_decrease":
@@ -1553,15 +1710,26 @@ class ProbabilisticLoopFactory:
                 # - proportional_stride
                 mode = self.rng.choice(["fixed", "proportional"])
                 if mode == "fixed":
-                    set_init(a, "0")
+                    set_init(a, self._diverse_init(0, role="ctr"))
                     guard = f"{a}<{lim}"
-                    step = self.rng.choice([2, 3, 4])
-                    body.append(Assign(a, f"{a}+{step}"))
-                    used_assign += 1
+                    step = self._core_const(2, 8)
+                    v = self.rng.choice(["base", "skip", "jitter"])
+                    if v == "base":
+                        body.append(Assign(a, f"{a}+{step}"))
+                        used_assign += 1
+                    elif v == "skip":
+                        k = self._core_const(2, 7)
+                        body.append(Assign(a, f"{a}+{step}"))
+                        body.append(IfOnly(cond=f"{a}%{k}==0", then_body=[Assign(a, f"{a}+1")]))
+                        used_if += 1
+                        used_assign += 2
+                    else:
+                        body.append(Assign(a, f"{a}+{step}+{ctr}%2"))
+                        used_assign += 1
                 else:
-                    step_ratio = self.rng.randint(2, 5)
-                    set_init(a, "0")
-                    set_init(b, "0")
+                    step_ratio = self._core_const(2, 8)
+                    set_init(a, self._diverse_init(0, role="ctr"))
+                    set_init(b, self._diverse_init(0, role="acc"))
                     guard = f"{a}<{lim}"
                     body.append(Assign(b, f"{b}+{step_ratio}"))
                     body.append(Assign(a, f"{a}+1"))
@@ -1772,39 +1940,60 @@ class ProbabilisticLoopFactory:
                 # Merged family:
                 # - simple_accumulate: y += x
                 # - linear_product_reduce: product += param; i++
-                if self.rng.random() < 0.55:
-                    body.append(Assign(b, f"{b}+{a}"))
-                    used_assign += 1
+                if self.rng.random() < 0.60:
+                    set_init(b, self._diverse_init(0, role="acc"))
+                    mode = self.rng.choice(["plain", "weighted", "parity"])
+                    if mode == "plain":
+                        body.append(Assign(b, f"{b}+{a}"))
+                        used_assign += 1
+                    elif mode == "weighted":
+                        body.append(Assign(b, f"{b}+{a}*{ctr}"))
+                        used_assign += 1
+                    else:
+                        body.append(
+                            IfElse(
+                                cond=f"{ctr}%2==0",
+                                then_body=[Assign(b, f"{b}+{a}")],
+                                else_body=[Assign(b, f"{b}+{a}+1")],
+                            )
+                        )
+                        used_if += 1
+                        used_assign += 1
                 else:
                     xp = params[0] if params else src
-                    set_init(a, "0")
-                    set_init(b, "0")
+                    set_init(a, self._diverse_init(0, role="acc"))
+                    set_init(b, self._diverse_init(0, role="ctr"))
                     guard = f"{b}<{lim}"
                     body.append(Assign(a, f"{a}+{xp}"))
                     body.append(Assign(b, f"{b}+1"))
                     used_assign += 2
                 core_applied = True
             elif chosen == "prefix_sum_family":
-                # Merged family:
-                # - triangular_progress: i++; sum+=i
-                # - sum_before_incr: sum+=i; i++
-                # - prefix_sum_progression: s+=i; i++
-                mode = self.rng.choice(["triangular", "sum_before", "prefix"])
+                # Merged family with extra arithmetic variants.
+                mode = self.rng.choice(["triangular", "sum_before", "squares", "odds"])
                 if mode == "triangular":
+                    set_init(a, self._diverse_init(0, role="ctr"))
+                    set_init(b, self._diverse_init(0, role="acc"))
                     body.append(Assign(a, f"{a}+1"))
                     body.append(Assign(b, f"{b}+{a}"))
                 elif mode == "sum_before":
-                    set_init(a, "0")
-                    set_init(b, "0")
+                    set_init(a, self._diverse_init(0, role="ctr"))
+                    set_init(b, self._diverse_init(0, role="acc"))
                     guard = f"{a}<{lim}"
                     body.append(Assign(b, f"{b}+{a}"))
                     body.append(Assign(a, f"{a}+1"))
+                elif mode == "squares":
+                    set_init(a, self._diverse_init(1, role="ctr"))
+                    set_init(b, self._diverse_init(0, role="acc"))
+                    guard = f"{a}<={lim}"
+                    body.append(Assign(b, f"{b}+{a}*{a}"))
+                    body.append(Assign(a, f"{a}+1"))
                 else:
-                    set_init(a, "0")
-                    set_init(b, "1")
-                    guard = f"{b}<={lim}"
-                    body.append(Assign(a, f"{a}+{b}"))
-                    body.append(Assign(b, f"{b}+1"))
+                    set_init(a, self._diverse_init(1, role="ctr"))
+                    set_init(b, self._diverse_init(0, role="acc"))
+                    guard = f"{a}<={lim}"
+                    body.append(Assign(b, f"{b}+2*{a}-1"))
+                    body.append(Assign(a, f"{a}+1"))
                 used_assign += 2
                 core_applied = True
             elif chosen == "mul_affine_param_pair":
@@ -2164,15 +2353,33 @@ class ProbabilisticLoopFactory:
             elif chosen == "countdown_triple":
                 # Three-way linear countdown with conservation.
                 # linear/145: lo=0; hi=2*mid; while(mid>0){lo++;hi--;mid--;} inv: lo+hi==2*mid_init
-                mid_init = self.rng.randint(5, 20)
-                set_init(a, "0")                   # lo
+                mid_init = self._core_const(4, 35)
+                set_init(a, self._diverse_init(0, role="acc"))  # lo
                 set_init(b, str(2 * mid_init))     # hi = 2*mid_init
                 set_init(c, str(mid_init))         # mid (countdown)
                 guard = f"{c}>0"
-                body.append(Assign(a, f"{a}+1"))
-                body.append(Assign(b, f"{b}-1"))
-                body.append(Assign(c, f"{c}-1"))
-                used_assign += 3
+                mode = self.rng.choice(["base", "asymmetric", "conditional"])
+                if mode == "base":
+                    body.append(Assign(a, f"{a}+1"))
+                    body.append(Assign(b, f"{b}-1"))
+                    body.append(Assign(c, f"{c}-1"))
+                    used_assign += 3
+                elif mode == "asymmetric":
+                    s = self._core_const(1, 4)
+                    body.append(Assign(a, f"{a}+{s}"))
+                    body.append(Assign(b, f"{b}-{s}"))
+                    body.append(Assign(c, f"{c}-1"))
+                    used_assign += 3
+                else:
+                    body.append(
+                        IfElse(
+                            cond=f"{a}<{c}",
+                            then_body=[Assign(a, f"{a}+1"), Assign(c, f"{c}-1")],
+                            else_body=[Assign(b, f"{b}-1"), Assign(c, f"{c}-1")],
+                        )
+                    )
+                    used_if += 1
+                    used_assign += 2
                 core_applied = True
             elif chosen == "binary_toggle":
                 # Two-state toggling system.
@@ -2267,7 +2474,7 @@ class ProbabilisticLoopFactory:
             elif chosen == "cache_coherence":
                 # L14: 2-state resource conservation: free + owned == n_init.
                 # inv: free + owned == n_init  (linear conservation).
-                n_init = self.rng.randint(5, 15)
+                n_init = self._scale_init(self.rng.randint(5, 15))
                 set_init(a, str(n_init))   # free
                 set_init(b, "0")           # owned
                 guard = f"{ctr}<{lim}"
@@ -2364,22 +2571,56 @@ class ProbabilisticLoopFactory:
             elif chosen == "transfer_conservation":
                 # linear/100: x=N; y=0; while(x>0){y+=S; x-=S;}
                 # inv: x + y == N  (additive conservation, incremental form)
-                N_val = self.rng.randint(5, 25)
-                S_val = self.rng.randint(1, 3)
-                set_init(a, str(N_val))   # x (countdown)
-                set_init(b, "0")           # y (accumulator)
+                N_val = self._core_const(3, 50)
+                S_val = self._core_const(1, 6)
+                set_init(a, str(N_val))                     # x (countdown)
+                set_init(b, self._diverse_init(0, role="acc"))  # y (accumulator)
                 guard = f"{a}>0"
-                body.append(Assign(b, f"{b}+{S_val}"))
-                body.append(Assign(a, f"{a}-{S_val}"))
-                used_assign += 2
+                mode = self.rng.choice(["base", "modular", "guarded"])
+                if mode == "base":
+                    body.append(Assign(b, f"{b}+{S_val}"))
+                    body.append(Assign(a, f"{a}-{S_val}"))
+                    used_assign += 2
+                elif mode == "modular":
+                    K_val = self._core_const(2, 9)
+                    set_init(c, "0")  # amt
+                    body.append(Assign(c, f"{a}%{K_val}"))
+                    body.append(
+                        IfElse(
+                            cond=f"{c}==0",
+                            then_body=[Assign(c, "1")],
+                            else_body=[],
+                        )
+                    )
+                    body.append(
+                        IfElse(
+                            cond=f"{c}>{a}",
+                            then_body=[Assign(c, a)],
+                            else_body=[],
+                        )
+                    )
+                    body.append(Assign(b, f"{b}+{c}"))
+                    body.append(Assign(a, f"{a}-{c}"))
+                    used_if += 2
+                    used_assign += 5
+                else:
+                    body.append(
+                        IfElse(
+                            cond=f"{a}>={S_val}",
+                            then_body=[Assign(b, f"{b}+{S_val}"), Assign(a, f"{a}-{S_val}")],
+                            else_body=[Assign(b, f"{b}+{a}"), Assign(a, "0")],
+                        )
+                    )
+                    used_if += 1
+                    used_assign += 2
                 core_applied = True
             elif chosen == "carry_pair_counter":
                 # Radix-B two-digit counter.
                 # inv: t == q*B + r, 0 <= r < B
-                base = self.rng.randint(2, 7)
-                set_init(a, "0")   # q: high digit
-                set_init(b, "0")   # r: low digit
-                set_init(c, "0")   # t: total count
+                base = self._core_const(2, 12)
+                set_init(a, self._diverse_init(0, role="acc"))   # q: high digit
+                set_init(b, self._diverse_init(0, role="acc"))   # r: low digit
+                set_init(c, self._diverse_init(0, role="ctr"))   # t: total count
                 guard = f"{ctr}<{lim}"
                 body.append(Assign(c, f"{c}+1"))
                 body.append(Assign(b, f"{b}+1"))
@@ -2534,21 +2775,28 @@ class ProbabilisticLoopFactory:
             elif chosen == "ghost_sync_pair":
                 # linear/220: w=x=init; always update both together.
                 # inv: w == x  (ghost-variable synchrony)
-                init_val = self.rng.randint(1, 10)
-                step_up = self.rng.randint(1, 3)
+                init_val = self._core_const(1, 15)
                 set_init(a, str(init_val))   # w
                 set_init(b, str(init_val))   # x (ghost, must equal w)
                 guard = f"{ctr}<{lim}"
-                body.append(
-                    IfElse(
-                        cond=f"{ctr}%2==0",
-                        then_body=[Assign(a, f"{a}+{step_up}"), Assign(b, f"{b}+{step_up}")],
-                        else_body=[Assign(a, f"{a}-1"), Assign(b, f"{b}-1")],
-                    )
-                )
-                body.append(Assign(ctr, f"{ctr}+1"))
-                used_if += 1
-                used_assign += 3
+                mode = self.rng.choice(["parallel_stride", "conditional_sync", "lag_copy"])
+                if mode == "parallel_stride":
+                    step_up = self._core_const(1, 5)
+                    body.append(Assign(a, f"{a}+{step_up}"))
+                    body.append(Assign(b, f"{b}+{step_up}"))
+                    body.append(Assign(ctr, f"{ctr}+1"))
+                    used_assign += 3
+                elif mode == "conditional_sync":
+                    body.append(IfOnly(cond=f"{ctr}%3==0", then_body=[Assign(a, b)]))
+                    body.append(Assign(b, f"{b}+1"))
+                    body.append(Assign(ctr, f"{ctr}+1"))
+                    used_if += 1
+                    used_assign += 3
+                else:
+                    body.append(Assign(a, b))
+                    body.append(Assign(b, f"{b}+1"))
+                    body.append(Assign(ctr, f"{ctr}+1"))
+                    used_assign += 3
                 core_applied = True
             elif chosen == "product_reduction_walk":
                 # NLA/24,27: z = x*y; while(x>0){x--; z -= y;}
@@ -2771,6 +3019,7 @@ class ProbabilisticLoopFactory:
             used_assign += 1
 
         body = self._dedup_loop_body(body, ctr)
+        body = self._shuffle_independent(body)
 
         if append_step:
             body.append(step_stmt)
@@ -2786,6 +3035,7 @@ class ProbabilisticLoopFactory:
             body.append(IfOnly(cond=f"{ctr}>={lim}", then_body=[Break()]))
 
         selected_core = chosen if core_applied else "none"
+        guard = self._diversify_guard(guard)
 
         loop_stmt: Stmt = WhileLoop(cond=guard, body=body)
         # Equivalent control-flow variants:

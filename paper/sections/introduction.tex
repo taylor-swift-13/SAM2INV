@@ -2,136 +2,119 @@
 \section{Introduction}\label{sec:intro}
 %% ============================================================
 
-Loop invariants are the cornerstone of deductive program verification.
-Given a loop annotated with an appropriate invariant, a verification condition generator
-such as Frama-C/WP~\cite{framac} can reduce the correctness of the entire program to
-a set of first-order proof obligations dischargeable automatically.
-In practice, however, \emph{finding} the right invariant is the bottleneck:
-even expert users spend substantial effort crafting invariants that are simultaneously
-\emph{inductive} (preserved by each iteration), \emph{sufficient} (strong enough to
-imply the postcondition), and \emph{syntactically admissible} (expressible in the
-annotation language).
+Loop invariant generation is a central hard problem in program
+verification.
+Traditional
+approaches~\cite{cousot1977abstract,colon2003linear,flanagan2001houdini,daikon,nguyen2012using}
+can each handle specific families of loops but generalise poorly
+beyond their pre-designed search spaces, and often yield limited
+effectiveness at prohibitive analysis time.
+The emergence of large language models~(LLMs) has brought fresh
+perspectives to this problem, and several recent works have explored
+LLM-based invariant
+generation~\cite{chakraborty2024towards,pei2023can,kamath2023finding}.
+However, these approaches typically rely on extensive SMT solving,
+static analysis pipelines, and complex multi-round workflows, and
+they universally employ the most powerful closed-source models
+available at the time.
+This reliance itself reveals that loop invariant generation remains
+an exceptionally challenging task even for LLMs: it demands not only
+\emph{logical reasoning} and \emph{program comprehension}, but also
+mastery of the specific formal syntax and semantics of the target
+annotation language.
+Training a \emph{locally deployable} model that generates
+high-quality loop invariants without relying on massive API token
+budgets or heavyweight external tools---and at substantially lower
+runtime cost---is therefore of considerable practical value.
+Moreover, loop invariant generation differs fundamentally from
+typical code generation or mathematical reasoning benchmarks: it
+better reflects a model's integrated mathematical and programming
+ability in a realistic formal-methods setting.
+We therefore also aim to investigate whether small, open-weight
+models can achieve strong performance on this task.
 
-Classical approaches fall into two broad camps.
-\emph{Static} techniques such as abstract interpretation~\cite{cousot1977abstract},
-template-based constraint solving~\cite{colon2003linear}, and
-Houdini-style iterative weakening~\cite{flanagan2001houdini}
-offer soundness guarantees but are confined to fixed abstract domains or templates.
-\emph{Dynamic} techniques infer candidates from execution traces using polynomial
-fitting~\cite{daikon}, machine learning~\cite{si2018learning}, or data-driven
-enumerative search~\cite{garg2016learning}, but must still close the gap between
-empirical observation and formal proof.
+Before training can begin, we must first overcome the scarcity of
+formal training data.
+Existing invariant benchmarks contain only a few dozen
+programs~\cite{svcomp}, which is far too few for fine-tuning and
+raises severe data-leakage concerns.
+To address both issues, we design \textsc{LoopFactory}, a
+probabilistic domain-specific language~(DSL) constrained by semantic
+templates, which synthesises well-formed numeric loop programs at
+arbitrary scale (Section~\ref{sec:loop-factory}).
 
-Recently, large language models~(LLMs) have demonstrated remarkable ability at code
-understanding and generation.
-Several studies have explored LLM-driven invariant
-synthesis~\cite{chakraborty2024towards,pei2023can,kamath2023finding},
-showing that LLMs can produce plausible candidates even for non-trivial programs.
-However, existing approaches suffer from two structural weaknesses.
-First, they rely on a single LLM call or a simple repair loop without \emph{systematic
-multi-stage filtering}, so many returned candidates are syntactically ill-formed,
-semantically inconsistent with program behaviour, or formally non-inductive.
-Second, the verification signal produced by these systems is discarded after each
-run; no mechanism exists for using that signal to \emph{improve} the LLM policy
-that generates the candidates.
-The result is that each new program is treated as if the model had learned nothing
-from prior successes and failures.
+For loop invariant correctness we do possess a verifiable feedback
+signal: an SMT solver can decide whether a candidate satisfies the
+inductiveness conditions.
+However, this signal is a binary pass/fail verdict---too sparse to
+serve directly as a reinforcement learning reward.
+More concretely, relying solely on the binary signal is susceptible
+to \emph{reward hacking}: trivially weak annotations
+(e.g.\ \lstinline|loop invariant true;|) can formally pass the
+checker, earning full reward while capturing no mathematical
+structure.
+Designing a richer reward through hand-crafted heuristics or a
+trained reward model introduces excessive \emph{human-prior bias}.
+Furthermore, methods such as GRPO~\cite{deepseekr1} require the
+model to roll out multiple candidate answers per input and update
+the policy based on relative rewards; loop invariant generation is
+hard enough that a weak base model rarely produces a satisfactory
+answer within a limited sampling budget, rendering online exploration
+ineffective.
 
-\paragraph{Why invariant quality is hard to learn from.}
-A fundamental obstacle to improving LLM-based invariant generation
-through reinforcement learning is that
-\emph{evaluating candidate quality is structurally different here
-from other code generation tasks}.
-The correct annotation for a loop is not a single program but a
-\emph{conjunction} of multiple invariant clauses, each capturing a
-different arithmetic relationship.
-This has two consequences.
-First, the binary verifier signal is \emph{non-attributable}:
-the final correct annotation is typically assembled from contributions
-of several parallel LLM calls, so no individual call can be scored
-as simply correct or incorrect.
-Second, the binary signal is susceptible to \emph{reward hacking}:
-trivially weak annotations (e.g., \lstinline|loop invariant true;|)
-can formally pass a checker on programs with loose postconditions
-yet carry no mathematical insight about the loop.
-These two properties together explain why online reinforcement
-learning methods such as
-GRPO~\cite{deepseekr1}---which score individual completions against
-each other via binary verifier feedback---are poorly suited to this
-domain.
+Based on these considerations, we adopt a \emph{knowledge
+distillation} approach.
+As demonstrated by the DeepSeek-R1 distilled
+models~\cite{deepseekr1}, reasoning patterns of a strong teacher
+can be transferred to small models via distillation more effectively
+than through RL on the small model directly; we believe distillation
+better enables a small model to expand its reasoning repertoire and
+explore novel solution paths for this task.
+For the teacher we choose a relatively lightweight model
+(GPT-5-nano), avoiding an excessive student--teacher capability gap
+while keeping token cost tractable.
+We move GRPO-style exploration into the \emph{data-preparation}
+phase rather than distilling the teacher's single-best answer
+directly.
+In this process we embed the verifier's feedback signal: all
+candidate answers sampled from the teacher are combined,
+deduplicated, and filtered through a three-stage verification
+pipeline; the surviving certified annotation is assembled as the
+\emph{chosen} example, while every rejected candidate becomes a
+\emph{rejected} example.
+The student is then trained in two stages---first supervised
+fine-tuning~(SFT) on the chosen examples, then direct preference
+optimisation~(DPO) on the chosen/rejected pairs---transferring the
+teacher's exploration benefit to the student, grounded entirely in
+formal verification, with no human annotation or online reward model.
 
-\paragraph{Our approach.}
-We present \textsc{SAM2INV} (\textbf{Sam}pling \textbf{to}
-\textbf{Inv}ariant), a system that addresses both problems through a
-two-stage pipeline: first generate a large, diverse corpus of loop
-programs; then for each program, generate, filter, and certify
-invariant candidates---logging every accepted and rejected expression
-as structured training data.
-
-\textbf{Contribution~1: \textsc{LoopFactory}---a Probabilistic DSL for Task Input Generation.}
-Existing benchmarks contain only a few dozen loop programs, which
-is insufficient for training.
-We design \textsc{LoopFactory}, a probabilistic domain-specific
-language~(DSL) that generates structured numeric loop programs with
-tunable arithmetic complexity (linear vs.\ nonlinear), nesting depth,
-variable count, and loop-control mode.
-\textsc{LoopFactory} is the \emph{task input generator}: it produces
-the programs that the invariant-generation pipeline annotates, and
-hence the programs that ultimately populate the SFT and DPO training
-corpora.
-Without a scalable supply of programs with known structure, offline
-training data cannot be generated at the scale needed for fine-tuning.
-
-\textbf{Contribution~2: A Three-Stage Sampling-and-Filtering Pipeline.}
-Given a program (from \textsc{LoopFactory} or any source),
-\textsc{SAM2INV} issues $N$ parallel LLM calls and \emph{unions} all
-returned candidate invariant expressions into a single pool, rather
-than selecting among them.
-The pool is then filtered through three progressively more expensive
-stages:
-(i)~an ACSL \emph{syntax filter} that rejects ill-formed expressions
-without running any code;
-(ii)~an \emph{execution-trace semantic filter} that discards candidates
-falsified by any observed loop state;
-and (iii)~\emph{Houdini formal pruning} that uses Frama-C/WP to
-remove non-inductive candidates, converging to the strongest
-inductive conjunction the union supports.
-Every survivor is \emph{certified} by Frama-C/WP.
-Importantly, \emph{the filtering pipeline alone---before any
-fine-tuning---already yields substantial improvements in both
-success rate and invariant quality} over a single-call baseline.
-Union assembly makes the final annotation stronger by combining
-conjuncts that different calls discover independently;
-the syntax and trace filters ensure that only well-formed,
-semantically consistent candidates reach Frama-C, eliminating
-parse failures and reducing the cost of Houdini pruning;
-and Houdini finds the maximal inductive conjunction the
-pre-screened union can support.
-The pipeline is therefore a strong standalone tool for invariant
-generation, and the offline training data collection is an
-additional improvement layer built on top of it.
-Running \textsc{LoopFactory} and this pipeline together at scale
-constitutes the training data generation workflow: each program
-yields one certified annotation and a set of stage-labelled rejected
-candidates.
-
-\textbf{Contribution~3: Offline SFT and DPO Data from Pipeline Logs.}
-The union-then-filter design makes online RL inapplicable for the
-reasons above, but it naturally produces structured training data
-\emph{at no extra cost}: the pipeline already logs every candidate
-and the stage at which it was filtered.
-\textsc{SAM2INV} turns these logs into SFT records (program paired
-with its certified annotation) and DPO preference pairs (certified
-annotation as chosen; each rejected candidate as rejected, labelled
-by its rejection stage).
-This stage-stratified labelling provides a richer signal than binary
-pass/fail, avoids reward hacking, and requires no human annotation
-or online reward model.
+\paragraph{Contributions.}
+In summary, this paper makes three contributions:
+\begin{enumerate}
+\item \textbf{\textsc{LoopFactory}}, a probabilistic DSL for
+  numerical loop synthesis that overcomes training-data scarcity and
+  data leakage by generating programs with tunable complexity and
+  known semantic structure
+  (Section~\ref{sec:loop-factory}).
+\item \textbf{A three-stage sampling-and-filtering pipeline} that
+  issues $N$ parallel LLM calls, unions all candidates, and filters
+  them through an ACSL syntax filter, an execution-trace semantic
+  filter, and Houdini formal pruning via Frama-C/WP---certifying
+  every surviving invariant
+  (Section~\ref{sec:method}).
+\item \textbf{An offline knowledge-distillation strategy} that
+  embeds verifier feedback into the data-preparation step,
+  producing SFT and DPO training data from teacher-model
+  exploration, and fine-tunes a small locally deployable student
+  model without online RL
+  (Section~\ref{sec:offline}).
+\end{enumerate}
 
 \medskip
 The remainder of this paper is organised as follows.
 Section~\ref{sec:related} surveys related work.
-Section~\ref{sec:overview} gives a high-level overview of the \textsc{SAM2INV} pipeline.
+Section~\ref{sec:overview} gives a high-level overview of the
+pipeline.
 Section~\ref{sec:method} details each component.
 Section~\ref{sec:loop-factory} describes \textsc{LoopFactory}.
 Section~\ref{sec:experiments} presents experimental evaluation.

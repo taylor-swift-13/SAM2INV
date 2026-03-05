@@ -12,252 +12,153 @@ following the pipeline order introduced in Section~\ref{sec:overview}.
 The purpose of dynamic sampling is to collect execution traces that
 expose the mathematical relationships maintained by the loop.
 Naive random sampling often produces inputs that are either too
-simple (all zeros) or too large (causing integer overflow or
-time-outs).
-We therefore adopt a \emph{tiered} sampling strategy that
-prioritises simple, informative values while gradually introducing
-diversity.
-
-\begin{definition}[Value Tiers]
-Given a parameter variable $v$ with domain $[l, u]$, we define
-four value tiers:
-\begin{align*}
-\mathcal{T}_0 &= \{0, 1, -1\} \cap [l,u] && \text{(special values)} \\
-\mathcal{T}_1 &= \{2,3,\ldots,10\} \cap [l,u] && \text{(small integers)} \\
-\mathcal{T}_2 &\subseteq \{11,\ldots,50\} \cap [l,u] && \text{(medium, sampled)} \\
-\mathcal{T}_3 &\subseteq \{51,\ldots,100\} \cap [l,u] && \text{(large, sampled)}
-\end{align*}
-\end{definition}
-
-Sampling proceeds in phases:
-\begin{enumerate}
-\item \textbf{Phase~1:} Generate the Cartesian product over $\mathcal{T}_0$
-      for all parameters.  These ``corner cases'' are ideal for fitting
-      low-degree polynomials.
-\item \textbf{Phase~2:} Mix $\mathcal{T}_0$ and $\mathcal{T}_1$ to add
-      coverage of small positive integers.
-\item \textbf{Phase~3:} Include all tiers, prioritising combinations with
-      lower total tier index.
-\item \textbf{Phase~4:} Fill remaining quota with biased random sampling
-      (80\% probability of choosing values $\le 20$).
-\end{enumerate}
-
+simple (all zeros, which collapse polynomial terms) or too large
+(causing integer overflow or time-outs).
+We therefore adopt a \emph{tiered} sampling strategy: parameter
+values are partitioned into four tiers---special corner values
+$\{0,\pm1\}$, small positives, medium values, and large
+values---and input tuples are generated in phases of increasing
+tier complexity, with a biased random fill for any remaining quota.
 Each input is executed, and the variable state at every loop iteration
-is recorded.  To keep prompts within LLM context limits, we retain
-only the first and last $k$ iterations per run (default $k{=}3$)
-and group traces into at most $G$ groups (default $G{=}10$).
+is recorded.
+To keep prompts within LLM context limits, we retain only the first
+and last $k$ iterations per run (default $k{=}3$) and group traces
+into at most $G$ groups (default $G{=}10$).
+Full details of the tier definitions, phased Cartesian sampling
+algorithm, and trace formatting are given in
+Appendix~\ref{app:sampling}.
 
 %% ------------------------------------------------------------
 \subsection{Parallel LLM Generation}\label{sec:generation}
 %% ------------------------------------------------------------
 
-\paragraph{Prompt Design.}
-Each LLM prompt is assembled from three components:
-\begin{enumerate}
-\item A \emph{system prompt} that defines the task (loop invariant
-      synthesis for Frama-C/WP), lists allowed and forbidden ACSL
-      constructs, and encodes the assertion-driven synthesis strategy
-      (decompose postcondition conjuncts, add boundary invariants,
-      preserve unmodified parameters).
-\item The \emph{source code} of the target function.
-\item \emph{Execution traces} formatted as structured variable--value
-      tables (Section~\ref{sec:sampling}).
-\end{enumerate}
+Each LLM prompt is assembled from three components: a \emph{system
+prompt} encoding the task definition and allowed ACSL constructs, the
+\emph{source code} of the target function, and \emph{execution traces}
+formatted as structured variable--value tables.
+The system prompt encodes an \emph{assertion-driven} strategy:
+decompose each postcondition conjunct as an invariant candidate,
+weaken the loop guard to obtain a boundary invariant, and preserve
+unmodified function parameters via \lstinline|\at(v, Pre)|.
+Full prompts are reproduced in Appendix~\ref{app:prompts}.
 
-\paragraph{Assertion-Driven Strategy.}
-A key insight is that the postcondition assertion directly suggests
-invariant candidates:
-\begin{enumerate}
-\item Each conjunct of the assertion (split on \texttt{\&\&}) is a
-      candidate invariant.
-\item For a loop guard of the form \lstinline|i < n|, the weakened
-      form \lstinline|i <= n| is an inductive boundary invariant.
-\item Function parameters not modified in the loop body are preserved:
-      \lstinline|v == \at(v, Pre)|.
-\end{enumerate}
-
-\paragraph{Parallel Diverse Generation and Union Assembly.}
-To maximise the probability of finding the correct invariant set, we
-issue $N$ parallel LLM calls (default $N{=}5$) using a thread pool,
-with temperatures $\tau_j$ sampled from $\{0.8, 1.0, 1.1, 1.2\}$
-to encourage diverse outputs.
-Each call $j$ produces a set of ACSL expression strings $C_j$.
-These sets are \emph{unioned}, not voted upon:
+To maximise the probability of finding the complete invariant set, we
+issue $N$ parallel LLM calls (default $N{=}5$) with temperatures
+sampled from $\{0.8, 1.0, 1.1, 1.2\}$.
+Each call $j$ produces a candidate set $C_j$; these sets are
+\emph{unioned}, not voted upon:
 \[
 C_{\text{pool}} = \bigcup_{j=1}^{N} C_j \quad
 (\text{whitespace-normalised deduplication}).
 \]
-The union $C_{\text{pool}}$ is then passed as a single flat set to
-the three-stage filter (Section~\ref{sec:filtering}).
-
 The union-then-filter design is motivated by a structural property
 of loop invariants: the correct annotation is a \emph{conjunction}
 of multiple clauses, and different clauses tend to be discovered by
 different calls.
-After Houdini pruning, the certified output $C^*$ is assembled from
-whichever clauses in $C_{\text{pool}}$ survive---it is a post-hoc
-collective result, not a selection from any individual response.
-This \emph{non-attributability} property has direct consequences for
-training signal design; see Section~\ref{sec:offline} and
-Appendix~\ref{app:nonattrib} for the formal analysis.
+After filtering, the certified output $C^*$ is a post-hoc collective
+result, not a selection from any individual response---a
+\emph{non-attributability} property formalised in
+Appendix~\ref{app:nonattrib}.
 
 %% ------------------------------------------------------------
 \subsection{Three-Stage Filter Pipeline}\label{sec:filtering}
 %% ------------------------------------------------------------
 
-The three-stage filter pipeline is the core engine of \textsc{SAM2INV}.
-It improves invariant generation in two independent ways.
-
-First, \emph{union assembly strengthens the invariant.}
-By pooling candidates from $N$ parallel calls, the union contains
-conjuncts that no individual call would produce on its own.
-After Houdini pruning, the certified $C^*$ is the strongest
-inductive conjunction the union supports---strictly stronger, in
-general, than the output of any single call
-(Section~\ref{sec:generation}, Appendix~\ref{app:nonattrib}).
-
-Second, \emph{the lightweight filters ensure Houdini can work
-correctly and efficiently.}
-The syntax filter removes expressions that are syntactically
-malformed ACSL---parse errors, forbidden constructs, unbalanced
-brackets---which would cause Frama-C to fail entirely rather
-than returning a per-invariant result.
-The trace filter removes candidates that are \emph{semantically
-contradicted} by observed execution states: any candidate falsified
-by at least one recorded loop state cannot be inductive and need
-never be sent to Frama-C.
-Together, these two stages deliver a pre-screened candidate set
-to Houdini, eliminating the risk of Frama-C parse failures and
-substantially reducing the number of formal verification calls.
-
-Crucially, both improvements are \emph{intrinsic to the pipeline
-itself}---they hold for any base LLM, before any fine-tuning.
-The offline training data collection (Section~\ref{sec:offline}) is
-a separate improvement layer built on top of this already-strong baseline.
-
-The design principle across stages is to discard as many
-incorrect candidates as possible \emph{before} invoking the
-more expensive stage that follows.
+The candidate pool is filtered through three progressively more
+expensive stages; the design principle is to discard as many incorrect
+candidates as cheaply as possible before invoking the next stage.
 
 \paragraph{Stage~1: ACSL Syntax Filter.}
-Each candidate is checked against a set of structural ACSL rules
-before any execution or verification is attempted:
-\begin{itemize}
-\item No quantifiers (\lstinline|\forall|, \lstinline|\exists|),
-      which are unsupported by Frama-C/WP for loop invariants.
-\item No custom definitions (\texttt{predicate}, \texttt{logic},
-      \texttt{lemma}).
-\item No ternary operator (\texttt{? :}).
-\item \lstinline|\at(v, Pre)| permitted only on function parameters,
-      not on local variables.
-\item No exponentiation (\texttt{\^{}} is bitwise XOR in C/ACSL;
-      repeated multiplication must be used instead).
-\end{itemize}
-Candidates failing any rule are discarded immediately.
-This filter runs in microseconds per candidate and eliminates a
-substantial fraction of the pool before any program execution is
-needed.
+Each candidate is checked against structural ACSL rules---no
+unsupported quantifiers, no forbidden operators, correct use of
+\lstinline|\at| expressions, balanced brackets---and discarded
+immediately on any violation.
+This filter runs in microseconds per candidate.
+The full rule set is listed in Appendix~\ref{app:syntax-gate}.
 
 \paragraph{Stage~2: Execution-Trace Semantic Filter.}
 Each surviving candidate is evaluated as a boolean expression over
-every recorded loop state in the collected execution traces.
-A candidate that evaluates to \texttt{false} on any observed state
-is \emph{inconsistent} with the program's actual behaviour and is
-discarded.
-While trace evaluation does not guarantee inductiveness---the
-traces are finite and cannot cover all reachable states---it
-eliminates candidates with grossly incorrect arithmetic relationships
-cheaply, without invoking Frama-C.
-In practice, this stage reduces the candidate pool by a further
-significant fraction before the formal verifier is engaged.
+every recorded loop state.
+Any candidate falsified by at least one observed state is discarded
+without invoking Frama-C.
+This eliminates candidates with grossly incorrect arithmetic
+relationships cheaply, though it cannot guarantee inductiveness
+since the traces are finite.
 
 \paragraph{Stage~3: Houdini Formal Pruning.}
-After the two lightweight filters, the surviving candidates are
-submitted to Frama-C/WP for formal verification.
+The pre-screened candidates are submitted to Frama-C/WP.
 We apply the Houdini algorithm~\cite{flanagan2001houdini}:
-
-\begin{figure}[t]
-\centering
-\fbox{\parbox{0.92\columnwidth}{\small
-\textbf{Algorithm: Houdini Pruning}\\[2pt]
-\textbf{Input:} Candidate set $C$, verifier $\mathcal{V}$\\
-\textbf{Output:} Maximal inductive subset $C^* \subseteq C$\\[2pt]
-1: $C^* \leftarrow C$\\
-2: \textbf{repeat}\\
-3: \quad $R \leftarrow \mathcal{V}(C^*)$ \hfill\textit{// verify each invariant}\\
-4: \quad $F \leftarrow \{c \in C^* \mid R(c) = \textit{fail}\}$\\
-5: \quad $C^* \leftarrow C^* \setminus F$\\
-6: \textbf{until} $F = \emptyset$ \textbf{or} $C^* = \emptyset$\\
-7: \textbf{return} $C^*$
-}}
-\caption{Houdini-style pruning algorithm used in Stage~3 of the filter pipeline.}
-\label{alg:houdini}
-\end{figure}
+starting from the full candidate set, each iteration removes every
+candidate whose verification condition fails, repeating until no
+candidate is removed or the set is empty.
 
 \begin{theorem}[Termination]\label{thm:termination}
-Algorithm~\ref{alg:houdini} terminates in at most $|C|$ iterations,
+Houdini pruning terminates in at most $|C|$ iterations,
 since each iteration removes at least one candidate.
 \end{theorem}
 
-The output $C^*$ is the maximal subset of the pre-screened candidates
-that is simultaneously inductive and collectively sufficient to
-discharge the Frama-C/WP verification conditions.
-Every invariant in $C^*$ is formally certified.
-If $C^*$ is non-empty and sufficient to prove the postcondition,
-the pipeline reports success.
-If the pruned set is non-empty but insufficient, the system may
-optionally enter a brief iterative repair loop (at most $K$ iterations;
-default $K{=}3$) in which verification error messages are fed back
-to the LLM for targeted strengthening; this repair step is not the
-primary mechanism and is not counted as part of the three-stage filter.
+The output $C^*$ is the maximal inductive subset of the pre-screened
+candidates.
+Every invariant in $C^*$ is formally certified by Frama-C/WP.
+If $C^*$ is non-empty but insufficient to prove the postcondition,
+the system may optionally enter a brief repair loop (at most
+$K{=}3$ iterations) feeding verification errors back to the LLM.
+The complete per-loop algorithm is given in
+Appendix~\ref{app:algorithm}.
+
+Both improvements---union assembly and lightweight pre-screening---are
+\emph{intrinsic to the pipeline itself}: they hold for any base LLM,
+before any fine-tuning.
+The offline knowledge distillation described next is a separate
+improvement layer built on top of this already-strong baseline.
 
 %% ------------------------------------------------------------
-\subsection{Offline Policy Exploration}\label{sec:offline}
+\subsection{Offline Knowledge Distillation}\label{sec:offline}
 %% ------------------------------------------------------------
 
-A distinctive property of the \textsc{SAM2INV} pipeline is that it
-produces not only a certified invariant annotation but also
-high-quality training data for an invariant-generation policy---as
-a byproduct of every pipeline run.
+\paragraph{Why not reinforcement learning.}
+Online RL with binary verifier feedback faces four structural
+obstacles in this domain:
+sparse reward (a weak model rarely produces a correct annotation
+within a practical rollout budget);
+reward hacking (trivial annotations such as
+\lstinline|loop invariant true;| formally pass weak postconditions);
+human-prior bias (a hand-crafted or trained reward model scales
+poorly);
+and non-attributability (the correct conjunction is assembled
+post-hoc from $N$ calls, so per-call binary scoring mislabels
+essential contributions;
+see Appendix~\ref{app:nonattrib}).
 
-\paragraph{Why not GRPO.}
-A natural baseline is group-relative policy
-optimisation~(GRPO)~\cite{deepseekr1}, which scores each individual
-completion via binary verifier feedback.
-Two structural properties make this unsuitable here.
-First, \emph{non-attributability} (Section~\ref{sec:generation},
-Appendix~\ref{app:nonattrib}): the correct annotation $C^*$ is
-assembled post-hoc from the union of $N$ calls, so a call that
-contributes only one essential conjunct will fail binary verification
-on its own yet be indispensable to the final answer---penalising it
-degrades the diversity that makes the union effective.
-Second, \emph{binary reward hackability}: trivially weak annotations
-such as \lstinline|loop invariant true;| can formally pass the
-verifier on programs with loose postconditions, making binary
-pass/fail an unreliable quality signal.
+\paragraph{Knowledge distillation via verifier feedback.}
+We instead adopt offline \emph{knowledge distillation} from a
+teacher model, but depart from standard distillation in a key
+respect: rather than imitating the teacher's raw outputs, we move
+GRPO-style exploration offline and embed the formal verifier's
+signal into data preparation.
+The teacher is a capable yet lightweight model---chosen so that the
+student--teacher gap remains bridgeable and per-program token cost
+stays tractable.
 
-\paragraph{DPO data collection.}
-Both problems are avoided by \emph{offline} preference optimisation.
-The pipeline logs every candidate and the stage at which it was
-filtered; this log is converted into DPO training records at no
-extra cost.
-Let $C^*$ be the certified set and $P^+$ the annotated program
-obtained by inserting $C^*$.
-For each rejected candidate $r$ eliminated at stage
-$k \in \{1,2,3\}$, we form the record $(P,\, P^+,\, P^-_r,\, k)$
-where $P^-_r$ inserts $\{r\}$ as the sole annotation.
-The preference label is ground-truth correct by construction.
-Rejected candidates are weighted by stage: syntax failures ($k{=}1$)
-receive lower weight than inductiveness failures ($k{=}3$), since
-the latter represent the hardest and most informative contrasts.
-The SFT record $(P,\, P^+)$ is generated alongside each successful
-pipeline run.
+For each training program, the teacher generates $N$ candidate
+annotations at diverse temperatures; all outputs are pooled and
+passed through the three-stage filter.
+The surviving certified set $C^*$ is the \emph{chosen} response.
+Every candidate eliminated at stage $k \in \{1,2,3\}$ becomes a
+\emph{rejected} response paired with $C^*$ to form a DPO record,
+with stage-dependent loss weight ($w_1 \le w_2 \le w_3$) reflecting
+that later-stage rejections are harder and more informative contrasts.
+The SFT record is generated alongside each successful run.
+The preference labels are ground-truth correct by construction:
+no human annotation or trained reward model is needed.
 Formal definitions and the stage-stratified loss are given in
 Appendix~\ref{app:dpo}.
 
-\paragraph{Policy improvement cycle.}
-Fine-tuning on the accumulated SFT and DPO data produces a model
-that is deployed in place of the base LLM in Step~\ding{183}.
+\paragraph{Two-stage fine-tuning.}
+The student is first trained with SFT on chosen examples, then
+aligned with DPO on preference pairs.
+This two-stage recipe transfers the teacher's exploration benefit
+to the student without online rollouts.
 The filter pipeline certifies every output regardless of model
 quality---a weaker model yields a smaller $C^*$ but never an
 uncertified one---so the system remains sound throughout the

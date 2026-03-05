@@ -2,95 +2,103 @@
 \section{Related Work}\label{sec:related}
 %% ============================================================
 
-\paragraph{Loop Invariant and Program Specification Generation.}
-Classical invariant synthesis methods fall along a spectrum from fully static to fully dynamic.
-Abstract interpretation~\cite{cousot1977abstract} computes fixed-point over-approximations in
-abstract domains (intervals, octagons, polyhedra) and underpins industrial analysers, but is
+\paragraph{Classical Loop Invariant Generation.}
+Invariant synthesis methods span a spectrum from fully static to
+fully dynamic.
+Abstract interpretation~\cite{cousot1977abstract} computes
+fixed-point over-approximations in abstract domains (intervals,
+octagons, polyhedra) and underpins industrial analysers, but is
 restricted to the expressiveness of the chosen domain.
-Template-based constraint solving~\cite{colon2003linear,sankaranarayanan2004non} fixes a
-parametric invariant form and searches for satisfying coefficients via LP or SDP; the
-approach is complete within the template family but cannot discover structure outside it.
-The Houdini algorithm~\cite{flanagan2001houdini} starts from a large candidate set and
-iteratively removes non-inductive conjuncts, converging to the strongest inductive
-conjunction; we adopt this as the third stage of our filter pipeline.
-Daikon~\cite{daikon} and DIG~\cite{nguyen2012using} mine likely invariants from execution
-traces by instantiating templates over observed variable values or combining dynamic
-analysis with symbolic execution; like us, they rely on traces as evidence, but provide no
-formal inductiveness guarantee without a separate verifier pass.
-Beyond invariants, there is a growing body of work on broader \emph{specification generation}:
-inferring pre/postconditions~\cite{endres2024can}, separation-logic frame
-conditions~\cite{berdine2005smallfoot}, and ACSL contracts from source code.
-Our work targets loop invariant generation specifically, where the interaction between
-inductiveness and the loop guard makes the problem particularly challenging.
+Template-based constraint
+solving~\cite{colon2003linear,sankaranarayanan2004non} fixes a
+parametric invariant form and searches for satisfying coefficients
+via LP or SDP; the approach is complete within the template family
+but cannot discover structure outside it.
+The Houdini algorithm~\cite{flanagan2001houdini} starts from a large
+candidate set and iteratively removes non-inductive conjuncts; we
+adopt it as the third stage of our filter pipeline.
+Daikon~\cite{daikon} and DIG~\cite{nguyen2012using} mine likely
+invariants from execution traces; like us they use traces as
+evidence, but require a separate verifier pass to guarantee
+inductiveness.
+All these methods are confined to their pre-designed search spaces
+and generalise poorly when the invariant falls outside.
 
-\paragraph{LLM-Based Formal Verification Assistance.}
-Recent work has explored using LLMs to assist formal verification.
-Chakraborty and Lahiri~\cite{chakraborty2024towards} demonstrate that GPT-4 can generate
-loop invariants for simple C programs given appropriate prompts and a verification
-feedback loop.
-Pei et al.~\cite{pei2023can} study code-trained LLMs producing Hoare-style annotations,
-finding that iterative refinement with verifier feedback is essential.
-Kamath et al.~\cite{kamath2023finding} propose a ``guess-and-check'' framework combining
-LLM generation with bounded model checking.
-In the Lean and Coq proof assistant ecosystem, LLMs have been used to suggest proof
-tactics~\cite{han2021proof,jiang2022draft} and to translate informal mathematical
-statements into formal proofs~\cite{wu2022autoformalization}.
-Compared to these works, \textsc{SAM2INV} introduces a \emph{systematic three-stage
-filter pipeline} that pre-screens candidates before formal verification,
-dramatically reducing verifier load.
-Moreover, by combining multiple LLM candidates through the pipeline, the resulting
-invariant set is substantially stronger and more informative than any single-call
-approach: the diversity of parallel generation and the merging step allow the system
-to discover invariant conjuncts that no individual call would produce alone.
+\paragraph{LLM-Based Loop Invariant Generation.}
+Recent work has applied LLMs to invariant synthesis.
+Chakraborty and Lahiri~\cite{chakraborty2024towards} show that
+GPT-4 can generate invariants for simple C programs with a
+verification feedback loop.
+Pei et al.~\cite{pei2023can} study code-trained LLMs producing
+Hoare-style annotations and find that iterative refinement with
+verifier feedback is essential.
+Kamath et al.~\cite{kamath2023finding} propose a guess-and-check
+framework combining LLM generation with bounded model checking.
+In the proof-assistant ecosystem, LLMs suggest
+tactics~\cite{han2021proof,jiang2022draft} and translate informal
+statements into formal
+proofs~\cite{wu2022autoformalization,lample2022hypertree,polu2022formal}.
+A common thread across these works is heavy reliance on external
+tool chains (SMT solvers, static analysers, multi-round repair
+workflows) and the most powerful closed-source models available,
+without exploring whether a small, locally deployed model can be
+trained for this task.
+\textsc{SAM2INV} differs in two respects: a systematic three-stage
+filter pipeline that pre-screens candidates before formal
+verification, and an offline distillation strategy that transfers
+the capability of a teacher model to a small student without
+requiring online exploration.
 
-\paragraph{Automated Theorem Proving with Neural Models.}
-Neural theorem proving has made rapid progress through tree-search over proof states
-using LLMs as tactic
-generators~\cite{han2021proof,lample2022hypertree,polu2022formal}.
-AlphaCode~\cite{li2022competition} and similar systems apply large-scale sampling and
-filtering for competitive programming, a paradigm closely related to ours.
-A key difference is that deductive program verification with Frama-C/WP does not admit
-a step-by-step proof search; instead, the verifier is an oracle that accepts or rejects
-a complete annotation in one shot, making the feedback signal coarser and the filtering
-pipeline more important.
+\paragraph{Knowledge Distillation vs.\ Reinforcement Learning for
+Reasoning.}
+Reinforcement learning from human
+feedback~(RLHF)~\cite{ouyang2022training} and direct preference
+optimisation~(DPO)~\cite{rafailov2023direct} are standard alignment
+techniques for LLMs.
+Replacing human preferences with verifiable rewards from automated
+oracles---reinforcement learning with verifiable
+rewards~(RLVR)---has produced large gains in mathematical reasoning:
+DeepSeek-R1~\cite{deepseekr1} and
+Tulu~3~\cite{lambert2024tulu} train on verifier-generated rewards
+with no human annotation, while execution-guided
+methods~\cite{le2022coderl,gehring2024rlef} use test-case signals
+for code generation.
+However, the DeepSeek-R1 distilled models~\cite{deepseekr1}
+demonstrate that reasoning patterns of a strong teacher can be
+transferred to small models via distillation more effectively than
+through RL on the small model directly, because distillation
+directly transfers successful solution trajectories rather than
+requiring the student to rediscover them through sparse reward
+signals.
+In the loop invariant domain, the binary verifier reward is
+particularly problematic: it is sparse (a weak model rarely
+produces correct annotations), reward-hackable (trivial
+annotations pass weak postconditions), and non-attributable (the
+correct annotation is a conjunction assembled from multiple calls).
+Our approach inherits the RLVR spirit but moves exploration
+entirely offline into the data-preparation phase, using verifier
+feedback to construct ground-truth preference pairs for SFT+DPO
+distillation---avoiding the instability of online RL for weak base
+models.
 
-\paragraph{Reinforcement Learning with Verifiable Rewards (RLVR).}
-Reinforcement learning from human feedback~(RLHF)~\cite{ouyang2022training}
-and direct preference optimisation~(DPO)~\cite{rafailov2023direct}
-have become standard alignment techniques for LLMs, replacing scalar reward models
-with pairwise preference data.
-A natural extension replaces \emph{human} preferences with \emph{verifiable}
-preferences derived from automated oracles, a paradigm known as reinforcement learning
-with verifiable rewards~(RLVR).
-DeepSeek-R1~\cite{deepseekr1} and related work~\cite{lambert2024tulu} demonstrate that
-training on verifier-generated rewards for mathematical reasoning yields large capability
-gains with no human annotation.
-In code generation, execution-guided
-methods~\cite{le2022coderl,gehring2024rlef} use test-case pass/fail signals to define
-preferences, and process reward models~\cite{lightman2023lets} assign credit to
-intermediate reasoning steps.
-Our approach inherits the RLVR spirit but addresses a distinctive challenge:
-in the loop invariant domain, binary verifier success is an especially sparse and
-\emph{reward-hackable} signal, because a trivially weak invariant (e.g., \lstinline|true|)
-may satisfy the verifier on programs without postconditions but is useless in practice.
-We address this by generating \emph{structured} DPO preference pairs whose rejected
-members are annotated by the \emph{stage} at which they fail (syntax, trace, or
-formal inductiveness), providing a much richer training signal than a flat pass/fail
-label.
-The preference labels are ground-truth correct by construction---a verified invariant
-truly satisfies Frama-C/WP's soundness conditions, and a rejected one truly does
-not---making our setting particularly well suited to offline preference optimisation.
-
-\paragraph{Benchmark Generation and Training Data for Program Verification.}
-Existing invariant synthesis benchmarks---such as the NLA
-(Non-Linear Arithmetic) suite from SV-COMP~\cite{svcomp}---contain
-only a few dozen hand-crafted programs, making both systematic evaluation
-and large-scale training data generation difficult.
-\textsc{LoopFactory} addresses both needs: as the \emph{task input generator}
-of \textsc{SAM2INV}, it generates large corpora of structured numeric loop programs
-that the pipeline annotates and logs as SFT/DPO training records;
-as a benchmark tool, it supports controllable ablation over program complexity
-dimensions.
-The design draws inspiration from grammar-based
-fuzzing~\cite{godefroid2008grammar} and probabilistic program
-synthesis~\cite{nori2015efficient}.
+\paragraph{Training Data Synthesis for Program Verification.}
+Existing invariant synthesis benchmarks---the NLA suite from
+SV-COMP~\cite{svcomp}, the linear benchmark
+set~\cite{si2018learning}---contain only a few dozen hand-crafted
+programs, insufficient for both systematic evaluation and
+large-scale training.
+Grammar-based fuzzing~\cite{godefroid2008grammar} and probabilistic
+program synthesis~\cite{nori2015efficient} generate programs at
+scale but without the semantic constraints needed to ensure
+well-defined invariant structure.
+In the theorem-proving domain,
+AlphaCode~\cite{li2022competition} applies large-scale sampling and
+filtering for competitive programming, a paradigm related to ours,
+but deductive verification with Frama-C/WP does not admit
+step-by-step proof search---the verifier accepts or rejects a
+complete annotation in one shot, making the filtering pipeline
+critical.
+\textsc{LoopFactory} addresses the data gap by generating structured
+numeric loop programs with tunable complexity via semantic core
+templates, supplying both training inputs and controlled benchmarks
+for complexity ablation.

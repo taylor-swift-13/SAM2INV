@@ -3,114 +3,135 @@
 %% ============================================================
 
 %% ============================================================
-\section{\textsc{LoopFactory} DSL: Sampling Procedure and Concrete Example}
+\section{\textsc{LoopFactory}: Full DSL Description}
 \label{app:loop-factory}
 %% ============================================================
 
-\subsection{Full Generation Procedure}
+\subsection{DSL Grammar}
 
-Algorithm~\ref{alg:loop-factory} shows the complete \textsc{LoopFactory}
-generation loop.
-Starting from a drawn hyperparameter vector~$\theta$ (or a fixed
-configuration), the factory (i)~selects parameters from a candidate pool,
-(ii)~samples loop count and, for each loop, the NLA vs.\ linear
-family classification, (iii)~allocates fresh single-letter variable names
-for each loop's counter and limit, (iv)~samples loop control modes
-(increment, decrement, multiplicative, distance-to-limit, etc.),
-(v)~fills each loop body with self-update and peer-update assignments
-drawn from $\pi_{\text{op}}$, and (vi)~optionally inserts semantic-core
-assignments from the twelve hardcoded idiom templates.
-The rendered program is then wrapped in a function signature with a
-Frama-C \texttt{requires} clause and passed downstream for execution and
-invariant generation.
+A \textsc{LoopFactory} program consists of an initialisation block
+followed by one or more loops:
+\[
+\textbf{Prog} \;::=\; \textbf{Init} \;;\; \textbf{Loop}^+
+\qquad
+\textbf{Loop} \;::=\; \texttt{while}\;(g)\;\{\;\textbf{Body}\;\}
+\]
+\[
+\textbf{Body} \;::=\;
+  \bigl(\;v := e
+  \;\mid\; \texttt{if}\;(g)\;\{S\}\;[\texttt{else}\;\{S\}]
+  \;\mid\; \textbf{Loop}\;\bigr)^*
+\]
+Variables $\mathcal{V}$ are partitioned into immutable
+\emph{parameters} $\mathcal{P}$ and writable \emph{state variables}
+$\mathcal{L}$.
+Body expressions have the form $v \;\texttt{op}\; x$ with
+$\texttt{op} \in \{+,-,\times,\bmod\}$ ($/$~additionally permitted
+for nonlinear programs); the guard $g$ is a linear comparison or
+the constant \texttt{1} (for \texttt{while(1)} with \texttt{break}).
+\textbf{Init} assigns every variable in $\mathcal{L}$ exactly once
+from expressions over $\mathcal{P}$.
 
-\begin{figure}[htb]
-\centering
-\fbox{\parbox{0.92\columnwidth}{\small
-\textbf{Algorithm: \textsc{LoopFactory} Generation}\\[2pt]
-\textbf{Input:} Hyperparameters $\theta$, seed $s$\\
-\textbf{Output:} A well-typed C function\\[2pt]
-1: $\mathit{rng} \leftarrow \text{Random}(s)$\\
-2: $\mathcal{P} \leftarrow \text{sample}(\text{candidates}, p,\; \mathit{rng})$
-   \hfill\textit{// e.g.\ \{a,n\}}\\
-3: $n_{\ell} \leftarrow \text{Uniform}[\min\_\text{fuel},\; \text{while\_fuel}]$
-   \hfill\textit{// loop count}\\
-4: Init block: for $v \in \mathcal{L}$, sample $e_v$ over $\mathcal{P}$ only\\
-5: \textbf{for} $i = 1,\ldots,n_{\ell}$ \textbf{do}\\
-6: \quad Allocate counter $\mathit{ctr}$, limit $\mathit{lim}$ via \texttt{NameAllocator}\\
-7: \quad $\mathit{nla} \leftarrow \text{Bernoulli}(p_{\text{nonlinear}})$\\
-8: \quad $(\text{inits},\; \text{guard},\; \text{step}) \leftarrow
-   \texttt{SampleLoopControl}(\mathit{ctr},\mathit{lim},\mathit{nla})$\\
-9: \quad Body $\leftarrow$ [step]\\
-10:\quad \textbf{repeat} up to $k-1$ times:\\
-11:\quad\quad Sample assign $\leftarrow \texttt{SemanticAssign}(\mathit{nla})$\\
-12:\quad\quad Body $\leftarrow$ Body $\cup$ \{assign\}\\
-13:\quad With prob.\ $p_{\text{semantic\_core}}$: inject one template idiom\\
-14:\quad With prob.\ $q_{\text{nest}}$: recurse to depth $d{+}1 \le D_{\max}$\\
-15:\quad Append \texttt{WhileLoop(guard, Body)} to forest\\
-16:\textbf{end for}\\
-17: \textbf{return} \texttt{Program}($\mathcal{P}$, inits, forest).render()
-}}
-\caption{\textsc{LoopFactory} generation algorithm.}
-\label{alg:loop-factory}
-\end{figure}
+\subsection{Multi-Loop and Nesting}
 
-\subsection{Loop-Control Mode Sampling}
+The grammar supports \emph{sequential} multi-loop programs
+($\textbf{Loop}^+$), where later loops share state computed by
+earlier ones, and \emph{nested} loops (a \textbf{Loop} inside
+\textbf{Body}), bounded by a maximum depth $D_{\max}$.
+Each loop is generated independently with its own counter and guard,
+drawing state variables from the shared pool within budget $m$.
 
-The function \texttt{SampleLoopControl} draws a loop-control mode from
-seven shapes (Table~\ref{tab:loop-control}).
-Weights differ between the NLA and linear families: multiplicative and
-distance-to-limit modes are disabled for linear programs.
+\subsection{Complexity-Controlling Fuel Parameters}
+
+Structural complexity is governed by fuel parameters
+(Table~\ref{tab:fuel-app}), each sampled uniformly from a
+configurable $[\mathit{min}, \mathit{max}]$ range.
+By adjusting these bounds the generator produces programs ranging
+from trivial single-variable counters to multi-loop programs with
+rich arithmetic dependencies---without modifying the generator or
+template library.
+This makes \textsc{LoopFactory} suitable both for training-data
+generation and as a controlled benchmark tool for evaluating how
+invariant-generation difficulty scales with program complexity.
 
 \begin{table}[htb]
-\caption{Loop-control modes and their effect on counter, guard, and step.}
-\label{tab:loop-control}
+\caption{Fuel parameters controlling per-program complexity.}
+\label{tab:fuel-app}
 \centering\small
 \begin{tabular}{@{}lll@{}}
 \toprule
-Mode & Guard shape & Step \\
+Parameter & Controls & Default range \\
 \midrule
-\texttt{inc1}      & $\mathit{ctr} < \mathit{lim}$ & $\mathit{ctr} \mathrel{+}= 1$ \\
-\texttt{dec1}      & $\mathit{ctr} > 0$            & $\mathit{ctr} \mathrel{-}= 1$ \\
-\texttt{inc\_step} & $\mathit{ctr} < \mathit{lim}$ & $\mathit{ctr} \mathrel{+}= d,\; d\in[2,5]$ \\
-\texttt{dec\_step} & $\mathit{ctr} > d{-}1$        & $\mathit{ctr} \mathrel{-}= d$ \\
-\texttt{mul\_up}   & $\mathit{ctr} < \mathit{lim}$ & $\mathit{ctr} \mathrel{*}= m,\; m\in\{2,3\}$ \\
-\texttt{div\_down} & $\mathit{ctr} > 0$            & $\mathit{ctr} \mathrel{/}= 2$ \\
-\texttt{dist\_to\_limit} & $\mathit{ctr} > \mathit{lim}$ & $\mathit{ctr} \mathrel{-}= d$ \\
+$m$              & Total state variables          & $\le 6$ \\
+$[p_{\min},p_{\max}]$ & Immutable parameters      & $[1,2]$ \\
+$[n_{\min},n_{\max}]$ & Sequential loops           & $[1,1]$ \\
+$[k_{\min},k_{\max}]$ & Assignments per loop body  & $[1,6]$ \\
+$[f_{\min},f_{\max}]$ & Conditional blocks per loop & $[0,3]$ \\
+$D_{\max}$       & Maximum nesting depth          & $1$     \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Concrete Generated Example}
+\subsection{Semantic Core Templates}
 
-The following function was generated by \textsc{LoopFactory} with
-$\theta = (m{=}5,\; p{=}2,\; \text{while\_fuel}{=}2,\;
-k{=}4,\; D_{\max}{=}1,\; p_{\text{nonlinear}}{=}0.55)$:
+Uniform grammar sampling overwhelmingly produces divergent or
+semantically vacuous programs.
+Each \emph{semantic core template} suppresses both failure modes by
+fixing three aspects of the loop:
+\begin{itemize}
+\item \textbf{Counter and guard}: the progression mode (increment,
+  decrement, doubling, \ldots) is matched to the guard, guaranteeing
+  termination.
+\item \textbf{Core variable updates}: a fixed set of assignments
+  maintains the semantic invariant; these variables are
+  write-protected during subsequent sampling steps.
+\item \textbf{Invariant-consistent initialisation}: initial values
+  are set so the invariant holds from the first iteration.
+\end{itemize}
+With probability $\pi_{\mathrm{core}} = 0.88$ a loop is seeded by
+a template; the remaining $12\%$ are assembled freely.
+After the template installs its skeleton, an extension phase fills
+the remaining assignment budget with freely sampled expressions over
+non-core variables.
 
-\begin{lstlisting}
-/*@ requires a >= 0 && n >= 1; */
-int f(int a, int n){
-  int c, s, x;
-  c=0; s=a; x=1;
+\subsection{Semantic Families}
 
-  while (c < n) {      // inc1: ctr=c, lim=n
-    c = c+1;
-    s = s+c;           // semantic: cumulative sum
-    x = x*c;           // NLA: factorial-style
-  }
+The 60 templates span eight families, each with a distinct
+proof-obligation shape:
 
-  while (x > 0) {      // div_down: ctr=x
-    x = x/2;
-  }
-  /*@ assert s == a + n*(n+1)/2; */
-}
-\end{lstlisting}
+\begin{itemize}\setlength{\itemsep}{2pt}
+\item \emph{Linear conservation} ($a + b = N$): variables exchange
+  a fixed quantity each iteration; their linear combination is constant.
+\item \emph{Monotone accumulation} ($s \mathrel{+}= f(k)$): a running
+  sum grows monotonically; the invariant relates it to the counter
+  via a closed form (e.g.\ $2s = k(k-1)$, $s = k^2$).
+\item \emph{Proportional stride} ($j = c \cdot i$): two counters
+  advance at a fixed ratio, requiring a proportionality invariant.
+\item \emph{Modular counting} ($c \equiv t \pmod{T}$): a variable
+  cycles through a residue class; the invariant involves modular
+  arithmetic.
+\item \emph{State-machine transitions}: discrete phase variables drive
+  piecewise updates; the invariant is a disjunction over reachable
+  phase combinations.
+\item \emph{Division algorithm / GCD} ($a = q \cdot d + r$,
+  $0 \le r < d$): Euclidean reduction or quotient--remainder
+  decomposition.
+\item \emph{Multiplicative redistribution}
+  ($z + x \cdot y = a_0 b_0$; or $z \le 2^k$):
+  a product is re-expressed across variables as they are scaled.
+\item \emph{Polynomial recurrence}: coupled variables satisfy a
+  quadratic or higher-degree relation maintained by finite-difference
+  updates (e.g.\ $z \cdot w \ge p^2$).
+\end{itemize}
 
-This single program exercises: (i)~an NLA loop with invariants
-$s = a + c(c+1)/2$ and $x = c!$; (ii)~a geometric-decay loop
-requiring $x \ge 0$; (iii)~a postcondition that tests only the
-sum invariant, so the \textsc{SAM2INV} pipeline must discover the
-correct invariant by combining candidates from multiple LLM calls.
+\subsection{Corpus}
+
+Using \textsc{LoopFactory} we synthesise 2{,}000 numeric loop
+programs spanning all eight semantic families.
+Of these, 1{,}900 serve as the training corpus annotated by the
+\textsc{SAM2INV} pipeline; the remaining 100 are held out as a
+synthetic test set for evaluating invariant-generation success in
+this controlled loop space.
 
 %% ============================================================
 \section{Detailed Invariant Generation Algorithm}
@@ -131,6 +152,26 @@ The pipeline maintains the following state for each outer loop index $i$:
 \item $C_i$: the live candidate pool (a set of ACSL expression strings).
 \item $C^*_i$: the certified invariant set (output).
 \end{itemize}
+
+\subsection{Houdini Pruning Algorithm}
+
+\begin{figure}[htb]
+\centering
+\fbox{\parbox{0.92\columnwidth}{\small
+\textbf{Algorithm: Houdini Pruning}\\[2pt]
+\textbf{Input:} Candidate set $C$, verifier $\mathcal{V}$\\
+\textbf{Output:} Maximal inductive subset $C^* \subseteq C$\\[2pt]
+1: $C^* \leftarrow C$\\
+2: \textbf{repeat}\\
+3: \quad $R \leftarrow \mathcal{V}(C^*)$ \hfill\textit{// verify each invariant}\\
+4: \quad $F \leftarrow \{c \in C^* \mid R(c) = \textit{fail}\}$\\
+5: \quad $C^* \leftarrow C^* \setminus F$\\
+6: \textbf{until} $F = \emptyset$ \textbf{or} $C^* = \emptyset$\\
+7: \textbf{return} $C^*$
+}}
+\caption{Houdini-style pruning algorithm used in Stage~3 of the filter pipeline.}
+\label{alg:houdini}
+\end{figure}
 
 \subsection{Complete Per-Loop Algorithm}
 

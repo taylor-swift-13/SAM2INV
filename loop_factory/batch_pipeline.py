@@ -441,12 +441,13 @@ def quality_gate(
         "1) Invariants must be non-trivial, not unrelated identities or filler statements.\n"
         "2) They must effectively summarize loop behavior (update relations, bounds, conservation laws, etc.).\n"
         "3) Every variable modified inside the loop should be covered by the invariant set; do not miss key variables.\n"
+        "4) If a loop can terminate, invariants must include explicit bound(s) for loop-control variable(s) "
+        "to support a termination argument.\n"
         "\n"
         "Return strict JSON:\n"
         "{\n"
         "  \"ok\": true/false,\n"
-        "  \"reason\": \"one-sentence reason\",\n"
-        "  \"loop_feedback\": [\"loop0: ...\", \"loop1: ...\"]\n"
+        "  \"reason\": \"pass or fail\"\n"
         "}\n\n"
         f"raw_code:\n```c\n{raw_code}\n```\n\n"
         f"annotated_code:\n```c\n{annotated_code}\n```\n\n"
@@ -811,24 +812,26 @@ def main() -> None:
         "allowed_templates": args.allowed_templates,
     }
 
-    # Build in-memory dedup sets from existing raw/annotated pairs.
-    raw_structures: Set[str] = set()
+    # Build in-memory skeleton-count index from existing corpus.
     loop_skeleton_counts: Dict[str, int] = {}
     existing_max_idx = 0
     existing_count = 0
+    existing_raw_only_count = 0
     if args.append:
         existing_raw_files = sorted(raw_dir.glob("*.c"), key=lambda p: int(p.stem))
         existing_max_idx = max((int(p.stem) for p in existing_raw_files), default=0)
         for rf in existing_raw_files:
-            af = ann_dir / rf.name
-            if not af.exists():
-                continue
+            # Dedup should always consider historical raw corpus in append mode,
+            # even when annotated counterpart is missing (interrupted/partial runs).
             raw_code = rf.read_text(encoding="utf-8")
-            raw_key = compute_raw_structure_key(raw_code)
             skey = compute_loop_skeleton_key(raw_code)
-            raw_structures.add(raw_key)
             loop_skeleton_counts[skey] = loop_skeleton_counts.get(skey, 0) + 1
-            existing_count += 1
+
+            af = ann_dir / rf.name
+            if af.exists():
+                existing_count += 1
+            else:
+                existing_raw_only_count += 1
 
     total_candidates = max(0, args.target_count)
     if args.max_attempts > 0:
@@ -844,6 +847,11 @@ def main() -> None:
         )
     else:
         print("Template balancing disabled: no usable semantic core found under current parameters.")
+    if args.append and existing_raw_only_count > 0:
+        print(
+            f"Append dedup note: loaded {existing_raw_only_count} raw-only historical files "
+            f"(without annotated pair) into dedup index."
+        )
 
     accepted_records: List[Dict] = []
     reject_log: List[Dict] = []
@@ -941,16 +949,11 @@ def main() -> None:
                         )
                         continue
 
-                    raw_key = result["raw_structure_key"]
                     skeleton_key = compute_loop_skeleton_key(result["raw_code"])
-                    if raw_key in raw_structures:
-                        reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate raw structure"})
-                        continue
                     if loop_skeleton_counts.get(skeleton_key, 0) >= max(1, args.max_skeleton_repeat):
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate loop skeleton"})
                         continue
 
-                    raw_structures.add(raw_key)
                     loop_skeleton_counts[skeleton_key] = loop_skeleton_counts.get(skeleton_key, 0) + 1
                     idx = existing_max_idx + len(accepted_records) + 1
                     (raw_dir / f"{idx}.c").write_text(result["raw_code"], encoding="utf-8")
@@ -978,7 +981,7 @@ def main() -> None:
                             "raw_c": result["raw_code"],
                             "annotated_c": result["annotated"],
                             "invariants": result["invariants"],
-                            "raw_structure_key": raw_key,
+                            "raw_structure_key": result["raw_structure_key"],
                             "first_pass": result["first_pass"],
                             "token_stats": result["token_stats"],
                             "loop_factory_hyperparams": result["loop_factory_hyperparams"],
