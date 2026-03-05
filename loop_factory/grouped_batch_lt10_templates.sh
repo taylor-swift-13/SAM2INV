@@ -6,70 +6,70 @@ set -euo pipefail
 # Source params: grouped_batch_min_params.sh (active commands only)
 
 # L10_piecewise_multirate: current_count=8
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 10 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 4 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates L10_piecewise_multirate --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 6 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 4 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates L10_piecewise_multirate --append
 
 # X17_harmonic_step_reduction: current_count=9
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 20 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 5 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X17_harmonic_step_reduction --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 12 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 5 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X17_harmonic_step_reduction --append
 
 # X19_rolling_sum_window: current_count=6
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 20 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 6 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X19_rolling_sum_window --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 12 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 6 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X19_rolling_sum_window --append
 
 # X22_ramped_transfer_conservation: current_count=7
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 20 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 6 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X22_ramped_transfer_conservation --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 12 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 6 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X22_ramped_transfer_conservation --append
 
 # X23_alternating_swap_transfer: current_count=6
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 10 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 8 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X23_alternating_swap_transfer --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 6 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 8 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X23_alternating_swap_transfer --append
 
 # X24_scheduled_queue_occupancy: current_count=3
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 10 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 8 --max-assign 7 --min-assign 1 --max-ifelse 3 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X24_scheduled_queue_occupancy --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 6 --workers 20 --p-nonlinear 0.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 8 --max-assign 7 --min-assign 1 --max-ifelse 3 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X24_scheduled_queue_occupancy --append
 
 # N9_cauchy_schwarz: current_count=2
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 10 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 2 --max-assign 2 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N9_cauchy_schwarz --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 18 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 2 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N9_cauchy_schwarz --append
 
 # N8_int_sqrt: current_count=6
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 20 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 2 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N8_int_sqrt --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 45 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N8_int_sqrt --append
 
 # X6_newton_sqrt: current_count=1
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 20 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 2 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X6_newton_sqrt --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 45 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X6_newton_sqrt --append
 
 # N5_quotient_remainder: current_count=2
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 10 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 2 --max-assign 4 --min-assign 1 --max-ifelse 2 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N5_quotient_remainder --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 18 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 4 --min-assign 1 --max-ifelse 2 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N5_quotient_remainder --append
 
 # N10_russian_multiply: current_count=1
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 10 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 2 --max-assign 5 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N10_russian_multiply --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 18 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 5 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N10_russian_multiply --append
 
 # X16_carry_chain: current_count=1
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 20 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 2 --max-assign 6 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X16_carry_chain --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 45 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 6 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X16_carry_chain --append
 
 # X8_dual_phase_recurrence: current_count=8
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 10 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 2 --max-assign 7 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X8_dual_phase_recurrence --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 18 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 7 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X8_dual_phase_recurrence --append
 
 # N1_poly_finite_diff: current_count=5
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 20 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 3 --max-assign 2 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N1_poly_finite_diff --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 45 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 2 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N1_poly_finite_diff --append
 
 # N11_product_by_addition: current_count=4
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 20 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 3 --max-assign 2 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N11_product_by_addition --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 45 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 2 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N11_product_by_addition --append
 
 # G2_nla_generic_expandable: current_count=9
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 50 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 3 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates G2_nla_generic_expandable --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 70 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates G2_nla_generic_expandable --append
 
 # N7_geometric_affine: current_count=1
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 50 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 3 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N7_geometric_affine --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 70 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N7_geometric_affine --append
 
 # X3_bisection: current_count=0
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 50 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 3 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X3_bisection --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 70 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X3_bisection --append
 
 # X11_odd_sum_square: current_count=5
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 50 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 3 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X11_odd_sum_square --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 70 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates X11_odd_sum_square --append
 
 # N13_affine_geometric: current_count=1
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 10 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 3 --max-assign 4 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N13_affine_geometric --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 18 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 4 --min-assign 1 --max-ifelse 1 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N13_affine_geometric --append
 
 # N3_square_sum: current_count=8
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 30 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N3_square_sum --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 45 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N3_square_sum --append
 
 # N4_higher_power_sums: current_count=8
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 30 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N4_higher_power_sums --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 45 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N4_higher_power_sums --append
 
 # N12_squared_invariant: current_count=4
-python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 30 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N12_squared_invariant --append
+python3 /home/yangfp/SAM2INV/loop_factory/batch_pipeline.py --num-candidates 5 --work-dir test --target-count 45 --workers 20 --p-nonlinear 1.0 --max-params 2 --min-params 0 --min-vars 1 --max-vars 4 --max-assign 3 --min-assign 1 --max-ifelse 0 --min-ifelse 0 --min-loops 1 --max-loops 1 --p-semantic-core 1.0 --allowed-templates N12_squared_invariant --append

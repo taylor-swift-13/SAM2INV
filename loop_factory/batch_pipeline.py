@@ -62,6 +62,40 @@ def _capturing_chat(self, user_input: str) -> str:
 Chatbot.chat = _capturing_chat  # type: ignore[method-assign]
 
 
+def _is_codegen_distill_pair(prompt: str, response: str) -> bool:
+    """
+    Keep only code-generation conversation pairs for distillation SFT.
+    Excludes auxiliary JSON tasks (e.g., semantic dedup / quality gate).
+    """
+    p = (prompt or "").strip()
+    r = (response or "").strip()
+    if not p or not r:
+        return False
+
+    p_low = p.lower()
+    r_low = r.lower()
+
+    # Exclude known non-code helper tasks.
+    blocked_prompt_markers = (
+        "you are deduplicating acsl loop invariants",
+        "remove_indices",
+        "return strict json",
+        "quality reviewer",
+        "\"ok\": true/false",
+        "goal: decide whether loop invariants in annotated_code are high quality",
+    )
+    if any(m in p_low for m in blocked_prompt_markers):
+        return False
+
+    # Distill SFT should learn annotated-C generation, not JSON classification.
+    if r.startswith("{") and r.endswith("}"):
+        return False
+    if "\"remove_indices\"" in r_low:
+        return False
+
+    return True
+
+
 CPP_KEYWORDS = {
     "if", "else", "while", "for", "int", "return", "break", "continue", "char", "float",
     "double", "void", "do", "switch", "case", "sizeof", "struct", "union", "enum", "typedef",
@@ -1008,16 +1042,21 @@ def main() -> None:
                     # Distill SFT: write all raw candidate (prompt, response) pairs
                     # without verification — enables pure knowledge-distillation training.
                     all_pairs = result.get("all_pairs", [])
-                    for pr_prompt, pr_resp in all_pairs:
+                    kept_distill_pairs = [
+                        (pr_prompt, pr_resp)
+                        for pr_prompt, pr_resp in all_pairs
+                        if _is_codegen_distill_pair(pr_prompt, pr_resp)
+                    ]
+                    for pr_prompt, pr_resp in kept_distill_pairs:
                         if pr_prompt and pr_resp:
                             distill_jsonl_file.write(json.dumps({
                                 "instruction": result["system_prompt"],
                                 "input": pr_prompt,
                                 "output": pr_resp,
                             }, ensure_ascii=False) + "\n")
-                    if all_pairs:
+                    if kept_distill_pairs:
                         distill_jsonl_file.flush()
-                    distill_count += len([p for p in all_pairs if p[0] and p[1]])
+                    distill_count += len(kept_distill_pairs)
 
                     # SFT: one accepted program -> exactly one JSONL item.
                     # user_prompt is guaranteed non-empty by the hard guard above.
