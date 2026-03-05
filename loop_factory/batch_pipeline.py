@@ -183,6 +183,20 @@ def normalize_code(s: str) -> str:
     return s
 
 
+def strip_redundant_atom_parens(s: str) -> str:
+    """
+    Remove redundant parentheses around atomic terms, e.g. (x), (C), (123).
+    Keep compound-expression parentheses intact.
+    """
+    out = s
+    pat = re.compile(r"\(([_A-Za-z]\w*|\d+)\)")
+    while True:
+        nxt = pat.sub(r"\1", out)
+        if nxt == out:
+            return out
+        out = nxt
+
+
 def normalize_statement_forms(s: str) -> str:
     """
     Normalize common C statement forms to reduce syntactic-only skeleton mismatches.
@@ -229,6 +243,7 @@ def compute_loop_skeleton_key(raw_code: str) -> str:
     m = re.search(r"while\s*\([^)]*\)\s*\{", src)
     if not m:
         payload = normalize_code(canonicalize_identifiers(src))
+        payload = strip_redundant_atom_parens(payload)
         payload = re.sub(r"\b\d+\b", "C", payload)
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
@@ -243,11 +258,13 @@ def compute_loop_skeleton_key(raw_code: str) -> str:
             if depth == 0:
                 body = src[m.end() : i]
                 body_norm = normalize_code(canonicalize_identifiers(body))
+                body_norm = strip_redundant_atom_parens(body_norm)
                 body_norm = re.sub(r"\b\d+\b", "C", body_norm)
                 return hashlib.sha256(body_norm.encode("utf-8")).hexdigest()
         i += 1
 
     payload = normalize_code(canonicalize_identifiers(src))
+    payload = strip_redundant_atom_parens(payload)
     payload = re.sub(r"\b\d+\b", "C", payload)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 

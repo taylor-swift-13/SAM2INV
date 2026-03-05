@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import random
 import re
 import json
@@ -119,6 +120,32 @@ CORE_NATIVE_EXTENSION_STYLE: Dict[str, str] = {
     "L1_trivial": "linear",
     "L2_trivial": "linear",
 }
+
+
+def _build_core_personalized_variant_spec() -> Dict[str, str]:
+    """
+    Build per-core personalized small-variant spec.
+    Each semantic core gets its own semantics-preserving mode entry.
+    """
+    spec: Dict[str, str] = {}
+    for core, style in CORE_NATIVE_EXTENSION_STYLE.items():
+        h = int(hashlib.sha256(core.encode("utf-8")).hexdigest()[:8], 16)
+        if style in {"linear"}:
+            mode_pool = ["plus_swap", "minus_to_plus_neg", "add_const_split", "mul2_split"]
+        elif style in {"multiplicative"}:
+            mode_pool = ["mul2_split", "plus_swap", "minus_to_plus_neg"]
+        elif style in {"branch", "state"}:
+            mode_pool = ["ifelse_swap_negate", "cond_flip_order", "cond_demorgan"]
+        else:
+            mode_pool = ["plus_swap", "minus_to_plus_neg", "ifelse_swap_negate"]
+        mode = mode_pool[h % len(mode_pool)]
+        spec[core] = mode
+    return spec
+
+
+CORE_PERSONALIZED_VARIANT_SPEC: Dict[str, str] = _build_core_personalized_variant_spec()
+if set(CORE_PERSONALIZED_VARIANT_SPEC) != set(CORE_NATIVE_EXTENSION_STYLE):
+    raise RuntimeError("Personalized variant spec must cover every semantic core.")
 
 # ─── Semantic Template Registry ───────────────────────────────────────────────
 # Maps template names to their source family and which existing core(s) implement them.
@@ -1165,6 +1192,169 @@ class ProbabilisticLoopFactory:
                 return f"{v}+({ctr}%2)"
             return f"{v}+{d1}"
         return f"{v}+{d1}"
+
+    def _apply_template_small_variant(self, core_name: str, body: List[Stmt], ctr: str) -> List[Stmt]:
+        """
+        Template-specific lightweight variants using per-core personalized spec.
+        """
+        if not body:
+            return body
+
+        prof = CORE_PERSONALIZED_VARIANT_SPEC.get(core_name)
+        if prof is None:
+            return body
+        mode = prof
+
+        assign_idx = [i for i, st in enumerate(body) if isinstance(st, Assign) and st.target != ctr]
+        if_idx = [i for i, st in enumerate(body) if isinstance(st, (IfOnly, IfElse))]
+
+        def _rewrite_cond(cond: str, c_mode: str) -> str:
+            c = cond.strip()
+            if c_mode == "cond_demorgan":
+                if "&&" in c:
+                    a, b = c.split("&&", 1)
+                    return f"!(!({a})||!({b}))"
+                if "||" in c:
+                    a, b = c.split("||", 1)
+                    return f"!(!({a})&&!({b}))"
+                return f"!(!({c}))"
+
+            m = re.search(r"^\s*([A-Za-z_]\w*|-?\d+)\s*(<=|>=|<|>|==|!=)\s*([A-Za-z_]\w*|-?\d+)\s*$", c)
+            if not m:
+                return f"!(!({c}))"
+            l, op, r = m.group(1), m.group(2), m.group(3)
+            if c_mode in {"cond_negate_cmp", "ifelse_swap_negate"}:
+                neg = {"<": ">=", "<=": ">", ">": "<=", ">=": "<", "==": "!=", "!=": "=="}[op]
+                return f"!({l}{neg}{r})"
+            if c_mode == "cond_flip_order":
+                flip = {"<": ">", "<=": ">=", ">": "<", ">=": "<=", "==": "==", "!=": "!="}[op]
+                return f"{r}{flip}{l}"
+            return c
+
+        def _rewrite_expr(expr: str, e_mode: str) -> str:
+            e = expr.strip()
+            if e_mode == "plus_swap":
+                m = re.match(r"^\s*(.+?)\s*\+\s*(.+?)\s*$", e)
+                if m:
+                    return f"({m.group(2)})+({m.group(1)})"
+                return e
+            if e_mode == "minus_to_plus_neg":
+                m = re.match(r"^\s*(.+?)\s*-\s*(.+?)\s*$", e)
+                if m:
+                    return f"({m.group(1)})+(-({m.group(2)}))"
+                return e
+            if e_mode == "mul2_to_add":
+                m = re.match(r"^\s*(.+?)\s*\*\s*2\s*$", e)
+                if m:
+                    return f"({m.group(1)})+({m.group(1)})"
+                m2 = re.match(r"^\s*2\s*\*\s*(.+?)\s*$", e)
+                if m2:
+                    return f"({m2.group(1)})+({m2.group(1)})"
+                return e
+            if e_mode == "add_const_refactor":
+                m = re.match(r"^\s*(.+?)\s*\+\s*(-?\d+)\s*$", e)
+                if m:
+                    base, k = m.group(1), int(m.group(2))
+                    if k >= 2:
+                        return f"(({base})+1)+{k-1}"
+                    if k <= -2:
+                        return f"(({base})-1)+{k+1}"
+                return e
+            return e
+
+        if mode in {"cond_negate_cmp", "cond_flip_order", "cond_demorgan"}:
+            if if_idx:
+                i = self.rng.choice(if_idx)
+                st = body[i]
+                if isinstance(st, IfOnly):
+                    body[i] = IfOnly(cond=_rewrite_cond(st.cond, mode), then_body=st.then_body)
+                    return body
+                if isinstance(st, IfElse):
+                    body[i] = IfElse(
+                        cond=_rewrite_cond(st.cond, mode),
+                        then_body=st.then_body,
+                        else_body=st.else_body,
+                    )
+                    return body
+            if not assign_idx:
+                return body
+            i = self.rng.choice(assign_idx)
+            st = body[i]
+            assert isinstance(st, Assign)
+            body[i] = Assign(st.target, _rewrite_expr(st.expr, "minus_to_plus_neg"))
+            return body
+
+        if mode == "ifelse_swap_negate":
+            if if_idx:
+                # Prefer IfElse to expose stronger structural variation.
+                ifelse_ids = [j for j in if_idx if isinstance(body[j], IfElse)]
+                pick = self.rng.choice(ifelse_ids) if ifelse_ids else self.rng.choice(if_idx)
+                st = body[pick]
+                if isinstance(st, IfElse):
+                    body[pick] = IfElse(
+                        cond=_rewrite_cond(st.cond, "ifelse_swap_negate"),
+                        then_body=st.else_body,
+                        else_body=st.then_body,
+                    )
+                    return body
+                if isinstance(st, IfOnly):
+                    body[pick] = IfOnly(cond=_rewrite_cond(st.cond, "ifelse_swap_negate"), then_body=st.then_body)
+                    return body
+            if not assign_idx:
+                return body
+            i = self.rng.choice(assign_idx)
+            st = body[i]
+            assert isinstance(st, Assign)
+            body[i] = Assign(st.target, _rewrite_expr(st.expr, "minus_to_plus_neg"))
+            return body
+
+        if mode in {"plus_swap", "minus_to_plus_neg", "mul2_to_add", "add_const_refactor"}:
+            if not assign_idx:
+                return body
+            i = self.rng.choice(assign_idx)
+            st = body[i]
+            assert isinstance(st, Assign)
+            body[i] = Assign(st.target, _rewrite_expr(st.expr, mode))
+            return body
+
+        if mode == "add_const_split":
+            if not assign_idx:
+                return body
+            i = self.rng.choice(assign_idx)
+            st = body[i]
+            assert isinstance(st, Assign)
+            m = re.match(r"^\s*(.+?)\s*\+\s*(-?\d+)\s*$", st.expr.strip())
+            if not m:
+                body[i] = Assign(st.target, _rewrite_expr(st.expr, "add_const_refactor"))
+                return body
+            base, k = m.group(1), int(m.group(2))
+            if abs(k) < 2:
+                body[i] = Assign(st.target, _rewrite_expr(st.expr, "add_const_refactor"))
+                return body
+            sign = 1 if k > 0 else -1
+            head = k - sign
+            body[i] = Assign(st.target, f"({base})+{head}")
+            body.insert(i + 1, Assign(st.target, f"{st.target}+{sign}"))
+            return body
+
+        if mode == "mul2_split":
+            if not assign_idx:
+                return body
+            i = self.rng.choice(assign_idx)
+            st = body[i]
+            assert isinstance(st, Assign)
+            e = st.expr.strip()
+            m = re.match(r"^\s*(.+?)\s*\*\s*2\s*$", e)
+            m2 = re.match(r"^\s*2\s*\*\s*(.+?)\s*$", e)
+            term = m.group(1) if m else (m2.group(1) if m2 else "")
+            if not term:
+                body[i] = Assign(st.target, _rewrite_expr(st.expr, "mul2_to_add"))
+                return body
+            body[i] = Assign(st.target, term)
+            body.insert(i + 1, Assign(st.target, f"{st.target}+{st.target}"))
+            return body
+
+        return body
 
     def _inject_multivar_extension(
         self,
@@ -2637,25 +2827,60 @@ class ProbabilisticLoopFactory:
             elif chosen == "ramped_transfer_conservation":
                 # Transfer from src to dst with a growing step cap.
                 # inv: src + dst == src_init, src >= 0, step grows monotonically.
-                src_init = self.rng.randint(10, 30)
+                src_init = self._core_const(8, 45)
                 set_init(a, str(src_init))   # src
                 set_init(b, "0")             # dst
                 set_init(c, "1")             # step cap
                 set_init(d, "0")             # pay this round
                 guard = f"{a}>0&&{ctr}<{lim}"
-                body.append(
-                    IfElse(
-                        cond=f"{a}<{c}",
-                        then_body=[Assign(d, a)],
-                        else_body=[Assign(d, c)],
+                mode = self.rng.choice(["tmp_min", "direct_split", "biased_ramp"])
+                if mode == "tmp_min":
+                    body.append(
+                        IfElse(
+                            cond=f"{a}<={c}",
+                            then_body=[Assign(d, a)],
+                            else_body=[Assign(d, c)],
+                        )
                     )
-                )
-                body.append(Assign(a, f"{a}-{d}"))
-                body.append(Assign(b, f"{b}+{d}"))
-                body.append(Assign(c, f"{c}+1"))
-                body.append(Assign(ctr, f"{ctr}+1"))
-                used_if += 1
-                used_assign += 6
+                    body.append(Assign(a, f"{a}-{d}"))
+                    body.append(Assign(b, f"{b}+{d}"))
+                    body.append(Assign(c, f"{c}+1"))
+                    body.append(Assign(ctr, f"{ctr}+1"))
+                    used_if += 1
+                    used_assign += 6
+                elif mode == "direct_split":
+                    body.append(Assign(d, c))
+                    body.append(
+                        IfElse(
+                            cond=f"{a}>={c}",
+                            then_body=[Assign(a, f"{a}-{c}"), Assign(b, f"{b}+{c}")],
+                            else_body=[Assign(b, f"{b}+{a}"), Assign(a, "0")],
+                        )
+                    )
+                    body.append(Assign(c, f"{c}+1"))
+                    body.append(Assign(ctr, f"{ctr}+1"))
+                    used_if += 1
+                    used_assign += 5
+                else:
+                    body.append(
+                        IfElse(
+                            cond=f"{a}<{c}",
+                            then_body=[Assign(d, a)],
+                            else_body=[Assign(d, c)],
+                        )
+                    )
+                    body.append(Assign(b, f"{b}+{d}"))
+                    body.append(Assign(a, f"{a}-{d}"))
+                    body.append(
+                        IfElse(
+                            cond=f"{ctr}%2==0",
+                            then_body=[Assign(c, f"{c}+2")],
+                            else_body=[Assign(c, f"{c}+1")],
+                        )
+                    )
+                    body.append(Assign(ctr, f"{ctr}+1"))
+                    used_if += 2
+                    used_assign += 5
                 core_applied = True
             elif chosen == "alternating_swap_transfer":
                 # Alternating two-way transfer controlled by a binary flag.
@@ -3033,6 +3258,9 @@ class ProbabilisticLoopFactory:
             if ctr not in _get_written_vars(body):
                 body.append(step_stmt)
             body.append(IfOnly(cond=f"{ctr}>={lim}", then_body=[Break()]))
+
+        if core_applied and self.rng.random() < 0.60:
+            body = self._apply_template_small_variant(chosen, body, ctr)
 
         selected_core = chosen if core_applied else "none"
         guard = self._diversify_guard(guard)
