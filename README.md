@@ -7,6 +7,10 @@ SAM2INV (Sample to Invariant) generates ACSL loop invariants for C programs and 
 ```text
 SAM2INV/
 ├── README.md
+├── README_ENV.md
+├── environment.yml
+├── sam2inv.opam
+├── opam-packages.txt
 ├── src/
 │   ├── loop_inv.py                # Main entry point for one C file
 │   ├── run_all_tests.py           # Batch runner for one input subdirectory
@@ -14,80 +18,37 @@ SAM2INV/
 │   ├── input/                     # Input C files grouped by subdirectory
 │   ├── output/                    # Generated annotated C files
 │   ├── log/                       # Logs
-│   └── scripts/opam.sh            # `eval "$(opam env)"`
+│   └── scripts/
+│       ├── opam.sh                # opam environment activation helper
+│       └── start_local_services_from_config.py
 ├── loop_factory/                  # Loop/program generation pipelines
 └── VST/                           # Related proof artifacts
 ```
 
 ## Requirements
 
-- Python 3.9+
+- Python 3.11 (recommended; see `environment.yml`)
 - Frama-C available in `PATH`
 - Z3 available in `PATH`
 - `opam` (recommended for Frama-C/OCaml toolchain management)
 
 ## Environment Setup
 
-### 1. Python Environment
+Use the dedicated setup guide:
 
-From repository root:
+- [README_ENV.md](README_ENV.md)
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install z3-solver numpy openai pyyaml
-```
+Environment-related files:
 
-If your local workflow needs extra packages (for optional scripts), install them separately.
+- Conda: `environment.yml`
+- OPAM package: `sam2inv.opam`
+- OPAM fallback list: `opam-packages.txt`
+- OPAM activation script: `src/scripts/opam.sh`
 
-### 2. OPAM / Frama-C Environment
+Validation modes (details in `README_ENV.md`):
 
-Install opam and system dependencies (Ubuntu/Debian example):
-
-```bash
-sudo apt-get update
-sudo apt-get install -y opam m4 bubblewrap pkg-config libgmp-dev z3
-```
-
-Initialize opam:
-
-```bash
-opam init --disable-sandboxing -y
-```
-
-Activate opam in the current shell:
-
-```bash
-eval "$(opam env)"
-```
-
-Install Frama-C and provers:
-
-```bash
-opam install -y frama-c why3 alt-ergo
-```
-
-Quick check:
-
-```bash
-which frama-c && frama-c -version
-which z3 && z3 --version
-```
-
-### 3. Shell Activation Shortcut
-
-This repository provides:
-
-```bash
-source src/scripts/opam.sh
-```
-
-`src/scripts/opam.sh` only runs:
-
-```bash
-eval "$(opam env)"
-```
+- Full validation: create temp env directly from `environment.yml`
+- Lightweight validation: verify core Python deps when heavy packages are unstable under proxy/network
 
 ## Configuration
 
@@ -188,24 +149,26 @@ python3 run_all_tests.py NLA_lipus --workers 20 --max-iterations 1
 ## Troubleshooting
 
 1. `frama-c: command not found`
-- Activate opam first: `eval "$(opam env)"` or `source src/scripts/opam.sh`
+- Activate opam first: `eval "$(opam env)"` or `source src/scripts/opam.sh sam2inv`
 
 2. `z3` not found by Frama-C/WP
 - Check `which z3`
 - Reinstall system `z3` if needed
 
 3. Python import errors
-- Ensure `.venv` is activated
-- Reinstall required Python packages
+- Ensure conda env `sam2inv` is activated
+- Recreate env if needed: `conda env remove -n sam2inv -y && conda env create -f environment.yml`
 
 ## Minimal Health Check
 
 ```bash
 cd /path/to/SAM2INV
-source .venv/bin/activate
-source src/scripts/opam.sh
+conda activate sam2inv
+source src/scripts/opam.sh sam2inv
 
 frama-c -version
+why3 --version
+alt-ergo --version
 z3 --version
 
 cd src
