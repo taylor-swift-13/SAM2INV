@@ -153,13 +153,7 @@ def verify_once(code_text: str, tmp_dir: Path) -> Dict[str, Any]:
 def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="Generate DPO spec data")
-    parser.add_argument(
-        "--enable-cot",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable reverse-COT export (default: enabled; use --no-enable-cot to disable).",
-    )
-    args = parser.parse_args()
+    parser.parse_args()
 
     records: List[Dict[str, Any]] = []
     with INPUT_FILE.open(encoding="utf-8") as fh:
@@ -258,7 +252,7 @@ def main() -> None:
     )
 
     # ── Phase 2: Reverse-COT ──────────────────────────────────────────────
-    if args.enable_cot:
+    if True:
         from reverse_cot import generate_reverse_cot, generate_reverse_cots_batch, prepend_cot, lookup_cot
         import openai as _oai
 

@@ -108,13 +108,7 @@ def save_progress(done: set[int]) -> None:
 def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="Generate distillation data")
-    parser.add_argument(
-        "--enable-cot",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Enable reverse-COT export (default: enabled; use --no-enable-cot to disable).",
-    )
-    args = parser.parse_args()
+    parser.parse_args()
 
     # 1. Load input records
     records: list[dict] = []
@@ -203,7 +197,7 @@ def main() -> None:
              len(done_idx), len(done_idx) * N_PER_RECORD, OUTPUT_FILE)
 
     # ── Phase 2: Reverse-COT ──────────────────────────────────────────────
-    if args.enable_cot:
+    if True:
         from reverse_cot import generate_reverse_cot, generate_reverse_cots_batch, prepend_cot, lookup_cot
         import openai as _oai
 
