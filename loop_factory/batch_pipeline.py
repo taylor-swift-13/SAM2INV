@@ -932,6 +932,7 @@ def main() -> None:
 
     llm_cfg = LLMConfig()
     llm_cfg.api_model = args.model
+    llm_cfg.think_mode_enabled = True
     system_prompt = (SRC / "prompts" / "system_prompt_cot.txt").read_text(encoding="utf-8")
     api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
     dpo_teacher_jsonl_path = work_root / "llama_factory_train_dpo_teacher.jsonl"
