@@ -453,6 +453,75 @@ def _aug_houdini_rejects(
     return new_rejects
 
 
+def _extract_invariant_spans(code: str) -> List[Tuple[int, int]]:
+    inv_pat = re.compile(r"^[ \t]*loop\s+invariant\s+[^;]+;\s*\n?", flags=re.MULTILINE)
+    return [(m.start(), m.end()) for m in inv_pat.finditer(code or "")]
+
+
+def _build_subset_invariant_code(code: str, keep_indices: Set[int]) -> str:
+    spans = _extract_invariant_spans(code)
+    if not spans:
+        return (code or "").strip()
+    out = code
+    for idx in range(len(spans) - 1, -1, -1):
+        if idx in keep_indices:
+            continue
+        s, e = spans[idx]
+        out = out[:s] + out[e:]
+    return out.strip()
+
+
+def _sample_subset_code(
+    code: str,
+    rng: random.Random,
+    force_proper_subset: bool = True,
+) -> Tuple[Optional[str], int, int]:
+    """
+    Randomly keep k invariants where k in [1, max(n-2,1)].
+    Returns (subset_code, k, n).
+    """
+    src = (code or "").strip()
+    spans = _extract_invariant_spans(src)
+    n = len(spans)
+    if n <= 0:
+        return None, 0, n
+    hi = max(n - 2, 1)
+    if force_proper_subset:
+        hi = min(hi, n - 1)
+    if hi < 1:
+        return None, 0, n
+    k = rng.randint(1, hi)
+    keep = set(rng.sample(range(n), k))
+    subset = _build_subset_invariant_code(src, keep)
+    if not subset or subset == src:
+        return None, k, n
+    return subset, k, n
+
+
+def _aug_weak_chosen_subset_reject(chosen_code: str, rng: random.Random, max_tries: int = 16) -> Optional[str]:
+    """Aug B: sample a small proper subset from chosen as a weaker rejected target."""
+    src = (chosen_code or "").strip()
+    if not src:
+        return None
+    for _ in range(max_tries):
+        subset, _k, _n = _sample_subset_code(src, rng, force_proper_subset=True)
+        if subset and subset != src:
+            return subset
+    return None
+
+
+def _aug_error_subset_reject(rejected_code: str, rng: random.Random, max_tries: int = 16) -> Optional[str]:
+    """Aug C: sample a random proper subset from an error candidate."""
+    src = (rejected_code or "").strip()
+    if not src:
+        return None
+    for _ in range(max_tries):
+        subset, _m, _n = _sample_subset_code(src, rng, force_proper_subset=True)
+        if subset and subset != src:
+            return subset
+    return None
+
+
 def _extract_first_json_object(text: str) -> Optional[Dict]:
     if not text:
         return None
@@ -865,7 +934,8 @@ def main() -> None:
     llm_cfg.api_model = args.model
     system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
     api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
-    dpo_jsonl_path = work_root / "llama_factory_train_dpo.jsonl"
+    dpo_teacher_jsonl_path = work_root / "llama_factory_train_dpo_teacher.jsonl"
+    dpo_aug_jsonl_path = work_root / "llama_factory_train_dpo_aug.jsonl"
     distill_jsonl_path = work_root / "llama_factory_train_distill_sft.jsonl"
     template_map_jsonl_path = work_root / "file_template_map.jsonl"
     lf_overrides: Dict[str, object] = {
@@ -968,7 +1038,8 @@ def main() -> None:
     file_mode = "a" if args.append else "w"
     distill_count = 0
     with api_jsonl_path.open(file_mode, encoding="utf-8") as api_jsonl_file, \
-         dpo_jsonl_path.open(file_mode, encoding="utf-8") as dpo_jsonl_file, \
+         dpo_teacher_jsonl_path.open(file_mode, encoding="utf-8") as dpo_teacher_jsonl_file, \
+         dpo_aug_jsonl_path.open(file_mode, encoding="utf-8") as dpo_aug_jsonl_file, \
          distill_jsonl_path.open(file_mode, encoding="utf-8") as distill_jsonl_file, \
         template_map_jsonl_path.open(file_mode, encoding="utf-8") as template_map_file:
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
@@ -1099,30 +1170,20 @@ def main() -> None:
                     # DPO: one accepted program -> one row per rejected candidate.
                     # chosen aligns with SFT output; rejected comes from inv_generator's
                     # loop_dpo_records, which tracks every candidate marked dpo_reject=True
-                    # (failed syntax filter, sampling filter, or Houdini pruning).
+                    # (failed syntax filter, sampling filter, or Houdini pruning),
+                    # plus optional Houdini data augmentation rejects.
                     loop_dpo_records = result.get("loop_dpo_records", {})
-                    dpo_written = 0
+                    dpo_teacher_written = 0
+                    dpo_aug_written = 0
                     # Keep DPO chosen exactly aligned with SFT output, with invariant dedup applied.
                     chosen_code = (result["annotated"] or "").strip()
                     # Hard guard: chosen must be the final, quality-gated, deduplicated annotation.
                     if not chosen_code:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has empty final chosen"})
                         continue
+                    aug_rng = random.Random((int(seed) << 32) ^ int(attempt))
                     seen_rejected = set()
                     for _loop_idx, loop_rec in sorted(loop_dpo_records.items()):
-                        pre_dedup_code = (loop_rec.get("pre_dedup_code", "") or "").strip()
-                        dedup_removed = int(loop_rec.get("dedup_removed", 0) or 0)
-                        if chosen_code and dedup_removed > 0 and pre_dedup_code and pre_dedup_code != chosen_code:
-                            if pre_dedup_code not in seen_rejected:
-                                seen_rejected.add(pre_dedup_code)
-                                dpo_item = {
-                                    "instruction": result["system_prompt"],
-                                    "input": prompt_text,
-                                    "chosen": chosen_code,
-                                    "rejected": pre_dedup_code,
-                                }
-                                dpo_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
-                                dpo_written += 1
                         if not chosen_code:
                             continue
                         for rej in loop_rec.get("rejected_items", []):
@@ -1136,8 +1197,8 @@ def main() -> None:
                                 "chosen": chosen_code,
                                 "rejected": rej_code,
                             }
-                            dpo_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
-                            dpo_written += 1
+                            dpo_teacher_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
+                            dpo_teacher_written += 1
                             # Houdini augmentation: "all valid + 1 bad" variants of this rejected
                             if use_houdini_aug and _aug_verifier and _aug_pruner and _aug_tmp_c:
                                 for aug_code in _aug_houdini_rejects(
@@ -1147,15 +1208,42 @@ def main() -> None:
                                     aug_code = aug_code.strip()
                                     if aug_code and aug_code != chosen_code and aug_code not in seen_rejected:
                                         seen_rejected.add(aug_code)
-                                        dpo_jsonl_file.write(json.dumps({
+                                        dpo_aug_jsonl_file.write(json.dumps({
                                             "instruction": result["system_prompt"],
                                             "input": prompt_text,
                                             "chosen": chosen_code,
                                             "rejected": aug_code,
                                         }, ensure_ascii=False) + "\n")
-                                        dpo_written += 1
-                    if dpo_written:
-                        dpo_jsonl_file.flush()
+                                        dpo_aug_written += 1
+                            # Augmentation C: random subset from error candidate.
+                            aug_c = _aug_error_subset_reject(rej_code, aug_rng)
+                            if aug_c:
+                                aug_c = aug_c.strip()
+                                if aug_c and aug_c != chosen_code and aug_c not in seen_rejected:
+                                    seen_rejected.add(aug_c)
+                                    dpo_aug_jsonl_file.write(json.dumps({
+                                        "instruction": result["system_prompt"],
+                                        "input": prompt_text,
+                                        "chosen": chosen_code,
+                                        "rejected": aug_c,
+                                    }, ensure_ascii=False) + "\n")
+                                    dpo_aug_written += 1
+                    # Augmentation B: weak proper subset from chosen only.
+                    aug_b = _aug_weak_chosen_subset_reject(chosen_code, aug_rng)
+                    if aug_b:
+                        aug_b = aug_b.strip()
+                        if aug_b and aug_b != chosen_code and aug_b not in seen_rejected:
+                            seen_rejected.add(aug_b)
+                            dpo_aug_jsonl_file.write(json.dumps({
+                                "instruction": result["system_prompt"],
+                                "input": prompt_text,
+                                "chosen": chosen_code,
+                                "rejected": aug_b,
+                            }, ensure_ascii=False) + "\n")
+                            dpo_aug_written += 1
+                    if dpo_teacher_written or dpo_aug_written:
+                        dpo_teacher_jsonl_file.flush()
+                        dpo_aug_jsonl_file.flush()
                     else:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has no dpo rejects"})
 
@@ -1173,7 +1261,8 @@ def main() -> None:
         f"new={len(accepted_records)}, existing={existing_count}, total={total}"
     )
     print(f"JSONL SFT (instruction/input/output): {api_jsonl_path}")
-    print(f"JSONL DPO (instruction/input/chosen/rejected): {dpo_jsonl_path}")
+    print(f"JSONL DPO Teacher (instruction/input/chosen/rejected): {dpo_teacher_jsonl_path}")
+    print(f"JSONL DPO Aug (instruction/input/chosen/rejected): {dpo_aug_jsonl_path}")
     print(f"JSONL Distill SFT (all raw candidates, {distill_count} items): {distill_jsonl_path}")
     print(f"Template map JSONL (file -> semantic core): {template_map_jsonl_path}")
     print(f"Reject log: {reject_path}")
