@@ -18,7 +18,6 @@
 5. `generate_distill.py`：独立 Distill 数据构造
 6. `generate_dpo_spec.py`：独立 Spec-DPO 数据构造（待优化模型失败样本）
 7. `reverse_cot.py`：逆向 COT 生成与拼接工具
-8. `DATA_COLLECTION_FLOW.md`：数据流与形式化说明
 
 常见产物目录：
 1. `generated/<work_dir>/raw`：原始程序
@@ -158,5 +157,4 @@ python3 batch_pipeline.py --work-dir test --target-count 0 --append
 
 ## 相关文档
 
-1. `DATA_COLLECTION_FLOW.md`：论文式数据流与公式
-2. `DESIGN.md`：更广泛的设计说明
+1. `DESIGN.md`：更广泛的设计说明
