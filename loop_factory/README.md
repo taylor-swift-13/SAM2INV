@@ -1,84 +1,162 @@
 # loop_factory
 
-`loop_factory` synthesizes C loop programs using a DSL-based generator and provides pipelines to batch-generate verification tasks.
+`loop_factory` 是 SAM2INV 的数据构造子系统，负责：
+1. 生成循环程序（raw code）
+2. 生成与筛选循环不变量候选
+3. 合成训练数据（SFT / DPO / Distill / Spec）
+4. 在最终写盘前做 COT 补齐与字段校验
 
-## What It Produces
+---
 
-- C programs formatted for the SAM2INV pipeline input style.
-- Single-loop or multi-loop programs (based on configuration).
-- Linear and nonlinear loop families controlled by probability parameters.
+## 目录里有什么
 
-The generated programs are intended to be consumed by `src/loop_inv.py` and batch pipelines.
+核心脚本：
+1. `loop_factory.py`：原始 C 循环程序生成器（模板/语义核心驱动）
+2. `batch_pipeline.py`：主流程（从 raw code 到训练 JSONL）
+3. `one_sample_pipeline.py`：单样本调试流程
+4. `sft_pipeline.py`：SFT 相关实验流程
+5. `generate_distill.py`：独立 Distill 数据构造
+6. `generate_dpo_spec.py`：独立 Spec-DPO 数据构造（待优化模型失败样本）
+7. `reverse_cot.py`：逆向 COT 生成与拼接工具
+8. `DATA_COLLECTION_FLOW.md`：数据流与形式化说明
 
-## Main Scripts
+常见产物目录：
+1. `generated/<work_dir>/raw`：原始程序
+2. `generated/<work_dir>/annotated`：最终注解程序
+3. `generated/<work_dir>/logs`：运行日志与 reject 记录
+4. `generated/<work_dir>/*.jsonl`：训练数据文件
 
-- `loop_factory.py`: core program generator.
-- `batch_pipeline.py`: end-to-end generation + invariant generation + quality gating.
-- `one_sample_pipeline.py`: single-sample workflow.
-- `sft_pipeline.py`: prompt evaluation and dataset-style workflow.
+---
 
-## Quick Start
+## 整体数据流（简版）
 
-Generate 50 programs:
+```text
+Raw Code
+ -> 候选不变量生成（多候选）
+ -> 过滤/验证/合并
+ -> Final Annotated
+ -> 质量门控
+ -> 训练数据合成：
+    - SFT
+    - DPO Teacher（错误组）
+    - DPO Aug（增强组）
+    - Distill
+    - DPO Spec（独立脚本，可选）
+ -> COT 注入/补齐
+ -> 字段校验
+ -> Final JSONL
+```
+
+---
+
+## 训练数据文件说明
+
+在 `generated/<work_dir>/` 下，主流程会生成：
+
+1. `llama_factory_train_iio_api_aligned.jsonl`
+- SFT 数据：`instruction/input/output`
+
+2. `llama_factory_train_dpo_teacher.jsonl`
+- DPO 错误组：`instruction/input/chosen/rejected`
+
+3. `llama_factory_train_dpo_aug.jsonl`
+- DPO 增强组：`instruction/input/chosen/rejected`
+
+4. `llama_factory_train_distill_sft.jsonl`
+- Distill 数据：`instruction/input/output`
+
+5. `file_template_map.jsonl`
+- 样本与模板核心映射关系
+
+6. `logs/reject_log.json`
+- 失败样本与拒绝原因
+
+---
+
+## 快速开始
+
+## 1) 仅生成 raw 程序
 
 ```bash
-cd loop_factory
+cd /home/yangfp/SAM2INV/loop_factory
 python3 loop_factory.py --profile benchmark --out-dir generated/demo --count 50 --seed 2026
 ```
 
-Generate richer programs:
+## 2) 运行主流程生成训练数据
 
 ```bash
-python3 loop_factory.py \
-  --profile rich \
-  --out-dir generated/rich_demo \
-  --count 100 \
-  --seed 2026 \
-  --params 3 \
-  --max-loops 6 \
-  --max-depth 2 \
-  --p-multi 0.45 \
-  --q-nest 0.15
+python3 batch_pipeline.py \
+  --work-dir test \
+  --target-count 100 \
+  --workers 20 \
+  --num-candidates 5 \
+  --append
 ```
 
-## `loop_factory.py` Key Parameters
+## 3) 只对已有数据执行 COT 阶段（不新增样本）
 
-- `--profile`: `benchmark` or `rich`
-- `--out-dir`: output directory
-- `--count`: number of C files
-- `--seed`: random seed
-- `--max-vars`: maximum variable count
-- `--params`: function parameter count
-- `--min-loops`, `--max-loops`: while-loop count bounds
-- `--max-assign`: max assignments per loop
-- `--max-ifelse`: max if/else blocks per loop
-- `--max-depth`: max nesting depth
-- `--p-multi`: loop continuation probability
-- `--q-nest`: loop nesting probability
-- `--p-nonlinear`: probability of nonlinear loop family
-- `--p-semantic-core`: probability of semantic-core injection
+```bash
+python3 batch_pipeline.py --work-dir test --target-count 0 --append
+```
 
-Note: advanced semantic-core weight options exist in `loop_factory.py`, but higher-level workflows can hide them.
+---
 
-## `batch_pipeline.py` Configuration
+## 常用参数（主流程）
 
-`batch_pipeline.py` reads defaults from `src/config.py` under `LOOP_FACTORY_USER_CONFIG`.
+运行规模：
+1. `--target-count`：目标样本数
+2. `--max-attempts`：最大尝试次数
+3. `--workers`：并发 worker 数
+4. `--num-candidates`：每次候选数
+5. `--append/--no-append`：追加或重建
 
-User-facing knobs include:
+复杂度与结构：
+1. `--max-vars --min-vars`
+2. `--max-params --min-params`
+3. `--min-loops --max-loops`
+4. `--max-assign --min-assign`
+5. `--max-ifelse --min-ifelse`
+6. `--max-depth`
+7. `--p-multi --q-nest`
+8. `--p-nonlinear --p-semantic-core`
+9. `--allowed-templates`
 
-- Runtime: `target_count`, `max_attempts`, `seed`, `workers`, `model`, `max_skeleton_repeat`
-- Complexity: `lf_max_vars`, `lf_params`, `lf_min_loops`, `lf_max_loops`, `lf_max_assign`, `lf_max_ifelse`, `lf_max_depth`, `lf_p_multi`, `lf_q_nest`, `lf_p_nonlinear`, `lf_p_semantic_core`
+模型相关：
+1. `--model`
 
-Equivalent CLI flags are available with `--lf-*` names for these exposed fields.
+---
 
-## Output
+## COT 相关约束
 
-Typical outputs include:
+主流程最终会对训练输出字段执行 COT 处理与校验：
+1. 组合字段：强制 reverse-COT
+2. 直出字段：优先原生 COT，缺失则补齐
+3. 写盘前字段校验：`output/chosen/rejected` 必须包含 COT 标签
 
-- Generated C files (`1.c`, `2.c`, ...)
-- Logs and intermediate artifacts under `loop_factory/generated/`
-- Accepted samples that can be copied into `src/input/<subdir>/` for verification runs
+如果你只想对历史文件补 COT，请使用：
+`--target-count 0 --append`
 
-## Notes
+---
 
-- Keep `src/config.py` and `loop_factory` parameters aligned when tuning generation complexity.
+## 常见问题排查
+
+1. 训练文件里没有 COT
+- 先确认流程是否完整结束（有最终写盘日志）
+- 再检查字段覆盖率（`output/chosen/rejected`）
+- 若中途中断，执行一次 `--target-count 0 --append`
+
+2. 样本很少或拒绝很多
+- 提高 `max-attempts`
+- 放宽结构复杂度参数
+- 检查模板限制 `--allowed-templates` 是否过窄
+
+3. DPO aug 很少
+- 检查增强开关与 rejected 来源是否充足
+- 检查去重是否过强
+
+---
+
+## 相关文档
+
+1. `DATA_COLLECTION_FLOW.md`：论文式数据流与公式
+2. `DESIGN.md`：更广泛的设计说明
