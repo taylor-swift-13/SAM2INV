@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 import threading
 import time
@@ -107,7 +108,12 @@ def save_progress(done: set[int]) -> None:
 def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="Generate distillation data")
-    parser.add_argument("--enable-cot", action="store_true", default=False, help="Generate both no_cot/ and cot/ versions.")
+    parser.add_argument(
+        "--enable-cot",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Enable reverse-COT export (default: enabled; use --no-enable-cot to disable).",
+    )
     args = parser.parse_args()
 
     # 1. Load input records
@@ -198,7 +204,7 @@ def main() -> None:
 
     # ── Phase 2: Reverse-COT ──────────────────────────────────────────────
     if args.enable_cot:
-        from reverse_cot import generate_reverse_cots_batch, prepend_cot, lookup_cot
+        from reverse_cot import generate_reverse_cot, generate_reverse_cots_batch, prepend_cot, lookup_cot
         import openai as _oai
 
         cot_system_prompt = (SRC / "prompts" / "system_prompt_cot.txt").read_text(encoding="utf-8")
@@ -224,10 +230,16 @@ def main() -> None:
         shutil.copy2(OUTPUT_FILE, no_cot_path)
         log.info("Copied no-COT output to %s", no_cot_path)
 
-        # Collect COT tasks
+        cot_tag_re = re.compile(r"<\s*(think|reasoning)\s*>", re.IGNORECASE)
+
+        def _has_cot(text: str) -> bool:
+            return bool(cot_tag_re.search(text or ""))
+
+        # Collect COT tasks for missing-COT outputs only
         all_cot_tasks = [
             {"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["output"]}
             for rec in all_output_records
+            if not _has_cot(rec.get("output", ""))
         ]
         log.info("COT Phase: generating reverse-COTs for %d records...", len(all_cot_tasks))
         cot_map = generate_reverse_cots_batch(all_cot_tasks, cot_client, cot_model)
@@ -235,14 +247,27 @@ def main() -> None:
         log.info("COT Phase: %d/%d unique COTs generated.", cot_ok, len(cot_map))
 
         cot_path = cot_dir / OUTPUT_FILE.name
+        out_records: list[dict] = []
+        for rec in all_output_records:
+            out_text = rec["output"]
+            if not _has_cot(out_text):
+                cot = lookup_cot(cot_map, rec["input"], out_text)
+                if not cot:
+                    cot = generate_reverse_cot(rec["instruction"], rec["input"], out_text, cot_client, cot_model)
+                if not cot:
+                    raise RuntimeError("Reverse-COT backfill failed: distill sample has no COT.")
+                out_text = prepend_cot(out_text, cot)
+            if not _has_cot(out_text):
+                raise RuntimeError("Reverse-COT validation failed: distill sample has no COT after backfill.")
+            out_records.append({
+                "instruction": cot_system_prompt,
+                "input": rec["input"],
+                "output": out_text,
+            })
+
         with open(cot_path, "w", encoding="utf-8") as f:
-            for rec in all_output_records:
-                cot = lookup_cot(cot_map, rec["input"], rec["output"])
-                f.write(json.dumps({
-                    "instruction": cot_system_prompt,
-                    "input": rec["input"],
-                    "output": prepend_cot(rec["output"], cot),
-                }, ensure_ascii=False) + "\n")
+            for rec in out_records:
+                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         log.info("COT output written to %s", cot_path)
 
 

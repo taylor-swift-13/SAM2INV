@@ -644,6 +644,23 @@ class InvariantGenerator:
 
         return None
 
+    def _extract_cot_block_from_llm_response(self, response: str) -> str:
+        """Extract CoT block (<reasoning>/<think>) from model raw response."""
+        text = (response or "").replace("\r\n", "\n")
+        if not text:
+            return ""
+        m = re.search(r"<\s*reasoning\s*>([\s\S]*?)<\s*/\s*reasoning\s*>", text, re.IGNORECASE)
+        if m:
+            body = (m.group(1) or "").strip()
+            if body:
+                return f"<reasoning>\n{body}\n</reasoning>"
+        m = re.search(r"<\s*think\s*>([\s\S]*?)<\s*/\s*think\s*>", text, re.IGNORECASE)
+        if m:
+            body = (m.group(1) or "").strip()
+            if body:
+                return f"<reasoning>\n{body}\n</reasoning>"
+        return ""
+
     def _extract_or_fallback_code(
         self,
         response: str,
@@ -735,7 +752,7 @@ class InvariantGenerator:
         for cand in candidates or []:
             if not cand.get("dpo_reject", False):
                 continue
-            code_text = (cand.get("code", "") or "").strip()
+            code_text = (cand.get("cot_code", "") or cand.get("code", "") or "").strip()
             if not code_text:
                 continue
             if chosen_text and code_text == chosen_text:
@@ -801,7 +818,7 @@ class InvariantGenerator:
         if parallel_enabled and num_candidates > 1:
             # 并行生成多组候选
             self.logger.info(f"Parallel generation enabled: generating {num_candidates} candidates")
-            candidate_codes = self._generate_multiple_candidates(
+            candidate_outputs = self._generate_multiple_candidates(
                 code_with_template, 
                 (prompt_template, loop_context),
                 num_candidates=num_candidates,
@@ -810,7 +827,7 @@ class InvariantGenerator:
                 max_workers=max_workers
             )
             
-            if not candidate_codes:
+            if not candidate_outputs:
                 self.logger.error("Failed to generate any candidates")
                 return None
         else:
@@ -820,11 +837,11 @@ class InvariantGenerator:
             if not initial_code:
                 self.logger.error("Failed to generate initial invariant")
                 return None
-            candidate_codes = [initial_code]
+            candidate_outputs = [{"code": initial_code, "raw_response": initial_code, "cot_code": initial_code}]
         
         # 5. Extract and display all candidates
         self.logger.info(f"\n{'='*60}")
-        self.logger.info(f"Loop {loop_idx} - Generated {len(candidate_codes)} candidate(s)")
+        self.logger.info(f"Loop {loop_idx} - Generated {len(candidate_outputs)} candidate(s)")
         self.logger.info(f"{'='*60}")
         
         all_candidates = []
@@ -833,10 +850,13 @@ class InvariantGenerator:
             reasons = candidate.setdefault("dpo_reject_reasons", [])
             if isinstance(reasons, list) and reason not in reasons:
                 reasons.append(reason)
-        for idx, code in enumerate(candidate_codes, 1):
+        for idx, cand in enumerate(candidate_outputs, 1):
+            code = (cand.get("code", "") or "").strip()
             invariants = self._extract_invariants_from_code(code)
             all_candidates.append({
                 'code': code,
+                'raw_response': (cand.get("raw_response", "") or "").strip(),
+                'cot_code': (cand.get("cot_code", "") or "").strip(),
                 'invariants': invariants,
                 'index': idx,
                 'dpo_reject': False,
@@ -2198,7 +2218,7 @@ class InvariantGenerator:
         # Single-model mode: always use configured API model
         return self.llm_config.api_model
     
-    def _generate_multiple_candidates(self, code_with_template: str, prompt_info: tuple, num_candidates: int = 3, temperature: float = 0.8, use_threading: bool = True, max_workers: int = 5) -> List[Optional[str]]:
+    def _generate_multiple_candidates(self, code_with_template: str, prompt_info: tuple, num_candidates: int = 3, temperature: float = 0.8, use_threading: bool = True, max_workers: int = 5) -> List[Dict[str, str]]:
         """
         并行生成多组候选不变式（单一 prompt + 单一模型）
         
@@ -2211,7 +2231,10 @@ class InvariantGenerator:
             max_workers: 线程池最大工作线程数
             
         Returns:
-            候选代码列表
+            候选列表，每个元素包含:
+            - code: 提取后的纯代码
+            - raw_response: 模型原始响应
+            - cot_code: 从原始响应中提取 CoT 后与 code 组合的文本（若无 CoT 则退化为 code）
         """
         _, loop_context = prompt_info
         self.logger.info("Loaded single prompt template: simple")
@@ -2229,7 +2252,7 @@ class InvariantGenerator:
                 # 使用线程池实现真正的并行生成
                 from concurrent.futures import ThreadPoolExecutor, as_completed
                 
-                def generate_single_candidate(candidate_idx: int) -> Optional[str]:
+                def generate_single_candidate(candidate_idx: int) -> Optional[Dict[str, str]]:
                     """生成单个候选，使用单一 prompt/模型并创建独立 LLM client"""
                     thread_llm = None
                     try:
@@ -2253,7 +2276,13 @@ class InvariantGenerator:
                         if extracted_code:
                             # Validate and fix code structure (using self from outer scope)
                             extracted_code = self._validate_and_fix_code_structure(extracted_code, code_with_template)
-                            return extracted_code
+                            cot_block = self._extract_cot_block_from_llm_response(response)
+                            cot_code = f"{cot_block}\n\n{extracted_code}" if cot_block else extracted_code
+                            return {
+                                "code": extracted_code,
+                                "raw_response": (response or "").strip(),
+                                "cot_code": cot_code,
+                            }
                         else:
                             self.logger.warning(
                                 f"  Raw response for candidate {candidate_idx+1}:\n{response}"
@@ -2269,7 +2298,7 @@ class InvariantGenerator:
                         pass
                 
                 # 使用线程池并行生成
-                candidates = []
+                candidates: List[Tuple[int, Optional[Dict[str, str]]]] = []
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     # 提交所有任务
                     future_to_idx = {
@@ -2292,7 +2321,7 @@ class InvariantGenerator:
                 candidates = [c[1] for c in candidates]
             else:
                 # 顺序生成（也使用独立的 client）
-                candidates = []
+                candidates: List[Optional[Dict[str, str]]] = []
                 for i in range(num_candidates):
                     # 单一 prompt + 单一模型
                     prompt, prompt_name = self._select_prompt_for_candidate(
@@ -2314,7 +2343,13 @@ class InvariantGenerator:
                     if extracted_code:
                         # Validate and fix code structure
                         extracted_code = self._validate_and_fix_code_structure(extracted_code, code_with_template)
-                        candidates.append(extracted_code)
+                        cot_block = self._extract_cot_block_from_llm_response(response)
+                        cot_code = f"{cot_block}\n\n{extracted_code}" if cot_block else extracted_code
+                        candidates.append({
+                            "code": extracted_code,
+                            "raw_response": (response or "").strip(),
+                            "cot_code": cot_code,
+                        })
                     else:
                         self.logger.warning(f"  Raw response for candidate {i+1}:\n{response}")
                         candidates.append(None)
@@ -2325,10 +2360,11 @@ class InvariantGenerator:
             self.llm_config.api_temperature = original_temp
 
         # Debug log: print all generated candidates (including extraction failures).
-        for idx, candidate_code in enumerate(candidates, 1):
-            if candidate_code is None:
+        for idx, candidate in enumerate(candidates, 1):
+            if candidate is None:
                 self.logger.warning(f"Candidate {idx}/{num_candidates} full code: <None> (failed to extract)")
                 continue
+            candidate_code = candidate.get("code", "")
             self.logger.info(
                 f"\n----- Candidate {idx}/{num_candidates} full code begin -----\n"
                 f"{candidate_code}\n"
@@ -2336,7 +2372,7 @@ class InvariantGenerator:
             )
         
         # 过滤掉None值
-        valid_candidates = [c for c in candidates if c is not None]
+        valid_candidates = [c for c in candidates if c is not None and c.get("code", "").strip()]
         self.logger.info(f"Successfully generated {len(valid_candidates)}/{num_candidates} candidates")
         
         return valid_candidates
@@ -3173,7 +3209,7 @@ class InvariantGenerator:
             self.logger.info(f"Main generation pass {pass_idx}/{max_iterations}")
             self.logger.info(f"{'='*60}")
 
-            candidate_codes = self._generate_multiple_candidates(
+            candidate_outputs = self._generate_multiple_candidates(
                 template_all,
                 (prompt_template, function_context),
                 num_candidates=num_candidates,
@@ -3181,7 +3217,7 @@ class InvariantGenerator:
                 use_threading=use_threading,
                 max_workers=max_workers,
             )
-            if not candidate_codes:
+            if not candidate_outputs:
                 self.logger.warning(f"Pass {pass_idx}: no candidate code generated")
                 continue
 
@@ -3190,8 +3226,18 @@ class InvariantGenerator:
             seen_per_loop: List[set] = [set() for _ in range(loop_n)]
             pass_candidate_meta: List[Dict] = []
 
-            for code in candidate_codes:
-                meta = {"code": code, "dpo_reject": False, "dpo_reject_reasons": [], "contrib": [set() for _ in range(loop_n)]}
+            for cand in candidate_outputs:
+                code = (cand.get("code", "") or "").strip()
+                if not code:
+                    continue
+                meta = {
+                    "code": code,
+                    "raw_response": (cand.get("raw_response", "") or "").strip(),
+                    "cot_code": (cand.get("cot_code", "") or "").strip(),
+                    "dpo_reject": False,
+                    "dpo_reject_reasons": [],
+                    "contrib": [set() for _ in range(loop_n)],
+                }
                 parsed = self._extract_per_loop_inv_assigns(code)
                 for i in range(min(loop_n, len(parsed))):
                     invs = list((parsed[i].get("invariants", []) if isinstance(parsed[i], dict) else []) or [])
@@ -3351,6 +3397,7 @@ class InvariantGenerator:
             c = (meta.get("code", "") or "").strip()
             if not c or c == final_code_strip:
                 continue
+            c_with_cot = (meta.get("cot_code", "") or c).strip()
             reasons = meta.get("dpo_reject_reasons", []) or []
             if reasons:
                 reason_str = ",".join(reasons)
@@ -3360,7 +3407,7 @@ class InvariantGenerator:
                 reason_str = "incomplete"
             else:
                 reason_str = "filtered"
-            rejected_items.append({"reason": reason_str, "code": c})
+            rejected_items.append({"reason": reason_str, "code": c_with_cot})
         if self.collect_dpo:
             self.loop_dpo_records = {
                 0: {

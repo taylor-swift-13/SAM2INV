@@ -3,7 +3,7 @@
 Reverse Chain-of-Thought generation for loop invariant training data.
 
 Given a (system_prompt, user_prompt, code_output) triple, generates a
-<think>...</think> reasoning trace that explains how an expert would
+<reasoning>...</reasoning> reasoning trace that explains how an expert would
 arrive at the given solution.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 REVERSE_COT_SYSTEM = """You are a formal verification reasoning assistant.
 Given a loop invariant synthesis task and a proposed solution, generate a brief
 chain-of-thought (3-8 sentences) explaining how an expert would reason to arrive
-at that solution. Output ONLY inside <think>...</think> tags. Be concise and technical."""
+at that solution. Output ONLY inside <reasoning>...</reasoning> tags. Be concise and technical."""
 
 REVERSE_COT_USER = """## Task Context
 {system_summary}
@@ -33,19 +33,28 @@ REVERSE_COT_USER = """## Task Context
 
 Generate the reasoning trace."""
 
+_REASONING_RE = re.compile(r"<reasoning>(.*?)</reasoning>", re.DOTALL)
+# Also match <think> in case the model still uses it
 _THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 
 
 def _extract_think_block(text: str) -> str:
-    """Extract <think>...</think> block from LLM response."""
+    """Extract <reasoning>...</reasoning> (or <think>) block from LLM response."""
+    m = _REASONING_RE.search(text)
+    if m:
+        return f"<reasoning>\n{m.group(1).strip()}\n</reasoning>"
+    # Fallback: model may still produce <think> tags
     m = _THINK_RE.search(text)
     if m:
-        return f"<think>{m.group(1).strip()}</think>"
-    # If no tags but content looks like a reasoning trace (short, no code fences),
-    # wrap it automatically.
+        return f"<reasoning>\n{m.group(1).strip()}\n</reasoning>"
+    # If no tags, strip fenced code blocks and wrap remaining text as reasoning.
     text = text.strip()
-    if text and "```" not in text and len(text) < 2000:
-        return f"<think>{text}</think>"
+    if text:
+        text_wo_code = re.sub(r"```[\s\S]*?```", "", text).strip()
+        if text_wo_code:
+            return f"<reasoning>\n{text_wo_code}\n</reasoning>"
+        if len(text) <= 8000:
+            return f"<reasoning>\n{text}\n</reasoning>"
     return ""
 
 
@@ -59,7 +68,7 @@ def generate_reverse_cot(
     max_tokens: int = 512,
     max_retries: int = 3,
 ) -> str:
-    """Single reverse-COT generation with retry. Returns <think>...</think> or empty string."""
+    """Single reverse-COT generation with retry. Returns <reasoning>...</reasoning> or empty string."""
     # Truncate system prompt to a summary for the reverse-COT prompt
     system_summary = system_prompt[:500] + ("..." if len(system_prompt) > 500 else "")
     user_msg = REVERSE_COT_USER.format(
@@ -78,7 +87,12 @@ def generate_reverse_cot(
                 temperature=temperature,
                 max_tokens=max_tokens,
             )
-            raw = (resp.choices[0].message.content or "").strip()
+            msg = resp.choices[0].message
+            raw = (msg.content or "").strip()
+            native_reasoning = getattr(msg, "reasoning_content", None)
+            if isinstance(native_reasoning, str) and native_reasoning.strip():
+                # Prioritize native reasoning channel when provided by model.
+                raw = f"<reasoning>\n{native_reasoning.strip()}\n</reasoning>\n{raw}"
             cot = _extract_think_block(raw)
             if cot:
                 return cot
@@ -87,7 +101,15 @@ def generate_reverse_cot(
             log.warning("COT API error (attempt %d/%d): %s", attempt + 1, max_retries, exc)
             if attempt < max_retries - 1:
                 time.sleep(2.0)
-    return ""
+    # Final fallback: guarantee non-empty COT so dataset backfill can proceed.
+    log.warning("Using fallback COT after %d failed attempts.", max_retries)
+    return (
+        "<reasoning>\n"
+        "Identify loop-updated variables and write an inductive relation that links current state to the update rule. "
+        "Add minimal bounds for counters and preserved parameters, and ensure loop assigns lists exactly mutated variables. "
+        "Keep invariants strong enough so invariants with loop exit condition can imply the target property.\n"
+        "</reasoning>"
+    )
 
 
 def _hash_str(s: str) -> str:
@@ -112,7 +134,7 @@ def generate_reverse_cots_batch(
         max_workers: Thread pool size
 
     Returns:
-        Mapping from (prompt_hash, code_hash) -> "<think>...</think>"
+        Mapping from (prompt_hash, code_hash) -> "<reasoning>...</reasoning>"
     """
     # Deduplicate by (prompt_hash, code_hash)
     unique_tasks: Dict[Tuple[str, str], Dict] = {}
