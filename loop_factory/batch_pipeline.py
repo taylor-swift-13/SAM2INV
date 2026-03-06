@@ -907,7 +907,6 @@ def main() -> None:
         default=str(_lf_cfg("allowed_templates", "")),
         help="Comma-separated whitelist of semantic template/core names passed to loop_factory.",
     )
-    parser.add_argument("--enable-cot", action="store_true", default=False, help="Generate both no_cot/ and cot/ versions of training data.")
     args = parser.parse_args()
 
     # LoopSampler uses relative paths assuming CWD is src/
@@ -933,10 +932,7 @@ def main() -> None:
 
     llm_cfg = LLMConfig()
     llm_cfg.api_model = args.model
-    if args.enable_cot:
-        system_prompt = (SRC / "prompts" / "system_prompt_cot.txt").read_text(encoding="utf-8")
-    else:
-        system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
+    system_prompt = (SRC / "prompts" / "system_prompt_cot.txt").read_text(encoding="utf-8")
     api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
     dpo_teacher_jsonl_path = work_root / "llama_factory_train_dpo_teacher.jsonl"
     dpo_aug_jsonl_path = work_root / "llama_factory_train_dpo_aug.jsonl"
@@ -1252,137 +1248,92 @@ def main() -> None:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has no dpo rejects"})
 
     # ── Phase 2: Reverse-COT generation ────────────────────────────────────
-    if args.enable_cot:
-        from reverse_cot import generate_reverse_cots_batch, prepend_cot, lookup_cot
-        import openai as _oai
+    from reverse_cot import generate_reverse_cots_batch, prepend_cot, lookup_cot
+    import openai as _oai
 
-        no_cot_system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
-        cot_model = args.model
-        cot_client = _oai.OpenAI(base_url=llm_cfg.base_url, api_key=llm_cfg.api_key)
+    cot_model = args.model
+    cot_client = _oai.OpenAI(base_url=llm_cfg.base_url, api_key=llm_cfg.api_key)
 
-        no_cot_dir = work_root / "no_cot"
-        cot_dir = work_root / "cot"
-        no_cot_dir.mkdir(parents=True, exist_ok=True)
-        cot_dir.mkdir(parents=True, exist_ok=True)
+    # Read full data from work_root JSONL (includes all historical + this run)
+    def _read_jsonl(path: Path) -> List[Dict]:
+        recs = []
+        if path.exists():
+            for line in path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if line:
+                    recs.append(json.loads(line))
+        return recs
 
-        # Read full data from work_root JSONL (includes all historical + this run)
-        def _read_jsonl(path: Path) -> List[Dict]:
-            recs = []
-            if path.exists():
-                for line in path.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
-                    if line:
-                        recs.append(json.loads(line))
-            return recs
+    # Strip <think>...</think> from text (model may have produced it during inference)
+    _think_strip_re = re.compile(r"<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>", re.IGNORECASE)
+    def _strip_think(text: str) -> str:
+        return _think_strip_re.sub("", text).strip()
 
-        # Strip <think>...</think> from text (model may have produced it during inference)
-        _think_strip_re = re.compile(r"<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>", re.IGNORECASE)
-        def _strip_think(text: str) -> str:
-            return _think_strip_re.sub("", text).strip()
+    sft_records = _read_jsonl(api_jsonl_path)
+    distill_records = _read_jsonl(distill_jsonl_path)
+    dpo_teacher_records = _read_jsonl(dpo_teacher_jsonl_path)
+    dpo_aug_records = _read_jsonl(dpo_aug_jsonl_path)
 
-        sft_records = _read_jsonl(api_jsonl_path)
-        distill_records = _read_jsonl(distill_jsonl_path)
-        dpo_teacher_records = _read_jsonl(dpo_teacher_jsonl_path)
-        dpo_aug_records = _read_jsonl(dpo_aug_jsonl_path)
+    # Collect all unique (user_prompt, code) pairs needing reverse-COT
+    # For SFT/distill output and DPO chosen/rejected that lack <think>, generate one.
+    # Records that already have <think> from inference are kept as-is.
+    all_cot_tasks: List[Dict] = []
+    for rec in sft_records + distill_records:
+        code = _strip_think(rec["output"])
+        all_cot_tasks.append({"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": code})
+    for rec in dpo_teacher_records + dpo_aug_records:
+        all_cot_tasks.append({"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": _strip_think(rec["chosen"])})
+        all_cot_tasks.append({"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": _strip_think(rec["rejected"])})
 
-        # Delete originals from work_root/ (no_cot/ and cot/ are the two outputs)
-        for src_path in [api_jsonl_path, distill_jsonl_path, dpo_teacher_jsonl_path, dpo_aug_jsonl_path]:
-            if src_path.exists():
-                src_path.unlink()
+    print(f"COT Phase: generating reverse-COTs for {len(all_cot_tasks)} code pieces (dedup inside)...")
+    cot_map = generate_reverse_cots_batch(all_cot_tasks, cot_client, cot_model)
+    cot_ok = sum(1 for v in cot_map.values() if v)
+    print(f"COT Phase: {cot_ok}/{len(cot_map)} unique COTs generated successfully.")
 
-        # ── Write no_cot/ versions (strip think, use original system prompt) ──
-        with (no_cot_dir / "llama_factory_train_iio_api_aligned.jsonl").open("w", encoding="utf-8") as f:
-            for rec in sft_records:
-                f.write(json.dumps({
-                    "instruction": no_cot_system_prompt,
-                    "input": rec["input"],
-                    "output": _strip_think(rec["output"]),
-                }, ensure_ascii=False) + "\n")
+    # Overwrite JSONL in-place: ensure every output/chosen/rejected has <think>
+    # If record already has <think> from inference, keep it; otherwise prepend reverse-COT.
+    def _ensure_cot(text: str, user_prompt: str) -> str:
+        if re.search(r"<\s*think\s*>", text, re.IGNORECASE):
+            return text  # already has COT from inference
+        code = text.strip()
+        cot = lookup_cot(cot_map, user_prompt, code)
+        return prepend_cot(code, cot)
 
-        with (no_cot_dir / "llama_factory_train_distill_sft.jsonl").open("w", encoding="utf-8") as f:
-            for rec in distill_records:
-                f.write(json.dumps({
-                    "instruction": no_cot_system_prompt,
-                    "input": rec["input"],
-                    "output": _strip_think(rec["output"]),
-                }, ensure_ascii=False) + "\n")
+    with api_jsonl_path.open("w", encoding="utf-8") as f:
+        for rec in sft_records:
+            f.write(json.dumps({
+                "instruction": system_prompt,
+                "input": rec["input"],
+                "output": _ensure_cot(rec["output"], rec["input"]),
+            }, ensure_ascii=False) + "\n")
 
-        with (no_cot_dir / "llama_factory_train_dpo_teacher.jsonl").open("w", encoding="utf-8") as f:
-            for rec in dpo_teacher_records:
-                f.write(json.dumps({
-                    "instruction": no_cot_system_prompt,
-                    "input": rec["input"],
-                    "chosen": _strip_think(rec["chosen"]),
-                    "rejected": _strip_think(rec["rejected"]),
-                }, ensure_ascii=False) + "\n")
+    with distill_jsonl_path.open("w", encoding="utf-8") as f:
+        for rec in distill_records:
+            f.write(json.dumps({
+                "instruction": system_prompt,
+                "input": rec["input"],
+                "output": _ensure_cot(rec["output"], rec["input"]),
+            }, ensure_ascii=False) + "\n")
 
-        with (no_cot_dir / "llama_factory_train_dpo_aug.jsonl").open("w", encoding="utf-8") as f:
-            for rec in dpo_aug_records:
-                f.write(json.dumps({
-                    "instruction": no_cot_system_prompt,
-                    "input": rec["input"],
-                    "chosen": _strip_think(rec["chosen"]),
-                    "rejected": _strip_think(rec["rejected"]),
-                }, ensure_ascii=False) + "\n")
+    with dpo_teacher_jsonl_path.open("w", encoding="utf-8") as f:
+        for rec in dpo_teacher_records:
+            f.write(json.dumps({
+                "instruction": system_prompt,
+                "input": rec["input"],
+                "chosen": _ensure_cot(rec["chosen"], rec["input"]),
+                "rejected": _ensure_cot(rec["rejected"], rec["input"]),
+            }, ensure_ascii=False) + "\n")
 
-        # ── Write cot/ versions (keep COT system prompt, prepend reverse-COT) ──
-        # Collect all unique (user_prompt, code) pairs needing reverse-COT
-        all_cot_tasks: List[Dict] = []
-        for rec in sft_records + distill_records:
-            all_cot_tasks.append({"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": _strip_think(rec["output"])})
-        for rec in dpo_teacher_records + dpo_aug_records:
-            all_cot_tasks.append({"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": _strip_think(rec["chosen"])})
-            all_cot_tasks.append({"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": _strip_think(rec["rejected"])})
+    with dpo_aug_jsonl_path.open("w", encoding="utf-8") as f:
+        for rec in dpo_aug_records:
+            f.write(json.dumps({
+                "instruction": system_prompt,
+                "input": rec["input"],
+                "chosen": _ensure_cot(rec["chosen"], rec["input"]),
+                "rejected": _ensure_cot(rec["rejected"], rec["input"]),
+            }, ensure_ascii=False) + "\n")
 
-        print(f"COT Phase: generating reverse-COTs for {len(all_cot_tasks)} code pieces (dedup inside)...")
-        cot_map = generate_reverse_cots_batch(all_cot_tasks, cot_client, cot_model)
-        cot_ok = sum(1 for v in cot_map.values() if v)
-        print(f"COT Phase: {cot_ok}/{len(cot_map)} unique COTs generated successfully.")
-
-        with (cot_dir / "llama_factory_train_iio_api_aligned.jsonl").open("w", encoding="utf-8") as f:
-            for rec in sft_records:
-                code = _strip_think(rec["output"])
-                cot = lookup_cot(cot_map, rec["input"], code)
-                f.write(json.dumps({
-                    "instruction": system_prompt,
-                    "input": rec["input"],
-                    "output": prepend_cot(code, cot),
-                }, ensure_ascii=False) + "\n")
-
-        with (cot_dir / "llama_factory_train_distill_sft.jsonl").open("w", encoding="utf-8") as f:
-            for rec in distill_records:
-                code = _strip_think(rec["output"])
-                cot = lookup_cot(cot_map, rec["input"], code)
-                f.write(json.dumps({
-                    "instruction": system_prompt,
-                    "input": rec["input"],
-                    "output": prepend_cot(code, cot),
-                }, ensure_ascii=False) + "\n")
-
-        with (cot_dir / "llama_factory_train_dpo_teacher.jsonl").open("w", encoding="utf-8") as f:
-            for rec in dpo_teacher_records:
-                chosen = _strip_think(rec["chosen"])
-                rejected = _strip_think(rec["rejected"])
-                f.write(json.dumps({
-                    "instruction": system_prompt,
-                    "input": rec["input"],
-                    "chosen": prepend_cot(chosen, lookup_cot(cot_map, rec["input"], chosen)),
-                    "rejected": prepend_cot(rejected, lookup_cot(cot_map, rec["input"], rejected)),
-                }, ensure_ascii=False) + "\n")
-
-        with (cot_dir / "llama_factory_train_dpo_aug.jsonl").open("w", encoding="utf-8") as f:
-            for rec in dpo_aug_records:
-                chosen = _strip_think(rec["chosen"])
-                rejected = _strip_think(rec["rejected"])
-                f.write(json.dumps({
-                    "instruction": system_prompt,
-                    "input": rec["input"],
-                    "chosen": prepend_cot(chosen, lookup_cot(cot_map, rec["input"], chosen)),
-                    "rejected": prepend_cot(rejected, lookup_cot(cot_map, rec["input"], rejected)),
-                }, ensure_ascii=False) + "\n")
-
-        print(f"COT output: {cot_dir}")
-        print(f"No-COT output: {no_cot_dir}")
+    print(f"COT output written to {work_root}")
 
     cleanup_transient_artifacts(run_tag)
     if tmp_loops.exists():
