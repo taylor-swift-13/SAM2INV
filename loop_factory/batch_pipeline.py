@@ -934,20 +934,10 @@ def main() -> None:
     llm_cfg = LLMConfig()
     llm_cfg.api_model = args.model
     system_prompt = (SRC / "prompts" / "system_prompt.txt").read_text(encoding="utf-8")
-    if args.enable_cot:
-        no_cot_dir = work_root / "no_cot"
-        cot_dir = work_root / "cot"
-        no_cot_dir.mkdir(parents=True, exist_ok=True)
-        cot_dir.mkdir(parents=True, exist_ok=True)
-        api_jsonl_path = no_cot_dir / "llama_factory_train_iio_api_aligned.jsonl"
-        dpo_teacher_jsonl_path = no_cot_dir / "llama_factory_train_dpo_teacher.jsonl"
-        dpo_aug_jsonl_path = no_cot_dir / "llama_factory_train_dpo_aug.jsonl"
-        distill_jsonl_path = no_cot_dir / "llama_factory_train_distill_sft.jsonl"
-    else:
-        api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
-        dpo_teacher_jsonl_path = work_root / "llama_factory_train_dpo_teacher.jsonl"
-        dpo_aug_jsonl_path = work_root / "llama_factory_train_dpo_aug.jsonl"
-        distill_jsonl_path = work_root / "llama_factory_train_distill_sft.jsonl"
+    api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
+    dpo_teacher_jsonl_path = work_root / "llama_factory_train_dpo_teacher.jsonl"
+    dpo_aug_jsonl_path = work_root / "llama_factory_train_dpo_aug.jsonl"
+    distill_jsonl_path = work_root / "llama_factory_train_distill_sft.jsonl"
     template_map_jsonl_path = work_root / "file_template_map.jsonl"
     lf_overrides: Dict[str, object] = {
         "max_vars": args.max_vars,
@@ -1048,11 +1038,6 @@ def main() -> None:
     stop_event = threading.Event()
     file_mode = "a" if args.append else "w"
     distill_count = 0
-    # COT record accumulators (only used when --enable-cot)
-    cot_sft_records: List[Dict] = []
-    cot_dpo_teacher_records: List[Dict] = []
-    cot_dpo_aug_records: List[Dict] = []
-    cot_distill_records: List[Dict] = []
     with api_jsonl_path.open(file_mode, encoding="utf-8") as api_jsonl_file, \
          dpo_teacher_jsonl_path.open(file_mode, encoding="utf-8") as dpo_teacher_jsonl_file, \
          dpo_aug_jsonl_path.open(file_mode, encoding="utf-8") as dpo_aug_jsonl_file, \
@@ -1162,14 +1147,11 @@ def main() -> None:
                     ]
                     for pr_prompt, pr_resp in kept_distill_pairs:
                         if pr_prompt and pr_resp:
-                            _distill_item = {
+                            distill_jsonl_file.write(json.dumps({
                                 "instruction": result["system_prompt"],
                                 "input": pr_prompt,
                                 "output": pr_resp,
-                            }
-                            distill_jsonl_file.write(json.dumps(_distill_item, ensure_ascii=False) + "\n")
-                            if args.enable_cot:
-                                cot_distill_records.append(_distill_item)
+                            }, ensure_ascii=False) + "\n")
                     if kept_distill_pairs:
                         distill_jsonl_file.flush()
                     distill_count += len(kept_distill_pairs)
@@ -1185,8 +1167,6 @@ def main() -> None:
                     }
                     api_jsonl_file.write(json.dumps(api_item, ensure_ascii=False) + "\n")
                     api_jsonl_file.flush()
-                    if args.enable_cot:
-                        cot_sft_records.append(api_item)
 
                     # DPO: one accepted program -> one row per rejected candidate.
                     # chosen aligns with SFT output; rejected comes from inv_generator's
@@ -1220,8 +1200,6 @@ def main() -> None:
                             }
                             dpo_teacher_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
                             dpo_teacher_written += 1
-                            if args.enable_cot:
-                                cot_dpo_teacher_records.append(dpo_item)
                             # Houdini augmentation: "all valid + 1 bad" variants of this rejected
                             if use_houdini_aug and _aug_verifier and _aug_pruner and _aug_tmp_c:
                                 for aug_code in _aug_houdini_rejects(
@@ -1231,48 +1209,39 @@ def main() -> None:
                                     aug_code = aug_code.strip()
                                     if aug_code and aug_code != chosen_code and aug_code not in seen_rejected:
                                         seen_rejected.add(aug_code)
-                                        _aug_dpo_item = {
+                                        dpo_aug_jsonl_file.write(json.dumps({
                                             "instruction": result["system_prompt"],
                                             "input": prompt_text,
                                             "chosen": chosen_code,
                                             "rejected": aug_code,
-                                        }
-                                        dpo_aug_jsonl_file.write(json.dumps(_aug_dpo_item, ensure_ascii=False) + "\n")
+                                        }, ensure_ascii=False) + "\n")
                                         dpo_aug_written += 1
-                                        if args.enable_cot:
-                                            cot_dpo_aug_records.append(_aug_dpo_item)
                             # Augmentation C: random subset from error candidate.
                             aug_c = _aug_error_subset_reject(rej_code, aug_rng)
                             if aug_c:
                                 aug_c = aug_c.strip()
                                 if aug_c and aug_c != chosen_code and aug_c not in seen_rejected:
                                     seen_rejected.add(aug_c)
-                                    _aug_c_item = {
+                                    dpo_aug_jsonl_file.write(json.dumps({
                                         "instruction": result["system_prompt"],
                                         "input": prompt_text,
                                         "chosen": chosen_code,
                                         "rejected": aug_c,
-                                    }
-                                    dpo_aug_jsonl_file.write(json.dumps(_aug_c_item, ensure_ascii=False) + "\n")
+                                    }, ensure_ascii=False) + "\n")
                                     dpo_aug_written += 1
-                                    if args.enable_cot:
-                                        cot_dpo_aug_records.append(_aug_c_item)
                     # Augmentation B: weak proper subset from chosen only.
                     aug_b = _aug_weak_chosen_subset_reject(chosen_code, aug_rng)
                     if aug_b:
                         aug_b = aug_b.strip()
                         if aug_b and aug_b != chosen_code and aug_b not in seen_rejected:
                             seen_rejected.add(aug_b)
-                            _aug_b_item = {
+                            dpo_aug_jsonl_file.write(json.dumps({
                                 "instruction": result["system_prompt"],
                                 "input": prompt_text,
                                 "chosen": chosen_code,
                                 "rejected": aug_b,
-                            }
-                            dpo_aug_jsonl_file.write(json.dumps(_aug_b_item, ensure_ascii=False) + "\n")
+                            }, ensure_ascii=False) + "\n")
                             dpo_aug_written += 1
-                            if args.enable_cot:
-                                cot_dpo_aug_records.append(_aug_b_item)
                     if dpo_teacher_written or dpo_aug_written:
                         dpo_teacher_jsonl_file.flush()
                         dpo_aug_jsonl_file.flush()
@@ -1288,13 +1257,36 @@ def main() -> None:
         cot_model = args.model
         cot_client = _oai.OpenAI(base_url=llm_cfg.base_url, api_key=llm_cfg.api_key)
 
+        no_cot_dir = work_root / "no_cot"
+        cot_dir = work_root / "cot"
+        no_cot_dir.mkdir(parents=True, exist_ok=True)
+        cot_dir.mkdir(parents=True, exist_ok=True)
+
+        # Read full data from work_root JSONL (includes all historical + this run)
+        def _read_jsonl(path: Path) -> List[Dict]:
+            recs = []
+            if path.exists():
+                for line in path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line:
+                        recs.append(json.loads(line))
+            return recs
+
+        sft_records = _read_jsonl(api_jsonl_path)
+        distill_records = _read_jsonl(distill_jsonl_path)
+        dpo_teacher_records = _read_jsonl(dpo_teacher_jsonl_path)
+        dpo_aug_records = _read_jsonl(dpo_aug_jsonl_path)
+
+        # Copy originals to no_cot/
+        for src_path in [api_jsonl_path, distill_jsonl_path, dpo_teacher_jsonl_path, dpo_aug_jsonl_path]:
+            if src_path.exists():
+                shutil.copy2(src_path, no_cot_dir / src_path.name)
+
         # Collect all unique (user_prompt, code) pairs needing COT
         all_cot_tasks: List[Dict] = []
-        for rec in cot_sft_records:
+        for rec in sft_records + distill_records:
             all_cot_tasks.append({"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["output"]})
-        for rec in cot_distill_records:
-            all_cot_tasks.append({"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["output"]})
-        for rec in cot_dpo_teacher_records + cot_dpo_aug_records:
+        for rec in dpo_teacher_records + dpo_aug_records:
             all_cot_tasks.append({"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["chosen"]})
             all_cot_tasks.append({"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["rejected"]})
 
@@ -1303,14 +1295,9 @@ def main() -> None:
         cot_ok = sum(1 for v in cot_map.values() if v)
         print(f"COT Phase: {cot_ok}/{len(cot_map)} unique COTs generated successfully.")
 
-        # Write cot/ versions
-        cot_api_path = cot_dir / "llama_factory_train_iio_api_aligned.jsonl"
-        cot_dpo_teacher_path = cot_dir / "llama_factory_train_dpo_teacher.jsonl"
-        cot_dpo_aug_path = cot_dir / "llama_factory_train_dpo_aug.jsonl"
-        cot_distill_path = cot_dir / "llama_factory_train_distill_sft.jsonl"
-
-        with cot_api_path.open("w", encoding="utf-8") as f:
-            for rec in cot_sft_records:
+        # Write cot/ versions (SFT)
+        with (cot_dir / "llama_factory_train_iio_api_aligned.jsonl").open("w", encoding="utf-8") as f:
+            for rec in sft_records:
                 cot = lookup_cot(cot_map, rec["input"], rec["output"])
                 f.write(json.dumps({
                     "instruction": cot_system_prompt,
@@ -1318,8 +1305,9 @@ def main() -> None:
                     "output": prepend_cot(rec["output"], cot),
                 }, ensure_ascii=False) + "\n")
 
-        with cot_distill_path.open("w", encoding="utf-8") as f:
-            for rec in cot_distill_records:
+        # Write cot/ versions (distill)
+        with (cot_dir / "llama_factory_train_distill_sft.jsonl").open("w", encoding="utf-8") as f:
+            for rec in distill_records:
                 cot = lookup_cot(cot_map, rec["input"], rec["output"])
                 f.write(json.dumps({
                     "instruction": cot_system_prompt,
@@ -1327,8 +1315,9 @@ def main() -> None:
                     "output": prepend_cot(rec["output"], cot),
                 }, ensure_ascii=False) + "\n")
 
-        with cot_dpo_teacher_path.open("w", encoding="utf-8") as f:
-            for rec in cot_dpo_teacher_records:
+        # Write cot/ versions (DPO teacher)
+        with (cot_dir / "llama_factory_train_dpo_teacher.jsonl").open("w", encoding="utf-8") as f:
+            for rec in dpo_teacher_records:
                 chosen_cot = lookup_cot(cot_map, rec["input"], rec["chosen"])
                 rejected_cot = lookup_cot(cot_map, rec["input"], rec["rejected"])
                 f.write(json.dumps({
@@ -1338,8 +1327,9 @@ def main() -> None:
                     "rejected": prepend_cot(rec["rejected"], rejected_cot),
                 }, ensure_ascii=False) + "\n")
 
-        with cot_dpo_aug_path.open("w", encoding="utf-8") as f:
-            for rec in cot_dpo_aug_records:
+        # Write cot/ versions (DPO aug)
+        with (cot_dir / "llama_factory_train_dpo_aug.jsonl").open("w", encoding="utf-8") as f:
+            for rec in dpo_aug_records:
                 chosen_cot = lookup_cot(cot_map, rec["input"], rec["chosen"])
                 rejected_cot = lookup_cot(cot_map, rec["input"], rec["rejected"])
                 f.write(json.dumps({
