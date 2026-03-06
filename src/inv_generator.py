@@ -2177,10 +2177,7 @@ class InvariantGenerator:
         thread_config.api_temperature = self.llm_config.api_temperature
         thread_config.api_top_p = self.llm_config.api_top_p
         if self.llm_config.use_local:
-            thread_config.use_vllm = self.llm_config.use_vllm
-            thread_config.vllm_model_path = self.llm_config.vllm_model_path
-            thread_config.vllm_gpu_count = self.llm_config.vllm_gpu_count
-            thread_config.vllm_gpu_mem = self.llm_config.vllm_gpu_mem
+            thread_config.local_model_path = self.llm_config.local_model_path
         else:
             thread_config.api_model = model_name
             thread_config.api_key = self.llm_config.api_key

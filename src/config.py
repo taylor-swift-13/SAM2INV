@@ -1,32 +1,24 @@
 import os
 from dataclasses import dataclass
 
-# 防止 vllm 导入时调用 dictConfig 导致已有 FileHandler 的 stream 变成 None
-os.environ["VLLM_CONFIGURE_LOGGING"] = "0"
-
 
 @dataclass
 class LLMConfig:
     # ── 模式开关 ──────────────────────────────────────────────────────────────
-    # True  → 本地推理（vLLM 或 Transformers，由 use_vllm 进一步决定）
+    # True  → 本地推理（Transformers）
     # False → 云端服务商（yunwu.ai / OpenAI 等）
     # 本地写死配置，不读取环境变量
     use_local: bool = False
 
     # ── 云端服务商配置 ────────────────────────────────────────────────────────
     api_model: str = "gpt-5-nano"
-    api_key: str = "sk-afVplv2————————————zxrD1B7zWzgNWGA"
+    api_key: str = os.environ.get("OPENAI_API_KEY", "")
     base_url: str = "https://yunwu.ai/v1"
 
     # ── 本地推理配置 ──────────────────────────────────────────────────────────
-    # use_local=True 时生效；通过 use_vllm 选择后端：
-    #   True  → vLLM（高吞吐，推荐多卡）
-    #   False → Transformers（单卡或 CPU，无需 vllm 安装）
+    # use_local=True 时生效（Transformers 后端）
     # 本地写死配置，不读取环境变量
-    use_vllm: bool = True
-    vllm_model_path: str = ""
-    vllm_gpu_count: int = 1
-    vllm_gpu_mem: float = 0.90
+    local_model_path: str = ""
 
     # ── 通用生成参数 ──────────────────────────────────────────────────────────
     api_temperature: float = 1.0
@@ -163,7 +155,7 @@ LOOP_FACTORY_USER_CONFIG = {
 
     # loop_factory complexity knobs (shared names with loop_factory.py)
     'max_vars': 2,
-    'min_vars': 1,      
+    'min_vars': 1,
     'max_params': 2,       
     'min_params': 0,       
     'min_loops': 1,
@@ -203,23 +195,3 @@ HOUDINI_CONFIG = {
     # 正常情况下不会触发；仅作保险
     'patience': 2,
 }
-
-
-# ==============================================================================
-# vLLM Engine Bootstrap (for src/scripts/vllm_warmup.py)
-# ==============================================================================
-# 配置在进程内直接加载的 vLLM 引擎参数，无需启动 HTTP 服务。
-VLLM_ENGINE_CONFIG = {
-    # 必填：本地模型路径（HuggingFace 格式）。
-    'model_path': '',
-    # 推理使用的 GPU 数量（tensor parallel）。
-    'gpu_count': 1,
-    # GPU 显存利用率（0~1）。
-    'gpu_mem': 0.90,
-}
-
-
-
-
-
-   

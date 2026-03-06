@@ -23,7 +23,7 @@ TIMEOUT_SECONDS = 1200
 
 
 def run_single_test(file_name: str, input_subdir: str, output_dir: str,
-                    log_dir: str, max_iterations: int) -> dict:
+                    log_dir: str, max_iterations: int, mask_mode: bool = False) -> dict:
     """运行单个测试用例（在子进程中调用 loop_inv.py）"""
     start_time = time.time()
     result = {
@@ -41,6 +41,8 @@ def run_single_test(file_name: str, input_subdir: str, output_dir: str,
         '--log-dir', log_dir,
         '--max-iterations', str(max_iterations),
     ]
+    if mask_mode:
+        cmd.append('--mask-mode')
 
     try:
         proc = subprocess.Popen(
@@ -86,6 +88,7 @@ def main():
     parser.add_argument('--output-dir', type=str, default=None, help="输出目录 (default: output/<test_set>)")
     parser.add_argument('--log-dir', type=str, default=None, help="日志目录 (default: log/<test_set>_<timestamp>)")
     parser.add_argument('--files', type=str, nargs='+', default=None, help="指定要运行的文件名列表 (不含.c扩展名)")
+    parser.add_argument('--mask-mode', action='store_true', help="mask 模式：移除 assertion 生成不变量，再恢复 assertion 验证")
 
     args = parser.parse_args()
 
@@ -134,6 +137,7 @@ def main():
     print(f"Test files:       {len(test_files)}")
     print(f"Workers:          {args.workers}")
     print(f"Max iterations:   {args.max_iterations}")
+    print(f"Mask mode:        {'ON' if args.mask_mode else 'OFF'}")
     print(f"Timeout:          {TIMEOUT_SECONDS}s")
     print(f"Output dir:       {output_dir}")
     print(f"Log dir:          {log_dir}")
@@ -148,7 +152,7 @@ def main():
     with ProcessPoolExecutor(max_workers=args.workers) as executor:
         futures = {
             executor.submit(
-                run_single_test, f, args.test_set, output_dir, log_dir, args.max_iterations
+                run_single_test, f, args.test_set, output_dir, log_dir, args.max_iterations, args.mask_mode
             ): f
             for f in test_files
         }

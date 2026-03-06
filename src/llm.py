@@ -1,7 +1,6 @@
 import openai
 import re
 import threading
-import sys
 from config import LLMConfig
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Tuple
@@ -97,7 +96,7 @@ class BaseChatModel(ABC):
             return ""
         if not self.config.think_mode_enabled:
             # 如果 think_mode_enabled 为 False，则移除 <think>...</think> 部分
-            return re.sub(r'<think>.*?</think>', '', response_text, flags=re.DOTALL)
+            return re.sub(r'<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>', '', response_text, flags=re.IGNORECASE)
         return response_text
 
 
@@ -158,7 +157,6 @@ class OpenAILLM(BaseChatModel):
                     temperature=self.temperature,
                     top_p=self.top_p,
                     max_tokens=max_tokens,
-                    # extra_body={"enable_thinking": False},
                 )
 
             # 调用 OpenAI API（并在“空内容+length”时自动重试一次）
@@ -210,126 +208,7 @@ class OpenAILLM(BaseChatModel):
             return f"生成响应失败: {e}"
 
 # ==============================================================================
-# vLLM 本地推理（in-process，无 HTTP 服务层）
-# ==============================================================================
-
-# 进程级单例：避免重复加载大模型
-_vllm_instance: Optional["VLLMClient"] = None
-_vllm_lock = threading.Lock()
-
-
-class VLLMClient:
-    """
-    封装 vLLM 推理引擎。进程内单例，模型只加载一次。
-    gpu_count  : tensor parallel GPU 数
-    gpu_mem    : 每张 GPU 显存利用率 (0~1)
-    """
-
-    def __init__(self, model_path: str, gpu_count: int = 1, gpu_mem: float = 0.90):
-        if sys.version_info < (3, 10):
-            raise RuntimeError(
-                "vLLM 需要 Python 3.10+，当前版本为 "
-                f"{sys.version_info.major}.{sys.version_info.minor}。"
-                " 解决方案：升级 Python 到 3.10+，或设置 USE_VLLM=0 切换到 Transformers 后端，"
-                "或设置 USE_LOCAL=0 使用云端 API。"
-            )
-
-        from vllm import LLM, SamplingParams  # 延迟导入，仅 use_local=True 时才需要 vllm
-
-        print(f"[VLLMClient] 正在初始化 vLLM 引擎 [model={model_path}, GPUs={gpu_count}] ...")
-        self._SamplingParams = SamplingParams
-        self.llm = LLM(
-            model=model_path,
-            tensor_parallel_size=gpu_count,
-            gpu_memory_utilization=gpu_mem,
-            trust_remote_code=True,
-            max_model_len=8192,
-            enable_prefix_caching=True,
-        )
-        self.default_sampling_params = SamplingParams(
-            temperature=1.0,
-            top_p=1.0,
-            max_tokens=8192,
-        )
-        print("[VLLMClient] 模型加载完毕。")
-
-    def chat_messages(
-        self,
-        messages: List[Dict],
-        sampling_params=None,
-    ) -> Tuple[str, int, int]:
-        """
-        以 OpenAI messages 格式调用 vLLM（自动应用 chat template）。
-        返回 (生成文本, prompt_tokens, completion_tokens)。
-        """
-        params = sampling_params if sampling_params else self.default_sampling_params
-        outputs = self.llm.chat(messages, params)
-        out = outputs[0]
-        text = out.outputs[0].text.strip()
-        prompt_tokens = len(out.prompt_token_ids)
-        completion_tokens = len(out.outputs[0].token_ids)
-        return text, prompt_tokens, completion_tokens
-
-    def chat(self, prompt: str, sampling_params=None) -> str:
-        """
-        单轮推理：接受完整的字符串 prompt，返回生成文本。
-        """
-        params = sampling_params if sampling_params else self.default_sampling_params
-        outputs = self.llm.generate([prompt], params)
-        return outputs[0].outputs[0].text.strip()
-
-
-def _get_vllm_client(config: LLMConfig) -> VLLMClient:
-    """返回进程级 VLLMClient 单例（首次调用时初始化）。"""
-    global _vllm_instance
-    with _vllm_lock:
-        if _vllm_instance is None:
-            _vllm_instance = VLLMClient(
-                model_path=config.vllm_model_path,
-                gpu_count=config.vllm_gpu_count,
-                gpu_mem=config.vllm_gpu_mem,
-            )
-    return _vllm_instance
-
-
-class VLLMLLMImpl(BaseChatModel):
-    """使用进程内 vLLM 引擎的 LLM 实现，接口与 OpenAILLM 完全一致。"""
-
-    def __init__(self, config: LLMConfig):
-        super().__init__(config)
-        self._client = _get_vllm_client(config)
-        from vllm import SamplingParams
-        self._sampling_params = SamplingParams(
-            temperature=max(0.0, float(config.api_temperature)),
-            top_p=max(0.0, min(1.0, float(config.api_top_p))),
-            max_tokens=max(1, int(config.api_max_tokens)),
-        )
-
-    def generate_response(self, user_input: str) -> str:
-        self.messages.append({"role": "user", "content": user_input})
-        try:
-            text, prompt_tokens, completion_tokens = self._client.chat_messages(
-                self.messages,
-                sampling_params=self._sampling_params,
-            )
-            _token_tracker.record(
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_tokens=prompt_tokens + completion_tokens,
-            )
-            processed = self._process_response_think_tags(text)
-            # 原始响应存入历史以保持完整上下文
-            self.messages.append({"role": "assistant", "content": text})
-            return processed
-        except Exception as e:
-            print(f"vLLM 推理失败: {e}")
-            if self.messages and self.messages[-1]["role"] == "user":
-                self.messages.pop()
-            return f"生成响应失败: {e}"
-
-
-# ==============================================================================
-# Transformers 本地推理（单卡 / CPU，无需安装 vllm）
+# Transformers 本地推理（单卡 / CPU）
 # ==============================================================================
 
 _hf_instance: Optional["TransformersClient"] = None
@@ -339,7 +218,7 @@ _hf_lock = threading.Lock()
 class TransformersClient:
     """
     封装 HuggingFace Transformers 推理。进程内单例，模型只加载一次。
-    适合单卡或 CPU 场景，不依赖 vllm。
+    适合单卡或 CPU 场景。
     """
 
     def __init__(self, model_path: str):
@@ -366,6 +245,7 @@ class TransformersClient:
         temperature: float = 1.0,
         top_p: float = 1.0,
         max_new_tokens: int = 8192,
+        enable_thinking: bool = True,
     ) -> Tuple[str, int, int]:
         """
         以 OpenAI messages 格式调用，返回 (生成文本, prompt_tokens, completion_tokens)。
@@ -373,9 +253,18 @@ class TransformersClient:
         import torch
 
         try:
-            prompt_text = self.tokenizer.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
-            )
+            # Some chat templates (e.g. Qwen family) support enable_thinking at prompt-build stage.
+            try:
+                prompt_text = self.tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                    enable_thinking=bool(enable_thinking),
+                )
+            except TypeError:
+                prompt_text = self.tokenizer.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
         except Exception:
             prompt_text = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
 
@@ -410,7 +299,7 @@ def _get_hf_client(config: LLMConfig) -> TransformersClient:
     global _hf_instance
     with _hf_lock:
         if _hf_instance is None:
-            _hf_instance = TransformersClient(model_path=config.vllm_model_path)
+            _hf_instance = TransformersClient(model_path=config.local_model_path)
     return _hf_instance
 
 
@@ -432,6 +321,7 @@ class TransformersLLMImpl(BaseChatModel):
                 temperature=self._temperature,
                 top_p=self._top_p,
                 max_new_tokens=self._max_tokens,
+                enable_thinking=self.config.think_mode_enabled,
             )
             _token_tracker.record(
                 prompt_tokens=prompt_tokens,
@@ -450,18 +340,14 @@ class TransformersLLMImpl(BaseChatModel):
 
 # ==============================================================================
 # 主控制类：根据配置自动选择后端
-#   use_local=False              → OpenAILLM   (云端 API)
-#   use_local=True, use_vllm=True  → VLLMLLMImpl  (vLLM 高吞吐)
-#   use_local=True, use_vllm=False → TransformersLLMImpl (HF Transformers)
+#   use_local=False → OpenAILLM   (云端 API)
+#   use_local=True  → TransformersLLMImpl (本地 Transformers)
 # ==============================================================================
 class Chatbot:
     def __init__(self, config: LLMConfig):
         self.config = config
         if getattr(config, "use_local", False):
-            if getattr(config, "use_vllm", True):
-                self.llm_instance = VLLMLLMImpl(config)
-            else:
-                self.llm_instance = TransformersLLMImpl(config)
+            self.llm_instance = TransformersLLMImpl(config)
         else:
             self.llm_instance = OpenAILLM(config)
 
