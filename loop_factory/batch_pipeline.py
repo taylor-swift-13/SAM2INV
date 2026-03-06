@@ -1277,10 +1277,10 @@ def main() -> None:
         dpo_teacher_records = _read_jsonl(dpo_teacher_jsonl_path)
         dpo_aug_records = _read_jsonl(dpo_aug_jsonl_path)
 
-        # Copy originals to no_cot/
+        # Move originals to no_cot/ (work_root/ only keeps raw/annotated/logs)
         for src_path in [api_jsonl_path, distill_jsonl_path, dpo_teacher_jsonl_path, dpo_aug_jsonl_path]:
             if src_path.exists():
-                shutil.copy2(src_path, no_cot_dir / src_path.name)
+                shutil.move(str(src_path), str(no_cot_dir / src_path.name))
 
         # Collect all unique (user_prompt, code) pairs needing COT
         all_cot_tasks: List[Dict] = []
