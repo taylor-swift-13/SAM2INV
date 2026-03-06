@@ -150,6 +150,11 @@ def verify_once(code_text: str, tmp_dir: Path) -> Dict[str, Any]:
 
 
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate DPO spec data")
+    parser.add_argument("--enable-cot", action="store_true", default=False, help="Generate both no_cot/ and cot/ versions.")
+    args = parser.parse_args()
+
     records: List[Dict[str, Any]] = []
     with INPUT_FILE.open(encoding="utf-8") as fh:
         for line in fh:
@@ -245,6 +250,57 @@ def main() -> None:
         "Done. processed=%d, spec_written=%d, passed_skipped=%d, output=%s",
         stats["processed"], stats["failed_written"], stats["passed_skipped"], OUTPUT_FILE,
     )
+
+    # ── Phase 2: Reverse-COT ──────────────────────────────────────────────
+    if args.enable_cot:
+        from reverse_cot import generate_reverse_cots_batch, prepend_cot, lookup_cot
+        import openai as _oai
+
+        cot_system_prompt = (SRC / "prompts" / "system_prompt_cot.txt").read_text(encoding="utf-8")
+        cot_model = _cfg.api_model
+        cot_client = _oai.OpenAI(base_url=_cfg.base_url, api_key=_cfg.api_key)
+
+        # Read all output records
+        all_output_records: List[Dict[str, Any]] = []
+        with OUTPUT_FILE.open(encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    all_output_records.append(json.loads(line))
+
+        # Move original output to no_cot/
+        no_cot_dir = OUTPUT_FILE.parent / "no_cot"
+        cot_dir_path = OUTPUT_FILE.parent / "cot"
+        no_cot_dir.mkdir(parents=True, exist_ok=True)
+        cot_dir_path.mkdir(parents=True, exist_ok=True)
+
+        import shutil
+        no_cot_path = no_cot_dir / OUTPUT_FILE.name
+        shutil.copy2(OUTPUT_FILE, no_cot_path)
+        log.info("Copied no-COT output to %s", no_cot_path)
+
+        # Collect COT tasks for both chosen and rejected
+        all_cot_tasks: List[Dict] = []
+        for rec in all_output_records:
+            all_cot_tasks.append({"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["chosen"]})
+            all_cot_tasks.append({"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["rejected"]})
+
+        log.info("COT Phase: generating reverse-COTs for %d records...", len(all_cot_tasks))
+        cot_map = generate_reverse_cots_batch(all_cot_tasks, cot_client, cot_model)
+        cot_ok = sum(1 for v in cot_map.values() if v)
+        log.info("COT Phase: %d/%d unique COTs generated.", cot_ok, len(cot_map))
+
+        cot_out_path = cot_dir_path / OUTPUT_FILE.name
+        with cot_out_path.open("w", encoding="utf-8") as f:
+            for rec in all_output_records:
+                chosen_cot = lookup_cot(cot_map, rec["input"], rec["chosen"])
+                rejected_cot = lookup_cot(cot_map, rec["input"], rec["rejected"])
+                out_rec = dict(rec)
+                out_rec["instruction"] = cot_system_prompt
+                out_rec["chosen"] = prepend_cot(rec["chosen"], chosen_cot)
+                out_rec["rejected"] = prepend_cot(rec["rejected"], rejected_cot)
+                f.write(json.dumps(out_rec, ensure_ascii=False) + "\n")
+        log.info("COT output written to %s", cot_out_path)
 
 
 if __name__ == "__main__":
