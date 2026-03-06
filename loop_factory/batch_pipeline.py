@@ -577,7 +577,27 @@ def build_even_core_plan(total_attempts: int, cores: List[str]) -> List[Optional
     return plan
 
 
-def generate_one_loop(out_dir: Path, seed: int, lf_overrides: Dict[str, object], force_core: Optional[str] = None) -> Path:
+def _read_selected_core_from_meta(out_dir: Path) -> str:
+    meta_path = out_dir / "generation_meta.json"
+    if not meta_path.exists():
+        return "none"
+    try:
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        return "none"
+    if not isinstance(data, list) or not data:
+        return "none"
+    first = data[0] if isinstance(data[0], dict) else {}
+    primary = str(first.get("selected_core_primary", "none")).strip()
+    return primary or "none"
+
+
+def generate_one_loop(
+    out_dir: Path,
+    seed: int,
+    lf_overrides: Dict[str, object],
+    force_core: Optional[str] = None,
+) -> Tuple[Path, str]:
     if out_dir.exists():
         shutil.rmtree(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -587,7 +607,8 @@ def generate_one_loop(out_dir: Path, seed: int, lf_overrides: Dict[str, object],
     c_files = sorted(out_dir.glob("*.c"), key=lambda p: int(p.stem))
     if not c_files:
         raise RuntimeError("loop_factory did not generate any .c")
-    return c_files[0]
+    selected_core = _read_selected_core_from_meta(out_dir)
+    return c_files[0], selected_core
 
 
 def loop_factory_hyperparams(seed: int, out_dir: Path, overrides: Dict[str, object] | None = None) -> Dict[str, object]:
@@ -654,10 +675,11 @@ def run_one_attempt(
     try:
         if stop_event.is_set():
             return {"ok": False, "reason": "cancelled", "attempt": attempt, "seed": seed}
+        selected_core = "none"
         if forced_raw_code is not None:
             raw_code = forced_raw_code
         else:
-            src_c = generate_one_loop(attempt_tmp_loops, seed, lf_overrides, force_core=force_core)
+            src_c, selected_core = generate_one_loop(attempt_tmp_loops, seed, lf_overrides, force_core=force_core)
             raw_code = src_c.read_text(encoding="utf-8")
             if not has_no_assert(raw_code):
                 return {"ok": False, "reason": "input has assert", "attempt": attempt, "seed": seed}
@@ -742,6 +764,8 @@ def run_one_attempt(
             "system_prompt": system_prompt,
             "loop_factory_hyperparams": hparams,
             "loop_dpo_records": loop_dpo_records,
+            "selected_core": selected_core,
+            "forced_core": force_core or "none",
         }
     finally:
         for d in [src_input_dir, src_output_dir, src_outer_dir]:
@@ -1015,7 +1039,9 @@ def main() -> None:
                         "annotated_file": f"annotated/{idx}.c",
                         "attempt": attempt,
                         "seed": result["seed"],
-                        "template": forced_core or "none",
+                        "template": result.get("selected_core", "none"),
+                        "selected_core": result.get("selected_core", "none"),
+                        "forced_core": forced_core or "none",
                     }, ensure_ascii=False) + "\n")
                     template_map_file.flush()
 

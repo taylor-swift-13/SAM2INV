@@ -8,7 +8,7 @@ import random
 import re
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Set, Tuple
 
@@ -713,6 +713,7 @@ class Program:
     params: List[str]
     local_inits: List[Tuple[str, str]]
     body: List[Stmt]
+    selected_cores: List[str] = field(default_factory=list)
 
     def render(self) -> str:
         sig = ",".join(f"int {p}" for p in self.params)
@@ -861,6 +862,85 @@ class ProbabilisticLoopFactory:
         if m and r < 0.10:
             return f"!({m.group(1)}>={m.group(2)})"
         return guard
+
+    def _guard_vars(self, guard: str) -> List[str]:
+        """Extract guard variable names in stable encounter order."""
+        toks = re.findall(r"\b([a-zA-Z_]\w*)\b", guard)
+        banned = {"if", "else", "while", "for", "break"}
+        out: List[str] = []
+        seen: Set[str] = set()
+        for t in toks:
+            if t in banned or t.isdigit():
+                continue
+            if t not in seen:
+                seen.add(t)
+                out.append(t)
+        return out
+
+    def _build_guard_progress_assign(self, guard: str, guard_vars: Sequence[str]) -> Optional[Assign]:
+        """
+        Build one progress assignment that tends to falsify at least one guard atom.
+        This is a cross-core safety net when templates do not update guard drivers.
+        """
+        for v in guard_vars:
+            ve = re.escape(v)
+            # v < rhs  -> set v = rhs
+            m = re.search(rf"\b{ve}\b\s*<\s*([^&|)]+)", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, rhs)
+            # v <= rhs -> set v = rhs + 1
+            m = re.search(rf"\b{ve}\b\s*<=\s*([^&|)]+)", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, f"({rhs})+1")
+            # v > rhs  -> set v = rhs
+            m = re.search(rf"\b{ve}\b\s*>\s*([^&|)]+)", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, rhs)
+            # v >= rhs -> set v = rhs - 1
+            m = re.search(rf"\b{ve}\b\s*>=\s*([^&|)]+)", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, f"({rhs})-1")
+            # v != rhs -> set v = rhs
+            m = re.search(rf"\b{ve}\b\s*!=\s*([^&|)]+)", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, rhs)
+
+            # rhs < v
+            m = re.search(rf"([^&|(]+)\s*<\s*\b{ve}\b", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, rhs)
+            # rhs <= v
+            m = re.search(rf"([^&|(]+)\s*<=\s*\b{ve}\b", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, f"({rhs})-1")
+            # rhs > v
+            m = re.search(rf"([^&|(]+)\s*>\s*\b{ve}\b", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, rhs)
+            # rhs >= v
+            m = re.search(rf"([^&|(]+)\s*>=\s*\b{ve}\b", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, f"({rhs})+1")
+            # rhs != v
+            m = re.search(rf"([^&|(]+)\s*!=\s*\b{ve}\b", guard)
+            if m:
+                rhs = m.group(1).strip()
+                return Assign(v, rhs)
+
+        if guard_vars:
+            # Last-resort deterministic progress to avoid frozen guards.
+            v = guard_vars[0]
+            return Assign(v, f"{v}+1")
+        return None
 
     def _shuffle_independent(self, body: list) -> list:
         """Shuffle consecutive statements that don't have data dependencies."""
@@ -1507,6 +1587,7 @@ class ProbabilisticLoopFactory:
         # Allow loops to share existing locals when new-local budget is tight.
         reusable = [v for v in dict.fromkeys(universe) if v not in params]
         use_shared_locals = remaining_local_budget < 3 and len(reusable) >= 3
+        state_cap = max(1, remaining_local_budget - 2)
 
         if use_shared_locals:
             ctr = self.rng.choice(reusable)
@@ -1526,8 +1607,25 @@ class ProbabilisticLoopFactory:
             ctr = alloc.alloc(ctr_hint)
             lim = alloc.alloc(lim_hint)
             # Reserve 2 locals for loop control (ctr/lim), others for state vars.
-            state_cap = max(1, remaining_local_budget - 2)
             state_vars = self._sample_state_vars(alloc, nla_family, state_cap)
+
+        # Forced core mode is used by probing/auditing and can bypass candidate gating.
+        # Ensure enough distinct state vars for that core; otherwise resample upstream.
+        if force_core is not None:
+            req = max(1, CORE_MIN_STATE_VARS.get(force_core, 4))
+            if len(state_vars) < req:
+                if use_shared_locals:
+                    raise RuntimeError(
+                        f"insufficient shared state vars for forced core {force_core}: "
+                        f"need {req}, got {len(state_vars)}"
+                    )
+                while len(state_vars) < min(req, state_cap):
+                    state_vars.append(alloc.alloc("v"))
+                if len(state_vars) < req:
+                    raise RuntimeError(
+                        f"insufficient state vars for forced core {force_core}: "
+                        f"need {req}, got {len(state_vars)}"
+                    )
 
         ctrl_inits, guard, step_stmt = self._sample_loop_control(src, ctr, lim, nla_family)
         init_pool = universe + list(params) + [ctr, lim]
@@ -1842,17 +1940,26 @@ class ProbabilisticLoopFactory:
                 mode = self.rng.choice(["snapshot_step", "guarded_snapshot", "offset_snapshot", "snapshot_chase"])
                 if mode == "snapshot_step":
                     step = self._core_const(1, 5)
+                    set_init(a, self._diverse_init(0, role="ctr"))
+                    guard = self.rng.choice([f"{a}<{lim}", f"{a}<={lim}-1", f"{a}+1<={lim}"])
                     body.extend([Assign(b, a), Assign(a, f"{a}+{step}")])
                     used_assign += 2
                 elif mode == "guarded_snapshot":
                     guard_var = c
+                    set_init(a, self._diverse_init(0, role="ctr"))
+                    set_init(guard_var, self._diverse_init(0, role="ctr"))
+                    guard = self.rng.choice([f"{a}<{lim}", f"{a}<={lim}-1", f"{a}+1<={lim}"])
                     body.append(IfOnly(cond=f"{guard_var}<{lim}", then_body=[Assign(b, a)]))
                     body.append(Assign(a, f"{a}+1"))
+                    if self.rng.random() < 0.5:
+                        body.append(Assign(guard_var, f"{guard_var}+{self._core_const(1, 3)}"))
                     used_if += 1
-                    used_assign += 2
+                    used_assign += 3 if any(isinstance(st, Assign) and st.target == guard_var for st in body[-1:]) else 2
                 elif mode == "offset_snapshot":
                     off = self._core_const(1, 6)
                     step = self._core_const(1, 4)
+                    set_init(a, self._diverse_init(0, role="ctr"))
+                    guard = self.rng.choice([f"{a}<{lim}", f"{a}<={lim}-1", f"{a}+{step}<={lim}+{step}-1"])
                     body.extend([Assign(b, f"{a}+{off}"), Assign(a, f"{a}+{step}")])
                     used_assign += 2
                 else:
@@ -3158,10 +3265,29 @@ class ProbabilisticLoopFactory:
         # Free vars for extension/padding:
         # include non-core state vars and input params so both local/input variables
         # can participate in loop updates.
+        #
+        # Guardrail: do not let extension phase rewrite guard-driving variables
+        # (including explicit break-guards in while(1) cores). Core semantics
+        # should own those variables to keep termination behavior stable.
+        guard_protected: Set[str] = set(self._guard_vars(guard))
+        for st in body:
+            if isinstance(st, IfOnly) and len(st.then_body) == 1 and isinstance(st.then_body[0], Break):
+                g = st.cond.strip()
+                m = re.match(r"^\s*!\((.*)\)\s*$", g)
+                if m:
+                    g = m.group(1).strip()
+                for t in self._guard_vars(g):
+                    guard_protected.add(t)
+
         writable_pool = list(dict.fromkeys(state_vars + list(params)))
-        _free = [v for v in writable_pool if v not in core_vars and v not in {ctr, lim}]
+        _free = [
+            v for v in writable_pool
+            if v not in core_vars and v not in {ctr, lim} and v not in guard_protected
+        ]
         if not _free:
-            _free = [v for v in state_vars if v not in core_vars] or state_vars
+            _free = [v for v in state_vars if v not in core_vars and v not in guard_protected] or [
+                v for v in state_vars if v not in guard_protected
+            ] or state_vars
 
         assign_budget = max(0, assign_total - (1 if append_step else 0))
 
@@ -3259,6 +3385,25 @@ class ProbabilisticLoopFactory:
                 body.append(step_stmt)
             body.append(IfOnly(cond=f"{ctr}>={lim}", then_body=[Break()]))
 
+        # Cross-core guard-progress safety net:
+        # If no guard variable is updated at all, inject one update so guard
+        # is not structurally frozen. Prefer replacement to keep assign count stable.
+        if guard != "1":
+            gvars = self._guard_vars(guard)
+            gw = set(gvars)
+            if gw and not (gw & set(_get_written_vars(body))):
+                progress = self._build_guard_progress_assign(guard, gvars)
+                if progress is not None:
+                    replaced = False
+                    for i in range(len(body) - 1, -1, -1):
+                        st = body[i]
+                        if isinstance(st, Assign) and st.target not in gw:
+                            body[i] = progress
+                            replaced = True
+                            break
+                    if not replaced:
+                        body.append(progress)
+
         if core_applied and self.rng.random() < 0.60:
             body = self._apply_template_small_variant(chosen, body, ctr)
 
@@ -3314,6 +3459,7 @@ class ProbabilisticLoopFactory:
 
         local_inits: List[Tuple[str, str]] = []
         loops: List[Stmt] = []
+        selected_cores: List[str] = []
         seen = set()
         universe: List[str] = []
         core_usage: Dict[str, int] = {}
@@ -3346,6 +3492,7 @@ class ProbabilisticLoopFactory:
                     local_inits.append((v, e))
                     seen.add(v)
             loops.append(loop)
+            selected_cores.append(core_name)
             universe.extend(produced)
             core_usage[core_name] = core_usage.get(core_name, 0) + 1
 
@@ -3371,7 +3518,13 @@ class ProbabilisticLoopFactory:
                             changed = True
         local_inits = [(v, e) for v, e in local_inits if v in needed]
 
-        return Program(name=f"main{idx + 1}", params=params, local_inits=local_inits, body=arranged)
+        return Program(
+            name=f"main{idx + 1}",
+            params=params,
+            local_inits=local_inits,
+            body=arranged,
+            selected_cores=selected_cores,
+        )
 
 
 # ─── Trace-based semantic scorer ─────────────────────────────────────────────
@@ -3584,6 +3737,24 @@ def _declared_semantic_cores() -> List[str]:
     return names
 
 
+def _declared_core_min_state_vars() -> Dict[str, int]:
+    """
+    Parse required state-var lower bound from allow("core", w, need_if, need_asg, need_vars).
+    Keeps forced-core feasibility checks aligned with the candidate registry.
+    """
+    src = Path(__file__).read_text(encoding="utf-8")
+    out: Dict[str, int] = {}
+    pat = re.compile(
+        r'allow\("([A-Za-z0-9_]+)"\s*,\s*[^,]+,\s*\d+\s*,\s*\d+\s*,\s*(\d+)\)'
+    )
+    for m in pat.finditer(src):
+        out[m.group(1)] = int(m.group(2))
+    return out
+
+
+CORE_MIN_STATE_VARS = _declared_core_min_state_vars()
+
+
 def _count_assigns_in_loop(loop_stmt: Stmt) -> int:
     def _count(stmts: Sequence[Stmt]) -> int:
         n = 0
@@ -3618,6 +3789,72 @@ def _count_if_nodes_in_loop(loop_stmt: Stmt) -> int:
     return 0
 
 
+def _guard_vars_from_cond(cond: str) -> Set[str]:
+    toks = re.findall(r"\b([A-Za-z_]\w*)\b", cond or "")
+    banned = {"if", "else", "while", "for", "break"}
+    out: Set[str] = set()
+    for t in toks:
+        if t in banned or t.isdigit():
+            continue
+        out.add(t)
+    return out
+
+
+def _looks_like_break_guard(st: Stmt) -> Optional[str]:
+    """
+    Detect synthesized `if (!(guard)) break;` wrapper and return the inner guard.
+    """
+    if not isinstance(st, IfOnly):
+        return None
+    if len(st.then_body) != 1 or not isinstance(st.then_body[0], Break):
+        return None
+    m = re.match(r"^\s*!\((.*)\)\s*$", st.cond.strip())
+    if not m:
+        return None
+    return m.group(1).strip()
+
+
+def _loop_has_guard_driver_update(loop_stmt: Stmt) -> bool:
+    """
+    Structural termination sanity check:
+    guard-driving variables must be written in loop body/step.
+    """
+    if isinstance(loop_stmt, ForLoop):
+        gvars = _guard_vars_from_cond(loop_stmt.cond)
+        if not gvars:
+            return True
+        written = set(_get_written_vars(loop_stmt.body))
+        if loop_stmt.step is not None:
+            written.add(loop_stmt.step.target)
+        return bool(gvars & written)
+
+    if not isinstance(loop_stmt, WhileLoop):
+        return True
+
+    cond = (loop_stmt.cond or "").strip()
+    if cond != "1":
+        gvars = _guard_vars_from_cond(cond)
+        if not gvars:
+            return True
+        written = set(_get_written_vars(loop_stmt.body))
+        return bool(gvars & written)
+
+    # while(1): must have break; if it's the canonical guard-wrapper form,
+    # require updates to the wrapped guard drivers in the remaining body.
+    if not _has_break(loop_stmt.body):
+        return False
+    if not loop_stmt.body:
+        return True
+    wrapped_guard = _looks_like_break_guard(loop_stmt.body[0])
+    if wrapped_guard is None:
+        return True
+    gvars = _guard_vars_from_cond(wrapped_guard)
+    if not gvars:
+        return True
+    written = set(_get_written_vars(loop_stmt.body[1:]))
+    return bool(gvars & written)
+
+
 def _satisfy_hard_constraints(program: Program, hp: HyperParams) -> bool:
     if not (hp.min_params <= len(program.params) <= hp.p):
         return False
@@ -3634,6 +3871,8 @@ def _satisfy_hard_constraints(program: Program, hp: HyperParams) -> bool:
             return False
         n_if = _count_if_nodes_in_loop(lp)
         if not (hp.min_ifelse <= n_if <= hp.ifelse_fuel):
+            return False
+        if not _loop_has_guard_driver_update(lp):
             return False
     return True
 
@@ -3721,6 +3960,7 @@ def main() -> None:
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     max_resample = 512
+    generation_meta: List[Dict[str, object]] = []
     for i in range(args.count):
         program = None
         for _ in range(max_resample):
@@ -3740,6 +3980,21 @@ def main() -> None:
             )
         out_file = args.out_dir / f"{i + 1}.c"
         out_file.write_text(program.render() + "\n", encoding="utf-8")
+        primary_core = next((c for c in program.selected_cores if c != "none"), "none")
+        generation_meta.append(
+            {
+                "index": i + 1,
+                "file": out_file.name,
+                "selected_cores": program.selected_cores,
+                "selected_core_primary": primary_core,
+                "loop_count": len(program.selected_cores),
+            }
+        )
+
+    (args.out_dir / "generation_meta.json").write_text(
+        json.dumps(generation_meta, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     print(f"Generated {args.count} files under {args.out_dir}")
 
