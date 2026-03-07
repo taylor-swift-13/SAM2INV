@@ -866,7 +866,7 @@ def main() -> None:
         "--nums-candidate",
         dest="num_candidates",
         type=int,
-        default=5,
+        default=int(config.PARALLEL_GENERATION_CONFIG.get("num_candidates", 3)),
         help="Number of candidate invariant sets generated per attempt.",
     )
     parser.add_argument(
