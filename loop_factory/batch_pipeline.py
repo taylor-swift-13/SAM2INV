@@ -1251,8 +1251,22 @@ def main() -> None:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has no dpo rejects"})
 
     # ── Phase 2: Reverse-COT generation ────────────────────────────────────
+    def _emit_cot_log(msg: str, level: str = "INFO") -> None:
+        print(msg)
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        line = f"{ts} - {level} - {msg}\n"
+        try:
+            with (logs_dir / "cot_phase.log").open("a", encoding="utf-8") as f:
+                f.write(line)
+            for p in sorted(logs_dir.glob("attempt_*.log")):
+                with p.open("a", encoding="utf-8") as f:
+                    f.write(line)
+        except Exception:
+            # Best-effort logging; never break data generation due to log I/O.
+            pass
+
     if not cot_mode:
-        print(f"COT Phase: skipped because system prompt mode is non-COT ({prompt_filename}).")
+        _emit_cot_log(f"COT Phase: skipped because system prompt mode is non-COT ({prompt_filename}).")
         return
 
     from reverse_cot import generate_reverse_cot_rejected, generate_reverse_cots_batch, prepend_cot, lookup_cot
@@ -1319,10 +1333,10 @@ def main() -> None:
 
     all_cot_tasks: List[Dict] = list(forced_code_tasks.values())
 
-    print(f"COT Phase#1: generating reverse-COTs for {len(all_cot_tasks)} code pieces (dedup inside)...")
+    _emit_cot_log(f"COT Phase#1: generating reverse-COTs for {len(all_cot_tasks)} code pieces (dedup inside)...")
     cot_map = generate_reverse_cots_batch(all_cot_tasks, cot_client, cot_model)
     cot_ok = sum(1 for v in cot_map.values() if v)
-    print(f"COT Phase#1: {cot_ok}/{len(cot_map)} unique COTs generated successfully.")
+    _emit_cot_log(f"COT Phase#1: {cot_ok}/{len(cot_map)} unique COTs generated successfully.")
 
     forced_cot_by_code: Dict[str, str] = {}
     missing_forced_codes: Set[str] = set()
@@ -1337,7 +1351,7 @@ def main() -> None:
 
     aug_rejected_cot_by_code: Dict[str, str] = {}
     if aug_rejected_tasks:
-        print(f"COT Phase#2: generating rejected reverse-COTs for {len(aug_rejected_tasks)} unique dpo_aug.rejected code pieces...")
+        _emit_cot_log(f"COT Phase#2: generating rejected reverse-COTs for {len(aug_rejected_tasks)} unique dpo_aug.rejected code pieces...")
     for code, task in aug_rejected_tasks.items():
         cot = generate_reverse_cot_rejected(system_prompt, task["user_prompt"], code, cot_client, cot_model)
         if cot:
@@ -1428,7 +1442,7 @@ def main() -> None:
             else:
                 dropped += 1
         if dropped:
-            print(f"COT Phase: dropped {dropped} {dataset_name} records missing valid <reasoning>/<code>.")
+            _emit_cot_log(f"COT Phase: dropped {dropped} {dataset_name} records missing valid <reasoning>/<code>.", level="WARNING")
         return kept
 
     api_out_records = _filter_records_without_cot(api_out_records, ["output"], "api")
@@ -1436,13 +1450,14 @@ def main() -> None:
     dpo_teacher_out_records = _filter_records_without_cot(dpo_teacher_out_records, ["chosen", "rejected"], "dpo_teacher")
     dpo_aug_out_records = _filter_records_without_cot(dpo_aug_out_records, ["chosen", "rejected"], "dpo_aug")
     if skipped_counts["api"] or skipped_counts["distill"] or skipped_counts["dpo_teacher"] or skipped_counts["dpo_aug"]:
-        print(
+        _emit_cot_log(
             "COT Phase: skipped records due to COT failure "
             f"(api={skipped_counts['api']}, distill={skipped_counts['distill']}, "
-            f"dpo_teacher={skipped_counts['dpo_teacher']}, dpo_aug={skipped_counts['dpo_aug']})."
+            f"dpo_teacher={skipped_counts['dpo_teacher']}, dpo_aug={skipped_counts['dpo_aug']}).",
+            level="WARNING",
         )
     if missing_forced_codes:
-        print(f"COT Phase: {len(missing_forced_codes)} unique code snippets failed COT generation.")
+        _emit_cot_log(f"COT Phase: {len(missing_forced_codes)} unique code snippets failed COT generation.", level="WARNING")
 
     with api_jsonl_path.open("w", encoding="utf-8") as f:
         for rec in api_out_records:
@@ -1460,7 +1475,7 @@ def main() -> None:
         for rec in dpo_aug_out_records:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
-    print(f"COT output written to {work_root}")
+    _emit_cot_log(f"COT output written to {work_root}")
 
     cleanup_transient_artifacts(run_tag)
     if tmp_loops.exists():
