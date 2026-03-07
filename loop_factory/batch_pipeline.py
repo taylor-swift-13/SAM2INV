@@ -1311,25 +1311,28 @@ def main() -> None:
     # Collect tasks for two reverse-COT passes.
     # Pass 1 (normal reverse-COT): api.output + all chosen fields.
     # Pass 2 (rejected reverse-COT): dpo_aug.rejected only.
+    # Use a minimal neutral context for reverse-COT to avoid conflicting with
+    # the full main generation system prompt.
+    reverse_cot_context = "Derive loop invariants from code behavior."
     forced_code_tasks: Dict[str, Dict] = {}
     aug_rejected_tasks: Dict[str, Dict] = {}
 
     for rec in sft_records:
         code = _strip_think(rec["output"])
         if code and code not in forced_code_tasks:
-            forced_code_tasks[code] = {"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": code}
+            forced_code_tasks[code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": code}
     for rec in dpo_teacher_records:
         code = _strip_think(rec["chosen"])
         if code and code not in forced_code_tasks:
-            forced_code_tasks[code] = {"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": code}
+            forced_code_tasks[code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": code}
     for rec in dpo_aug_records:
         code = _strip_think(rec["chosen"])
         if code and code not in forced_code_tasks:
-            forced_code_tasks[code] = {"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": code}
+            forced_code_tasks[code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": code}
         # dpo_aug.rejected uses a separate rejected reverse-COT pass.
         rej_code = _strip_think(rec["rejected"])
         if rej_code and rej_code not in aug_rejected_tasks:
-            aug_rejected_tasks[rej_code] = {"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": rej_code}
+            aug_rejected_tasks[rej_code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": rej_code}
 
     all_cot_tasks: List[Dict] = list(forced_code_tasks.values())
 
@@ -1353,7 +1356,7 @@ def main() -> None:
     if aug_rejected_tasks:
         _emit_cot_log(f"COT Phase#2: generating rejected reverse-COTs for {len(aug_rejected_tasks)} unique dpo_aug.rejected code pieces...")
     for code, task in aug_rejected_tasks.items():
-        cot = generate_reverse_cot_rejected(system_prompt, task["user_prompt"], code, cot_client, cot_model)
+        cot = generate_reverse_cot_rejected(reverse_cot_context, task["user_prompt"], code, cot_client, cot_model)
         if cot:
             aug_rejected_cot_by_code[code] = cot
         else:

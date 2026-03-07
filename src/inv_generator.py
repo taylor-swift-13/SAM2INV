@@ -1939,98 +1939,6 @@ class InvariantGenerator:
             self.logger.error(f"Helper invariant generation failed: {e}")
             return None
 
-    def _extract_verification_target(self, code_with_template: str) -> Dict:
-        """
-        Detect post-loop verification targets from code.
-
-        Returns:
-            {
-              'has_target': bool,
-              'target_type': 'none' | 'assert_single' | 'assert_conjunctive',
-              'assert_text': str,
-              'conjunct_count': int
-            }
-        """
-        assert_match = re.search(r'/\*@\s*assert\b\s*([^;]+);', code_with_template, re.DOTALL)
-        if not assert_match:
-            self.logger.info("Prompt goal mode: no verification target")
-            return {
-                'has_target': False,
-                'target_type': 'none',
-                'assert_text': '',
-                'conjunct_count': 0,
-            }
-
-        assert_text = " ".join(assert_match.group(1).strip().split())
-        conjunct_count = len([part for part in assert_text.split('&&') if part.strip()])
-        if conjunct_count > 1:
-            target_type = 'assert_conjunctive'
-        else:
-            target_type = 'assert_single'
-        self.logger.info(f"Prompt goal mode: {target_type}")
-
-        return {
-            'has_target': True,
-            'target_type': target_type,
-            'assert_text': assert_text,
-            'conjunct_count': conjunct_count,
-        }
-
-    def _build_goal_guidance(self, code_with_template: str) -> str:
-        """
-        Build goal-specific prompt guidance:
-        - no verification target: avoid target-driven wording
-        - with assertion target: enforce target-driven invariant construction
-        """
-        target = self._extract_verification_target(code_with_template)
-        if not target['has_target']:
-            return (
-                "No explicit verification target is present.\n"
-                "- Focus on inductive, non-empty invariants derived from loop semantics.\n"
-                "- Prioritize transition/conservation relations and necessary bounds.\n"
-                "- Do not mention or optimize for post-loop assert."
-            )
-
-        assert_text = target['assert_text']
-        type_hints = []
-        if '||' in assert_text:
-            type_hints.append(
-                "- Target is disjunctive (||): preserve a phase/guard relation that can justify one disjunct at exit."
-            )
-        if any(op in assert_text for op in ('<=', '>=', '<', '>')):
-            type_hints.append(
-                "- Target contains inequalities: add monotonic/bound invariants tight enough to derive final bounds at exit."
-            )
-        if '/' in assert_text or '%' in assert_text:
-            type_hints.append(
-                "- Target contains division/modulo: add quotient-remainder relation and remainder bounds (e.g., 0 <= r < y)."
-            )
-        if '*' in assert_text:
-            type_hints.append(
-                "- Target is nonlinear/multiplicative: include conserved algebraic equality tying products to loop-updated variables."
-            )
-        if not type_hints:
-            type_hints.append(
-                "- Use one strong relational invariant that directly tracks target terms across loop updates."
-            )
-
-        if target['target_type'] == 'assert_conjunctive':
-            return (
-                f"Verification target detected (conjunctive assert, {target['conjunct_count']} conjuncts): {assert_text}\n"
-                "- Build invariants so each assert conjunct has a corresponding preserved relation.\n"
-                "- Ensure invariants with loop-exit condition can imply all conjuncts.\n"
-                "- Prefer relational equalities connecting loop-updated variables to assert terms.\n"
-                + "\n".join(type_hints)
-            )
-
-        return (
-            f"Verification target detected (single assert): {assert_text}\n"
-            "- Build invariants that directly preserve and imply this target at loop exit.\n"
-            "- Include at least one relation connecting loop-updated variables to target terms.\n"
-            "- Prefer strong, target-aligned invariants over generic bounds-only invariants.\n"
-            + "\n".join(type_hints)
-        )
-    
     def _prepare_prompt(self, record: Dict, loop_idx: int) -> tuple:
         """
         Prepare LLM prompt template and loop context.
@@ -2132,9 +2040,6 @@ class InvariantGenerator:
     def _generate_initial_invariant(self, code_with_template: str, prompt_info: tuple) -> Optional[str]:
         """Generate initial invariant using LLM - fills PLACE_HOLDER in template"""
         prompt_template, loop_context = prompt_info
-        goal_guidance = self._build_goal_guidance(code_with_template)
-        if '{{goal_guidance}}' in prompt_template:
-            prompt_template = prompt_template.replace('{{goal_guidance}}', goal_guidance)
         
         # Replace the double curly braces placeholders with actual values
         # The template uses {{pre_cond}} and {{content}} as placeholders
@@ -2169,10 +2074,6 @@ class InvariantGenerator:
         """
         # Single-prompt mode: use prompts/simple*.txt based on system prompt mode
         selected_template, selected_template_name = self._get_gen_template()
-        
-        # 替换占位符
-        if '{{goal_guidance}}' in selected_template:
-            selected_template = selected_template.replace('{{goal_guidance}}', self._build_goal_guidance(code_with_template))
         
         # 2. 处理 {{pre_cond}} 可选的情况（某些 prompt 可能不包含此占位符）
         if '{{pre_cond}}' in selected_template:

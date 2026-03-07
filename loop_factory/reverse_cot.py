@@ -37,16 +37,11 @@ OUTPUT FORMAT:
 
 REVERSE_COT_REJECTED_SYSTEM = REVERSE_COT_SYSTEM
 
-REVERSE_COT_USER = """## Task Context
-{system_summary}
-
-## Problem
-{user_prompt}
-
-## Proposed Solution
+REVERSE_COT_USER = """## Candidate Annotated Code (Complete Invariants + Code)
 {code_output}
 
-Generate the reasoning trace in plain natural language only."""
+Generate only the reasoning process that derives these invariants from the code behavior.
+Output plain natural-language reasoning text only."""
 
 _REASONING_RE = re.compile(r"<reasoning>(.*?)</reasoning>", re.DOTALL)
 # Also match <think> in case the model still uses it
@@ -104,18 +99,10 @@ def _extract_reasoning_text(text: str) -> str:
     return plain.strip()
 
 
-_REFUSAL_RE = re.compile(
-    r"\b(i\s+can(?:not|'t)|i\s+am\s+unable|sorry,\s*i\s+cannot|can't\s+assist|cannot\s+provide)\b",
-    re.IGNORECASE,
-)
-
-
 def _is_valid_reasoning_text(cot_text: str) -> bool:
-    """Minimal validation: non-empty natural language and not explicit refusal."""
+    """Minimal validation: non-empty reasoning text."""
     t = (cot_text or "").strip()
     if not t:
-        return False
-    if _REFUSAL_RE.search(t):
         return False
     return True
 
