@@ -39,6 +39,7 @@ class InvariantRepairer:
         # Clean up response (remove reasoning blocks)
         extracted = re.sub(r'>\s*Reasoning\s*[\s\S]*?(?=\n\n|$)', '', extracted, flags=re.IGNORECASE)
         extracted = re.sub(r'<think>.*?</think>', '', extracted, flags=re.DOTALL)
+        extracted = re.sub(r'<reasoning>.*?</reasoning>', '', extracted, flags=re.DOTALL)
         
         if not self._looks_like_c_code(extracted):
             self.logger.warning("Syntax repair returned non-code content, keep previous code")
@@ -96,6 +97,7 @@ loop invariant w == z;
         extracted = self._extract_code(response)
         extracted = re.sub(r'>\s*Reasoning\s*[\s\S]*?(?=\n\n|$)', '', extracted, flags=re.IGNORECASE)
         extracted = re.sub(r'<think>.*?</think>', '', extracted, flags=re.DOTALL)
+        extracted = re.sub(r'<reasoning>.*?</reasoning>', '', extracted, flags=re.DOTALL)
         if not self._looks_like_c_code(extracted):
             self.logger.warning("Invariant repair returned non-code content, keep previous code")
             return code

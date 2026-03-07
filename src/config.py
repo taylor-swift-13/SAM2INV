@@ -24,7 +24,7 @@ class LLMConfig:
     api_temperature: float = 1.0
     api_top_p: float = 1.0
     api_max_tokens: int = 8192
-    enable_cot: bool = False
+    enable_cot: bool = True
     system_prompt_file: str = "system_prompt.txt"
 
     def __post_init__(self):

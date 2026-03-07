@@ -2254,6 +2254,15 @@ class InvariantGenerator:
             self.llm_config.api_temperature = temperature
             
             self.logger.info(f"Generating {num_candidates} candidate invariant sets with temperature={temperature}")
+
+            def _log_raw_candidate_response(candidate_no: int, response: Optional[str]) -> None:
+                raw_text = (response or "").strip()
+                shown_text = raw_text if raw_text else "<EMPTY_RESPONSE>"
+                self.logger.info(
+                    f"\n----- Candidate {candidate_no}/{num_candidates} raw response begin -----\n"
+                    f"{shown_text}\n"
+                    f"----- Candidate {candidate_no}/{num_candidates} raw response end -----"
+                )
             
             if use_threading and num_candidates > 1:
                 # 使用线程池实现真正的并行生成
@@ -2276,6 +2285,7 @@ class InvariantGenerator:
                         
                         # 调用独立的 LLM client 生成（不共享上下文）
                         response = thread_llm.chat(prompt)
+                        _log_raw_candidate_response(candidate_idx + 1, response)
                         
                         expected_func = self._extract_primary_function_name(code_with_template)
                         extracted_code = self._extract_code_from_llm_response(response, expected_func)
@@ -2291,9 +2301,6 @@ class InvariantGenerator:
                                 "cot_code": cot_code,
                             }
                         else:
-                            self.logger.warning(
-                                f"  Raw response for candidate {candidate_idx+1}:\n{response}"
-                            )
                             self.logger.warning(f"  Failed to extract code from candidate {candidate_idx+1}")
                             return None
                     except Exception as e:
@@ -2343,6 +2350,7 @@ class InvariantGenerator:
                     
                     # 调用独立的 LLM client 生成（不共享上下文）
                     response = thread_llm.chat(prompt)
+                    _log_raw_candidate_response(i + 1, response)
                     
                     expected_func = self._extract_primary_function_name(code_with_template)
                     extracted_code = self._extract_code_from_llm_response(response, expected_func)
@@ -2358,7 +2366,6 @@ class InvariantGenerator:
                             "cot_code": cot_code,
                         })
                     else:
-                        self.logger.warning(f"  Raw response for candidate {i+1}:\n{response}")
                         candidates.append(None)
                         self.logger.warning(f"  Failed to extract code from candidate {i+1}")
         
