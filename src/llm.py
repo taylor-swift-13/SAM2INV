@@ -90,14 +90,17 @@ class BaseChatModel(ABC):
 
     def _process_response_think_tags(self, response_text: str) -> str:
         """
-        根据配置处理响应中的 <think> 标签。
+        处理响应中的 <think> / <reasoning> 标签。
+        - 始终 strip 原生 <think>（Qwen 等），只保留 prompt 驱动的 <reasoning>
+        - think_mode_enabled=False 时额外 strip <reasoning>
         """
         if not response_text:
             return ""
+        # Always strip native <think>; only prompt-driven <reasoning> is kept
+        text = re.sub(r'<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>', '', response_text, flags=re.IGNORECASE)
         if not self.config.think_mode_enabled:
-            # 如果 think_mode_enabled 为 False，则移除 <think>...</think> 部分
-            return re.sub(r'<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>', '', response_text, flags=re.IGNORECASE)
-        return response_text
+            text = re.sub(r'<\s*reasoning\s*>[\s\S]*?<\s*/\s*reasoning\s*>', '', text, flags=re.IGNORECASE)
+        return text.strip()
 
 
 # 使用 OpenAI 兼容 API 的 LLM 类（云端模式）
@@ -185,7 +188,7 @@ class OpenAILLM(BaseChatModel):
                     fallback_refusal = getattr(msg, "refusal", None)
                     if isinstance(fallback_refusal, str) and fallback_refusal.strip():
                         assistant_response = fallback_refusal.strip()
-            
+
             # 记录 token 使用情况
             if response.usage:
                 _token_tracker.record(

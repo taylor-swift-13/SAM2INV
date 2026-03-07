@@ -68,7 +68,10 @@ def call_once(system_prompt: str, user_msg: str) -> str:
                 top_p=_cfg.api_top_p,
                 max_tokens=_cfg.api_max_tokens,
             )
-            return (resp.choices[0].message.content or "").strip()
+            content = (resp.choices[0].message.content or "").strip()
+            # Strip native <think> (Qwen etc.); only keep prompt-driven <reasoning>
+            content = re.sub(r'<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>', '', content, flags=re.IGNORECASE).strip()
+            return content
         except Exception as exc:
             if attempt < MAX_RETRIES - 1:
                 log.warning("API error (attempt %d/%d): %s — retry in %.0fs",
@@ -288,9 +291,9 @@ def main() -> None:
         all_cot_tasks: List[Dict] = []
         for rec in all_output_records:
             if not _has_cot(rec.get("chosen", "")):
-                all_cot_tasks.append({"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["chosen"]})
+                all_cot_tasks.append({"system_prompt": cot_system_prompt, "user_prompt": rec["input"], "code_output": rec["chosen"]})
             if not _has_cot(rec.get("rejected", "")):
-                all_cot_tasks.append({"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["rejected"]})
+                all_cot_tasks.append({"system_prompt": cot_system_prompt, "user_prompt": rec["input"], "code_output": rec["rejected"]})
 
         log.info("COT Phase: generating reverse-COTs for %d records...", len(all_cot_tasks))
         cot_map = generate_reverse_cots_batch(all_cot_tasks, cot_client, cot_model)
@@ -299,25 +302,29 @@ def main() -> None:
 
         cot_out_path = cot_dir_path / OUTPUT_FILE.name
         out_records: List[Dict[str, Any]] = []
+        skipped = 0
         for rec in all_output_records:
             chosen_text = rec["chosen"]
             rejected_text = rec["rejected"]
             if not _has_cot(chosen_text):
                 chosen_cot = lookup_cot(cot_map, rec["input"], chosen_text)
                 if not chosen_cot:
-                    chosen_cot = generate_reverse_cot(rec["instruction"], rec["input"], chosen_text, cot_client, cot_model)
+                    chosen_cot = generate_reverse_cot(cot_system_prompt, rec["input"], chosen_text, cot_client, cot_model)
                 if not chosen_cot:
-                    raise RuntimeError("Reverse-COT backfill failed: dpo_spec chosen has no COT.")
+                    skipped += 1
+                    continue
                 chosen_text = prepend_cot(chosen_text, chosen_cot)
             if not _has_cot(rejected_text):
                 rejected_cot = lookup_cot(cot_map, rec["input"], rejected_text)
                 if not rejected_cot:
-                    rejected_cot = generate_reverse_cot(rec["instruction"], rec["input"], rejected_text, cot_client, cot_model)
+                    rejected_cot = generate_reverse_cot(cot_system_prompt, rec["input"], rejected_text, cot_client, cot_model)
                 if not rejected_cot:
-                    raise RuntimeError("Reverse-COT backfill failed: dpo_spec rejected has no COT.")
+                    skipped += 1
+                    continue
                 rejected_text = prepend_cot(rejected_text, rejected_cot)
             if not _has_cot(chosen_text) or not _has_cot(rejected_text):
-                raise RuntimeError("Reverse-COT validation failed: dpo_spec sample has no COT after backfill.")
+                skipped += 1
+                continue
             out_rec = dict(rec)
             out_rec["instruction"] = cot_system_prompt
             out_rec["chosen"] = chosen_text
@@ -328,6 +335,8 @@ def main() -> None:
             for out_rec in out_records:
                 f.write(json.dumps(out_rec, ensure_ascii=False) + "\n")
         log.info("COT output written to %s", cot_out_path)
+        if skipped:
+            log.warning("COT Phase: skipped %d dpo_spec records due to COT generation/validation failure.", skipped)
 
 
 if __name__ == "__main__":

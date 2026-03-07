@@ -74,7 +74,10 @@ def call_once(system_prompt: str, user_msg: str) -> str:
                 max_tokens=_cfg.api_max_tokens,
                 #extra_body={"enable_thinking": False},
             )
-            return (resp.choices[0].message.content or "").strip()
+            content = (resp.choices[0].message.content or "").strip()
+            # Strip native <think> (Qwen etc.); only keep prompt-driven <reasoning>
+            content = re.sub(r'<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>', '', content, flags=re.IGNORECASE).strip()
+            return content
         except Exception as exc:
             if attempt < MAX_RETRIES - 1:
                 log.warning("API error (attempt %d/%d): %s — retry in %.0fs",
@@ -231,7 +234,7 @@ def main() -> None:
 
         # Collect COT tasks for missing-COT outputs only
         all_cot_tasks = [
-            {"system_prompt": rec["instruction"], "user_prompt": rec["input"], "code_output": rec["output"]}
+            {"system_prompt": cot_system_prompt, "user_prompt": rec["input"], "code_output": rec["output"]}
             for rec in all_output_records
             if not _has_cot(rec.get("output", ""))
         ]
@@ -242,17 +245,20 @@ def main() -> None:
 
         cot_path = cot_dir / OUTPUT_FILE.name
         out_records: list[dict] = []
+        skipped = 0
         for rec in all_output_records:
             out_text = rec["output"]
             if not _has_cot(out_text):
                 cot = lookup_cot(cot_map, rec["input"], out_text)
                 if not cot:
-                    cot = generate_reverse_cot(rec["instruction"], rec["input"], out_text, cot_client, cot_model)
+                    cot = generate_reverse_cot(cot_system_prompt, rec["input"], out_text, cot_client, cot_model)
                 if not cot:
-                    raise RuntimeError("Reverse-COT backfill failed: distill sample has no COT.")
+                    skipped += 1
+                    continue
                 out_text = prepend_cot(out_text, cot)
             if not _has_cot(out_text):
-                raise RuntimeError("Reverse-COT validation failed: distill sample has no COT after backfill.")
+                skipped += 1
+                continue
             out_records.append({
                 "instruction": cot_system_prompt,
                 "input": rec["input"],
@@ -263,6 +269,8 @@ def main() -> None:
             for rec in out_records:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         log.info("COT output written to %s", cot_path)
+        if skipped:
+            log.warning("COT Phase: skipped %d distill records due to COT generation/validation failure.", skipped)
 
 
 if __name__ == "__main__":
