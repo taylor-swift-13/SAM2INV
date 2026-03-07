@@ -121,11 +121,13 @@ def _strip_cot_wrappers(text: str) -> str:
 
 
 def _compose_rejected_with_reason(rej: Dict[str, str]) -> str:
-    reason = (rej.get("reason", "") or "").strip() or "filtered"
-    code_text = _strip_cot_wrappers(_pick_rejected_candidate_text(rej))
-    if not code_text:
-        return ""
-    return f"<reasoning>{reason}</reasoning>\n\n<code>\n{code_text}\n</code>"
+    raw_text = _pick_rejected_candidate_text(rej)
+    # Preserve original candidate COT if it is already well-formed.
+    if _has_cot(raw_text):
+        return raw_text.strip()
+
+    # Keep original code/text; missing-COT rejected items are handled in COT Phase#3.
+    return _strip_cot_wrappers(raw_text)
 
 
 CPP_KEYWORDS = {
@@ -1339,14 +1341,16 @@ def main() -> None:
     dpo_teacher_records = _read_jsonl(dpo_teacher_jsonl_path)
     dpo_aug_records = _read_jsonl(dpo_aug_jsonl_path)
 
-    # Collect tasks for two reverse-COT passes.
+    # Collect tasks for three reverse-COT passes.
     # Pass 1 (normal reverse-COT): api.output + all chosen fields.
     # Pass 2 (rejected reverse-COT): dpo_aug.rejected only.
+    # Pass 3 (rejected reverse-COT): dpo_teacher.rejected only when missing COT.
     # Use a minimal neutral context for reverse-COT to avoid conflicting with
     # the full main generation system prompt.
     reverse_cot_context = "Derive loop invariants from code behavior."
     forced_code_tasks: Dict[str, Dict] = {}
     aug_rejected_tasks: Dict[str, Dict] = {}
+    teacher_rejected_tasks: Dict[str, Dict] = {}
 
     for rec in sft_records:
         code = _strip_think(rec["output"])
@@ -1356,6 +1360,11 @@ def main() -> None:
         code = _strip_think(rec["chosen"])
         if code and code not in forced_code_tasks:
             forced_code_tasks[code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": code}
+        rej_text = (rec.get("rejected", "") or "").strip()
+        if rej_text and (not _has_cot(rej_text)):
+            rej_code = _strip_think(rej_text)
+            if rej_code and rej_code not in teacher_rejected_tasks:
+                teacher_rejected_tasks[rej_code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": rej_code}
     for rec in dpo_aug_records:
         code = _strip_think(rec["chosen"])
         if code and code not in forced_code_tasks:
@@ -1393,6 +1402,16 @@ def main() -> None:
         else:
             missing_forced_codes.add(code)
 
+    teacher_rejected_cot_by_code: Dict[str, str] = {}
+    if teacher_rejected_tasks:
+        _emit_cot_log(f"COT Phase#3: generating rejected reverse-COTs for {len(teacher_rejected_tasks)} unique dpo_teacher.rejected code pieces...")
+    for code, task in teacher_rejected_tasks.items():
+        cot = generate_reverse_cot_rejected(reverse_cot_context, task["user_prompt"], code, cot_client, cot_model)
+        if cot:
+            teacher_rejected_cot_by_code[code] = cot
+        else:
+            missing_forced_codes.add(code)
+
     def _force_reverse_cot(text: str, user_prompt: str) -> str:
         # Composed fields are normalized to code-only then always prepended with reverse-COT.
         code = _strip_think(text)
@@ -1406,6 +1425,17 @@ def main() -> None:
         """Use pass-2 rejected reverse-COT for dpo_aug.rejected."""
         code = _strip_think(text)
         cot = aug_rejected_cot_by_code.get(code, "")
+        if not cot:
+            missing_forced_codes.add(code)
+            return ""
+        return prepend_cot(code, cot)
+
+    def _force_reverse_cot_teacher_rejected(text: str) -> str:
+        """Keep original teacher rejected COT; otherwise fill via pass-3 reverse-COT."""
+        if _has_cot(text):
+            return text
+        code = _strip_think(text)
+        cot = teacher_rejected_cot_by_code.get(code, "")
         if not cot:
             missing_forced_codes.add(code)
             return ""
@@ -1442,8 +1472,7 @@ def main() -> None:
 
     for rec in dpo_teacher_records:
         chosen = _force_reverse_cot(rec["chosen"], rec["input"])
-        # Keep original candidate rejected as-is for dpo_teacher.
-        rejected = rec["rejected"]
+        rejected = _force_reverse_cot_teacher_rejected(rec["rejected"])
         if not chosen or not rejected:
             skipped_counts["dpo_teacher"] += 1
             continue

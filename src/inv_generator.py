@@ -766,7 +766,12 @@ class InvariantGenerator:
                 continue
             reasons = cand.get("dpo_reject_reasons", []) or []
             reason_text = ",".join([str(x) for x in reasons if isinstance(x, str) and x.strip()]) or "filtered"
-            rejected_items.append({"reason": reason_text, "code": code_text})
+            rejected_items.append({
+                "reason": reason_text,
+                "code": code_text,
+                "raw_response": (cand.get("raw_response", "") or "").strip(),
+                "cot_code": (cand.get("cot_code", "") or "").strip(),
+            })
 
         self.loop_dpo_records[loop_idx] = {
             "loop_idx": loop_idx,
@@ -3322,7 +3327,12 @@ class InvariantGenerator:
                 reason_str = "incomplete"
             else:
                 reason_str = "filtered"
-            rejected_items.append({"reason": reason_str, "code": c_with_cot})
+            rejected_items.append({
+                "reason": reason_str,
+                "code": c_with_cot,
+                "raw_response": (meta.get("raw_response", "") or "").strip(),
+                "cot_code": (meta.get("cot_code", "") or "").strip(),
+            })
         if self.collect_dpo:
             self.loop_dpo_records = {
                 0: {
