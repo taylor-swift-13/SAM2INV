@@ -12,7 +12,6 @@ import hashlib
 import logging
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Tuple
 
 log = logging.getLogger(__name__)
@@ -121,7 +120,7 @@ def _generate_reverse_cot_impl(
     model: str,
     cot_system: str,
     temperature: float = 0.7,
-    max_tokens: int = 1024,
+    max_tokens: int = 8192,
     max_retries: int = 3,
 ) -> str:
     """Internal reverse-COT generation with retry and minimal validation."""
@@ -172,7 +171,7 @@ def generate_reverse_cot(
     client,
     model: str,
     temperature: float = 0.7,
-    max_tokens: int = 1024,
+    max_tokens: int = 8192,
     max_retries: int = 3,
 ) -> str:
     """Generate reverse-COT for correct code (first-person, correct reasoning)."""
@@ -190,7 +189,7 @@ def generate_reverse_cot_rejected(
     client,
     model: str,
     temperature: float = 0.7,
-    max_tokens: int = 1024,
+    max_tokens: int = 8192,
     max_retries: int = 3,
 ) -> str:
     """Generate reverse-COT for rejected/incorrect code (plausible but flawed reasoning)."""
@@ -209,18 +208,16 @@ def generate_reverse_cots_batch(
     tasks: List[Dict],
     client,
     model: str,
-    max_workers: int = 16,
     temperature: float = 0.7,
-    max_tokens: int = 1024,
+    max_tokens: int = 8192,
 ) -> Dict[Tuple[str, str], str]:
     """
-    Batch-generate reverse COTs with deduplication.
+    Batch-generate reverse COTs with deduplication (single-threaded).
 
     Args:
         tasks: List of dicts with keys: system_prompt, user_prompt, code_output
         client: OpenAI-compatible client
         model: Model name
-        max_workers: Thread pool size
 
     Returns:
         Mapping from (prompt_hash, code_hash) -> plain reasoning text
@@ -235,36 +232,27 @@ def generate_reverse_cots_batch(
     log.info("COT batch: %d total tasks, %d unique after dedup", len(tasks), len(unique_tasks))
 
     results: Dict[Tuple[str, str], str] = {}
+    done_count = 0
+    total = len(unique_tasks)
 
-    def _worker(key: Tuple[str, str], task: Dict) -> Tuple[Tuple[str, str], str]:
-        cot = generate_reverse_cot(
-            task["system_prompt"],
-            task["user_prompt"],
-            task["code_output"],
-            client,
-            model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        return key, cot
-
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {
-            pool.submit(_worker, k, t): k
-            for k, t in unique_tasks.items()
-        }
-        done_count = 0
-        for fut in as_completed(futures):
-            try:
-                key, cot = fut.result()
-                results[key] = cot
-            except Exception as exc:
-                key = futures[fut]
-                log.error("COT worker failed for %s: %s", key, exc)
-                results[key] = ""
-            done_count += 1
-            if done_count % 50 == 0 or done_count == len(futures):
-                log.info("COT progress: %d / %d", done_count, len(futures))
+    for key, task in unique_tasks.items():
+        try:
+            cot = generate_reverse_cot(
+                task["system_prompt"],
+                task["user_prompt"],
+                task["code_output"],
+                client,
+                model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            results[key] = cot
+        except Exception as exc:
+            log.error("COT failed for %s: %s", key, exc)
+            results[key] = ""
+        done_count += 1
+        if done_count % 50 == 0 or done_count == total:
+            log.info("COT progress: %d / %d", done_count, total)
 
     return results
 
