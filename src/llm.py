@@ -71,7 +71,8 @@ class BaseChatModel(ABC):
         self.config = config
         # 从文件加载system prompt
         import os
-        prompt_filename = getattr(config, 'system_prompt_file', 'system_prompt.txt')
+        self._cot_mode = bool(getattr(config, 'enable_cot', False))
+        prompt_filename = 'system_prompt_cot.txt' if self._cot_mode else getattr(config, 'system_prompt_file', 'system_prompt.txt')
         system_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', prompt_filename)
         try:
             with open(system_prompt_path, 'r', encoding='utf-8') as f:
@@ -91,16 +92,19 @@ class BaseChatModel(ABC):
 
     def _process_response_think_tags(self, response_text: str) -> str:
         """
-        处理响应中的 <think> / <reasoning> 标签。
+        处理响应中的 <think> / <reasoning> / <code> 标签。
         - 始终 strip 原生 <think>（Qwen 等），只保留 prompt 驱动的 <reasoning>
-        - think_mode_enabled=False 时额外 strip <reasoning>
+        - 非 COT prompt（system_prompt.txt）时额外 strip <reasoning> 和 <code> 标签
         """
         if not response_text:
             return ""
         # Always strip native <think>; only prompt-driven <reasoning> is kept
         text = re.sub(r'<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>', '', response_text, flags=re.IGNORECASE)
-        if not self.config.think_mode_enabled:
+        if not self._cot_mode:
             text = re.sub(r'<\s*reasoning\s*>[\s\S]*?<\s*/\s*reasoning\s*>', '', text, flags=re.IGNORECASE)
+            # Strip <code> wrapper, keep inner content
+            text = re.sub(r'<\s*code\s*>\s*', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'\s*<\s*/\s*code\s*>', '', text, flags=re.IGNORECASE)
         return text.strip()
 
 
@@ -325,7 +329,7 @@ class TransformersLLMImpl(BaseChatModel):
                 temperature=self._temperature,
                 top_p=self._top_p,
                 max_new_tokens=self._max_tokens,
-                enable_thinking=self.config.think_mode_enabled,
+                enable_thinking=self._cot_mode,
             )
             _token_tracker.record(
                 prompt_tokens=prompt_tokens,

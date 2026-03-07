@@ -28,13 +28,14 @@ sys.path.insert(0, str(SRC))
 
 import config  # type: ignore
 import inv_generator as invgen_mod  # type: ignore
-from inv_generator import InvariantGenerator, is_tautological, is_nontrivial_inv  # type: ignore
+from inv_generator import InvariantGenerator
 from llm import LLMConfig, Chatbot, reset_token_stats, get_token_stats  # type: ignore
 from houdini_pruner import HoudiniPruner  # type: ignore
 from output_verify import OutputVerifier  # type: ignore
 
 USER_CFG = getattr(config, "LOOP_FACTORY_USER_CONFIG", {})
 HOUDINI_CFG = getattr(config, "HOUDINI_CONFIG", {})
+GEN_CFG = getattr(config, "PARALLEL_GENERATION_CONFIG", {})
 
 
 def _lf_cfg(name: str, default):
@@ -866,7 +867,7 @@ def main() -> None:
         "--nums-candidate",
         dest="num_candidates",
         type=int,
-        default=int(config.PARALLEL_GENERATION_CONFIG.get("num_candidates", 3)),
+        default=int(GEN_CFG.get("num_candidates", 3)),
         help="Number of candidate invariant sets generated per attempt.",
     )
     parser.add_argument(
@@ -932,9 +933,9 @@ def main() -> None:
 
     llm_cfg = LLMConfig()
     llm_cfg.api_model = args.model
-    llm_cfg.think_mode_enabled = True
-    llm_cfg.system_prompt_file = "system_prompt_cot.txt"
-    system_prompt = (SRC / "prompts" / "system_prompt_cot.txt").read_text(encoding="utf-8")
+    cot_mode = bool(getattr(llm_cfg, "enable_cot", False))
+    prompt_filename = getattr(llm_cfg, "system_prompt_file", "system_prompt.txt")
+    system_prompt = (SRC / "prompts" / prompt_filename).read_text(encoding="utf-8")
     api_jsonl_path = work_root / "llama_factory_train_iio_api_aligned.jsonl"
     dpo_teacher_jsonl_path = work_root / "llama_factory_train_dpo_teacher.jsonl"
     dpo_aug_jsonl_path = work_root / "llama_factory_train_dpo_aug.jsonl"
@@ -1250,6 +1251,10 @@ def main() -> None:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has no dpo rejects"})
 
     # ── Phase 2: Reverse-COT generation ────────────────────────────────────
+    if not cot_mode:
+        print(f"COT Phase: skipped because system prompt mode is non-COT ({prompt_filename}).")
+        return
+
     from reverse_cot import generate_reverse_cot, generate_reverse_cot_rejected, generate_reverse_cots_batch, prepend_cot, lookup_cot
     import openai as _oai
 
@@ -1266,16 +1271,23 @@ def main() -> None:
                     recs.append(json.loads(line))
         return recs
 
-    # Strip <think>...</think> and <reasoning>...</reasoning> from text (model may have produced it during inference)
+    # Strip <think>...</think>, <reasoning>...</reasoning>, and <code>...</code> tags from text
     _think_strip_re = re.compile(r"<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>", re.IGNORECASE)
     _reasoning_strip_re = re.compile(r"<\s*reasoning\s*>[\s\S]*?<\s*/\s*reasoning\s*>", re.IGNORECASE)
-    _cot_tag_re = re.compile(r"<\s*(think|reasoning)\s*>", re.IGNORECASE)
+    _code_open_re = re.compile(r"<\s*code\s*>\s*", re.IGNORECASE)
+    _code_close_re = re.compile(r"\s*<\s*/\s*code\s*>", re.IGNORECASE)
+    _reasoning_tag_re = re.compile(r"<\s*(think|reasoning)\s*>", re.IGNORECASE)
+    _code_tag_re = re.compile(r"<\s*code\s*>", re.IGNORECASE)
     def _strip_think(text: str) -> str:
         text = _think_strip_re.sub("", text)
         text = _reasoning_strip_re.sub("", text)
+        # Strip <code> wrapper, keep inner content
+        text = _code_open_re.sub("", text)
+        text = _code_close_re.sub("", text)
         return text.strip()
     def _has_cot(text: str) -> bool:
-        return bool(_cot_tag_re.search(text or ""))
+        t = text or ""
+        return bool(_reasoning_tag_re.search(t) and _code_tag_re.search(t))
 
     sft_records = _read_jsonl(api_jsonl_path)
     distill_records = _read_jsonl(distill_jsonl_path)
@@ -1434,7 +1446,7 @@ def main() -> None:
             else:
                 dropped += 1
         if dropped:
-            print(f"COT Phase: dropped {dropped} {dataset_name} records missing valid <reasoning>.")
+            print(f"COT Phase: dropped {dropped} {dataset_name} records missing valid <reasoning>/<code>.")
         return kept
 
     api_out_records = _filter_records_without_cot(api_out_records, ["output"], "api")

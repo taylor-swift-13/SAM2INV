@@ -200,7 +200,8 @@ def main() -> None:
              len(done_idx), len(done_idx) * N_PER_RECORD, OUTPUT_FILE)
 
     # ── Phase 2: Reverse-COT ──────────────────────────────────────────────
-    if True:
+    cot_mode = bool(getattr(_cfg, "enable_cot", False))
+    if cot_mode:
         from reverse_cot import generate_reverse_cot, generate_reverse_cots_batch, prepend_cot, lookup_cot
         import openai as _oai
 
@@ -227,10 +228,12 @@ def main() -> None:
         shutil.copy2(OUTPUT_FILE, no_cot_path)
         log.info("Copied no-COT output to %s", no_cot_path)
 
-        cot_tag_re = re.compile(r"<\s*(think|reasoning)\s*>", re.IGNORECASE)
+        cot_reasoning_re = re.compile(r"<\s*(think|reasoning)\s*>", re.IGNORECASE)
+        cot_code_re = re.compile(r"<\s*code\s*>", re.IGNORECASE)
 
         def _has_cot(text: str) -> bool:
-            return bool(cot_tag_re.search(text or ""))
+            t = text or ""
+            return bool(cot_reasoning_re.search(t) and cot_code_re.search(t))
 
         # Collect COT tasks for missing-COT outputs only
         all_cot_tasks = [
@@ -271,6 +274,8 @@ def main() -> None:
         log.info("COT output written to %s", cot_path)
         if skipped:
             log.warning("COT Phase: skipped %d distill records due to COT generation/validation failure.", skipped)
+    else:
+        log.info("COT Phase: skipped because system prompt mode is non-COT (%s).", getattr(_cfg, "system_prompt_file", "system_prompt.txt"))
 
 
 if __name__ == "__main__":

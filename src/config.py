@@ -12,7 +12,7 @@ class LLMConfig:
 
     # ── 云端服务商配置 ────────────────────────────────────────────────────────
     api_model: str = "gpt-5-nano"
-    api_key: str = os.environ.get("OPENAI_API_KEY", "")
+    api_key: str = "sk-afVplv2oRlR8SnMlC3K0ndGKOIsaBN5O3zxrD1B7zWzgNWGA"
     base_url: str = "https://yunwu.ai/v1"
 
     # ── 本地推理配置 ──────────────────────────────────────────────────────────
@@ -24,8 +24,17 @@ class LLMConfig:
     api_temperature: float = 1.0
     api_top_p: float = 1.0
     api_max_tokens: int = 8192
-    think_mode_enabled: bool = False
+    enable_cot: bool = False
     system_prompt_file: str = "system_prompt.txt"
+
+    def __post_init__(self):
+        cot_prompt = "system_prompt_cot.txt"
+        plain_prompt = "system_prompt.txt"
+        if self.enable_cot:
+            self.system_prompt_file = cot_prompt
+        elif self.system_prompt_file == cot_prompt:
+            self.system_prompt_file = plain_prompt
+        self.enable_cot = (self.system_prompt_file == cot_prompt)
 
 # 通用输入子目录配置：替代之前写死的 'linear'
 SUBDIR = "NLA_lipus"
@@ -95,7 +104,7 @@ MAX_STRENGTHEN_ITERATIONS = 0
 # 并行生成配置
 PARALLEL_GENERATION_CONFIG = {
     'enabled': True,              # 是否启用并行生成多组候选不变式
-    'num_candidates': 3,          # 并行生成的候选组数
+    'num_candidates': 1,          # 并行生成的候选组数
     'temperature': 1.0,           # 生成温度，控制多样性
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
     'detect_conflicts': True,     # 是否检测并去除冲突的不变式

@@ -320,10 +320,14 @@ def generate_reverse_cots_batch(
 
 
 def prepend_cot(code: str, cot: str) -> str:
-    """Prepend COT block to code. If cot is empty, return code unchanged."""
+    """Prepend COT block and wrap code in <code> tags. If cot is empty, return code unchanged."""
     if not cot:
         return code
-    return f"{cot}\n\n{code}"
+    # Strip existing <code> wrapper if present
+    clean = re.sub(r'<\s*code\s*>\s*', '', code, flags=re.IGNORECASE)
+    clean = re.sub(r'\s*<\s*/\s*code\s*>', '', clean, flags=re.IGNORECASE)
+    clean = clean.strip()
+    return f"{cot}\n<code>\n{clean}\n</code>"
 
 
 def lookup_cot(cot_map: Dict[Tuple[str, str], str], user_prompt: str, code: str) -> str:

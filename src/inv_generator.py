@@ -606,6 +606,13 @@ class InvariantGenerator:
         if not text:
             return None
 
+        # Explicit <code>...</code> tags (COT prompt format)
+        code_tag = re.search(r'<\s*code\s*>([\s\S]*?)<\s*/\s*code\s*>', text, re.IGNORECASE)
+        if code_tag:
+            inner = code_tag.group(1).strip()
+            if inner:
+                return inner
+
         # Standard fenced code blocks: ```c ... ```, ```cpp ... ```, ``` ... ```
         blocks = re.findall(r'```(?:[A-Za-z0-9_+\-]*)?\s*\n([\s\S]*?)```', text, re.DOTALL)
         blocks = [b.strip() for b in blocks if b and b.strip()]
@@ -2109,17 +2116,18 @@ class InvariantGenerator:
         loop_context = "\n".join(loop_context_lines)
         
         # Load template from prompts/ (single-generation path)
-        prompt_template = self._get_gen_template()
+        prompt_template, _ = self._get_gen_template()
         
         return prompt_template, loop_context
     
-    def _get_gen_template(self) -> str:
-        """Load the single generation prompt from prompts/simple.txt."""
-        prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'simple.txt')
+    def _get_gen_template(self) -> tuple[str, str]:
+        """Load the single generation prompt from prompts/simple*.txt based on system prompt mode."""
+        prompt_name = "simple_cot.txt" if getattr(self.llm_config, "enable_cot", False) else "simple.txt"
+        prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', prompt_name)
         if not os.path.exists(prompt_path):
             raise FileNotFoundError(f"Single prompt not found: {prompt_path}")
         with open(prompt_path, 'r', encoding='utf-8') as f:
-            return f.read()
+            return f.read(), prompt_name
 
     def _generate_initial_invariant(self, code_with_template: str, prompt_info: tuple) -> Optional[str]:
         """Generate initial invariant using LLM - fills PLACE_HOLDER in template"""
@@ -2159,9 +2167,8 @@ class InvariantGenerator:
         Returns:
             (prompt_string, prompt_name) 元组
         """
-        # Single-prompt mode: always use prompts/simple.txt
-        selected_template = self._get_gen_template()
-        selected_template_name = 'simple'
+        # Single-prompt mode: use prompts/simple*.txt based on system prompt mode
+        selected_template, selected_template_name = self._get_gen_template()
         
         # 替换占位符
         if '{{goal_guidance}}' in selected_template:
@@ -2193,7 +2200,7 @@ class InvariantGenerator:
         thread_config = LLMConfig()
         # 继承调用方的模式（本地 or 服务商）及全部连接参数
         thread_config.use_local = self.llm_config.use_local
-        thread_config.think_mode_enabled = self.llm_config.think_mode_enabled
+        thread_config.system_prompt_file = self.llm_config.system_prompt_file
         thread_config.api_temperature = self.llm_config.api_temperature
         thread_config.api_top_p = self.llm_config.api_top_p
         if self.llm_config.use_local:
@@ -3187,7 +3194,7 @@ class InvariantGenerator:
         detect_conflicts = PARALLEL_GENERATION_CONFIG.get('detect_conflicts', True)
         use_houdini = HOUDINI_CONFIG.get('enabled', True)
 
-        prompt_template = self._get_gen_template()
+        prompt_template, _ = self._get_gen_template()
         function_context = "\n\n".join(loop_contexts)
         loop_n = len(processed_records)
 
