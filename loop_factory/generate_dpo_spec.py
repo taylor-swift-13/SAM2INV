@@ -219,16 +219,6 @@ def main() -> None:
                         "input": rec.get("input", ""),
                         "chosen": rec.get("chosen", ""),
                         "rejected": generated,
-                        "error_type": "spec_failed",
-                        "verify_meta": {
-                            "syntax_ok": verify.get("syntax_ok", False),
-                            "valid_ok": verify.get("valid_ok", False),
-                            "verify_ok": verify.get("verify_ok", False),
-                            "validate_result": verify.get("validate_result", []),
-                            "verify_result": verify.get("verify_result", []),
-                            "syntax_error": verify.get("syntax_error", ""),
-                            "source_error_type": rec.get("error_type", None),
-                        },
                     }
                     with lock:
                         out_fh.write(json.dumps(out_item, ensure_ascii=False) + "\n")
@@ -257,12 +247,7 @@ def main() -> None:
     # ── Phase 2: Reverse-COT ──────────────────────────────────────────────
     cot_mode = bool(getattr(_cfg, "enable_cot", False))
     if cot_mode:
-        from reverse_cot import generate_reverse_cot, generate_reverse_cots_batch, prepend_cot, lookup_cot
-        import openai as _oai
-
         cot_system_prompt = (SRC / "prompts" / "system_prompt_cot.txt").read_text(encoding="utf-8")
-        cot_model = _cfg.api_model
-        cot_client = _oai.OpenAI(base_url=_cfg.base_url, api_key=_cfg.api_key)
 
         # Read all output records
         all_output_records: List[Dict[str, Any]] = []
@@ -285,23 +270,9 @@ def main() -> None:
 
         cot_reasoning_re = re.compile(r"<\s*(think|reasoning)\s*>", re.IGNORECASE)
         cot_code_re = re.compile(r"<\s*code\s*>", re.IGNORECASE)
-
         def _has_cot(text: str) -> bool:
             t = text or ""
             return bool(cot_reasoning_re.search(t) and cot_code_re.search(t))
-
-        # Collect COT tasks for missing-COT chosen/rejected only
-        all_cot_tasks: List[Dict] = []
-        for rec in all_output_records:
-            if not _has_cot(rec.get("chosen", "")):
-                all_cot_tasks.append({"system_prompt": cot_system_prompt, "user_prompt": rec["input"], "code_output": rec["chosen"]})
-            if not _has_cot(rec.get("rejected", "")):
-                all_cot_tasks.append({"system_prompt": cot_system_prompt, "user_prompt": rec["input"], "code_output": rec["rejected"]})
-
-        log.info("COT Phase: generating reverse-COTs for %d records...", len(all_cot_tasks))
-        cot_map = generate_reverse_cots_batch(all_cot_tasks, cot_client, cot_model)
-        cot_ok = sum(1 for v in cot_map.values() if v)
-        log.info("COT Phase: %d/%d unique COTs generated.", cot_ok, len(cot_map))
 
         cot_out_path = cot_dir_path / OUTPUT_FILE.name
         out_records: List[Dict[str, Any]] = []
@@ -309,27 +280,12 @@ def main() -> None:
         for rec in all_output_records:
             chosen_text = rec["chosen"]
             rejected_text = rec["rejected"]
-            if not _has_cot(chosen_text):
-                chosen_cot = lookup_cot(cot_map, rec["input"], chosen_text)
-                if not chosen_cot:
-                    chosen_cot = generate_reverse_cot(cot_system_prompt, rec["input"], chosen_text, cot_client, cot_model)
-                if not chosen_cot:
-                    skipped += 1
-                    continue
-                chosen_text = prepend_cot(chosen_text, chosen_cot)
-            if not _has_cot(rejected_text):
-                rejected_cot = lookup_cot(cot_map, rec["input"], rejected_text)
-                if not rejected_cot:
-                    rejected_cot = generate_reverse_cot(cot_system_prompt, rec["input"], rejected_text, cot_client, cot_model)
-                if not rejected_cot:
-                    skipped += 1
-                    continue
-                rejected_text = prepend_cot(rejected_text, rejected_cot)
+            # This script only modifies rejected in stage-1 generation.
+            # In COT phase, chosen is not rewritten.
             if not _has_cot(chosen_text) or not _has_cot(rejected_text):
                 skipped += 1
                 continue
             out_rec = dict(rec)
-            out_rec["instruction"] = cot_system_prompt
             out_rec["chosen"] = chosen_text
             out_rec["rejected"] = rejected_text
             out_records.append(out_rec)

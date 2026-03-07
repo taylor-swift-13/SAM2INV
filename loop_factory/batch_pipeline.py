@@ -1255,7 +1255,7 @@ def main() -> None:
         print(f"COT Phase: skipped because system prompt mode is non-COT ({prompt_filename}).")
         return
 
-    from reverse_cot import generate_reverse_cot, generate_reverse_cot_rejected, generate_reverse_cots_batch, prepend_cot, lookup_cot
+    from reverse_cot import generate_reverse_cot_rejected, generate_reverse_cots_batch, prepend_cot, lookup_cot
     import openai as _oai
 
     cot_model = args.model
@@ -1294,90 +1294,70 @@ def main() -> None:
     dpo_teacher_records = _read_jsonl(dpo_teacher_jsonl_path)
     dpo_aug_records = _read_jsonl(dpo_aug_jsonl_path)
 
-    # Collect tasks needing reverse-COT.
-    # Policy:
-    # - Composed fields (SFT.output and all chosen) always use reverse-COT, dedup by code
-    #   so identical composed code only generates COT once.
-    # - Candidate-direct fields (distill.output and all rejected) keep native COT if present,
-    #   otherwise use reverse-COT backfill.
+    # Collect tasks for two reverse-COT passes.
+    # Pass 1 (normal reverse-COT): api.output + all chosen fields.
+    # Pass 2 (rejected reverse-COT): dpo_aug.rejected only.
     forced_code_tasks: Dict[str, Dict] = {}
-    ensure_cot_tasks: List[Dict] = []
+    aug_rejected_tasks: Dict[str, Dict] = {}
 
     for rec in sft_records:
         code = _strip_think(rec["output"])
         if code and code not in forced_code_tasks:
             forced_code_tasks[code] = {"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": code}
-    for rec in distill_records:
-        if not _has_cot(rec["output"]):
-            ensure_cot_tasks.append({"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": _strip_think(rec["output"])})
     for rec in dpo_teacher_records:
         code = _strip_think(rec["chosen"])
         if code and code not in forced_code_tasks:
             forced_code_tasks[code] = {"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": code}
-        if not _has_cot(rec["rejected"]):
-            ensure_cot_tasks.append({"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": _strip_think(rec["rejected"])})
     for rec in dpo_aug_records:
         code = _strip_think(rec["chosen"])
         if code and code not in forced_code_tasks:
             forced_code_tasks[code] = {"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": code}
-        # dpo_aug.rejected is augmentation-constructed; always reverse-COT.
+        # dpo_aug.rejected uses a separate rejected reverse-COT pass.
         rej_code = _strip_think(rec["rejected"])
-        if rej_code and rej_code not in forced_code_tasks:
-            forced_code_tasks[rej_code] = {"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": rej_code}
+        if rej_code and rej_code not in aug_rejected_tasks:
+            aug_rejected_tasks[rej_code] = {"system_prompt": system_prompt, "user_prompt": rec["input"], "code_output": rej_code}
 
-    all_cot_tasks: List[Dict] = list(forced_code_tasks.values()) + ensure_cot_tasks
+    all_cot_tasks: List[Dict] = list(forced_code_tasks.values())
 
-    print(f"COT Phase: generating reverse-COTs for {len(all_cot_tasks)} code pieces (dedup inside)...")
+    print(f"COT Phase#1: generating reverse-COTs for {len(all_cot_tasks)} code pieces (dedup inside)...")
     cot_map = generate_reverse_cots_batch(all_cot_tasks, cot_client, cot_model)
     cot_ok = sum(1 for v in cot_map.values() if v)
-    print(f"COT Phase: {cot_ok}/{len(cot_map)} unique COTs generated successfully.")
+    print(f"COT Phase#1: {cot_ok}/{len(cot_map)} unique COTs generated successfully.")
 
     forced_cot_by_code: Dict[str, str] = {}
     missing_forced_codes: Set[str] = set()
     for code, task in forced_code_tasks.items():
+        # Pass 1 outputs are reused by normalized code for api.output / dpo*.chosen.
+        # generate once in batch and reuse by normalized code.
         cot = lookup_cot(cot_map, task["user_prompt"], code)
-        if not cot:
-            cot = generate_reverse_cot(system_prompt, task["user_prompt"], code, cot_client, cot_model)
         if cot:
             forced_cot_by_code[code] = cot
         else:
             missing_forced_codes.add(code)
 
-    # If record already has COT from inference, normalize <think> to <reasoning>;
-    # otherwise generate reverse-COT.
-    def _ensure_cot(text: str, user_prompt: str) -> str:
-        if _has_cot(text):
-            # Normalize: strip native <think> and regenerate consistent <reasoning> COT
-            code = _strip_think(text)
-            cot = generate_reverse_cot(system_prompt, user_prompt, code, cot_client, cot_model)
-            if not cot:
-                return ""
-            return prepend_cot(code, cot)
-        code = _strip_think(text)
-        cot = lookup_cot(cot_map, user_prompt, code)
-        if not cot:
-            cot = generate_reverse_cot(system_prompt, user_prompt, code, cot_client, cot_model)
-        if not cot:
-            return ""
-        return prepend_cot(code, cot)
+    aug_rejected_cot_by_code: Dict[str, str] = {}
+    if aug_rejected_tasks:
+        print(f"COT Phase#2: generating rejected reverse-COTs for {len(aug_rejected_tasks)} unique dpo_aug.rejected code pieces...")
+    for code, task in aug_rejected_tasks.items():
+        cot = generate_reverse_cot_rejected(system_prompt, task["user_prompt"], code, cot_client, cot_model)
+        if cot:
+            aug_rejected_cot_by_code[code] = cot
+        else:
+            missing_forced_codes.add(code)
 
     def _force_reverse_cot(text: str, user_prompt: str) -> str:
         # Composed fields are normalized to code-only then always prepended with reverse-COT.
         code = _strip_think(text)
         cot = forced_cot_by_code.get(code, "")
         if not cot:
-            cot = generate_reverse_cot(system_prompt, user_prompt, code, cot_client, cot_model)
-            if cot:
-                forced_cot_by_code[code] = cot
-        if not cot:
             missing_forced_codes.add(code)
             return ""
         return prepend_cot(code, cot)
 
-    def _force_reverse_cot_rejected(text: str, user_prompt: str) -> str:
-        """Generate flawed-reasoning COT for rejected/incorrect code."""
+    def _force_reverse_cot_aug_rejected(text: str) -> str:
+        """Use pass-2 rejected reverse-COT for dpo_aug.rejected."""
         code = _strip_think(text)
-        cot = generate_reverse_cot_rejected(system_prompt, user_prompt, code, cot_client, cot_model)
+        cot = aug_rejected_cot_by_code.get(code, "")
         if not cot:
             missing_forced_codes.add(code)
             return ""
@@ -1401,7 +1381,8 @@ def main() -> None:
         })
 
     for rec in distill_records:
-        output = _ensure_cot(rec["output"], rec["input"])
+        # Distill keeps original candidate COT; do not reverse-COT rewrite.
+        output = rec["output"]
         if not output:
             skipped_counts["distill"] += 1
             continue
@@ -1413,7 +1394,8 @@ def main() -> None:
 
     for rec in dpo_teacher_records:
         chosen = _force_reverse_cot(rec["chosen"], rec["input"])
-        rejected = _force_reverse_cot_rejected(rec["rejected"], rec["input"])
+        # Keep original candidate rejected as-is for dpo_teacher.
+        rejected = rec["rejected"]
         if not chosen or not rejected:
             skipped_counts["dpo_teacher"] += 1
             continue
@@ -1426,7 +1408,7 @@ def main() -> None:
 
     for rec in dpo_aug_records:
         chosen = _force_reverse_cot(rec["chosen"], rec["input"])
-        rejected = _force_reverse_cot_rejected(rec["rejected"], rec["input"])
+        rejected = _force_reverse_cot_aug_rejected(rec["rejected"])
         if not chosen or not rejected:
             skipped_counts["dpo_aug"] += 1
             continue
@@ -1460,7 +1442,7 @@ def main() -> None:
             f"dpo_teacher={skipped_counts['dpo_teacher']}, dpo_aug={skipped_counts['dpo_aug']})."
         )
     if missing_forced_codes:
-        print(f"COT Phase: {len(missing_forced_codes)} unique composed code snippets failed COT generation.")
+        print(f"COT Phase: {len(missing_forced_codes)} unique code snippets failed COT generation.")
 
     with api_jsonl_path.open("w", encoding="utf-8") as f:
         for rec in api_out_records:
