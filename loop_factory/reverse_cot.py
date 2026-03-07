@@ -18,9 +18,40 @@ from typing import Dict, List, Optional, Tuple
 log = logging.getLogger(__name__)
 
 REVERSE_COT_SYSTEM = """You are a formal verification reasoning assistant.
-Given a loop invariant synthesis task and a proposed solution, generate a brief
-chain-of-thought (3-8 sentences) explaining how an expert would reason to arrive
-at that solution. Output ONLY inside <reasoning>...</reasoning> tags. Be concise and technical."""
+Given a C loop program with ACSL annotations (the solution), generate a first-person
+chain-of-thought (3-8 sentences) explaining the reasoning steps to arrive at those
+specific invariants.
+
+REQUIREMENTS:
+- You MUST reference specific variable names from the code (e.g., "q3 decreases by 3")
+- You MUST explain WHY each key invariant holds (e.g., "since z is never modified, z == 9")
+- You MUST connect invariants to the loop structure (guard, body, initialization)
+- Use first-person perspective ("I notice...", "I need to track...")
+- Output ONLY inside <reasoning>...</reasoning> tags
+
+FORBIDDEN:
+- Do NOT output generic strategies like "identify loop-updated variables"
+- Do NOT paraphrase or quote the prompt instructions
+- Do NOT use phrases like "keep invariants strong enough" without specific justification
+- Every sentence must reference a concrete variable, expression, or code construct"""
+
+REVERSE_COT_REJECTED_SYSTEM = """You are a formal verification reasoning assistant.
+Given a C loop program with ACSL annotations that FAILED verification, generate a
+first-person chain-of-thought (3-8 sentences) showing plausible but flawed reasoning
+that would lead to these incorrect invariants.
+
+REQUIREMENTS:
+- Reference specific variable names and invariants from the code
+- Show a reasoning process that seems logical but has a subtle flaw
+- The flaw should relate to why the invariants are insufficient or incorrect
+  (e.g., missing a bound, wrong relationship between variables, off-by-one)
+- Use first-person perspective ("I think...", "I assume...")
+- Output ONLY inside <reasoning>...</reasoning> tags
+
+FORBIDDEN:
+- Do NOT output generic strategies
+- Do NOT paraphrase the prompt instructions
+- Every sentence must reference a concrete variable, expression, or code construct"""
 
 REVERSE_COT_USER = """## Task Context
 {system_summary}
@@ -38,6 +69,42 @@ _REASONING_RE = re.compile(r"<reasoning>(.*?)</reasoning>", re.DOTALL)
 _THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL)
 
 
+def _coerce_content_to_text(content) -> str:
+    """Convert provider-specific message content shapes into plain text."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: List[str] = []
+        for p in content:
+            if isinstance(p, str):
+                parts.append(p)
+                continue
+            if isinstance(p, dict):
+                t = p.get("text")
+                if isinstance(t, str):
+                    parts.append(t)
+                    continue
+                text_obj = p.get("text", {})
+                if isinstance(text_obj, dict):
+                    val = text_obj.get("value")
+                    if isinstance(val, str):
+                        parts.append(val)
+                        continue
+                continue
+            t = getattr(p, "text", None)
+            if isinstance(t, str):
+                parts.append(t)
+                continue
+            text_obj = getattr(p, "text", None)
+            if hasattr(text_obj, "value") and isinstance(getattr(text_obj, "value"), str):
+                parts.append(getattr(text_obj, "value"))
+                continue
+        return "\n".join(x for x in parts if x).strip()
+    return str(content).strip()
+
+
 def _extract_think_block(text: str) -> str:
     """Extract <reasoning>...</reasoning> (or <think>) block from LLM response."""
     m = _REASONING_RE.search(text)
@@ -47,14 +114,104 @@ def _extract_think_block(text: str) -> str:
     m = _THINK_RE.search(text)
     if m:
         return f"<reasoning>\n{m.group(1).strip()}\n</reasoning>"
-    # If no tags, strip fenced code blocks and wrap remaining text as reasoning.
-    text = text.strip()
-    if text:
-        text_wo_code = re.sub(r"```[\s\S]*?```", "", text).strip()
-        if text_wo_code:
-            return f"<reasoning>\n{text_wo_code}\n</reasoning>"
-        if len(text) <= 8000:
-            return f"<reasoning>\n{text}\n</reasoning>"
+    # No tags found: return empty to trigger retry instead of wrapping arbitrary text.
+    return ""
+
+
+_TEMPLATE_PHRASES = [
+    "Identify loop-updated variables and write an inductive relation",
+    "Add minimal bounds for counters and preserved parameters",
+    "Keep invariants strong enough so invariants with loop exit",
+    "ensure loop assigns lists exactly mutated variables",
+    "identify loop-updated variables",
+    "write an inductive relation that links",
+    "Required construction order",
+]
+
+_C_KEYWORDS = frozenset({
+    'int', 'void', 'while', 'if', 'else', 'return', 'loop', 'invariant',
+    'assigns', 'variant', 'assert', 'main', 'unsigned', 'char', 'long',
+    'Pre', 'PLACE_HOLDER', 'PLACE_HOLDER_VERIFICATION_GOAL',
+    'PLACE_HOLDER_ASSIGNMENTS', 'const', 'for', 'do', 'break', 'continue',
+    'struct', 'typedef', 'include', 'define', 'sizeof', 'static', 'extern',
+})
+
+
+def _is_quality_cot(cot: str, code_output: str) -> bool:
+    """Check that COT references concrete code elements, not generic templates."""
+    if not cot:
+        return False
+    m = _REASONING_RE.search(cot)
+    if not m:
+        return False
+    text = m.group(1)
+    if len(text.strip()) < 50:
+        return False
+    # Reject template parroting
+    for phrase in _TEMPLATE_PHRASES:
+        if phrase.lower() in text.lower():
+            return False
+    # Require at least 1 concrete variable name from the code
+    var_candidates = set(re.findall(r'\b([a-zA-Z_]\w*)\b', code_output))
+    var_candidates -= _C_KEYWORDS
+    return any(var in text for var in var_candidates)
+
+
+def _generate_reverse_cot_impl(
+    system_prompt: str,
+    user_prompt: str,
+    code_output: str,
+    client,
+    model: str,
+    cot_system: str,
+    temperature: float = 0.7,
+    max_tokens: int = 1024,
+    max_retries: int = 3,
+) -> str:
+    """Internal reverse-COT generation with retry and quality check."""
+    user_msg = REVERSE_COT_USER.format(
+        system_summary=system_prompt,
+        user_prompt=user_prompt,
+        code_output=code_output,
+    )
+    for attempt in range(max_retries):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": cot_system},
+                    {"role": "user", "content": user_msg},
+                ],
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            choice = resp.choices[0]
+            msg = choice.message
+            raw = _coerce_content_to_text(getattr(msg, "content", None)).strip()
+            cot = _extract_think_block(raw)
+            if cot and _is_quality_cot(cot, code_output):
+                return cot
+            if cot:
+                log.warning(
+                    "COT failed quality check (attempt %d/%d): template text or no variable refs",
+                    attempt + 1, max_retries,
+                )
+            else:
+                preview = raw[:240].replace("\n", "\\n")
+                log.warning(
+                    "Empty COT extraction (attempt %d/%d): finish_reason=%s, content_type=%s, content_len=%d, raw_preview=%r",
+                    attempt + 1,
+                    max_retries,
+                    getattr(choice, "finish_reason", None),
+                    type(getattr(msg, "content", None)).__name__,
+                    len(_coerce_content_to_text(getattr(msg, "content", None))),
+                    preview,
+                )
+        except Exception as exc:
+            log.warning("COT API error (attempt %d/%d): %s", attempt + 1, max_retries, exc)
+            if attempt < max_retries - 1:
+                time.sleep(2.0)
+    log.error("Reverse-COT generation failed after %d attempts; returning empty COT.", max_retries)
     return ""
 
 
@@ -65,50 +222,32 @@ def generate_reverse_cot(
     client,
     model: str,
     temperature: float = 0.7,
-    max_tokens: int = 512,
+    max_tokens: int = 1024,
     max_retries: int = 3,
 ) -> str:
-    """Single reverse-COT generation with retry. Returns <reasoning>...</reasoning> or empty string."""
-    # Truncate system prompt to a summary for the reverse-COT prompt
-    system_summary = system_prompt[:500] + ("..." if len(system_prompt) > 500 else "")
-    user_msg = REVERSE_COT_USER.format(
-        system_summary=system_summary,
-        user_prompt=user_prompt,
-        code_output=code_output,
+    """Generate reverse-COT for correct code (first-person, correct reasoning)."""
+    return _generate_reverse_cot_impl(
+        system_prompt, user_prompt, code_output,
+        client, model, REVERSE_COT_SYSTEM,
+        temperature=temperature, max_tokens=max_tokens, max_retries=max_retries,
     )
-    for attempt in range(max_retries):
-        try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": REVERSE_COT_SYSTEM},
-                    {"role": "user", "content": user_msg},
-                ],
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            msg = resp.choices[0].message
-            raw = (msg.content or "").strip()
-            native_reasoning = getattr(msg, "reasoning_content", None)
-            if isinstance(native_reasoning, str) and native_reasoning.strip():
-                # Prioritize native reasoning channel when provided by model.
-                raw = f"<reasoning>\n{native_reasoning.strip()}\n</reasoning>\n{raw}"
-            cot = _extract_think_block(raw)
-            if cot:
-                return cot
-            log.warning("Empty COT extraction (attempt %d/%d)", attempt + 1, max_retries)
-        except Exception as exc:
-            log.warning("COT API error (attempt %d/%d): %s", attempt + 1, max_retries, exc)
-            if attempt < max_retries - 1:
-                time.sleep(2.0)
-    # Final fallback: guarantee non-empty COT so dataset backfill can proceed.
-    log.warning("Using fallback COT after %d failed attempts.", max_retries)
-    return (
-        "<reasoning>\n"
-        "Identify loop-updated variables and write an inductive relation that links current state to the update rule. "
-        "Add minimal bounds for counters and preserved parameters, and ensure loop assigns lists exactly mutated variables. "
-        "Keep invariants strong enough so invariants with loop exit condition can imply the target property.\n"
-        "</reasoning>"
+
+
+def generate_reverse_cot_rejected(
+    system_prompt: str,
+    user_prompt: str,
+    code_output: str,
+    client,
+    model: str,
+    temperature: float = 0.7,
+    max_tokens: int = 1024,
+    max_retries: int = 3,
+) -> str:
+    """Generate reverse-COT for rejected/incorrect code (plausible but flawed reasoning)."""
+    return _generate_reverse_cot_impl(
+        system_prompt, user_prompt, code_output,
+        client, model, REVERSE_COT_REJECTED_SYSTEM,
+        temperature=temperature, max_tokens=max_tokens, max_retries=max_retries,
     )
 
 
@@ -122,7 +261,7 @@ def generate_reverse_cots_batch(
     model: str,
     max_workers: int = 16,
     temperature: float = 0.7,
-    max_tokens: int = 512,
+    max_tokens: int = 1024,
 ) -> Dict[Tuple[str, str], str]:
     """
     Batch-generate reverse COTs with deduplication.
@@ -190,4 +329,12 @@ def prepend_cot(code: str, cot: str) -> str:
 def lookup_cot(cot_map: Dict[Tuple[str, str], str], user_prompt: str, code: str) -> str:
     """Look up a COT from the batch results map."""
     key = (_hash_str(user_prompt), _hash_str(code))
-    return cot_map.get(key, "")
+    result = cot_map.get(key, "")
+    if result:
+        return result
+    # Fallback: match by code_hash only (same code under different prompts)
+    code_hash = _hash_str(code)
+    for (_, ch), v in cot_map.items():
+        if ch == code_hash and v:
+            return v
+    return ""

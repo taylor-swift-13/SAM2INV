@@ -71,7 +71,8 @@ class BaseChatModel(ABC):
         self.config = config
         # 从文件加载system prompt
         import os
-        system_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', 'system_prompt.txt')
+        prompt_filename = getattr(config, 'system_prompt_file', 'system_prompt.txt')
+        system_prompt_path = os.path.join(os.path.dirname(__file__), 'prompts', prompt_filename)
         try:
             with open(system_prompt_path, 'r', encoding='utf-8') as f:
                 system_prompt = f.read()

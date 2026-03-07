@@ -12,7 +12,7 @@ class LLMConfig:
 
     # ── 云端服务商配置 ────────────────────────────────────────────────────────
     api_model: str = "gpt-5-nano"
-    api_key: str = os.environ.get("OPENAI_API_KEY", "")
+    api_key: str = "sk-afVplv2oRlR8SnMlC3K0ndGKOIsaBN5O3zxrD1B7zWzgNWGA"
     base_url: str = "https://yunwu.ai/v1"
 
     # ── 本地推理配置 ──────────────────────────────────────────────────────────
@@ -25,6 +25,7 @@ class LLMConfig:
     api_top_p: float = 1.0
     api_max_tokens: int = 8192
     think_mode_enabled: bool = False
+    system_prompt_file: str = "system_prompt.txt"
 
 # 通用输入子目录配置：替代之前写死的 'linear'
 SUBDIR = "NLA_lipus"
@@ -154,8 +155,9 @@ LOOP_FACTORY_USER_CONFIG = {
     'work_dir': '',
 
     # loop_factory complexity knobs (shared names with loop_factory.py)
-    'max_vars': 2,
-    'min_vars': 1,
+    # Keep enough state variables so high-arity semantic cores do not collapse roles.
+    'max_vars': 8,
+    'min_vars': 2,
     'max_params': 2,       
     'min_params': 0,       
     'min_loops': 1,
