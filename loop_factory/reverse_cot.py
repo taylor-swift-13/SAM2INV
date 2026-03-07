@@ -18,40 +18,24 @@ from typing import Dict, List, Optional, Tuple
 log = logging.getLogger(__name__)
 
 REVERSE_COT_SYSTEM = """You are a formal verification reasoning assistant.
-Given a C loop program with ACSL annotations (the solution), generate a first-person
-chain-of-thought (3-8 sentences) explaining the reasoning steps to arrive at those
-specific invariants.
+Given a C loop program with ACSL annotations (the final candidate solution), produce
+first-person reasoning that derives the loop invariants.
 
-REQUIREMENTS:
-- You MUST reference specific variable names from the code (e.g., "q3 decreases by 3")
-- You MUST explain WHY each key invariant holds (e.g., "since z is never modified, z == 9")
-- You MUST connect invariants to the loop structure (guard, body, initialization)
-- Use first-person perspective ("I notice...", "I need to track...")
-- Output ONLY inside <reasoning>...</reasoning> tags
+STRICT REQUIREMENTS:
+- Output only the reasoning process that leads to the invariants.
+- Reason in order from initialization, loop guard, and loop-body updates to the
+  invariant relationships.
+- Treat invariants as conclusions produced by analysis, never as pre-given facts.
+- Do not evaluate, judge, or label invariants as correct/incorrect.
+- Do not output summaries, meta commentary, or post-hoc explanation.
+- 3-8 concise sentences in plain natural language.
 
-FORBIDDEN:
-- Do NOT output generic strategies like "identify loop-updated variables"
-- Do NOT paraphrase or quote the prompt instructions
-- Do NOT use phrases like "keep invariants strong enough" without specific justification
-- Every sentence must reference a concrete variable, expression, or code construct"""
+OUTPUT FORMAT:
+- Output only plain natural-language reasoning text.
+- Do NOT output XML tags, markdown, code blocks, or any extra wrappers.
+"""
 
-REVERSE_COT_REJECTED_SYSTEM = """You are a formal verification reasoning assistant.
-Given a C loop program with ACSL annotations that FAILED verification, generate a
-first-person chain-of-thought (3-8 sentences) showing plausible but flawed reasoning
-that would lead to these incorrect invariants.
-
-REQUIREMENTS:
-- Reference specific variable names and invariants from the code
-- Show a reasoning process that seems logical but has a subtle flaw
-- The flaw should relate to why the invariants are insufficient or incorrect
-  (e.g., missing a bound, wrong relationship between variables, off-by-one)
-- Use first-person perspective ("I think...", "I assume...")
-- Output ONLY inside <reasoning>...</reasoning> tags
-
-FORBIDDEN:
-- Do NOT output generic strategies
-- Do NOT paraphrase the prompt instructions
-- Every sentence must reference a concrete variable, expression, or code construct"""
+REVERSE_COT_REJECTED_SYSTEM = REVERSE_COT_SYSTEM
 
 REVERSE_COT_USER = """## Task Context
 {system_summary}
@@ -62,7 +46,7 @@ REVERSE_COT_USER = """## Task Context
 ## Proposed Solution
 {code_output}
 
-Generate the reasoning trace."""
+Generate the reasoning trace in plain natural language only."""
 
 _REASONING_RE = re.compile(r"<reasoning>(.*?)</reasoning>", re.DOTALL)
 # Also match <think> in case the model still uses it
@@ -105,56 +89,41 @@ def _coerce_content_to_text(content) -> str:
     return str(content).strip()
 
 
-def _extract_think_block(text: str) -> str:
-    """Extract <reasoning>...</reasoning> (or <think>) block from LLM response."""
+def _extract_reasoning_text(text: str) -> str:
+    """Extract plain reasoning text from model output."""
     m = _REASONING_RE.search(text)
     if m:
-        return f"<reasoning>\n{m.group(1).strip()}\n</reasoning>"
+        return m.group(1).strip()
     # Fallback: model may still produce <think> tags
     m = _THINK_RE.search(text)
     if m:
-        return f"<reasoning>\n{m.group(1).strip()}\n</reasoning>"
-    # No tags found: return empty to trigger retry instead of wrapping arbitrary text.
-    return ""
+        return m.group(1).strip()
+    # Keep plain text fallback; tags are added by post-processing.
+    plain = re.sub(r"<\s*code\s*>[\s\S]*?<\s*/\s*code\s*>", " ", text, flags=re.IGNORECASE)
+    plain = re.sub(r"```[\s\S]*?```", " ", plain)
+    return plain.strip()
 
 
-_TEMPLATE_PHRASES = [
-    "Identify loop-updated variables and write an inductive relation",
-    "Add minimal bounds for counters and preserved parameters",
-    "Keep invariants strong enough so invariants with loop exit",
-    "ensure loop assigns lists exactly mutated variables",
-    "identify loop-updated variables",
-    "write an inductive relation that links",
-    "Required construction order",
-]
-
-_C_KEYWORDS = frozenset({
-    'int', 'void', 'while', 'if', 'else', 'return', 'loop', 'invariant',
-    'assigns', 'variant', 'assert', 'main', 'unsigned', 'char', 'long',
-    'Pre', 'PLACE_HOLDER', 'PLACE_HOLDER_VERIFICATION_GOAL',
-    'PLACE_HOLDER_ASSIGNMENTS', 'const', 'for', 'do', 'break', 'continue',
-    'struct', 'typedef', 'include', 'define', 'sizeof', 'static', 'extern',
-})
+_REFUSAL_RE = re.compile(
+    r"\b(i\s+can(?:not|'t)|i\s+am\s+unable|sorry,\s*i\s+cannot|can't\s+assist|cannot\s+provide)\b",
+    re.IGNORECASE,
+)
 
 
-def _is_quality_cot(cot: str, code_output: str) -> bool:
-    """Check that COT references concrete code elements, not generic templates."""
-    if not cot:
+def _is_valid_reasoning_text(cot_text: str) -> bool:
+    """Minimal validation: non-empty natural language and not explicit refusal."""
+    t = (cot_text or "").strip()
+    if not t:
         return False
-    m = _REASONING_RE.search(cot)
-    if not m:
+    if _REFUSAL_RE.search(t):
         return False
-    text = m.group(1)
-    if len(text.strip()) < 50:
-        return False
-    # Reject template parroting
-    for phrase in _TEMPLATE_PHRASES:
-        if phrase.lower() in text.lower():
-            return False
-    # Require at least 1 concrete variable name from the code
-    var_candidates = set(re.findall(r'\b([a-zA-Z_]\w*)\b', code_output))
-    var_candidates -= _C_KEYWORDS
-    return any(var in text for var in var_candidates)
+    return True
+
+
+def _wrap_reasoning(cot_text: str) -> str:
+    """Normalize plain reasoning text into canonical <reasoning> wrapper."""
+    inner = re.sub(r"<\s*/?\s*reasoning\s*>", " ", cot_text, flags=re.IGNORECASE).strip()
+    return f"<reasoning>\n{inner}\n</reasoning>"
 
 
 def _generate_reverse_cot_impl(
@@ -168,7 +137,7 @@ def _generate_reverse_cot_impl(
     max_tokens: int = 1024,
     max_retries: int = 3,
 ) -> str:
-    """Internal reverse-COT generation with retry and quality check."""
+    """Internal reverse-COT generation with retry and minimal validation."""
     user_msg = REVERSE_COT_USER.format(
         system_summary=system_prompt,
         user_prompt=user_prompt,
@@ -188,30 +157,24 @@ def _generate_reverse_cot_impl(
             choice = resp.choices[0]
             msg = choice.message
             raw = _coerce_content_to_text(getattr(msg, "content", None)).strip()
-            cot = _extract_think_block(raw)
-            if cot and _is_quality_cot(cot, code_output):
-                return cot
-            if cot:
-                log.warning(
-                    "COT failed quality check (attempt %d/%d): template text or no variable refs",
-                    attempt + 1, max_retries,
-                )
-            else:
-                preview = raw[:240].replace("\n", "\\n")
-                log.warning(
-                    "Empty COT extraction (attempt %d/%d): finish_reason=%s, content_type=%s, content_len=%d, raw_preview=%r",
-                    attempt + 1,
-                    max_retries,
-                    getattr(choice, "finish_reason", None),
-                    type(getattr(msg, "content", None)).__name__,
-                    len(_coerce_content_to_text(getattr(msg, "content", None))),
-                    preview,
-                )
+            cot_text = _extract_reasoning_text(raw)
+            if _is_valid_reasoning_text(cot_text):
+                return cot_text
+            preview = raw[:240].replace("\n", "\\n")
+            log.warning(
+                "Empty/invalid COT text (attempt %d/%d): finish_reason=%s, content_type=%s, content_len=%d, raw_preview=%r",
+                attempt + 1,
+                max_retries,
+                getattr(choice, "finish_reason", None),
+                type(getattr(msg, "content", None)).__name__,
+                len(_coerce_content_to_text(getattr(msg, "content", None))),
+                preview,
+            )
         except Exception as exc:
             log.warning("COT API error (attempt %d/%d): %s", attempt + 1, max_retries, exc)
             if attempt < max_retries - 1:
                 time.sleep(2.0)
-    log.error("Reverse-COT generation failed after %d attempts; returning empty COT.", max_retries)
+    log.error("Reverse-COT generation failed after %d attempts; returning empty COT text.", max_retries)
     return ""
 
 
@@ -273,7 +236,7 @@ def generate_reverse_cots_batch(
         max_workers: Thread pool size
 
     Returns:
-        Mapping from (prompt_hash, code_hash) -> "<reasoning>...</reasoning>"
+        Mapping from (prompt_hash, code_hash) -> plain reasoning text
     """
     # Deduplicate by (prompt_hash, code_hash)
     unique_tasks: Dict[Tuple[str, str], Dict] = {}
@@ -319,15 +282,16 @@ def generate_reverse_cots_batch(
     return results
 
 
-def prepend_cot(code: str, cot: str) -> str:
-    """Prepend COT block and wrap code in <code> tags. If cot is empty, return code unchanged."""
-    if not cot:
+def prepend_cot(code: str, cot_text: str) -> str:
+    """Prepend wrapped reasoning and wrap code in <code> tags."""
+    if not cot_text:
         return code
     # Strip existing <code> wrapper if present
     clean = re.sub(r'<\s*code\s*>\s*', '', code, flags=re.IGNORECASE)
     clean = re.sub(r'\s*<\s*/\s*code\s*>', '', clean, flags=re.IGNORECASE)
     clean = clean.strip()
-    return f"{cot}\n<code>\n{clean}\n</code>"
+    wrapped_cot = _wrap_reasoning(cot_text)
+    return f"{wrapped_cot}\n<code>\n{clean}\n</code>"
 
 
 def lookup_cot(cot_map: Dict[Tuple[str, str], str], user_prompt: str, code: str) -> str:
