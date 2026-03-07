@@ -97,6 +97,15 @@ def _is_codegen_distill_pair(prompt: str, response: str) -> bool:
     return True
 
 
+def _pick_rejected_candidate_text(rej: Dict[str, str]) -> str:
+    """Prefer original candidate response (with COT) for dpo_teacher.rejected."""
+    for key in ("raw_response", "cot_code", "response", "output", "code"):
+        text = (rej.get(key, "") or "").strip()
+        if text:
+            return text
+    return ""
+
+
 CPP_KEYWORDS = {
     "if", "else", "while", "for", "int", "return", "break", "continue", "char", "float",
     "double", "void", "do", "switch", "case", "sizeof", "struct", "union", "enum", "typedef",
@@ -1190,22 +1199,22 @@ def main() -> None:
                         if not chosen_code:
                             continue
                         for rej in loop_rec.get("rejected_items", []):
-                            rej_code = (rej.get("code", "") or "").strip()
-                            if not rej_code or rej_code == chosen_code or rej_code in seen_rejected:
+                            rej_text = _pick_rejected_candidate_text(rej)
+                            if not rej_text or rej_text == chosen_code or rej_text in seen_rejected:
                                 continue
-                            seen_rejected.add(rej_code)
+                            seen_rejected.add(rej_text)
                             dpo_item = {
                                 "instruction": result["system_prompt"],
                                 "input": prompt_text,
                                 "chosen": chosen_code,
-                                "rejected": rej_code,
+                                "rejected": rej_text,
                             }
                             dpo_teacher_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
                             dpo_teacher_written += 1
                             # Houdini augmentation: "all valid + 1 bad" variants of this rejected
                             if use_houdini_aug and _aug_verifier and _aug_pruner and _aug_tmp_c:
                                 for aug_code in _aug_houdini_rejects(
-                                    rej_code, _aug_verifier, _aug_pruner,
+                                    (rej.get("code", "") or "").strip(), _aug_verifier, _aug_pruner,
                                     _aug_tmp_c, houdini_aug_patience,
                                 ):
                                     aug_code = aug_code.strip()
@@ -1219,7 +1228,7 @@ def main() -> None:
                                         }, ensure_ascii=False) + "\n")
                                         dpo_aug_written += 1
                             # Augmentation C: random subset from error candidate.
-                            aug_c = _aug_error_subset_reject(rej_code, aug_rng)
+                            aug_c = _aug_error_subset_reject((rej.get("code", "") or "").strip(), aug_rng)
                             if aug_c:
                                 aug_c = aug_c.strip()
                                 if aug_c and aug_c != chosen_code and aug_c not in seen_rejected:
