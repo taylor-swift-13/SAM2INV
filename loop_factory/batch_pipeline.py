@@ -106,6 +106,28 @@ def _pick_rejected_candidate_text(rej: Dict[str, str]) -> str:
     return ""
 
 
+_think_strip_re_global = re.compile(r"<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>", re.IGNORECASE)
+_reasoning_strip_re_global = re.compile(r"<\s*reasoning\s*>[\s\S]*?<\s*/\s*reasoning\s*>", re.IGNORECASE)
+_code_open_re_global = re.compile(r"<\s*code\s*>\s*", re.IGNORECASE)
+_code_close_re_global = re.compile(r"\s*<\s*/\s*code\s*>", re.IGNORECASE)
+
+
+def _strip_cot_wrappers(text: str) -> str:
+    t = _think_strip_re_global.sub("", text or "")
+    t = _reasoning_strip_re_global.sub("", t)
+    t = _code_open_re_global.sub("", t)
+    t = _code_close_re_global.sub("", t)
+    return t.strip()
+
+
+def _compose_rejected_with_reason(rej: Dict[str, str]) -> str:
+    reason = (rej.get("reason", "") or "").strip() or "filtered"
+    code_text = _strip_cot_wrappers(_pick_rejected_candidate_text(rej))
+    if not code_text:
+        return ""
+    return f"<reasoning>{reason}</reasoning>\n\n<code>\n{code_text}\n</code>"
+
+
 CPP_KEYWORDS = {
     "if", "else", "while", "for", "int", "return", "break", "continue", "char", "float",
     "double", "void", "do", "switch", "case", "sizeof", "struct", "union", "enum", "typedef",
@@ -1199,7 +1221,7 @@ def main() -> None:
                         if not chosen_code:
                             continue
                         for rej in loop_rec.get("rejected_items", []):
-                            rej_text = _pick_rejected_candidate_text(rej)
+                            rej_text = _compose_rejected_with_reason(rej)
                             if not rej_text or rej_text == chosen_code or rej_text in seen_rejected:
                                 continue
                             seen_rejected.add(rej_text)
