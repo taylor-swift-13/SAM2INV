@@ -9,8 +9,6 @@ SAM2INV/
 ├── README.md
 ├── README_ENV.md
 ├── environment.yml
-├── sam2inv.opam
-├── opam-packages.txt
 ├── src/
 │   ├── loop_inv.py                # Main entry point for one C file
 │   ├── run_all_tests.py           # Batch runner for one input subdirectory
@@ -25,10 +23,9 @@ SAM2INV/
 
 ## Requirements
 
-- Python 3.11 (recommended; see `environment.yml`)
-- Frama-C available in `PATH`
+- Python 3.10.12, torch 2.6.0, vllm 0.8.0, transformers 4.57.1 (see `environment.yml`)
+- Frama-C 29.0 (via OPAM)
 - Z3 available in `PATH`
-- `opam` (recommended for Frama-C/OCaml toolchain management)
 
 ## Environment Setup
 
@@ -40,7 +37,7 @@ After environment setup, activate before running:
 
 ```bash
 conda activate sam2inv
-source src/scripts/opam.sh sam2inv
+eval "$(opam env --switch=sam2inv --set-switch)"
 ```
 
 ## Run One File
@@ -95,11 +92,9 @@ python3 run_all_tests.py NLA_lipus --workers 20 --max-iterations 1
 ```bash
 cd /path/to/SAM2INV
 conda activate sam2inv
-source src/scripts/opam.sh sam2inv
+eval "$(opam env --switch=sam2inv --set-switch)"
 
 frama-c -version
-why3 --version
-alt-ergo --version
 z3 --version
 
 cd src
