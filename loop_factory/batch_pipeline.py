@@ -110,6 +110,8 @@ _think_strip_re_global = re.compile(r"<\s*think\s*>[\s\S]*?<\s*/\s*think\s*>", r
 _reasoning_strip_re_global = re.compile(r"<\s*reasoning\s*>[\s\S]*?<\s*/\s*reasoning\s*>", re.IGNORECASE)
 _code_open_re_global = re.compile(r"<\s*code\s*>\s*", re.IGNORECASE)
 _code_close_re_global = re.compile(r"\s*<\s*/\s*code\s*>", re.IGNORECASE)
+_reasoning_tag_re_global = re.compile(r"<\s*(think|reasoning)\s*>", re.IGNORECASE)
+_code_tag_re_global = re.compile(r"<\s*code\s*>", re.IGNORECASE)
 
 
 def _strip_cot_wrappers(text: str) -> str:
@@ -118,6 +120,11 @@ def _strip_cot_wrappers(text: str) -> str:
     t = _code_open_re_global.sub("", t)
     t = _code_close_re_global.sub("", t)
     return t.strip()
+
+
+def _has_cot(text: str) -> bool:
+    t = text or ""
+    return bool(_reasoning_tag_re_global.search(t) and _code_tag_re_global.search(t))
 
 
 def _compose_rejected_with_reason(rej: Dict[str, str]) -> str:
@@ -1323,8 +1330,6 @@ def main() -> None:
     _reasoning_strip_re = re.compile(r"<\s*reasoning\s*>[\s\S]*?<\s*/\s*reasoning\s*>", re.IGNORECASE)
     _code_open_re = re.compile(r"<\s*code\s*>\s*", re.IGNORECASE)
     _code_close_re = re.compile(r"\s*<\s*/\s*code\s*>", re.IGNORECASE)
-    _reasoning_tag_re = re.compile(r"<\s*(think|reasoning)\s*>", re.IGNORECASE)
-    _code_tag_re = re.compile(r"<\s*code\s*>", re.IGNORECASE)
     def _strip_think(text: str) -> str:
         text = _think_strip_re.sub("", text)
         text = _reasoning_strip_re.sub("", text)
@@ -1332,9 +1337,6 @@ def main() -> None:
         text = _code_open_re.sub("", text)
         text = _code_close_re.sub("", text)
         return text.strip()
-    def _has_cot(text: str) -> bool:
-        t = text or ""
-        return bool(_reasoning_tag_re.search(t) and _code_tag_re.search(t))
 
     sft_records = _read_jsonl(api_jsonl_path)
     distill_records = _read_jsonl(distill_jsonl_path)
