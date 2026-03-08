@@ -9,7 +9,7 @@ import re
 import logging
 import tempfile
 from pathlib import Path
-from typing import Optional, List, Dict, Set, Tuple
+from typing import Optional, List, Dict, Set, Tuple, Callable
 from loop_sampler import LoopSampler
 from template_generator import TemplateGenerator
 from prompt import PromptFormatter
@@ -3031,12 +3031,19 @@ class InvariantGenerator:
 
         return updated, total_removed
     
-    def generate_all(self, max_iterations: int = MAX_ITERATION) -> Optional[str]:
+    def generate_all(
+        self,
+        max_iterations: int = MAX_ITERATION,
+        per_pass_verify_callback: Optional[Callable[[str, int], Optional[Tuple[bool, bool, bool]]]] = None,
+    ) -> Optional[str]:
         """
         Generate invariants for all loops and return complete annotated C code
         
         Args:
             max_iterations: Maximum number of generation passes (default: 5)
+            per_pass_verify_callback: Optional callback invoked after each pass final
+                code is formed. Receives (pass_final_code, pass_idx) and returns
+                (syntax_ok, valid_ok, satisfy_ok) to override pass-level metrics.
         
         Returns:
             Complete C code with loop invariants, or None if generation failed
@@ -3285,6 +3292,14 @@ class InvariantGenerator:
                     finally:
                         if os.path.exists(dedup_temp):
                             os.remove(dedup_temp)
+
+            if per_pass_verify_callback is not None:
+                try:
+                    cb_result = per_pass_verify_callback(pass_final_code, pass_idx)
+                    if cb_result is not None:
+                        pass_syntax, pass_valid, pass_satisfy = cb_result
+                except Exception as e:
+                    self.logger.warning(f"Pass {pass_idx}: per-pass verify callback failed: {e}")
 
             final_code = pass_final_code
             candidate_meta = pass_candidate_meta

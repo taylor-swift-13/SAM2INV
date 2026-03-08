@@ -220,8 +220,43 @@ def main():
 
     signal.signal(signal.SIGTERM, _sigterm_handler)
 
+    per_pass_verify_callback = None
+    if args.mask_mode and mask_ctx is not None:
+        def _per_pass_mask_verify(pass_code: str, pass_idx: int):
+            restored_code = _restore_assertions(pass_code, mask_ctx["placeholders"])
+            os.makedirs(resolved_output_dir, exist_ok=True)
+            verify_fd, verify_path = tempfile.mkstemp(
+                prefix=f"{args.file_name}_mask_verify_p{pass_idx}_",
+                suffix=".c",
+                dir=resolved_output_dir,
+            )
+            os.close(verify_fd)
+            try:
+                with open(verify_path, "w", encoding="utf-8") as f:
+                    f.write(restored_code)
+
+                verifier = OutputVerifier(logger=logger, output=True)
+                verifier.run(verify_path)
+                syntax_ok = getattr(verifier, "syntax_correct", False)
+                valid_ok = bool(verifier.validate_result) and all(verifier.validate_result)
+                has_assert = re.search(r"/\*@\s*assert\b|//@\s*assert\b", restored_code) is not None
+                satisfy_ok = (all(verifier.verify_result) if verifier.verify_result else False) or (not has_assert)
+                logger.info(
+                    f"Mask mode per-pass verification (pass {pass_idx}): "
+                    f"syntax={syntax_ok}, valid={valid_ok}, satisfy={satisfy_ok}, has_assert={has_assert}"
+                )
+                return syntax_ok, valid_ok, satisfy_ok
+            finally:
+                if os.path.exists(verify_path):
+                    os.remove(verify_path)
+
+        per_pass_verify_callback = _per_pass_mask_verify
+
     logger.info(f"开始为 {args.file_name} 生成循环不变量...")
-    annotated_code = generator.generate_all(max_iterations=args.max_iterations)
+    annotated_code = generator.generate_all(
+        max_iterations=args.max_iterations,
+        per_pass_verify_callback=per_pass_verify_callback,
+    )
 
     if args.mask_mode and mask_ctx is not None and annotated_code:
         annotated_code = _restore_assertions(annotated_code, mask_ctx["placeholders"])
