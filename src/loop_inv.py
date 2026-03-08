@@ -248,6 +248,14 @@ def main():
             logger.info(
                 f"Mask mode final verification: syntax={syntax_ok}, valid={valid_ok}, satisfy={satisfy_ok}, has_assert={has_assert}"
             )
+
+            # Update first_pass satisfy with post-restore verification result
+            if hasattr(generator, 'first_pass') and generator.first_pass is not None:
+                fp = generator.first_pass
+                if satisfy_ok and fp.get('satisfy') is None:
+                    fp['satisfy'] = fp.get('valid') or fp.get('syntax') or 1
+                elif not satisfy_ok and fp.get('satisfy') is not None:
+                    fp['satisfy'] = None
         finally:
             if os.path.exists(verify_path):
                 os.remove(verify_path)
