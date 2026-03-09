@@ -1,0 +1,491 @@
+2026-03-09 12:53:25,965 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-09 12:53:26,096 - INFO - Found 1 loops
+2026-03-09 12:53:26,160 - INFO - 
+============================================================
+2026-03-09 12:53:26,161 - INFO - Main generation pass 1/1
+2026-03-09 12:53:26,161 - INFO - ============================================================
+2026-03-09 12:53:26,163 - INFO - Loaded single prompt template: simple
+2026-03-09 12:53:26,164 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-09 12:53:26,178 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-09 12:53:26,209 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 12:55:35,123 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>Derivation and justification of invariants:
+
+- The loop updates vk by 1 on every iteration (vk = vk + 1) and updates s by adding the new vk (s = s + vk). If the initial s value is s0 = \at(s, Pre) and after k iterations vk = k, then s becomes s0 + 1 + 2 + ... + k = s0 + k*(k+1)/2. Therefore the exact invariant relating s and vk is:
+  s == \at(s, Pre) + (vk * (vk + 1)) / 2
+  This invariant holds before the first iteration (vk = 0, s == s0) and is preserved by each iteration.
+
+- A simple progress bound is that vk is non-negative (starts at 0 and only increases). So include:
+  0 <= vk
+
+- We avoid relying on b for invariants since b can be negative depending on the initial s (due to the C modulo behavior). The invariant above does not rely on b and remains valid for all possible initial s.
+
+- The loop assigns are the variables the loop may modify: s, vk, mi.
+
+- The chosen invariants are strong and directly reflect the state-update pattern of the loop, aiding automated verification with Frama-C/WP. The loop guard is not declared as an invariant; it is a control condition and can be weakened at exit if needed.
+
+</reasoning>
+<code>int main1(int s,int r){
+  int b, vk, mi;
+
+  b=(s%15)+6;
+  vk=0;
+  mi=-5;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant s == \at(s, Pre) + (vk * (vk + 1)) / 2;
+    loop invariant 0 <= vk;
+    loop assigns s, vk, mi;
+  */
+while (1) {
+      if (!(vk<=b-1)) {
+          break;
+      }
+      mi = b-vk;
+      vk = vk + 1;
+      s = s + vk;
+  }
+
+}</code>
+----- Candidate 1/5 raw response end -----
+2026-03-09 12:55:35,124 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-09 12:55:35,141 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 12:56:34,468 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop annotations for the given loop. The loop updates a few variables and preserves a clear arithmetic relationship between s, vk, and the initial s. Key observations:
+
+- The loop is executed while vk <= b-1; vk starts at 0 and is incremented by 1 each iteration; thus the number of iterations is b.
+- s is increased by the new vk value each iteration, i.e., s := s + vk', where vk' = vk + 1.
+- The initial value of s before the loop is s0 = \at(s, Pre).
+- A clean invariant capturing the cumulative effect on s is:
+  s = s0 + sum_{i=1..vk} i = s0 + vk*(vk+1)/2.
+  This is true initially (vk = 0 gives s = s0) and is preserved by each iteration:
+  if before an iteration vk = k, s = s0 + k*(k+1)/2; after the iteration, vk' = k+1 and s' = s + (k+1) = s0 + k*(k+1)/2 + (k+1) = s0 + (k+1)*(k+2)/2, which matches the formula with vk' = k+1.
+- We also give a simple progress bound: 0 <= vk <= b. Since the loop ends when vk reaches b, this invariant holds throughout.
+- A loop variant is (b - vk), which starts at b and decreases by 1 each iteration, ensuring termination.
+- The loop assigns the variables modified inside the loop: mi, vk, s.
+
+Using these, we provide two invariants (the core relational invariant and a progress invariant), plus the assignment set and a loop variant. We rely only on allowed variables (b, vk, mi, s) and the function parameter s via \at(s, Pre). The invariant s == \at(s, Pre) + (vk*(vk+1))/2 is the core conservation/relational invariant that explains the updates to s. The bound 0 <= vk <= b ensures counters/indices stay within expected ranges. The loop variant (b - vk) provides a numeric descent to guarantee termination. The assignments list includes all variables modified in the loop: mi, vk, and s. No unrelated invariants are added, and the function code itself is left unchanged other than the loop annotations. </reasoning>
+<code>/* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant s == \at(s, Pre) + (vk * (vk + 1)) / 2;
+  loop invariant 0 <= vk <= b;
+  loop assigns mi, vk, s;
+  loop variant (b - vk);
+*/
+while (1) {
+      if (!(vk<=b-1)) {
+          break;
+      }
+      mi = b-vk;
+      vk = vk + 1;
+      s = s + vk;
+  }</code>
+----- Candidate 2/5 raw response end -----
+2026-03-09 12:56:34,468 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-09 12:56:34,481 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 12:59:24,807 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>The loop is a counting loop where:
+- b is computed once from the initial s, and then remains constant during the loop. Therefore we can relate b to the initial s via b == ((\at(s,Pre) % 15) + 6).
+- vk starts at 0 and is incremented by 1 each iteration, up to vk = b. The loop guard ensures iterations while vk <= b-1, so after the iteration vk becomes b and the loop exits. This provides a natural loop variant: b - vk, which decreases by 1 each iteration and is always non-negative.
+- s is updated by adding the new vk value each iteration. Since vk goes 1, 2, ..., b, the total increment to s after k iterations is sum_{i=1..k} i = k*(k+1)/2. With s0 := \at(s,Pre), we have s = s0 + vk*(vk+1)/2 at the loop head, which is inductive given the updates s := s + vk after increasing vk.
+- We declare loop assigns mi, vk, s since those are the only variables modified inside the loop.
+- The invariants are chosen to be strong and inductive, using only the available variables and the function parameter \at(s,Pre). They aid Frama-C/WP in establishing correctness without altering the original code. </reasoning>
+<code>int main1(int s,int r){
+  int b, vk, mi;
+
+  b=(s%15)+6;
+  vk=0;
+  mi=-5;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant b == ((\at(s,Pre) % 15) + 6);
+    loop invariant s == \at(s,Pre) + (vk * (vk + 1)) / 2;
+    loop invariant 0 <= vk && vk <= b;
+    loop assigns mi, vk, s;
+    loop variant (b - vk);
+  */
+while (1) {
+      if (!(vk<=b-1)) {
+          break;
+      }
+      mi = b-vk;
+      vk = vk + 1;
+      s = s + vk;
+  }
+
+}</code>
+----- Candidate 3/5 raw response end -----
+2026-03-09 12:59:24,807 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-09 12:59:24,825 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 13:01:12,717 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+The loop iterates while vk ≤ b - 1, starting from vk = 0. The variable b is initialized as (s % 15) + 6, which remains unchanged during the loop. Each iteration updates mi to b - vk, increments vk by 1, and increments s by vk.
+
+We want to express invariants that capture the relationships among variables, preserve inductiveness, and facilitate verification.
+
+Key points:
+- vk is incremented by 1 each iteration; initially vk=0 and continues while vk ≤ b-1.
+- Since mi = b - vk after assignment, and vk increases, mi decreases accordingly; at loop entry mi = -5 but is overwritten in the first iteration.
+- s is updated each iteration by adding the new vk value; s accumulates sum of 1..vk added to its initial value.
+
+We need:
+1. Conservation invariant expressing mi in terms of b and vk: mi == b - vk
+   This is exact after the assignment in the loop. However, since mi is assigned after evaluating the loop condition (vk ≤ b - 1), the invariant mi == b - vk holds at the loop head only if we treat mi as updated at each iteration start. Since mi is updated immediately after guard, the invariant is valid at loop head.
+
+2. Bound on vk: 0 ≤ vk ≤ b
+   vk starts at 0 and increments by 1 each iteration until it surpasses b-1, then loop breaks when vk > b-1 i.e. vk ≥ b. So inside the loop, vk ≤ b holds; after exit vk ≥ b.
+
+3. Progress invariant: vk ≤ b, which is preserved.
+
+4. s accumulates s += vk each time vk increments by 1 from 0 to b.
+
+Express s in terms of initial s and sum of vk:
+
+s = \at(s, Pre) + sum_{i=1}^{vk} i = \at(s, Pre) + vk*(vk + 1)/2
+
+From the updates, since vk increases by 1 and s increments by vk.
+
+This is an important state relation, helps showing how s evolves.
+
+Therefore, the loop invariants are:
+- 0 ≤ vk ≤ b   (progress bounds)
+- mi == b - vk  (linear relation between mi and vk)
+- s == \at(s, Pre) + vk*(vk + 1)/2 (relation showing s accumulation)
+
+Loop assigns: mi, vk, s (these are updated inside loop), b and r not modified.
+
+Loop variant: b - vk (natural decreasing non-negative integer counting iterations left)
+
+Note on \at(s, Pre): allowed as s is a parameter.
+
+We avoid using \at(vk, Pre) or \at(mi, Pre) as they are locals.
+
+This set of invariants and assigns is inductive:
+- At start vk=0; mi == b - 0 == b; initially mi == -5 but this is before the loop, the loop's first iteration updates mi to b - vk.
+- Wait, at start mi == -5 but from invariant mi == b - vk = b - 0 = b. Are these compatible? Actually, the loop invariant must hold at loop head, i.e. before first iteration, so mi == b - vk must hold before first iteration.
+
+But initially, mi == -5, vk ==0, and b == (s % 15) + 6 (~6 to 20). So mi == b or mi == -5 but these differ.
+
+Hence, the proposed invariant mi == b - vk is false before the first iteration.
+
+Alternative: Relax mi invariant by allowing mi ≤ b - vk or tracking the relation only after first iteration.
+
+Given that mi is assigned inside the loop body, and not before the loop, we can weaken the invariant on mi to simply:
+
+- mi ≥ 0 ==> no, because mi goes from b down to 0 as vk goes from 0 up to b
+
+- Or remove invariant on mi, or accept that invariant on mi holds only after first iteration.
+
+But standard loop invariants must hold before first iteration.
+
+So we can encode two invariants on mi:
+
+1. mi ≤ b - vk  
+2. mi is equal to b - vk after assignment.
+
+However, to be safe, we can just not include mi in the loop invariant; or weaken it to mi ≤ b.
+
+Alternatively, write:
+
+loop invariant mi == b - (vk - 1) || vk == 0
+
+But cannot use disjunction.
+
+So safer to ignore mi in invariant to ensure inductiveness since mi is overwritten each iteration.
+
+Therefore, keep invariant on vk and s, but not on mi.
+
+But since mi is overwritten every iteration, it does not affect loop's control and others.
+
+So final invariants:
+
+- 0 ≤ vk ≤ b
+- s == \at(s, Pre) + vk*(vk + 1)/2
+
+Since vk increments by 1 each iteration and s accumulates vk, these are strong invariants.
+
+Loop assigns: mi, vk, s.
+
+Loop variant: b - vk, decreases strictly by 1 each iteration.
+
+At loop exit: vk > b -1 → vk ≥ b.
+
+No need for mi in assigns anything else as it is local variable updated inside loop.
+
+This is sufficient for verifying correctness and inductiveness.
+
+</reasoning>
+<code>
+int main1(int s,int r){
+  int b, vk, mi;
+
+  b=(s%15)+6;
+  vk=0;
+  mi=-5;
+
+  /*@
+    loop invariant 0 <= vk <= b;
+    loop invariant s == \at(s, Pre) + (vk*(vk + 1))/2;
+    loop assigns mi, vk, s;
+    loop variant b - vk;
+  */
+  while (1) {
+        if (!(vk <= b - 1)) {
+            break;
+        }
+        mi = b - vk;
+        vk = vk + 1;
+        s = s + vk;
+    }
+
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-03-09 13:01:12,718 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-09 13:01:12,730 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 13:04:05,785 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop invariants for the given loop in Frama-C/WP. Observations:
+- The loop computes b before iterating and never changes b inside the loop. So b is constant during the loop and is derived from the initial s: b = (s0 % 15) + 6, where s0 = \at(s,Pre).
+- Inside the loop, on every iteration we set mi = b - vk, then increment vk, then update s by the new vk: s := s + vk (with vk already incremented). If we denote s0 = \at(s,Pre) and let vk be the current value after the previous iteration (or 0 initially), then after t iterations we have vk = t and s = s0 + sum_{i=1..t} i = s0 + t*(t+1)/2.
+- This yields a clean, exact invariant relating s, s0, and vk: s == s0 + vk*(vk+1)/2. This is the core conservation/relational equality explaining the loop update (the triangular-number progression of s due to cumulative increments by vk).
+- We also enforce a simple progress bound: 0 <= vk <= b, which is preserved because the loop guard is vk <= b-1 and vk is incremented by 1 each iteration.
+- Additional invariant tying b to initial s, since b is computed solely from the initial s: b == ((\at(s,Pre)) % 15) + 6. This confirms b is constant and depends only on the initial parameter value.
+- Loop assigns: the loop modifies mi, vk, and s (b is not modified in the loop).
+- Loop variant: (b - vk) decreases by 1 each iteration (since vk increments by 1), ensuring termination.
+
+These invariants are strong, inductive, and precise, and they do not rely on rewriting the code. The unknown() calls are not touched, and only function parameters may use \at(...,Pre). The invariants reference \at(s,Pre) (the initial s) for the derived relationships. </reasoning>
+<code>/*@
+  loop invariant b == ((\at(s, Pre)) % 15) + 6;
+  loop invariant s == \at(s, Pre) + (vk * (vk + 1)) / 2;
+  loop invariant 0 &le; vk && vk &le; b;
+  loop assigns mi, vk, s;
+  loop variant (b - vk);
+*/
+while (1) {
+      if (!(vk<=b-1)) {
+          break;
+      }
+      mi = b-vk;
+      vk = vk + 1;
+      s = s + vk;
+  }</code>
+----- Candidate 5/5 raw response end -----
+2026-03-09 13:04:05,787 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int s,int r){
+  int b, vk, mi;
+
+  b=(s%15)+6;
+  vk=0;
+  mi=-5;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant s == \at(s, Pre) + (vk * (vk + 1)) / 2;
+    loop invariant 0 <= vk;
+    loop assigns s, vk, mi;
+  */
+while (1) {
+      if (!(vk<=b-1)) {
+          break;
+      }
+      mi = b-vk;
+      vk = vk + 1;
+      s = s + vk;
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-03-09 13:04:05,787 - INFO - 
+----- Candidate 2/5 full code begin -----
+/* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant s == \at(s, Pre) + (vk * (vk + 1)) / 2;
+  loop invariant 0 <= vk <= b;
+  loop assigns mi, vk, s;
+  loop variant (b - vk);
+*/
+while (1) {
+      if (!(vk<=b-1)) {
+          break;
+      }
+      mi = b-vk;
+      vk = vk + 1;
+      s = s + vk;
+  }
+----- Candidate 2/5 full code end -----
+2026-03-09 13:04:05,787 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int s,int r){
+  int b, vk, mi;
+
+  b=(s%15)+6;
+  vk=0;
+  mi=-5;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant b == ((\at(s,Pre) % 15) + 6);
+    loop invariant s == \at(s,Pre) + (vk * (vk + 1)) / 2;
+    loop invariant 0 <= vk && vk <= b;
+    loop assigns mi, vk, s;
+    loop variant (b - vk);
+  */
+while (1) {
+      if (!(vk<=b-1)) {
+          break;
+      }
+      mi = b-vk;
+      vk = vk + 1;
+      s = s + vk;
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-09 13:04:05,787 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int s,int r){
+  int b, vk, mi;
+
+  b=(s%15)+6;
+  vk=0;
+  mi=-5;
+
+  /*@
+    loop invariant 0 <= vk <= b;
+    loop invariant s == \at(s, Pre) + (vk*(vk + 1))/2;
+    loop assigns mi, vk, s;
+    loop variant b - vk;
+  */
+  while (1) {
+        if (!(vk <= b - 1)) {
+            break;
+        }
+        mi = b - vk;
+        vk = vk + 1;
+        s = s + vk;
+    }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-09 13:04:05,787 - INFO - 
+----- Candidate 5/5 full code begin -----
+/*@
+  loop invariant b == ((\at(s, Pre)) % 15) + 6;
+  loop invariant s == \at(s, Pre) + (vk * (vk + 1)) / 2;
+  loop invariant 0 &le; vk && vk &le; b;
+  loop assigns mi, vk, s;
+  loop variant (b - vk);
+*/
+while (1) {
+      if (!(vk<=b-1)) {
+          break;
+      }
+      mi = b-vk;
+      vk = vk + 1;
+      s = s + vk;
+  }
+----- Candidate 5/5 full code end -----
+2026-03-09 13:04:05,787 - INFO - Successfully generated 5/5 candidates
+2026-03-09 13:04:05,788 - INFO - Checking 6 invariants for conflicts...
+2026-03-09 13:04:05,789 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-09 13:04:05,789 - INFO -   1: int main1(int s,int r){
+2026-03-09 13:04:05,789 - INFO -   2:   int b, vk, mi;
+2026-03-09 13:04:05,789 - INFO -   3: 
+2026-03-09 13:04:05,789 - INFO -   4:   b=(s%15)+6;
+2026-03-09 13:04:05,789 - INFO -   5:   vk=0;
+2026-03-09 13:04:05,789 - INFO -   6:   mi=-5;
+2026-03-09 13:04:05,789 - INFO -   7: 
+2026-03-09 13:04:05,790 - INFO -   8:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-09 13:04:05,790 - INFO -   9: /*@
+2026-03-09 13:04:05,790 - INFO -   10:   loop invariant s == \at(s, Pre) + (vk * (vk + 1)) / 2;
+2026-03-09 13:04:05,790 - INFO - DEBUG: Total lines: 28
+2026-03-09 13:04:16,715 - INFO - syntax Correct
+2026-03-09 13:04:47,649 - INFO - Validate:
+2026-03-09 13:04:47,649 - INFO - [True, True, False, True, True, True]
+2026-03-09 13:04:47,649 - INFO - 
+2026-03-09 13:04:47,649 - INFO - Verify:
+2026-03-09 13:04:47,649 - INFO - []
+2026-03-09 13:04:47,649 - INFO - 
+2026-03-09 13:04:47,649 - INFO - Houdini iteration 1: Removed 1 failed invariants
+2026-03-09 13:04:47,649 - INFO -   Before: 6 invariants
+2026-03-09 13:04:47,649 - INFO -   After: 5 invariants
+2026-03-09 13:04:47,649 - INFO -   Remaining invariants:
+2026-03-09 13:04:47,649 - INFO -     [1] s == \at(s, Pre) + (vk * (vk + 1)) / 2
+2026-03-09 13:04:47,649 - INFO -     [2] 0 <= vk
+2026-03-09 13:04:47,649 - INFO -     [3] b == ((\at(s,Pre) % 15) + 6)
+2026-03-09 13:04:47,649 - INFO -     [4] 0 <= vk && vk <= b
+2026-03-09 13:04:47,649 - INFO -     [5] b == ((\at(s, Pre)) % 15) + 6
+2026-03-09 13:04:58,530 - INFO - syntax Correct
+2026-03-09 13:05:29,433 - INFO - Validate:
+2026-03-09 13:05:29,433 - INFO - [True, True, True, False, True]
+2026-03-09 13:05:29,433 - INFO - 
+2026-03-09 13:05:29,433 - INFO - Verify:
+2026-03-09 13:05:29,433 - INFO - []
+2026-03-09 13:05:29,433 - INFO - 
+2026-03-09 13:05:29,433 - INFO - Houdini iteration 2: Removed 1 failed invariants
+2026-03-09 13:05:29,433 - INFO -   Before: 5 invariants
+2026-03-09 13:05:29,434 - INFO -   After: 4 invariants
+2026-03-09 13:05:29,434 - INFO -   Remaining invariants:
+2026-03-09 13:05:29,434 - INFO -     [1] s == \at(s, Pre) + (vk * (vk + 1)) / 2
+2026-03-09 13:05:29,434 - INFO -     [2] 0 <= vk
+2026-03-09 13:05:29,434 - INFO -     [3] b == ((\at(s,Pre) % 15) + 6)
+2026-03-09 13:05:29,434 - INFO -     [4] b == ((\at(s, Pre)) % 15) + 6
+2026-03-09 13:05:40,165 - INFO - syntax Correct
+2026-03-09 13:06:10,954 - INFO - Validate:
+2026-03-09 13:06:10,954 - INFO - [True, True, True, True]
+2026-03-09 13:06:10,954 - INFO - 
+2026-03-09 13:06:10,954 - INFO - Verify:
+2026-03-09 13:06:10,954 - INFO - []
+2026-03-09 13:06:10,954 - INFO - 
+2026-03-09 13:06:10,954 - INFO - Houdini iteration 3: All invariants are valid
+2026-03-09 13:06:21,674 - INFO - syntax Correct
+2026-03-09 13:06:52,459 - INFO - Validate:
+2026-03-09 13:06:52,460 - INFO - [True, True, True, True]
+2026-03-09 13:06:52,460 - INFO - 
+2026-03-09 13:06:52,460 - INFO - Verify:
+2026-03-09 13:06:52,460 - INFO - []
+2026-03-09 13:06:52,460 - INFO - 
+2026-03-09 13:07:05,588 - INFO - Deduplicated 1 loop invariants in final code
+2026-03-09 13:07:16,237 - INFO - syntax Correct
+2026-03-09 13:07:46,953 - INFO - Validate:
+2026-03-09 13:07:46,953 - INFO - [True, True, True]
+2026-03-09 13:07:46,953 - INFO - 
+2026-03-09 13:07:46,953 - INFO - Verify:
+2026-03-09 13:07:46,953 - INFO - []
+2026-03-09 13:07:46,953 - INFO - 
+2026-03-09 13:07:46,953 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-09 13:07:46,953 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_12/1.c
+2026-03-09 13:07:46,954 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_12/1_invariants.txt
+2026-03-09 13:07:46,954 - INFO - 
+============================================================
+2026-03-09 13:07:46,954 - INFO - Final first_pass results:
+2026-03-09 13:07:46,954 - INFO -   syntax=1
+2026-03-09 13:07:46,954 - INFO -   valid=1
+2026-03-09 13:07:46,954 - INFO -   satisfy=None
+2026-03-09 13:07:46,954 - INFO - ============================================================
+2026-03-09 13:07:46,954 - INFO - 
+============================================================
+2026-03-09 13:07:46,954 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-09 13:07:46,954 - INFO -   Total API calls: 17
+2026-03-09 13:07:46,954 - INFO -   Total prompt tokens (input): 17,486
+2026-03-09 13:07:46,954 - INFO -   Total completion tokens (output): 96,232
+2026-03-09 13:07:46,954 - INFO -   Total tokens: 113,718
+2026-03-09 13:07:46,954 - INFO -   Average per call:
+2026-03-09 13:07:46,954 - INFO -     Prompt: 1028.6 tokens
+2026-03-09 13:07:46,954 - INFO -     Completion: 5660.7 tokens
+2026-03-09 13:07:46,954 - INFO -     Total: 6689.3 tokens
+2026-03-09 13:07:46,954 - INFO - ============================================================
+2026-03-09 13:07:46,954 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_12/1.c
+2026-03-09 13:07:46,954 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_12/1_invariants.txt
+2026-03-09 13:08:23,096 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

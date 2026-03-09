@@ -1,0 +1,463 @@
+2026-03-08 11:24:35,452 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:24:35,467 - INFO - Found 1 loops
+2026-03-08 11:24:35,468 - INFO - 
+============================================================
+2026-03-08 11:24:35,468 - INFO - Main generation pass 1/1
+2026-03-08 11:24:35,468 - INFO - ============================================================
+2026-03-08 11:24:35,468 - INFO - Loaded single prompt template: simple
+2026-03-08 11:24:35,468 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:24:35,469 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:24:35,483 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:25:31,348 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>
+Observation:
+- Let i be the number of completed iterations. Initially, fz = 1 and v5m = 0. After i iterations:
+  - fz = 1 + i
+  - v5m accumulates (2*fz_old - 1) each time, where fz_old equals the fz value at the start of the iteration. This sums to i^2, hence v5m = (fz - 1)^2.
+  - f is increased by the new fz and then by 2, i.e., by (old fz + 3). Summing over i iterations yields f = 6 + (i^2 + 7i)/2. Substituting i = fz - 1 gives a closed form that matches 2*f = (fz + 2)*(fz + 3).
+Therefore, strong loop invariants are:
+- v5m == (fz - 1) * (fz - 1)
+- 2 * f == (fz + 2) * (fz + 3)
+
+These invariants hold initially (fz=1, v5m=0, f=6) and are preserved by each iteration of the loop, as shown by the transition:
+- Before: v5m = (fz - 1)^2
+- After: v5m' = v5m + 2*fz - 1 = (fz - 1)^2 + 2*fz - 1 = fz^2
+  and with fz' = fz + 1, (fz' - 1)^2 = fz^2, so v5m' = (fz' - 1)^2.
+
+- For f: 2*f' = 2*(f + fz + 3) = 2*f + 2*fz + 6 = (fz + 3)*(fz + 4) = (fz' + 2)*(fz' + 3), using f' = f + fz + 3 and fz' = fz + 1.
+
+Variant:
+- The loop guard is fz <= u and u is constant throughout the loop, so a natural decreasing measure is u - fz, which starts non-negative and decreases by 1 each iteration until termination.
+
+Assigns:
+- The loop writes to f, fz, v5m; g and u are not modified inside the loop.
+
+Thus the annotations below express a strong, inductive invariant set with a proper loop variant and exact loop assigns.
+</reasoning>
+<code>int main1(int g){
+  int u, fz, v5m, f;
+
+  u=g+17;
+  fz=1;
+  v5m=0;
+  f=6;
+
+  /*@
+    loop invariant v5m == (fz - 1) * (fz - 1);
+    loop invariant 2 * f == (fz + 2) * (fz + 3);
+    loop assigns f, fz, v5m;
+    loop variant u - fz;
+  @*/
+  while (fz <= u) {
+      v5m = v5m + 2*fz - 1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }
+
+}
+</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:25:31,348 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:25:31,365 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:26:48,292 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>Key idea:
+- The loop updates a short arithmetic chain that yields a clean closed form. After k iterations (starting with fz = 1), we have:
+  - v5m = k^2, because v5m is incremented by (2*fz - 1) each iteration, which sums to the odd numbers 1,3,5,...,2k-1.
+  - fz = 1 + k.
+  - f = 6 + sum_{i=1..k} ((i+1) + 2) = 6 + sum_{i=1..k} (i+3) = (k+2)(k+3)/2.
+- Therefore, two strong loop invariants arise:
+  - v5m == (fz - 1) * (fz - 1)
+  - f == ((fz + 2) * (fz + 3)) / 2
+- The variable u is never modified inside the loop and was initialized as u = g + 17, so a persistent relation is:
+  - u == g + 17
+- For a guaranteed termination, use a loop variant that decreases every iteration. Since fz starts at 1 and increases by 1 while the guard fz <= u holds, the natural variant is (u - fz), which decreases by 1 each iteration and is non-negative at loop entry.
+- Assignments inside the loop are f, fz, v5m; u, g are not modified.
+
+Thus the loop invariants to encode are:
+- u == g + 17
+- v5m == (fz - 1) * (fz - 1)
+- f == ((fz + 2) * (fz + 3)) / 2
+And the loop variant is (u - fz). The loop assigns are f, fz, v5m. This set is inductive and verification-friendly under Frama-C WP. The invariants are strong and non-tautological, and only refer to allowed variables (f, fz, v5m, u, g). No unknown() calls are used, and we do not use \at(…, Pre) on local vars.
+
+</reasoning>
+<code>int main1(int g){
+  int u, fz, v5m, f;
+
+  u = g + 17;
+  fz = 1;
+  v5m = 0;
+  f = 6;
+
+  /*@
+    loop invariant u == g + 17;
+    loop invariant v5m == (fz - 1) * (fz - 1);
+    loop invariant f == ((fz + 2) * (fz + 3)) / 2;
+    loop assigns f, fz, v5m;
+    loop variant (u - fz);
+  @*/
+  while (fz <= u) {
+      v5m = v5m + 2 * fz - 1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }
+
+}</code>
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:26:48,292 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:26:48,307 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:28:00,105 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>We analyze the loop updates to synthesize inductive invariants that express the exact relationships between the loop variables.
+
+Observations from the loop body (executed per iteration, with z = fz before increment):
+
+- v5m is updated as: v5m' = v5m + 2*z - 1
+  Given the initial z = fz and iteration-by-iteration progression z increases by 1, we can derive that after k iterations:
+  - fz = 1 + k
+  - v5m = k^2
+  A compact invariant capturing this exact relation at any loop point is:
+  v5m == (fz - 1) * (fz - 1)
+
+- f is updated as: f' = f + fz' + 2 where fz' = fz + 1 (since fz is incremented before the f update in the loop)
+  Equivalently, f' = f + (fz + 1) + 2 = f + fz + 3
+  If we express f in terms of z = fz, the closed-form invariant is:
+  f == 6 + ((fz - 1) * (fz - 2)) / 2 + 4 * (fz - 1)
+  This derives from summing the per-iteration increments and matches the recurrence for f as a function of k = fz - 1.
+
+- u is not modified inside the loop, and initially u == \at(g, Pre) + 17; this can be stated as an invariant to reflect its constancy:
+  u == \at(g, Pre) + 17
+
+Progress/termination: use a loop_variant that decreases each iteration and is non-negative while the loop may execute. Since fz increases by 1 each iteration and the loop condition is fz <= u, the natural variant u - fz decreases by 1 each iteration and is non-negative while the loop guard holds. So:
+  loop_variant u - fz
+
+Assigns: the loop mutates f, fz, v5m, so:
+  loop assigns f, fz, v5m;
+
+The chosen invariants are strong and inductive, directly derived from the transition equations, and do not introduce unrelated properties. They are preserved by the loop body, thus facilitating verification with Frama-C/WP.
+
+</reasoning>
+<code>int main1(int g){
+  int u, fz, v5m, f;
+
+  u=g+17;
+  fz=1;
+  v5m=0;
+  f=6;
+
+  /* Invariants chosen to be inductive and verification-friendly:
+     - v5m == (fz - 1) * (fz - 1)
+     - f == 6 + ((fz - 1) * (fz - 2)) / 2 + 4 * (fz - 1)
+     - u is constant and equals its Pre value
+  These invariants, together with a precise loop variant, show the state progression is captured exactly
+  by the loop updates. */
+  /*@
+    loop invariant u == \at(g, Pre) + 17;
+    loop invariant v5m == (fz - 1) * (fz - 1);
+    loop invariant f == 6 + ((fz - 1) * (fz - 2)) / 2 + 4 * (fz - 1);
+    loop assigns f, fz, v5m;
+    loop variant u - fz;
+  */
+  while (fz<=u) {
+      v5m = v5m+2*fz-1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }
+
+}</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:28:00,106 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:28:00,119 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:28:36,123 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I chose two precise relational invariants that exactly characterize how the loop updates v5m and f in terms of fz, and a minimal monotonicity bound for the loop counter:
+
+- Core conservation for v5m: v5m == (fz - 1) * (fz - 1).
+  - Rationale: initially fz = 1 and v5m = 0, so v5m == (1-1)^2 holds. Each iteration does v5m += 2*fz - 1 and then fz += 1; algebra shows (fz-1)^2 + (2*fz - 1) = fz^2, so after fz increment the equality is restored with the new fz. This is the canonical sum-of-odd-numbers = square relation.
+
+- Core conservation for f: 2*f == (fz + 2) * (fz + 3).
+  - Rationale: initially f = 6 and fz = 1 gives 2*6 == 3*4. In each iteration f is increased by the incremented fz plus 2 (code does fz += 1; f += fz; f += 2), so algebra shows the closed form 2*f == (fz+2)*(fz+3) is preserved when fz increments.
+
+- Progress/monotonicity: 1 <= fz.
+  - Rationale: fz starts at 1 and only increases. I do not assert an upper bound involving u because u = g + 17 may be an arbitrary integer; requiring fz <= u+1 would not hold at loop entry for all possible g. (Omitting an explicit variant avoids needing a nonnegativity proof that depends on u.)
+
+The loop assigns list is exact: the loop only modifies v5m, fz, and f. These three invariants are inductive (they hold initially and are preserved by the body when the guard is true) and they characterize the state evolution, so they are verification-friendly for Frama-C / WP.
+</reasoning>
+<code>
+int main1(int g){
+  int u, fz, v5m, f;
+
+  u=g+17;
+  fz=1;
+  v5m=0;
+  f=6;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant v5m == (fz - 1) * (fz - 1);
+    loop invariant 2 * f == (fz + 2) * (fz + 3);
+    loop invariant 1 <= fz;
+    loop assigns v5m, fz, f;
+  */
+while (fz<=u) {
+      v5m = v5m+2*fz-1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }
+
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:28:36,123 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:28:36,137 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:29:13,728 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>We analyze the loop and derive a tight, inductive invariant that relates the loop variables.
+
+- Let t be the number of iterations already executed when inspecting the loop at some point. Initially, fz = 1 and v5m = 0.
+- Each iteration updates:
+  - v5m := v5m + 2*fz - 1
+  - fz  := fz + 1
+  - f    := f + fz (new value) + 2
+- It follows by induction that:
+  - v5m = (fz - 1)^2. This is because each iteration adds (2*fz_old - 1) and fz_old runs from 1 to fz-1, yielding sum of odd numbers, i.e., (fz-1)^2. It also holds for the initial state (fz=1, v5m=0).
+  - f follows a closed form with f0 = 6 (initial f): f = 6 + ((fz - 1)^2 + 7*(fz - 1)) / 2. This matches the accumulated increments: sum of (new fz) plus 2 over t iterations yields the stated expression, and it holds for the initial state as well.
+- A minimal loop variant to ensure progress is allowed: u - fz (since fz increases by 1 each iteration and the loop condition is fz <= u, this variant strictly decreases each iteration and becomes non-negative until termination).
+- The loop only assigns v5m, fz, and f; g and u remain constant through the loop.
+
+Thus, strong, inductive invariants (conservation/relational) plus a loop variant yield a verification-friendly annotation without altering the program logic. The invariant uses only available variables and constants (no \at(...,Pre) on local variables). </reasoning>
+<code>/*@
+  loop invariant v5m == (fz - 1) * (fz - 1);
+  loop invariant f == 6 + ((fz - 1) * (fz - 1) + 7 * (fz - 1)) / 2;
+  loop variant u - fz;
+  loop assigns v5m, fz, f;
+*/
+while (fz<=u) {
+      v5m = v5m+2*fz-1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }</code>
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:29:13,728 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int g){
+  int u, fz, v5m, f;
+
+  u=g+17;
+  fz=1;
+  v5m=0;
+  f=6;
+
+  /*@
+    loop invariant v5m == (fz - 1) * (fz - 1);
+    loop invariant 2 * f == (fz + 2) * (fz + 3);
+    loop assigns f, fz, v5m;
+    loop variant u - fz;
+  @*/
+  while (fz <= u) {
+      v5m = v5m + 2*fz - 1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-03-08 11:29:13,728 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int g){
+  int u, fz, v5m, f;
+
+  u = g + 17;
+  fz = 1;
+  v5m = 0;
+  f = 6;
+
+  /*@
+    loop invariant u == g + 17;
+    loop invariant v5m == (fz - 1) * (fz - 1);
+    loop invariant f == ((fz + 2) * (fz + 3)) / 2;
+    loop assigns f, fz, v5m;
+    loop variant (u - fz);
+  @*/
+  while (fz <= u) {
+      v5m = v5m + 2 * fz - 1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-03-08 11:29:13,728 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int g){
+  int u, fz, v5m, f;
+
+  u=g+17;
+  fz=1;
+  v5m=0;
+  f=6;
+
+  /* Invariants chosen to be inductive and verification-friendly:
+     - v5m == (fz - 1) * (fz - 1)
+     - f == 6 + ((fz - 1) * (fz - 2)) / 2 + 4 * (fz - 1)
+     - u is constant and equals its Pre value
+  These invariants, together with a precise loop variant, show the state progression is captured exactly
+  by the loop updates. */
+  /*@
+    loop invariant u == \at(g, Pre) + 17;
+    loop invariant v5m == (fz - 1) * (fz - 1);
+    loop invariant f == 6 + ((fz - 1) * (fz - 2)) / 2 + 4 * (fz - 1);
+    loop assigns f, fz, v5m;
+    loop variant u - fz;
+  */
+  while (fz<=u) {
+      v5m = v5m+2*fz-1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-08 11:29:13,728 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int g){
+  int u, fz, v5m, f;
+
+  u=g+17;
+  fz=1;
+  v5m=0;
+  f=6;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant v5m == (fz - 1) * (fz - 1);
+    loop invariant 2 * f == (fz + 2) * (fz + 3);
+    loop invariant 1 <= fz;
+    loop assigns v5m, fz, f;
+  */
+while (fz<=u) {
+      v5m = v5m+2*fz-1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-08 11:29:13,728 - INFO - 
+----- Candidate 5/5 full code begin -----
+/*@
+  loop invariant v5m == (fz - 1) * (fz - 1);
+  loop invariant f == 6 + ((fz - 1) * (fz - 1) + 7 * (fz - 1)) / 2;
+  loop variant u - fz;
+  loop assigns v5m, fz, f;
+*/
+while (fz<=u) {
+      v5m = v5m+2*fz-1;
+      fz += 1;
+      f += fz;
+      f += 2;
+  }
+----- Candidate 5/5 full code end -----
+2026-03-08 11:29:13,728 - INFO - Successfully generated 5/5 candidates
+2026-03-08 11:29:13,730 - INFO - Checking 8 invariants for conflicts...
+2026-03-08 11:29:13,732 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:29:13,732 - INFO -   1: int main1(int g){
+2026-03-08 11:29:13,732 - INFO -   2:   int u, fz, v5m, f;
+2026-03-08 11:29:13,732 - INFO -   3: 
+2026-03-08 11:29:13,732 - INFO -   4:   u=g+17;
+2026-03-08 11:29:13,732 - INFO -   5:   fz=1;
+2026-03-08 11:29:13,732 - INFO -   6:   v5m=0;
+2026-03-08 11:29:13,732 - INFO -   7:   f=6;
+2026-03-08 11:29:13,732 - INFO -   8: 
+2026-03-08 11:29:13,732 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:29:13,732 - INFO -   10: /*@
+2026-03-08 11:29:13,732 - INFO - DEBUG: Total lines: 29
+2026-03-08 11:29:24,869 - INFO - syntax Correct
+2026-03-08 11:29:55,934 - INFO - Validate:
+2026-03-08 11:29:55,934 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-08 11:29:55,934 - INFO - 
+2026-03-08 11:29:55,934 - INFO - Verify:
+2026-03-08 11:29:55,934 - INFO - []
+2026-03-08 11:29:55,934 - INFO - 
+2026-03-08 11:29:55,934 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-08 11:30:06,971 - INFO - syntax Correct
+2026-03-08 11:30:38,039 - INFO - Validate:
+2026-03-08 11:30:38,039 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-08 11:30:38,039 - INFO - 
+2026-03-08 11:30:38,039 - INFO - Verify:
+2026-03-08 11:30:38,039 - INFO - []
+2026-03-08 11:30:38,039 - INFO - 
+2026-03-08 11:31:12,354 - INFO - Deduplicated 2 loop invariants in final code
+2026-03-08 11:31:23,190 - INFO - syntax Correct
+2026-03-08 11:31:54,098 - INFO - Validate:
+2026-03-08 11:31:54,098 - INFO - [True, True, True, True, True, True]
+2026-03-08 11:31:54,098 - INFO - 
+2026-03-08 11:31:54,098 - INFO - Verify:
+2026-03-08 11:31:54,098 - INFO - []
+2026-03-08 11:31:54,098 - INFO - 
+2026-03-08 11:31:54,098 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-08 11:31:54,098 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_53/1.c
+2026-03-08 11:31:54,099 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_53/1_invariants.txt
+2026-03-08 11:31:54,099 - INFO - 
+============================================================
+2026-03-08 11:31:54,099 - INFO - Final first_pass results:
+2026-03-08 11:31:54,099 - INFO -   syntax=1
+2026-03-08 11:31:54,099 - INFO -   valid=1
+2026-03-08 11:31:54,099 - INFO -   satisfy=None
+2026-03-08 11:31:54,099 - INFO - ============================================================
+2026-03-08 11:31:54,099 - INFO - 
+============================================================
+2026-03-08 11:31:54,099 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:31:54,099 - INFO -   Total API calls: 3
+2026-03-08 11:31:54,099 - INFO -   Total prompt tokens (input): 3,304
+2026-03-08 11:31:54,099 - INFO -   Total completion tokens (output): 14,070
+2026-03-08 11:31:54,099 - INFO -   Total tokens: 17,374
+2026-03-08 11:31:54,099 - INFO -   Average per call:
+2026-03-08 11:31:54,099 - INFO -     Prompt: 1101.3 tokens
+2026-03-08 11:31:54,099 - INFO -     Completion: 4690.0 tokens
+2026-03-08 11:31:54,099 - INFO -     Total: 5791.3 tokens
+2026-03-08 11:31:54,099 - INFO - ============================================================
+2026-03-08 11:31:54,099 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_53/1.c
+2026-03-08 11:31:54,099 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_53/1_invariants.txt
+2026-03-08 11:32:17,471 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "Fail: Although the invariants capture precise relational laws for v5m and f and list all modified variables, they lack an explicit upper bound or loop variant for the loop-control variable fz (no invariant such as fz <= u+1 or a decreasing variant), so termination is not supported. Additionally, there is a redundant duplicate of u == g+17 / u == \\at(g, Pre) + 17 and a potentially risky integer-division expression ( ((fz-1)*(fz-2))/2 ) that relies on implicit divisibility."
+}
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

@@ -1,0 +1,430 @@
+2026-03-08 11:34:51,014 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:34:51,033 - INFO - Found 1 loops
+2026-03-08 11:34:51,034 - INFO - 
+============================================================
+2026-03-08 11:34:51,034 - INFO - Main generation pass 1/1
+2026-03-08 11:34:51,034 - INFO - ============================================================
+2026-03-08 11:34:51,034 - INFO - Loaded single prompt template: simple
+2026-03-08 11:34:51,034 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:34:51,035 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:34:51,052 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:36:30,110 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop invariants for the given loop. The loop updates are:
+- bi := bi + 1
+- lme := (lme + 1) % 3
+- s   := (s + lme) % 3   (where lme is the new value after the previous line)
+- l   := (l + bi) % 7
+
+From this, we derive:
+
+1) A core conservation/relational equality for l (modulo 7):
+After k iterations, l ≡ initial_l + sum_{t=1..k} t (mod 7).
+Since sum_{t=1..k} t = k(k+1)/2, a compact invariant is:
+(l - initial_l - bi*(bi+1)/2) ≡ 0 (mod 7)
+i.e. ((l - \at(l, Pre) - (bi*(bi+1))/2) % 7) == 0
+This is inductive because if l ≡ \at(l, Pre) + T(bi) (mod 7) then after one more iteration l' ≡ l + (bi+1) ≡ \at(l, Pre) + T(bi) + (bi+1) and T(bi+1) = T(bi) + (bi+1), so the invariant remains true.
+
+2) A core invariant for s with the observed modulo-3 pattern of increments:
+The sequence of added lme values over iterations is 1,2,0,1,2,0,..., so the sum modulo 3 after bi iterations is:
+- 1 when bi % 3 == 1
+- 0 otherwise
+Thus, s ≡ initial_s + f(bi) (mod 3) with f(bi) = 1 if bi % 3 == 1 else 0.
+We encode this with two implications (bi % 3 == 1) => s == ((\at(s, Pre) + 1) % 3)
+and (bi % 3 != 1)  => s == (\at(s, Pre) % 3)
+This avoids introducing a ternary or non-linear constructs.
+
+3) Simple progress bounds and domains:
+- 0 <= bi <= j (bi starts at 0 and increments until j; j is 61 in this code)
+- 0 <= lme < 3 (cyclic modulo3)
+- 0 <= s < 3 (since s is kept modulo 3)
+
+4) Loop variant for termination:
+- loop variant (j - bi) strictly decreases each iteration and is non-negative within the loop.
+
+Together, these invariants are inductive, rely only on allowed variables (bi, j, l, lme, s) and the function parameters (\at(l, Pre), \at(s, Pre)), and do not modify the code or introduce forbidden constructs. They capture the precise state-update law without over- or under-constraining the loop.
+
+</reasoning>
+<code>/*@
+  loop invariant 0 <= bi <= j;
+  loop invariant 0 <= lme < 3;
+  loop invariant 0 <= s < 3;
+  /* l congruence invariant: l ≡ \at(l,Pre) + bi*(bi+1)/2  (mod 7) */
+  loop invariant (((l - \at(l, Pre) - ((bi*(bi+1))/2)) % 7) == 0);
+  /* s congruence invariant: s ≡ \at(s,Pre) + f(bi) (mod 3),
+     where f(bi) = 1 if bi % 3 == 1 else 0, encoded with two implications */
+  loop invariant (((bi % 3) == 1) ==> (s == ((\at(s, Pre) + 1) % 3)));
+  loop invariant (((bi % 3) != 1) ==> (s == (\at(s, Pre) % 3)));
+  loop assigns bi, l, lme, s;
+  loop variant (j - bi);
+*/</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:36:30,110 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:36:30,126 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:37:55,321 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>We want inductive, verification-friendly loop invariants that capture the state updates in the loop and allow Frama-C/WP to prove termination and safety.
+
+Key observations:
+- bi is incremented by 1 each iteration while the loop guard is bi <= j-1. Therefore, bi is a natural counter for the number of iterations, and a tight loop variant is (j - bi).
+- lme is updated as lme = (lme + 1) % 3 each iteration, starting from 0. Hence lme == bi % 3 is an exact relational invariant that is preserved by the transition.
+- s is updated by adding the new lme and taking mod 3: s := (s + lme) % 3, with lme following the bi progression. This yields a phase relation between the initial value of s (at function entry) and the current bi:
+  after k iterations (bi == k), s ≡ s0 + f(k) (mod 3), where f(k) = 1 if k mod 3 == 1, else 0.
+  We encode this exactly using a guarded invariant without ternary operator:
+  - If (bi % 3 == 1), then ((s - s0 + 3) % 3) == 1
+  - If (bi % 3 != 1), then ((s - s0 + 3) % 3) == 0
+  where s0 is the initial value of s, referred to as \at(s,Pre).
+  To avoid using the ternary operator (not allowed), we express the necessity with two guarded implications combined in a single invariant.
+
+We provide:
+- Invariant 1: lme == bi % 3
+- Invariant 2: ((((bi % 3) == 1) ==> ((s - \at(s,Pre) + 3) % 3) == 1) && (((bi % 3) != 1) ==> ((s - \at(s,Pre) + 3) % 3) == 0))
+This enforces the precise relation between s and the number of iterations, while avoiding disallowed constructs.
+
+We also specify:
+- loop assigns bi, l, lme, s
+- loop variant (j - bi)
+
+These invariants are strong (not tautological) and inductive, and they use only allowed variables and \at on function parameters. They do not modify the function’s control flow beyond the loop annotations and preserve the original semantics. </reasoning>
+<code>int main1(int s,int l){
+  int j, lme, bi;
+
+  j=61;
+  lme=0;
+  bi=0;
+
+  /*@
+    loop invariant lme == bi % 3;
+    loop invariant ((((bi % 3) == 1) ==> (((s - \at(s,Pre) + 3) % 3) == 1)) && (((bi % 3) != 1) ==> (((s - \at(s,Pre) + 3) % 3) == 0)));
+    loop assigns bi, l, lme, s;
+    loop variant (j - bi);
+  */
+  while (bi<=j-1) {
+      bi += 1;
+      lme = (lme+1)%3;
+      s = (s+lme)%3;
+      l = (l+bi)%7;
+  }
+
+}</code>
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:37:55,321 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:37:55,334 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:42:15,531 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop annotations for the given loop. Key observations:
+- bi is incremented by 1 each iteration, starting at 0, with termination when bi > j-1. So the loop performs exactly j iterations (here 61). A simple, strong progress measure is the loop variant j - bi, which decreases by 1 every iteration.
+- A core invariant is that lme evolves as a simple modulo cycle with bi: lme' = (lme + 1) mod 3 while bi' = bi + 1, which implies lme == bi mod 3 is preserved.
+- The update of l accumulates bi each iteration: l := (l + bi) % 7, where bi is the new bi after the increment. Therefore after bi iterations, l ≡ l0 + sum_{t=1..bi} t (mod 7) = l0 + bi*(bi+1)/2 (mod 7). This yields a precise invariant linking l to the initial l and the current bi: l == (\at(l, Pre) + bi*(bi+1)/2) % 7.
+- We also keep a simple bound invariant: 0 <= bi <= j, which holds initially and is preserved by the loop body since bi increments by 1 only when bi <= j-1.
+- The loop assigns are exactly the modified variables in the loop body: bi, l, lme, s.
+These invariants are inductive (preserved by each iteration) and collectively suffice to verify the loop using Frama-C/WP.
+
+The chosen invariants:
+- 0 <= bi <= j
+- lme == bi % 3
+- l == (\at(l, Pre) + bi*(bi+1)/2) % 7
+- loop assigns bi, l, lme, s
+- loop variant j - bi
+
+</reasoning>
+<code>int main1(int s,int l){
+  int j, lme, bi;
+
+  j=61;
+  lme=0;
+  bi=0;
+
+  /*@
+    loop invariant 0 <= bi <= j;
+    loop invariant lme == bi % 3;
+    loop invariant l == (\at(l, Pre) + (bi * (bi + 1) / 2)) % 7;
+    loop assigns bi, l, lme, s;
+    loop variant j - bi;
+  */
+  while (bi<=j-1) {
+      bi += 1;
+      lme = (lme+1)%3;
+      s = (s+lme)%3;
+      l = (l+bi)%7;
+  }
+
+}</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:42:15,532 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:42:15,547 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:42:41,410 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I choose invariants that capture the exact state-transition law (the conserved/accumulated quantity) and simple progress bounds so WP can prove preservation and establishment of the exit facts.
+
+Core relational equality:
+- Each loop iteration increases bi by 1 and adds that new bi to l and adds the new lme (=bi % 3) to s. The triangular number T = bi*(bi+1)/2 equals the sum of integers 1..bi. Modulo reasoning gives concise equalities:
+  - l % 7 == (\at(l, Pre) + T) % 7  (l accumulates 1..bi mod 7)
+  - s % 3 == (\at(s, Pre) + T) % 3  (since sum(i % 3) ≡ sum(i) (mod 3))
+
+Relational conservation for lme:
+- lme is exactly the number of increments of lme modulo 3, hence lme == bi % 3.
+
+Bounds / progress:
+- bi is a non-negative counter and never exceeds j (bi in [0..j]). This enables the variant (j - bi) which strictly decreases each iteration and is non-negative, proving termination of the loop.
+
+Loop assigns:
+- The loop writes exactly bi, lme, s, l.
+
+All invariants use only the available variables and \at(...) only on function parameters (\at(s, Pre), \at(l, Pre)). Using modulo equalities (s % 3, l % 7) ensures the invariants hold at loop entry even if the initial s or l are outside the reduced range.
+
+These invariants are inductive: they hold initially (bi=0, T=0 gives initial residues), and the update rules preserve the triangular-number relations and the lme relation; combined with exit condition (bi > j-1 i.e. bi >= j) one can derive that bi == j at loop exit and the final residues follow from the equalities above.
+</reasoning>
+<code>
+int main1(int s,int l){
+  int j, lme, bi;
+
+  j=61;
+  lme=0;
+  bi=0;
+
+  /*@
+    loop invariant 0 <= bi && bi <= j;
+    loop invariant lme == (bi % 3);
+    loop invariant (s % 3) == ((\at(s, Pre) + (bi * (bi + 1) / 2)) % 3);
+    loop invariant (l % 7) == ((\at(l, Pre) + (bi * (bi + 1) / 2)) % 7);
+    loop invariant j == 61;
+    loop assigns bi, lme, s, l;
+    loop variant (j - bi);
+  */
+while (bi<=j-1) {
+      bi += 1;
+      lme = (lme+1)%3;
+      s = (s+lme)%3;
+      l = (l+bi)%7;
+  }
+
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:42:41,411 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:42:41,425 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:47:25,211 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<EMPTY_RESPONSE>
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:47:25,212 - WARNING -   Failed to extract code from candidate 5
+2026-03-08 11:47:25,212 - INFO - 
+----- Candidate 1/5 full code begin -----
+/*@
+  loop invariant 0 <= bi <= j;
+  loop invariant 0 <= lme < 3;
+  loop invariant 0 <= s < 3;
+  /* l congruence invariant: l ≡ \at(l,Pre) + bi*(bi+1)/2  (mod 7) */
+  loop invariant (((l - \at(l, Pre) - ((bi*(bi+1))/2)) % 7) == 0);
+  /* s congruence invariant: s ≡ \at(s,Pre) + f(bi) (mod 3),
+     where f(bi) = 1 if bi % 3 == 1 else 0, encoded with two implications */
+  loop invariant (((bi % 3) == 1) ==> (s == ((\at(s, Pre) + 1) % 3)));
+  loop invariant (((bi % 3) != 1) ==> (s == (\at(s, Pre) % 3)));
+  loop assigns bi, l, lme, s;
+  loop variant (j - bi);
+*/
+----- Candidate 1/5 full code end -----
+2026-03-08 11:47:25,212 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int s,int l){
+  int j, lme, bi;
+
+  j=61;
+  lme=0;
+  bi=0;
+
+  /*@
+    loop invariant lme == bi % 3;
+    loop invariant ((((bi % 3) == 1) ==> (((s - \at(s,Pre) + 3) % 3) == 1)) && (((bi % 3) != 1) ==> (((s - \at(s,Pre) + 3) % 3) == 0)));
+    loop assigns bi, l, lme, s;
+    loop variant (j - bi);
+  */
+  while (bi<=j-1) {
+      bi += 1;
+      lme = (lme+1)%3;
+      s = (s+lme)%3;
+      l = (l+bi)%7;
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-03-08 11:47:25,212 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int s,int l){
+  int j, lme, bi;
+
+  j=61;
+  lme=0;
+  bi=0;
+
+  /*@
+    loop invariant 0 <= bi <= j;
+    loop invariant lme == bi % 3;
+    loop invariant l == (\at(l, Pre) + (bi * (bi + 1) / 2)) % 7;
+    loop assigns bi, l, lme, s;
+    loop variant j - bi;
+  */
+  while (bi<=j-1) {
+      bi += 1;
+      lme = (lme+1)%3;
+      s = (s+lme)%3;
+      l = (l+bi)%7;
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-08 11:47:25,212 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int s,int l){
+  int j, lme, bi;
+
+  j=61;
+  lme=0;
+  bi=0;
+
+  /*@
+    loop invariant 0 <= bi && bi <= j;
+    loop invariant lme == (bi % 3);
+    loop invariant (s % 3) == ((\at(s, Pre) + (bi * (bi + 1) / 2)) % 3);
+    loop invariant (l % 7) == ((\at(l, Pre) + (bi * (bi + 1) / 2)) % 7);
+    loop invariant j == 61;
+    loop assigns bi, lme, s, l;
+    loop variant (j - bi);
+  */
+while (bi<=j-1) {
+      bi += 1;
+      lme = (lme+1)%3;
+      s = (s+lme)%3;
+      l = (l+bi)%7;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-08 11:47:25,212 - WARNING - Candidate 5/5 full code: <None> (failed to extract)
+2026-03-08 11:47:25,212 - INFO - Successfully generated 4/5 candidates
+2026-03-08 11:47:25,212 - INFO - Checking 9 invariants for conflicts...
+2026-03-08 11:47:25,215 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:47:25,215 - INFO -   1: int main1(int s,int l){
+2026-03-08 11:47:25,215 - INFO -   2:   int j, lme, bi;
+2026-03-08 11:47:25,215 - INFO -   3: 
+2026-03-08 11:47:25,215 - INFO -   4:   j=61;
+2026-03-08 11:47:25,215 - INFO -   5:   lme=0;
+2026-03-08 11:47:25,215 - INFO -   6:   bi=0;
+2026-03-08 11:47:25,215 - INFO -   7: 
+2026-03-08 11:47:25,215 - INFO -   8:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:47:25,215 - INFO -   9: /*@
+2026-03-08 11:47:25,215 - INFO -   10:   loop invariant lme == bi % 3;
+2026-03-08 11:47:25,215 - INFO - DEBUG: Total lines: 29
+2026-03-08 11:47:46,264 - INFO - syntax Correct
+2026-03-08 11:48:47,385 - INFO - Validate:
+2026-03-08 11:48:47,385 - INFO - [True, False, True, False, True, True, False, True, True]
+2026-03-08 11:48:47,386 - INFO - 
+2026-03-08 11:48:47,386 - INFO - Verify:
+2026-03-08 11:48:47,386 - INFO - []
+2026-03-08 11:48:47,386 - INFO - 
+2026-03-08 11:48:47,386 - INFO - Houdini iteration 1: Removed 3 failed invariants
+2026-03-08 11:48:47,386 - INFO -   Before: 9 invariants
+2026-03-08 11:48:47,386 - INFO -   After: 6 invariants
+2026-03-08 11:48:47,386 - INFO -   Remaining invariants:
+2026-03-08 11:48:47,386 - INFO -     [1] lme == bi % 3
+2026-03-08 11:48:47,386 - INFO -     [2] 0 <= bi <= j
+2026-03-08 11:48:47,386 - INFO -     [3] 0 <= bi && bi <= j
+2026-03-08 11:48:47,386 - INFO -     [4] lme == (bi % 3)
+2026-03-08 11:48:47,386 - INFO -     [5] (l % 7) == ((\at(l, Pre) + (bi * (bi + 1) / 2)) % 7)
+2026-03-08 11:48:47,386 - INFO -     [6] j == 61
+2026-03-08 11:48:58,322 - INFO - syntax Correct
+2026-03-08 11:49:29,246 - INFO - Validate:
+2026-03-08 11:49:29,246 - INFO - [True, True, True, True, False, True]
+2026-03-08 11:49:29,246 - INFO - 
+2026-03-08 11:49:29,247 - INFO - Verify:
+2026-03-08 11:49:29,247 - INFO - []
+2026-03-08 11:49:29,247 - INFO - 
+2026-03-08 11:49:29,247 - INFO - Houdini iteration 2: Removed 1 failed invariants
+2026-03-08 11:49:29,247 - INFO -   Before: 6 invariants
+2026-03-08 11:49:29,247 - INFO -   After: 5 invariants
+2026-03-08 11:49:29,247 - INFO -   Remaining invariants:
+2026-03-08 11:49:29,247 - INFO -     [1] lme == bi % 3
+2026-03-08 11:49:29,247 - INFO -     [2] 0 <= bi <= j
+2026-03-08 11:49:29,247 - INFO -     [3] 0 <= bi && bi <= j
+2026-03-08 11:49:29,247 - INFO -     [4] lme == (bi % 3)
+2026-03-08 11:49:29,247 - INFO -     [5] j == 61
+2026-03-08 11:49:40,187 - INFO - syntax Correct
+2026-03-08 11:50:11,103 - INFO - Validate:
+2026-03-08 11:50:11,103 - INFO - [True, True, True, True, True]
+2026-03-08 11:50:11,103 - INFO - 
+2026-03-08 11:50:11,103 - INFO - Verify:
+2026-03-08 11:50:11,103 - INFO - []
+2026-03-08 11:50:11,103 - INFO - 
+2026-03-08 11:50:11,103 - INFO - Houdini iteration 3: All invariants are valid
+2026-03-08 11:50:22,032 - INFO - syntax Correct
+2026-03-08 11:50:53,018 - INFO - Validate:
+2026-03-08 11:50:53,018 - INFO - [True, True, True, True, True]
+2026-03-08 11:50:53,018 - INFO - 
+2026-03-08 11:50:53,018 - INFO - Verify:
+2026-03-08 11:50:53,018 - INFO - []
+2026-03-08 11:50:53,018 - INFO - 
+2026-03-08 11:51:05,520 - INFO - Deduplicated 4 loop invariants in final code
+2026-03-08 11:51:16,302 - INFO - syntax Correct
+2026-03-08 11:51:47,153 - INFO - Validate:
+2026-03-08 11:51:47,153 - INFO - [True, True, True]
+2026-03-08 11:51:47,153 - INFO - 
+2026-03-08 11:51:47,153 - INFO - Verify:
+2026-03-08 11:51:47,153 - INFO - []
+2026-03-08 11:51:47,153 - INFO - 
+2026-03-08 11:51:47,153 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-08 11:51:47,154 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_76/1.c
+2026-03-08 11:51:47,154 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_76/1_invariants.txt
+2026-03-08 11:51:47,154 - INFO - 
+============================================================
+2026-03-08 11:51:47,154 - INFO - Final first_pass results:
+2026-03-08 11:51:47,154 - INFO -   syntax=1
+2026-03-08 11:51:47,154 - INFO -   valid=1
+2026-03-08 11:51:47,154 - INFO -   satisfy=None
+2026-03-08 11:51:47,154 - INFO - ============================================================
+2026-03-08 11:51:47,154 - INFO - 
+============================================================
+2026-03-08 11:51:47,154 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:51:47,154 - INFO -   Total API calls: 71
+2026-03-08 11:51:47,154 - INFO -   Total prompt tokens (input): 74,237
+2026-03-08 11:51:47,154 - INFO -   Total completion tokens (output): 401,045
+2026-03-08 11:51:47,154 - INFO -   Total tokens: 475,282
+2026-03-08 11:51:47,154 - INFO -   Average per call:
+2026-03-08 11:51:47,154 - INFO -     Prompt: 1045.6 tokens
+2026-03-08 11:51:47,154 - INFO -     Completion: 5648.5 tokens
+2026-03-08 11:51:47,154 - INFO -     Total: 6694.1 tokens
+2026-03-08 11:51:47,154 - INFO - ============================================================
+2026-03-08 11:51:47,154 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_76/1.c
+2026-03-08 11:51:47,154 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_76/1_invariants.txt
+2026-03-08 11:52:18,241 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "fail"
+}
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

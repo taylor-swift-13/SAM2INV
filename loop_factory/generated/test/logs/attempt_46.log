@@ -1,0 +1,502 @@
+2026-03-08 11:22:14,717 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:22:14,739 - INFO - Found 1 loops
+2026-03-08 11:22:14,741 - INFO - 
+============================================================
+2026-03-08 11:22:14,741 - INFO - Main generation pass 1/1
+2026-03-08 11:22:14,741 - INFO - ============================================================
+2026-03-08 11:22:14,741 - INFO - Loaded single prompt template: simple
+2026-03-08 11:22:14,741 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:22:14,741 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:22:14,758 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:22:45,992 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>To synthesize inductive loop invariants for the given loop, I focused on a core conservation relation that remains invariant across iterations, a relational invariant linking arithmetic/state updates, and a simple terminating measure (loop variant).
+
+- Core conservation (state-update law): Each iteration increments q0 by 1 and decrements npt by 1, while c0f stays constant. Therefore, q0 + npt remains equal to c0f throughout the loop. This invariant directly captures the essence of the updates and is inductive given the transition.
+- Relational invariant between jjt and t: Both jjt and t get incremented by the same amount each iteration (the new q0). Since initial values are jjt = h and t = 11, we have (jjt - h) == (t - 11) preserved across iterations.
+- Termination measure: The loop guard is q0 < c0f && npt > 0. A natural decreasing measure is npt, which starts at c0f and decreases by 1 each iteration, ensuring termination when npt reaches 0.
+
+Loop assigns: all variables modified inside the loop are q0, npt, jjt, t.
+
+These invariants are inductive and verify-friendly for Frama-C/WP, use only available variables, and avoid introducing unrelated properties.</reasoning>
+<code>/*@
+  loop invariant (q0 + npt) == c0f;
+  loop invariant (jjt - h) == (t - 11);
+  loop variant npt;
+  loop assigns q0, npt, jjt, t;
+*/
+while (q0<c0f&&npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0)+(t);
+  }</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:22:45,992 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:22:46,009 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:24:18,978 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>Chosen inductive invariants and bounds:
+
+- Core conservation / state transition:
+  - q0 + npt == c0f
+    Reasoning: Each loop iteration increments q0 by 1 and decrements npt by 1, so their sum remains constant and equal to the initial c0f. This invariant is true before the first iteration (0 + c0f == c0f) and preserved by every iteration.
+
+- Relational equality reflecting updates to jjt and t:
+  - (jjt - t) == (\at(h, Pre) - 11)
+    Reasoning: In each iteration, jjt increases by the new q0 (which is q0+1) and t increases by the same amount, so the difference jjt - t remains invariant and equal to the initial value h - 11 (anchored to the pre-state value of h). Using \at(h, Pre) ties the invariant to the function entry value of h, ensuring initialization is captured correctly.
+
+- Loop assigns:
+  - The loop modifies q0, npt, jjt, t; c0f and h are not modified by the loop.
+
+- Loop variant:
+  - npt
+    Reasoning: npt decreases by 1 every iteration while the loop guard npt > 0 holds, providing a well-founded descent ensuring termination.
+
+These invariants are inductive: they hold before the first iteration, are preserved by each iteration, and together with the loop guard imply the intended loop termination behavior without introducing irrelevant facts. They respect the constraints (no \at usage on non-parameter locals beyond h, no rewriting of unknown calls, etc.).</reasoning>
+<code>int main1(int h){
+  int c0f, q0, npt, jjt, t;
+
+  c0f=(h%23)+6;
+  q0=0;
+  npt=c0f;
+  jjt=h;
+  t=11;
+
+  /*@
+    loop invariant q0 + npt == c0f;
+    loop invariant (jjt - t) == (\at(h, Pre) - 11);
+    loop assigns q0, npt, jjt, t;
+    loop variant npt;
+  */
+  while (q0<c0f&&npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0)+(t);
+  }
+
+}</code>
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:24:18,979 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:24:18,993 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:24:57,498 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>We derive strong, inductive invariants that describe the exact state evolution of the loop counters and arithmetic variables, using only available variables (c0f, h, jjt, npt, q0, t). Observations from the transition:
+- q0 increments by 1 each iteration; thus at iteration k (0-based before the next iteration), q0 = k and npt = c0f - k.
+- jjt accumulates the sum of q0 updates: jjt = h + 1 + 2 + ... + k = h + k(k+1)/2.
+- t similarly accumulates the same triangular number: t = 11 + k(k+1)/2.
+- Therefore, a conserved relation is npt + q0 = c0f, and the two triangular updates give explicit formulas for jjt and t in terms of q0.
+- We add a loop variant c0f - q0 to ensure termination, and bounds 0 <= q0 <= c0f to reflect the counter progression. We also mark the four modified variables in loop assigns: q0, npt, jjt, t.
+
+These invariants are inductive (hold initially and preserved by each iteration), relations are precise, and they use only allowed variables. They are not tautological (they convey the exact state evolution) and help Frama-C/WP verify loop termination and postconditions. </reasoning>
+<code>/*@
+  loop invariant npt + q0 == c0f;
+  loop invariant jjt == h + q0*(q0+1)/2;
+  loop invariant t == 11 + q0*(q0+1)/2;
+  loop invariant 0 <= q0 && q0 <= c0f;
+  loop invariant npt >= 0;
+  loop assigns q0, npt, jjt, t;
+  loop variant c0f - q0;
+*/
+while (q0<c0f && npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0) + (t);
+  }</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:24:57,499 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:24:57,512 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:25:39,617 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>The loop maintains a simple conservation relation and predictable arithmetic progression for certain variables. Observations from the transition:
+- q0 is incremented by 1 each iteration and npt is decremented by 1. Starting from q0=0 and npt=c0f, this yields the invariant npt + q0 == c0f (a fixed sum).
+- jjt starts at \at(h, Pre) and increases by the new q0 each iteration, so after q0 iterations jjt = \at(h, Pre) + sum_{i=1}^{q0} i = \at(h, Pre) + q0*(q0+1)/2.
+- t starts at 11 and also increases by the new q0 each iteration, so after q0 iterations t = 11 + q0*(q0+1)/2.
+These invariants hold before the first iteration (q0=0, npt=c0f, jjt=h, t=11) and are preserved by each iteration given the updates. We add:
+- A core conservation invariant: npt + q0 == c0f.
+- A relational invariant capturing updates to jjt and t: jjt == \at(h, Pre) + q0*(q0+1)/2 and t == 11 + q0*(q0+1)/2.
+We also specify loop assigns for all modified locals: q0, npt, jjt, t. To ensure progress, we provide a loop variant on npt (it decreases by 1 each iteration while >0). The invariants use only allowed variables (c0f, h as a parameter via \at(h, Pre), q0, npt, jjt, t) and do not introduce forbidden constructs.
+</reasoning>
+<code>int main1(int h){
+  int c0f, q0, npt, jjt, t;
+
+  c0f=(h%23)+6;
+  q0=0;
+  npt=c0f;
+  jjt=h;
+  t=11;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant npt + q0 == c0f;
+    loop invariant jjt == \at(h, Pre) + q0*(q0+1)/2 && t == 11 + q0*(q0+1)/2;
+    loop assigns q0, npt, jjt, t;
+    loop variant npt;
+  */
+  while (q0<c0f&&npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0)+(t);
+  }
+
+}</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:25:39,617 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:25:39,633 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:26:33,806 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>We need inductive loop invariants that express the consistent state progression of the loop while remaining verification-friendly for Frama-C/WP. The loop updates are:
+
+- q0 increases by 1 each iteration.
+- npt decreases by 1 each iteration.
+- jjt increases by the new q0 value (i.e., jjt = jjt + q0 after q0 is incremented).
+- t increases by the new q0 value (t = t + q0 after q0 is incremented).
+
+From the initial values (q0 = 0, npt = c0f, jjt = h, t = 11) we can derive exact closed-form relations that are preserved by every iteration:
+
+- Conservation of sum: npt + q0 == c0f. This expresses that every iteration transfers one unit from npt to q0.
+- JJT evolution: jjt == h + q0*(q0+1)/2. Starting from jjt = h and adding successive q0 values 1,2,... yields the triangular-number growth.
+- T evolution: t == 11 + q0*(q0+1)/2. Similarly, starting from t = 11 and adding 1,2,... gives the same triangular growth.
+- A simple bound that also aids termination: 0 <= q0 is implicit from the loop behavior (it starts at 0 and increases), but to keep invariants robust for all h (including cases where c0f could be negative and the loop might not run), we avoid asserting a strict upper bound on q0 beyond what the loop guard enforces.
+
+These invariants are preserved by the loop body because:
+
+- After an iteration: q0' = q0 + 1, npt' = npt - 1, jjt' = jjt + q0', t' = t + q0'. Substituting the invariants confirms they still hold.
+- The loop guard ensures termination since npt decreases by 1 each iteration, and the loop ends when npt <= 0 or q0 >= c0f.
+
+The loop_variant chosen is npt, which decreases by 1 on every iteration and is non-negative throughout the loop, providing a standard well-founded measure for termination.
+
+Thus, the loop invariants and assigns will be:
+
+- npt + q0 == c0f
+- jjt == h + q0*(q0+1)/2
+- t == 11 + q0*(q0+1)/2
+- loop assigns q0, npt, jjt, t
+- loop variant npt
+
+These are strong, non-redundant, and tightly tied to the loop updates, ensuring inductiveness and aiding automated proving.
+
+</reasoning>
+<code>int main1(int h){
+  int c0f, q0, npt, jjt, t;
+
+  c0f=(h%23)+6;
+  q0=0;
+  npt=c0f;
+  jjt=h;
+  t=11;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant npt + q0 == c0f;
+    loop invariant jjt == h + (q0*(q0+1))/2;
+    loop invariant t == 11 + (q0*(q0+1))/2;
+    loop assigns q0, npt, jjt, t;
+    loop variant npt;
+  */
+  while (q0<c0f&&npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0)+(t);
+  }
+
+}</code>
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:26:33,806 - INFO - 
+----- Candidate 1/5 full code begin -----
+/*@
+  loop invariant (q0 + npt) == c0f;
+  loop invariant (jjt - h) == (t - 11);
+  loop variant npt;
+  loop assigns q0, npt, jjt, t;
+*/
+while (q0<c0f&&npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0)+(t);
+  }
+----- Candidate 1/5 full code end -----
+2026-03-08 11:26:33,806 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int h){
+  int c0f, q0, npt, jjt, t;
+
+  c0f=(h%23)+6;
+  q0=0;
+  npt=c0f;
+  jjt=h;
+  t=11;
+
+  /*@
+    loop invariant q0 + npt == c0f;
+    loop invariant (jjt - t) == (\at(h, Pre) - 11);
+    loop assigns q0, npt, jjt, t;
+    loop variant npt;
+  */
+  while (q0<c0f&&npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0)+(t);
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-03-08 11:26:33,806 - INFO - 
+----- Candidate 3/5 full code begin -----
+/*@
+  loop invariant npt + q0 == c0f;
+  loop invariant jjt == h + q0*(q0+1)/2;
+  loop invariant t == 11 + q0*(q0+1)/2;
+  loop invariant 0 <= q0 && q0 <= c0f;
+  loop invariant npt >= 0;
+  loop assigns q0, npt, jjt, t;
+  loop variant c0f - q0;
+*/
+while (q0<c0f && npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0) + (t);
+  }
+----- Candidate 3/5 full code end -----
+2026-03-08 11:26:33,806 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int h){
+  int c0f, q0, npt, jjt, t;
+
+  c0f=(h%23)+6;
+  q0=0;
+  npt=c0f;
+  jjt=h;
+  t=11;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant npt + q0 == c0f;
+    loop invariant jjt == \at(h, Pre) + q0*(q0+1)/2 && t == 11 + q0*(q0+1)/2;
+    loop assigns q0, npt, jjt, t;
+    loop variant npt;
+  */
+  while (q0<c0f&&npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0)+(t);
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-08 11:26:33,806 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int h){
+  int c0f, q0, npt, jjt, t;
+
+  c0f=(h%23)+6;
+  q0=0;
+  npt=c0f;
+  jjt=h;
+  t=11;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant npt + q0 == c0f;
+    loop invariant jjt == h + (q0*(q0+1))/2;
+    loop invariant t == 11 + (q0*(q0+1))/2;
+    loop assigns q0, npt, jjt, t;
+    loop variant npt;
+  */
+  while (q0<c0f&&npt>0) {
+      q0 += 1;
+      npt = npt - 1;
+      jjt = jjt + q0;
+      t = (q0)+(t);
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-03-08 11:26:33,806 - INFO - Successfully generated 5/5 candidates
+2026-03-08 11:26:33,807 - INFO - Checking 12 invariants for conflicts...
+2026-03-08 11:26:33,810 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:26:33,810 - INFO -   1: int main1(int h){
+2026-03-08 11:26:33,810 - INFO -   2:   int c0f, q0, npt, jjt, t;
+2026-03-08 11:26:33,810 - INFO -   3: 
+2026-03-08 11:26:33,810 - INFO -   4:   c0f=(h%23)+6;
+2026-03-08 11:26:33,810 - INFO -   5:   q0=0;
+2026-03-08 11:26:33,810 - INFO -   6:   npt=c0f;
+2026-03-08 11:26:33,810 - INFO -   7:   jjt=h;
+2026-03-08 11:26:33,810 - INFO -   8:   t=11;
+2026-03-08 11:26:33,810 - INFO -   9: 
+2026-03-08 11:26:33,810 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:26:33,810 - INFO - DEBUG: Total lines: 34
+2026-03-08 11:26:44,930 - INFO - syntax Correct
+2026-03-08 11:27:16,081 - INFO - Validate:
+2026-03-08 11:27:16,081 - INFO - [True, True, True, True, True, False, True, False, True, True, True, True]
+2026-03-08 11:27:16,081 - INFO - 
+2026-03-08 11:27:16,081 - INFO - Verify:
+2026-03-08 11:27:16,081 - INFO - []
+2026-03-08 11:27:16,081 - INFO - 
+2026-03-08 11:27:16,081 - INFO - Houdini iteration 1: Removed 2 failed invariants
+2026-03-08 11:27:16,081 - INFO -   Before: 12 invariants
+2026-03-08 11:27:16,081 - INFO -   After: 10 invariants
+2026-03-08 11:27:16,081 - INFO -   Remaining invariants:
+2026-03-08 11:27:16,081 - INFO -     [1] (q0 + npt) == c0f
+2026-03-08 11:27:16,081 - INFO -     [2] (jjt - h) == (t - 11)
+2026-03-08 11:27:16,081 - INFO -     [3] q0 + npt == c0f
+2026-03-08 11:27:16,081 - INFO -     [4] (jjt - t) == (\at(h, Pre) - 11)
+2026-03-08 11:27:16,081 - INFO -     [5] npt + q0 == c0f
+2026-03-08 11:27:16,081 - INFO -     [6] t == 11 + q0*(q0+1)/2
+2026-03-08 11:27:16,081 - INFO -     [7] npt >= 0
+2026-03-08 11:27:16,081 - INFO -     [8] jjt == \at(h, Pre) + q0*(q0+1)/2 && t == 11 + q0*(q0+1)/2
+2026-03-08 11:27:16,081 - INFO -     [9] jjt == h + (q0*(q0+1))/2
+2026-03-08 11:27:16,081 - INFO -     [10] t == 11 + (q0*(q0+1))/2
+2026-03-08 11:27:27,103 - INFO - syntax Correct
+2026-03-08 11:27:58,126 - INFO - Validate:
+2026-03-08 11:27:58,126 - INFO - [True, True, True, True, True, False, False, True, True, True]
+2026-03-08 11:27:58,126 - INFO - 
+2026-03-08 11:27:58,127 - INFO - Verify:
+2026-03-08 11:27:58,127 - INFO - []
+2026-03-08 11:27:58,127 - INFO - 
+2026-03-08 11:27:58,127 - INFO - Houdini iteration 2: Removed 2 failed invariants
+2026-03-08 11:27:58,127 - INFO -   Before: 10 invariants
+2026-03-08 11:27:58,127 - INFO -   After: 8 invariants
+2026-03-08 11:27:58,127 - INFO -   Remaining invariants:
+2026-03-08 11:27:58,127 - INFO -     [1] (q0 + npt) == c0f
+2026-03-08 11:27:58,127 - INFO -     [2] (jjt - h) == (t - 11)
+2026-03-08 11:27:58,127 - INFO -     [3] q0 + npt == c0f
+2026-03-08 11:27:58,127 - INFO -     [4] (jjt - t) == (\at(h, Pre) - 11)
+2026-03-08 11:27:58,127 - INFO -     [5] npt + q0 == c0f
+2026-03-08 11:27:58,127 - INFO -     [6] jjt == \at(h, Pre) + q0*(q0+1)/2 && t == 11 + q0*(q0+1)/2
+2026-03-08 11:27:58,127 - INFO -     [7] jjt == h + (q0*(q0+1))/2
+2026-03-08 11:27:58,127 - INFO -     [8] t == 11 + (q0*(q0+1))/2
+2026-03-08 11:28:09,076 - INFO - syntax Correct
+2026-03-08 11:28:40,004 - INFO - Validate:
+2026-03-08 11:28:40,004 - INFO - [True, True, True, True, True, False, True, True]
+2026-03-08 11:28:40,004 - INFO - 
+2026-03-08 11:28:40,004 - INFO - Verify:
+2026-03-08 11:28:40,004 - INFO - []
+2026-03-08 11:28:40,004 - INFO - 
+2026-03-08 11:28:40,004 - INFO - Houdini iteration 3: Removed 1 failed invariants
+2026-03-08 11:28:40,004 - INFO -   Before: 8 invariants
+2026-03-08 11:28:40,004 - INFO -   After: 7 invariants
+2026-03-08 11:28:40,004 - INFO -   Remaining invariants:
+2026-03-08 11:28:40,004 - INFO -     [1] (q0 + npt) == c0f
+2026-03-08 11:28:40,004 - INFO -     [2] (jjt - h) == (t - 11)
+2026-03-08 11:28:40,004 - INFO -     [3] q0 + npt == c0f
+2026-03-08 11:28:40,004 - INFO -     [4] (jjt - t) == (\at(h, Pre) - 11)
+2026-03-08 11:28:40,004 - INFO -     [5] npt + q0 == c0f
+2026-03-08 11:28:40,004 - INFO -     [6] jjt == h + (q0*(q0+1))/2
+2026-03-08 11:28:40,004 - INFO -     [7] t == 11 + (q0*(q0+1))/2
+2026-03-08 11:28:50,945 - INFO - syntax Correct
+2026-03-08 11:29:21,838 - INFO - Validate:
+2026-03-08 11:29:21,838 - INFO - [True, True, True, True, True, False, True]
+2026-03-08 11:29:21,839 - INFO - 
+2026-03-08 11:29:21,839 - INFO - Verify:
+2026-03-08 11:29:21,839 - INFO - []
+2026-03-08 11:29:21,839 - INFO - 
+2026-03-08 11:29:21,839 - INFO - Houdini iteration 4: Removed 1 failed invariants
+2026-03-08 11:29:21,839 - INFO -   Before: 7 invariants
+2026-03-08 11:29:21,839 - INFO -   After: 6 invariants
+2026-03-08 11:29:21,839 - INFO -   Remaining invariants:
+2026-03-08 11:29:21,839 - INFO -     [1] (q0 + npt) == c0f
+2026-03-08 11:29:21,839 - INFO -     [2] (jjt - h) == (t - 11)
+2026-03-08 11:29:21,839 - INFO -     [3] q0 + npt == c0f
+2026-03-08 11:29:21,839 - INFO -     [4] (jjt - t) == (\at(h, Pre) - 11)
+2026-03-08 11:29:21,839 - INFO -     [5] npt + q0 == c0f
+2026-03-08 11:29:21,839 - INFO -     [6] t == 11 + (q0*(q0+1))/2
+2026-03-08 11:29:32,741 - INFO - syntax Correct
+2026-03-08 11:30:03,608 - INFO - Validate:
+2026-03-08 11:30:03,608 - INFO - [True, True, True, True, True, False]
+2026-03-08 11:30:03,608 - INFO - 
+2026-03-08 11:30:03,608 - INFO - Verify:
+2026-03-08 11:30:03,608 - INFO - []
+2026-03-08 11:30:03,608 - INFO - 
+2026-03-08 11:30:03,608 - INFO - Houdini iteration 5: Removed 1 failed invariants
+2026-03-08 11:30:03,608 - INFO -   Before: 6 invariants
+2026-03-08 11:30:03,608 - INFO -   After: 5 invariants
+2026-03-08 11:30:03,608 - INFO -   Remaining invariants:
+2026-03-08 11:30:03,608 - INFO -     [1] (q0 + npt) == c0f
+2026-03-08 11:30:03,608 - INFO -     [2] (jjt - h) == (t - 11)
+2026-03-08 11:30:03,608 - INFO -     [3] q0 + npt == c0f
+2026-03-08 11:30:03,608 - INFO -     [4] (jjt - t) == (\at(h, Pre) - 11)
+2026-03-08 11:30:03,608 - INFO -     [5] npt + q0 == c0f
+2026-03-08 11:30:14,417 - INFO - syntax Correct
+2026-03-08 11:30:45,207 - INFO - Validate:
+2026-03-08 11:30:45,207 - INFO - [True, True, True, True, True]
+2026-03-08 11:30:45,207 - INFO - 
+2026-03-08 11:30:45,207 - INFO - Verify:
+2026-03-08 11:30:45,207 - INFO - []
+2026-03-08 11:30:45,207 - INFO - 
+2026-03-08 11:30:45,207 - INFO - Houdini iteration 6: All invariants are valid
+2026-03-08 11:30:55,942 - INFO - syntax Correct
+2026-03-08 11:31:26,716 - INFO - Validate:
+2026-03-08 11:31:26,716 - INFO - [True, True, True, True, True]
+2026-03-08 11:31:26,716 - INFO - 
+2026-03-08 11:31:26,716 - INFO - Verify:
+2026-03-08 11:31:26,716 - INFO - []
+2026-03-08 11:31:26,716 - INFO - 
+2026-03-08 11:31:40,178 - INFO - Deduplicated 2 loop invariants in final code
+2026-03-08 11:31:50,898 - INFO - syntax Correct
+2026-03-08 11:32:21,608 - INFO - Validate:
+2026-03-08 11:32:21,608 - INFO - [True, True, True]
+2026-03-08 11:32:21,608 - INFO - 
+2026-03-08 11:32:21,608 - INFO - Verify:
+2026-03-08 11:32:21,608 - INFO - []
+2026-03-08 11:32:21,608 - INFO - 
+2026-03-08 11:32:21,608 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-08 11:32:21,608 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_46/1.c
+2026-03-08 11:32:21,608 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_46/1_invariants.txt
+2026-03-08 11:32:21,608 - INFO - 
+============================================================
+2026-03-08 11:32:21,608 - INFO - Final first_pass results:
+2026-03-08 11:32:21,608 - INFO -   syntax=1
+2026-03-08 11:32:21,608 - INFO -   valid=1
+2026-03-08 11:32:21,608 - INFO -   satisfy=None
+2026-03-08 11:32:21,608 - INFO - ============================================================
+2026-03-08 11:32:21,608 - INFO - 
+============================================================
+2026-03-08 11:32:21,608 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:32:21,608 - INFO -   Total API calls: 1
+2026-03-08 11:32:21,608 - INFO -   Total prompt tokens (input): 1,118
+2026-03-08 11:32:21,608 - INFO -   Total completion tokens (output): 8,839
+2026-03-08 11:32:21,608 - INFO -   Total tokens: 9,957
+2026-03-08 11:32:21,609 - INFO -   Average per call:
+2026-03-08 11:32:21,609 - INFO -     Prompt: 1118.0 tokens
+2026-03-08 11:32:21,609 - INFO -     Completion: 8839.0 tokens
+2026-03-08 11:32:21,609 - INFO -     Total: 9957.0 tokens
+2026-03-08 11:32:21,609 - INFO - ============================================================
+2026-03-08 11:32:21,609 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_46/1.c
+2026-03-08 11:32:21,609 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_46/1_invariants.txt
+2026-03-08 11:32:53,419 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

@@ -1,0 +1,513 @@
+2026-03-08 11:25:00,683 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:25:00,696 - INFO - Found 1 loops
+2026-03-08 11:25:00,698 - INFO - 
+============================================================
+2026-03-08 11:25:00,698 - INFO - Main generation pass 1/1
+2026-03-08 11:25:00,698 - INFO - ============================================================
+2026-03-08 11:25:00,698 - INFO - Loaded single prompt template: simple
+2026-03-08 11:25:00,698 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:25:00,698 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:25:00,715 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:26:21,545 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>The loop updates three arithmetic variables (iki0, mk, i) and one control variable (rwl6). A concise inductive invariant set should capture:
+- the relationship between the iteration counter and the accumulated sum in mk (conservation/relational equality),
+- the non-negativity and progression of the iteration counter as the loop progresses,
+- the fact that nr is a constant derived from the initial value of i and remains tied to the initial i (via \at(i,Pre)),
+- bounds on nr to reflect its initial computation range.
+
+Chosen core invariant (inductive and verification-friendly):
+- mk == 4 + iki0*(iki0+1)/2, with iki0 counting the number of iterations so far (ika0 starts at 0 and increments by 1 each iteration). This is exactly the closed-form of 4 plus the sum of 1..iki0, and is preserved by the updates (iki0 += 1; mk += iki0).
+- iki0 >= 0, since the loop increments iki0 starting from 0.
+- nr == (\at(i, Pre) % 9) + 18, capturing that nr was initialized from the initial parameter value and never changes.
+- nr >= 18 and nr <= 26, reflecting the initialization range nr = (i%9) + 18.
+
+These invariants are inductive: they hold before the first iteration and are preserved by each iteration. The loop assigns are i, iki0, mk, rwl6.
+
+Note: We avoid using the loop guard as an invariant (as required). The core invariant mk == 4 + iki0*(iki0+1)/2 provides a strong, exact relation between the updated variables. The nr-related invariants reference the initial value of i via \at(i, Pre) and the fact nr is constant after initialization. The invariant set is minimal, exact, and verification-friendly for Frama-C/WP.
+
+</reasoning>
+<code>int main1(int i){
+  int nr, rwl6, iki0, mk;
+
+  nr=(i%9)+18;
+  rwl6=-5;
+  iki0=0;
+  mk=4;
+
+  /*@ 
+    loop invariant iki0 >= 0;
+    loop invariant mk == 4 + iki0*(iki0+1)/2;
+    loop invariant nr == (\at(i, Pre) % 9) + 18;
+    loop invariant nr >= 18;
+    loop invariant nr <= 26;
+    loop assigns i, iki0, mk, rwl6;
+  */
+  while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = =nr-1;
+  }
+
+}</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:26:21,546 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:26:21,562 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:27:16,432 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>Proposed invariants focus on a small, inductive set of facts that are preserved by each loop iteration and are strong enough to reason about the loop state.
+
+Key choices:
+- A core conservation/relational equality for mk: mk = 4 + iki0*(iki0+1)/2 is exact given the update mk = mk + iki0 with iki0 incrementing by 1 each iteration. It holds for all iterations, including the initial state (iki0 = 0, mk = 4).
+- A core conservation/relational equality for i: due to the observed update i = i + nr - rwl6, and since rwl6 becomes nr-1 after the first iteration (and nr is constant), i follows a piecewise linear pattern:
+  - If iki0 == 0, i == initial i, i.e., i == \at(i,Pre).
+  - If iki0 > 0, i == initial i + nr + 4 + iki0.
+  This captures the first large increment (nr+5) and the subsequent +1 increments.
+  We implement this with two implications to cover all iterations.
+- nr is constant and tied to the initial i value: nr == (\at(i,Pre) % 9) + 18. This mirrors the initialization.
+- rwl6 <= nr - 1 is preserved (initially true and remains true as rwl6 becomes nr-1 and stays there).
+- iki0 >= 0 since iki0 starts at 0 and increases by 1 each iteration.
+- i >= \at(i,Pre) expresses non-decreasing progression of i, which is implied by the per-iteration increments and aligns with the initial condition.
+
+All invariants are inductive (preserved by each iteration) and are verification-friendly for Frama-C WP. The loop assigns are exactly the modified variables: i, iki0, mk, rwl6. No unrelated facts are added, and we avoid modifying the original code beyond annotations. The loop guard is not used as an invariant; the invariants rely on the initial value and the loop updates. </reasoning>
+<code>/*@
+  loop invariant nr == (\at(i,Pre) % 9) + 18;
+  loop invariant rwl6 <= nr - 1;
+  loop invariant mk == 4 + iki0*(iki0+1)/2;
+  loop invariant (iki0 == 0) ==> (i == \at(i,Pre));
+  loop invariant (iki0 > 0) ==> (i == \at(i,Pre) + nr + 4 + iki0);
+  loop invariant iki0 >= 0;
+  loop invariant i >= \at(i,Pre);
+  loop assigns i, iki0, mk, rwl6;
+*/ 
+while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = nr-1;
+  }
+
+}</code>
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:27:16,433 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:27:16,447 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:28:13,537 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop invariants that explain the loop state transitions and provide minimal progress measures, using only the available variables. Key observations:
+- nr is computed once from the initial i and never modified in the loop. Its exact initial value is nr0 = (\at(i, Pre) % 9) + 18. So nr remains constant and equal to nr0 throughout the loop. This can be expressed as nr == ((\at(i, Pre) % 9) + 18).
+- iki0 starts at 0 and is incremented by 1 each iteration; thus iki0 is a non-negative counter reflecting the number of iterations performed. A simple invariant: iki0 >= 0.
+- mk starts at 4 and has the update mk = mk + iki0 each iteration; this yields mk = 4 + iki0*(iki0+1)/2. This precise closed-form invariant is strong and inductive.
+- The variable i is updated by i = i + nr - rwl6 each iteration, and rwl6 is set to nr - 1; hence for the first iteration, delta i = nr - (-5) = nr + 5; for all subsequent iterations, delta i = nr - (nr - 1) = 1. Therefore, piecewise relation:
+  - If iki0 == 0 then i == \at(i, Pre)
+  - If iki0 > 0 then i == \at(i, Pre) + nr + 4 + iki0
+  We encode this with implications: (iki0 == 0) ==> (i == \at(i, Pre)); and (iki0 > 0) ==> (i == \at(i, Pre) + nr + 4 + iki0).
+- rwl6 <= nr - 1 holds as loop invariant since it is true initially and the loop body preserves it (rwl6 becomes nr - 1 and stays there while the loop guard remains true).
+
+All invariants are inductive, relate to the state updates, and rely only on the available variables and the function parameter’s initial value via \at(i, Pre). We also declare the loop assigns to precisely the variables that the loop may modify: i, iki0, mk, rwl6. No extra unrelated invariants are added. There is no loop variant since the loop does not terminate under the given updates. </reasoning>
+<code>int main1(int i){
+  int nr, rwl6, iki0, mk;
+
+  nr=(i%9)+18;
+  rwl6=-5;
+  iki0=0;
+  mk=4;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant nr == (\at(i, Pre) % 9) + 18;
+    loop invariant iki0 >= 0;
+    loop invariant mk == 4 + iki0*(iki0+1)/2;
+    loop invariant (iki0 == 0) ==> (i == \at(i, Pre));
+    loop invariant (iki0 > 0) ==> (i == \at(i, Pre) + nr + 4 + iki0);
+    loop invariant rwl6 <= nr - 1;
+    loop assigns i, iki0, mk, rwl6;
+  */
+  while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = nr-1;
+  }
+
+}</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:28:13,538 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:28:13,550 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:29:38,175 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+The loop is updating four variables: iki0, mk, i, and rwl6, while nr and i (as a function parameter) determine the evolution. We want inductive, verification-friendly invariants that precisely describe the loop state evolution and are preserved across iterations.
+
+Key invariants chosen:
+- nr relation to initial i: nr == ((\at(i,Pre)) % 9) + 18. nr is assigned from the initial i and never changes, so this relation remains true throughout.
+- mk progression: mk == 4 + iki0*(iki0+1)/2. This captures the exact sum added to the initial mk = 4 as iki0 increments by 1 each iteration.
+- iki0 bounds: Iki0 >= 0. This is a minimal progress bound.
+- i evolution split by iki0:
+  - If iki0 == 0, i == \at(i,Pre) (no iterations performed yet).
+  - If iki0 > 0, i == \at(i,Pre) + nr + iki0 + 4. This matches the accumulated increments: after the first iteration, i increases by nr + 5; after each subsequent iteration, i increases by 1, giving the general formula i = i0 + nr + iki0 + 4 for iki0 > 0.
+  The two invariants together with the initial condition cover all iterations without needing a ternary operator.
+- rwl6 evolution split by iki0:
+  - If iki0 == 0, rwl6 == -5 (initial value).
+  - If iki0 > 0, rwl6 == nr - 1 (after the first iteration, and retained thereafter).
+- loop assigns: i, iki0, mk, rwl6 are the variables modified inside the loop.
+
+These invariants are strong and inductive, they respect the constraint of not using forbidden constructs, and they stay within the allowed variables (i, iki0, mk, nr, rwl6), referencing the initial i via \at(i,Pre) for the param i. They also provide minimal progress information and a clear conservation-like relationship for mk.
+
+</reasoning>
+<code>int main1(int i){
+  int nr, rwl6, iki0, mk;
+
+  nr=(i%9)+18;
+  rwl6=-5;
+  iki0=0;
+  mk=4;
+
+  /*@
+    loop invariant nr == ((\at(i,Pre) % 9) + 18);
+    loop invariant mk == 4 + iki0*(iki0+1)/2;
+    loop invariant (iki0 >= 0);
+    /* State of i relative to its initial value */
+    loop invariant (iki0 == 0) ==> (i == \at(i,Pre));
+    loop invariant (iki0 > 0) ==> (i == \at(i,Pre) + nr + iki0 + 4);
+    /* State of rwl6 relative to its evolution */
+    loop invariant (iki0 == 0) ==> (rwl6 == -5);
+    loop invariant (iki0 > 0) ==> (rwl6 == nr - 1);
+    loop assigns i, iki0, mk, rwl6;
+  */
+while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = =nr-1;
+  }
+
+}</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:29:38,176 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:29:38,189 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:30:11,789 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I chose invariants that are inductive and explain the state transitions precisely while staying within the available variables and ACSL constraints.
+
+- Core conservation equality: mk evolves as mk = 4 + sum_{t=1..iki0} t, i.e. mk == 4 + (iki0*(iki0+1))/2. This exactly captures the effect of "iki0 += 1; mk = mk + iki0;" and is preserved by the loop body.
+- rwl6 is only ever either the initial -5 or set to nr-1; so rwl6 == -5 || rwl6 == nr-1 is a precise relation and explains the rwl6 state transitions.
+- nr is computed once from the initial function parameter and never modified; make that explicit with nr == (\at(i, Pre) % 9) + 18.
+- iki0 is a non-negative loop counter (starts 0 and is incremented), so iki0 >= 0 is a simple progress bound.
+- i is non-decreasing (each update adds a non-negative amount), so i >= \at(i, Pre) is a useful monotonicity bound.
+- I added a piecewise exact characterization of i in terms of iki0: when iki0 == 0, i equals its initial value; when iki0 >= 1, i equals \at(i, Pre) + nr + 4 + iki0. This follows from the first iteration adding (nr - (-5)) = nr+5 and each subsequent iteration adding 1 (nr - (nr-1) = 1); the formula is chosen to be inductive and to match the loop body.
+
+The loop assigns clause lists exactly the variables modified by the loop body: i, iki0, mk, rwl6. No variant is provided because the loop as written does not strictly decrease a natural-valued measure (and we must not change the program).
+
+These invariants are strong (relational/arithmetical), inductive, and directly reflect the loop updates so WP can verify preservation and post-loop reasoning.
+</reasoning>
+<code>
+int main1(int i){
+  int nr, rwl6, iki0, mk;
+
+  nr=(i%9)+18;
+  rwl6=-5;
+  iki0=0;
+  mk=4;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant nr == ((\at(i, Pre) % 9) + 18);
+    loop invariant iki0 >= 0;
+    loop invariant mk == 4 + ((iki0 * (iki0 + 1)) / 2);
+    loop invariant (rwl6 == -5) || (rwl6 == nr - 1);
+    loop invariant i >= \at(i, Pre);
+    loop invariant (iki0 == 0 ==> i == \at(i, Pre));
+    loop invariant (iki0 >= 1 ==> i == \at(i, Pre) + nr + 4 + iki0);
+    loop assigns i, iki0, mk, rwl6;
+  */
+  while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = =nr-1;
+  }
+
+}
+</code>
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:30:11,789 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int i){
+  int nr, rwl6, iki0, mk;
+
+  nr=(i%9)+18;
+  rwl6=-5;
+  iki0=0;
+  mk=4;
+
+  /*@ 
+    loop invariant iki0 >= 0;
+    loop invariant mk == 4 + iki0*(iki0+1)/2;
+    loop invariant nr == (\at(i, Pre) % 9) + 18;
+    loop invariant nr >= 18;
+    loop invariant nr <= 26;
+    loop assigns i, iki0, mk, rwl6;
+  */
+  while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = =nr-1;
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-03-08 11:30:11,789 - INFO - 
+----- Candidate 2/5 full code begin -----
+/*@
+  loop invariant nr == (\at(i,Pre) % 9) + 18;
+  loop invariant rwl6 <= nr - 1;
+  loop invariant mk == 4 + iki0*(iki0+1)/2;
+  loop invariant (iki0 == 0) ==> (i == \at(i,Pre));
+  loop invariant (iki0 > 0) ==> (i == \at(i,Pre) + nr + 4 + iki0);
+  loop invariant iki0 >= 0;
+  loop invariant i >= \at(i,Pre);
+  loop assigns i, iki0, mk, rwl6;
+*/ 
+while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = nr-1;
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-03-08 11:30:11,789 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int i){
+  int nr, rwl6, iki0, mk;
+
+  nr=(i%9)+18;
+  rwl6=-5;
+  iki0=0;
+  mk=4;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant nr == (\at(i, Pre) % 9) + 18;
+    loop invariant iki0 >= 0;
+    loop invariant mk == 4 + iki0*(iki0+1)/2;
+    loop invariant (iki0 == 0) ==> (i == \at(i, Pre));
+    loop invariant (iki0 > 0) ==> (i == \at(i, Pre) + nr + 4 + iki0);
+    loop invariant rwl6 <= nr - 1;
+    loop assigns i, iki0, mk, rwl6;
+  */
+  while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = nr-1;
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-08 11:30:11,789 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int i){
+  int nr, rwl6, iki0, mk;
+
+  nr=(i%9)+18;
+  rwl6=-5;
+  iki0=0;
+  mk=4;
+
+  /*@
+    loop invariant nr == ((\at(i,Pre) % 9) + 18);
+    loop invariant mk == 4 + iki0*(iki0+1)/2;
+    loop invariant (iki0 >= 0);
+    /* State of i relative to its initial value */
+    loop invariant (iki0 == 0) ==> (i == \at(i,Pre));
+    loop invariant (iki0 > 0) ==> (i == \at(i,Pre) + nr + iki0 + 4);
+    /* State of rwl6 relative to its evolution */
+    loop invariant (iki0 == 0) ==> (rwl6 == -5);
+    loop invariant (iki0 > 0) ==> (rwl6 == nr - 1);
+    loop assigns i, iki0, mk, rwl6;
+  */
+while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = =nr-1;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-08 11:30:11,789 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int i){
+  int nr, rwl6, iki0, mk;
+
+  nr=(i%9)+18;
+  rwl6=-5;
+  iki0=0;
+  mk=4;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant nr == ((\at(i, Pre) % 9) + 18);
+    loop invariant iki0 >= 0;
+    loop invariant mk == 4 + ((iki0 * (iki0 + 1)) / 2);
+    loop invariant (rwl6 == -5) || (rwl6 == nr - 1);
+    loop invariant i >= \at(i, Pre);
+    loop invariant (iki0 == 0 ==> i == \at(i, Pre));
+    loop invariant (iki0 >= 1 ==> i == \at(i, Pre) + nr + 4 + iki0);
+    loop assigns i, iki0, mk, rwl6;
+  */
+  while (1) {
+      if (!(rwl6<=nr-1)) {
+          break;
+      }
+      iki0 += 1;
+      mk = mk + iki0;
+      i = i+nr-rwl6;
+      rwl6 = =nr-1;
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-03-08 11:30:11,789 - INFO - Successfully generated 5/5 candidates
+2026-03-08 11:30:11,790 - INFO - Checking 12 invariants for conflicts...
+2026-03-08 11:30:11,793 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:30:11,793 - INFO -   1: int main1(int i){
+2026-03-08 11:30:11,793 - INFO -   2:   int nr, rwl6, iki0, mk;
+2026-03-08 11:30:11,793 - INFO -   3: 
+2026-03-08 11:30:11,793 - INFO -   4:   nr=(i%9)+18;
+2026-03-08 11:30:11,793 - INFO -   5:   rwl6=-5;
+2026-03-08 11:30:11,793 - INFO -   6:   iki0=0;
+2026-03-08 11:30:11,793 - INFO -   7:   mk=4;
+2026-03-08 11:30:11,793 - INFO -   8: 
+2026-03-08 11:30:11,793 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:30:11,793 - INFO -   10: /*@
+2026-03-08 11:30:11,793 - INFO - DEBUG: Total lines: 36
+2026-03-08 11:30:11,998 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1.c:32: 
+  syntax error:
+  Location: line 32, between columns 13 and 14, before or at token: =
+  30          mk = mk + iki0;
+  31          i = i+nr-rwl6;
+  32          rwl6 = =nr-1;
+        ^^^^^^^^^^^^^^^^^^^
+  33      }
+  34
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-08 11:30:11,998 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-03-08 11:30:11,998 - INFO - Houdini iteration 1: Removed 12 failed invariants
+2026-03-08 11:30:11,998 - INFO -   Before: 12 invariants
+2026-03-08 11:30:11,998 - INFO -   After: 0 invariants
+2026-03-08 11:30:11,998 - ERROR - All invariants were removed by Houdini
+2026-03-08 11:30:12,206 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1.c:32: 
+  syntax error:
+  Location: line 32, between columns 13 and 14, before or at token: =
+  30          mk = mk + iki0;
+  31          i = i+nr-rwl6;
+  32          rwl6 = =nr-1;
+        ^^^^^^^^^^^^^^^^^^^
+  33      }
+  34
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-08 11:30:38,526 - INFO - Deduplicated 6 loop invariants in final code
+2026-03-08 11:30:38,729 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1.c:26: 
+  syntax error:
+  Location: line 26, between columns 13 and 14, before or at token: =
+  24          mk = mk + iki0;
+  25          i = i+nr-rwl6;
+  26          rwl6 = =nr-1;
+        ^^^^^^^^^^^^^^^^^^^
+  27      }
+  28
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-08 11:30:38,729 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-03-08 11:30:38,729 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-03-08 11:30:38,729 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1.c
+2026-03-08 11:30:38,730 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1_invariants.txt
+2026-03-08 11:30:38,730 - INFO - 
+============================================================
+2026-03-08 11:30:38,730 - INFO - Final first_pass results:
+2026-03-08 11:30:38,730 - INFO -   syntax=None
+2026-03-08 11:30:38,730 - INFO -   valid=None
+2026-03-08 11:30:38,730 - INFO -   satisfy=None
+2026-03-08 11:30:38,730 - INFO - ============================================================
+2026-03-08 11:30:38,730 - INFO - 
+============================================================
+2026-03-08 11:30:38,730 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:30:38,730 - INFO -   Total API calls: 4
+2026-03-08 11:30:38,730 - INFO -   Total prompt tokens (input): 3,852
+2026-03-08 11:30:38,730 - INFO -   Total completion tokens (output): 19,021
+2026-03-08 11:30:38,730 - INFO -   Total tokens: 22,873
+2026-03-08 11:30:38,730 - INFO -   Average per call:
+2026-03-08 11:30:38,730 - INFO -     Prompt: 963.0 tokens
+2026-03-08 11:30:38,730 - INFO -     Completion: 4755.2 tokens
+2026-03-08 11:30:38,730 - INFO -     Total: 5718.2 tokens
+2026-03-08 11:30:38,730 - INFO - ============================================================
+2026-03-08 11:30:38,730 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1.c
+2026-03-08 11:30:38,730 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_55/1_invariants.txt
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

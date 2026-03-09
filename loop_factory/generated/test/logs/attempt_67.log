@@ -1,0 +1,435 @@
+2026-03-08 11:30:38,863 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:30:38,876 - INFO - Found 1 loops
+2026-03-08 11:30:38,877 - INFO - 
+============================================================
+2026-03-08 11:30:38,877 - INFO - Main generation pass 1/1
+2026-03-08 11:30:38,877 - INFO - ============================================================
+2026-03-08 11:30:38,877 - INFO - Loaded single prompt template: simple
+2026-03-08 11:30:38,877 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:30:38,877 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:30:38,893 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:31:23,966 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>
+The loop iterates with i8 from 1 up to g (62). 
+Key state updates per iteration:
+- zri is updated by i8*i8, so after k iterations zri = sum_{t=1}^{k} t^2. The invariant that ties zri to i8 is zri == sum_{t=1}^{i8-1} t^2, which has a closed form:
+  zri == ((i8-1)*i8*(2*i8-1))/6.
+- nax is updated by (g - wl) each iteration; since wl = 0, nax increases by g each time. Starting from nax at loop entry equal to the initial u, after i8-1 iterations we have nax == \at(u,Pre) + (i8-1)*g.
+- i8 increments by 1 each iteration, hence 1 <= i8 <= g+1 is maintained.
+- The loop assigns the updated variables zri, nax, i8, and u; g and wl remain unchanged.
+
+These invariants are inductive and explain the loop updates (core conservation/relational equality), provide minimal progress bounds (on i8), and yield exact loop assigns. The use of \at(u,Pre) refers to the initial value of parameter u, as allowed. All invariants are non-tautological and avoid modifying code.
+</reasoning>
+<code>int main1(int v,int u){
+  int g, wl, i8, zri, nax;
+
+  g=62;
+  wl=0;
+  i8=1;
+  zri=0;
+  nax=u;
+
+  /*@
+    loop invariant zri == ((i8-1)*i8*(2*i8-1))/6;
+    loop invariant nax == \at(u,Pre) + (i8-1)*g;
+    loop invariant 1 <= i8 <= g+1;
+    loop assigns zri, nax, i8, u;
+    loop variant g - i8;
+  @*/
+  while (i8<=g) {
+      zri = zri+i8*i8;
+      nax = (nax+g)+(-(wl));
+      i8 += 1;
+      u = u + zri;
+  }
+
+}</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:31:23,966 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:31:23,981 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:32:41,423 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>We analyze the loop state updates to derive inductive invariants that are both precise and verification-friendly.
+
+Key loop updates:
+- zri = zri + i8*i8 (i8 is the loop counter before increment)
+- nax = nax + g - wl (with wl = 0, so nax increases by g per iteration)
+- i8 = i8 + 1
+- u = u + zri (note: zri used here is the updated value)
+
+From this, we can observe:
+- i8 starts at 1 and is incremented by 1 each iteration; at loop head we have 1 <= i8 <= g. A natural decreasing variant is g - i8.
+- zri accumulates sum of squares: after t iterations, zri = sum_{k=1}^{i8-1} k^2. This yields the invariant zri = ((i8 - 1) * i8 * (2*i8 - 1)) / 6.
+- nax starts as the initial u and increases by g each iteration, so nax = initial_u + (i8 - 1) * g. Since initial_u is the function parameter u at entry, we can express as nax = \at(u, Pre) + (i8 - 1) * g.
+- u accumulates zri after each iteration. Since zri after each iteration equals sum_{k=1}^{i8-1} k^2, u at loop head equals initial value plus the total of these sums up to i8-1. A closed form for that total is S(i8-1) where S(n) = n(n+1)^2(n+2)/12; substituting n = i8-1 gives u = \at(u, Pre) + ((i8 - 1) * i8 * i8 * (i8 + 1)) / 12.
+
+We therefore propose the following inductive invariants (non-quantified, polynomial relations that Frama-C WP can typically handle):
+- zri invariant: zri == ((i8 - 1) * i8 * (2*i8 - 1)) / 6
+- nax invariant: nax == \at(u, Pre) + (i8 - 1) * g
+- u invariant: u == \at(u, Pre) + ((i8 - 1) * i8 * i8 * (i8 + 1)) / 12
+- Simple bounds on i8: 1 <= i8 <= g+1
+- Loop variant: g - i8
+- Loop assigns: i8, zri, nax, u
+
+These invariants are inductive: if they hold at loop head, the loop body preserves them (as shown by the algebraic derivation above). They are also tightly related to the actual state updates, avoiding unnecessary or weak predicates.
+
+</reasoning>
+<code>/*@
+  loop invariant 1 <= i8 <= g + 1;
+  loop invariant zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6;
+  loop invariant nax == \at(u, Pre) + (i8 - 1) * g;
+  loop invariant u == \at(u, Pre) + ((i8 - 1) * i8 * i8 * (i8 + 1)) / 12;
+  loop assigns i8, zri, nax, u;
+  loop variant g - i8;
+*/
+while (i8 <= g) {
+      zri = zri + i8 * i8;
+      nax = (nax + g) + (-(wl));
+      i8 += 1;
+      u = u + zri;
+  }</code>
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:32:41,424 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:32:41,438 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:33:38,953 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>The loop updates follow a simple arithmetic progression for zri and nax, and a monotonically increasing i8. We aim for inductive invariants that are tight and easy to verify:
+
+- Core conservation/relational equality:
+  - zri accumulates sum of squares: before each iteration zri equals sum_{k=1}^{i8-1} k^2. This is exactly the closed form zri = ((i8-1) * i8 * (2*i8 - 1)) / 6. This invariant is preserved by the loop body since zri is updated by adding i8^2 and i8 is incremented afterwards.
+
+- Progress bounds (loop counter and arithmetic variable):
+  - nax progresses linearly with iterations: nax = nax0 + (i8 - 1) * (g - wl), where nax0 is the initial nax value. Since nax0 equals the initial value of the function parameter u, we can express this using \at(u, Pre): nax == \at(u, Pre) + (i8 - 1) * (g - wl).
+  - i8 is the loop counter; the guard i8 <= g ensures the loop terminates after g iterations. A loop variant (g - i8) gives a decreasing integer bound.
+
+- Loop assigns:
+  - The loop modifies zri, nax, i8, and u; hence loop assigns zri, nax, i8, u.
+
+- No unrelated invariants are added; we keep the invariants tight and directly related to the loop updates.
+
+These invariants are inductive and verification-friendly for Frama-C/WP, using only allowed variables and function parameters (via \at for initial parameter u).
+
+</reasoning>
+<code>int main1(int v,int u){
+  int g, wl, i8, zri, nax;
+
+  g=62;
+  wl=0;
+  i8=1;
+  zri=0;
+  nax=u;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6;
+    loop invariant nax == \at(u, Pre) + (i8 - 1) * (g - wl);
+    loop assigns zri, nax, i8, u;
+    loop variant (g - i8);
+  */
+  while (i8<=g) {
+      zri = zri+i8*i8;
+      nax = (nax+g)+(-(wl));
+      i8 += 1;
+      u = u + zri;
+  }
+
+}</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:33:38,953 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:33:38,968 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:34:22,938 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+Chosen invariants aim to be inductive and tight, while staying verification-friendly for Frama-C/WP.
+
+Key ideas:
+- zri invariant: zri tracks the sum of squares up to i8-1. The closed-form zri == (i8-1)*i8*(2*i8-1)/6 holds for all i8, given the per-iteration update zri += i8*i8 and i8 increments by 1. This provides a strong, exact relation without quantifiers.
+- nax invariant: nax increases by a constant amount (g - wl) each iteration. Since nax starts at the initial value of u (nax = u) and the input parameter u is fixed at loop entry, we can relate nax to the initial parameter via nax == \at(u, Pre) + (g - wl) * (i8 - 1).
+- Loop progress: 1 <= i8 <= g+1 ensures the loop counter is within expected bounds; a loop variant g - i8 + 1 guarantees termination.
+- loop assigns: zri, nax, i8, u are the mutated variables inside the loop; g and wl remain unchanged.
+These invariants are consistent with the actual state updates and produce a concise, exact specification that Frama-C/WP can verify without introducing extra artifacts or unrelated properties.
+</reasoning>
+<code>int main1(int v,int u){
+  int g, wl, i8, zri, nax;
+
+  g=62;
+  wl=0;
+  i8=1;
+  zri=0;
+  nax=u;
+
+  /*@
+    loop invariant zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6;
+    loop invariant nax == \at(u, Pre) + (g - wl) * (i8 - 1);
+    loop invariant 1 <= i8 <= g + 1;
+    loop assigns zri, nax, i8, u;
+    loop variant g - i8 + 1;
+  */
+  while (i8<=g) {
+      zri = zri+i8*i8;
+      nax = (nax+g)+(-(wl));
+      i8 += 1;
+      u = u + zri;
+  }
+
+}</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:34:22,939 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:34:22,953 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:35:25,807 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>The loop updates four variables: zri, nax, i8, and u. We want inductive invariants that are both strong and verification-friendly.
+
+- Core conservation/relational equality: zri is updated by adding i8^2 each iteration (zri := zri + i8*i8). This yields a closed-form invariant: zri equals the sum of squares up to i8-1, i.e., zri == sum_{t=1}^{i8-1} t^2. Using the closed form, zri == ((i8-1) * i8 * (2*i8 - 1)) / 6. This invariant is true initially (i8=1, zri=0) and preserved by each iteration (i8' = i8+1 and zri' = zri + i8^2).
+
+- A linear relation for nax: nax is updated by nax := nax + g - wl, with initial nax = u. Since g and wl are constants inside the loop, we obtain nax == \at(u, Pre) + (i8 - 1) * (g - wl). This ties nax to the initial value of the parameter u and the current i8.
+
+- Progress bounds for i8: after k iterations, i8 = 1 + k, and the loop exits when i8 = g+1. Thus 1 <= i8 <= g+1.
+
+- Loop variant: a standard decreasing measure is g - i8 + 1, which decreases each iteration and reaches 0 when i8 = g+1, matching loop termination.
+
+- Loop assigns: all and only the updated variables within the loop are zri, nax, i8, u.
+
+These invariants are inductive and verification-friendly, providing a precise non-tautological relation between loop variables while keeping code unchanged otherwise. The invariants do not rely on local variables initialized inside the loop and respect the allowed ACSL constructs.
+
+</reasoning>
+<code>/*@
+  loop invariant ((i8 &lt;= 1) ? zri == 0 : zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6);
+  loop invariant zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6;
+  loop invariant nax == \at(u, Pre) + (i8 - 1) * (g - wl);
+  loop invariant 1 <= i8;
+  loop invariant i8 <= g + 1;
+  loop assigns zri, nax, i8, u;
+  loop variant g - i8 + 1;
+*/
+while (i8 <= g) {
+      zri = zri+i8*i8;
+      nax = (nax+g)+(-(wl));
+      i8 += 1;
+      u = u + zri;
+  }</code>
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:35:25,807 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int v,int u){
+  int g, wl, i8, zri, nax;
+
+  g=62;
+  wl=0;
+  i8=1;
+  zri=0;
+  nax=u;
+
+  /*@
+    loop invariant zri == ((i8-1)*i8*(2*i8-1))/6;
+    loop invariant nax == \at(u,Pre) + (i8-1)*g;
+    loop invariant 1 <= i8 <= g+1;
+    loop assigns zri, nax, i8, u;
+    loop variant g - i8;
+  @*/
+  while (i8<=g) {
+      zri = zri+i8*i8;
+      nax = (nax+g)+(-(wl));
+      i8 += 1;
+      u = u + zri;
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-03-08 11:35:25,807 - INFO - 
+----- Candidate 2/5 full code begin -----
+/*@
+  loop invariant 1 <= i8 <= g + 1;
+  loop invariant zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6;
+  loop invariant nax == \at(u, Pre) + (i8 - 1) * g;
+  loop invariant u == \at(u, Pre) + ((i8 - 1) * i8 * i8 * (i8 + 1)) / 12;
+  loop assigns i8, zri, nax, u;
+  loop variant g - i8;
+*/
+while (i8 <= g) {
+      zri = zri + i8 * i8;
+      nax = (nax + g) + (-(wl));
+      i8 += 1;
+      u = u + zri;
+  }
+----- Candidate 2/5 full code end -----
+2026-03-08 11:35:25,807 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int v,int u){
+  int g, wl, i8, zri, nax;
+
+  g=62;
+  wl=0;
+  i8=1;
+  zri=0;
+  nax=u;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6;
+    loop invariant nax == \at(u, Pre) + (i8 - 1) * (g - wl);
+    loop assigns zri, nax, i8, u;
+    loop variant (g - i8);
+  */
+  while (i8<=g) {
+      zri = zri+i8*i8;
+      nax = (nax+g)+(-(wl));
+      i8 += 1;
+      u = u + zri;
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-08 11:35:25,807 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int v,int u){
+  int g, wl, i8, zri, nax;
+
+  g=62;
+  wl=0;
+  i8=1;
+  zri=0;
+  nax=u;
+
+  /*@
+    loop invariant zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6;
+    loop invariant nax == \at(u, Pre) + (g - wl) * (i8 - 1);
+    loop invariant 1 <= i8 <= g + 1;
+    loop assigns zri, nax, i8, u;
+    loop variant g - i8 + 1;
+  */
+  while (i8<=g) {
+      zri = zri+i8*i8;
+      nax = (nax+g)+(-(wl));
+      i8 += 1;
+      u = u + zri;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-08 11:35:25,807 - INFO - 
+----- Candidate 5/5 full code begin -----
+/*@
+  loop invariant ((i8 &lt;= 1) ? zri == 0 : zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6);
+  loop invariant zri == ((i8 - 1) * i8 * (2 * i8 - 1)) / 6;
+  loop invariant nax == \at(u, Pre) + (i8 - 1) * (g - wl);
+  loop invariant 1 <= i8;
+  loop invariant i8 <= g + 1;
+  loop assigns zri, nax, i8, u;
+  loop variant g - i8 + 1;
+*/
+while (i8 <= g) {
+      zri = zri+i8*i8;
+      nax = (nax+g)+(-(wl));
+      i8 += 1;
+      u = u + zri;
+  }
+----- Candidate 5/5 full code end -----
+2026-03-08 11:35:25,807 - INFO - Successfully generated 5/5 candidates
+2026-03-08 11:35:25,808 - INFO - Checking 8 invariants for conflicts...
+2026-03-08 11:35:25,811 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:35:25,811 - INFO -   1: int main1(int v,int u){
+2026-03-08 11:35:25,811 - INFO -   2:   int g, wl, i8, zri, nax;
+2026-03-08 11:35:25,811 - INFO -   3: 
+2026-03-08 11:35:25,811 - INFO -   4:   g=62;
+2026-03-08 11:35:25,811 - INFO -   5:   wl=0;
+2026-03-08 11:35:25,811 - INFO -   6:   i8=1;
+2026-03-08 11:35:25,811 - INFO -   7:   zri=0;
+2026-03-08 11:35:25,811 - INFO -   8:   nax=u;
+2026-03-08 11:35:25,811 - INFO -   9: 
+2026-03-08 11:35:25,811 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:35:25,811 - INFO - DEBUG: Total lines: 30
+2026-03-08 11:35:36,826 - INFO - syntax Correct
+2026-03-08 11:36:07,891 - INFO - Validate:
+2026-03-08 11:36:07,892 - INFO - [True, True, True, False, True, True, True, True]
+2026-03-08 11:36:07,892 - INFO - 
+2026-03-08 11:36:07,892 - INFO - Verify:
+2026-03-08 11:36:07,892 - INFO - []
+2026-03-08 11:36:07,892 - INFO - 
+2026-03-08 11:36:07,892 - INFO - Houdini iteration 1: Removed 1 failed invariants
+2026-03-08 11:36:07,892 - INFO -   Before: 8 invariants
+2026-03-08 11:36:07,892 - INFO -   After: 7 invariants
+2026-03-08 11:36:07,892 - INFO -   Remaining invariants:
+2026-03-08 11:36:07,892 - INFO -     [1] zri == ((i8-1)*i8*(2*i8-1))/6
+2026-03-08 11:36:07,892 - INFO -     [2] nax == \at(u,Pre) + (i8-1)*g
+2026-03-08 11:36:07,892 - INFO -     [3] 1 <= i8 <= g+1
+2026-03-08 11:36:07,892 - INFO -     [4] nax == \at(u, Pre) + (i8 - 1) * (g - wl)
+2026-03-08 11:36:07,892 - INFO -     [5] nax == \at(u, Pre) + (g - wl) * (i8 - 1)
+2026-03-08 11:36:07,892 - INFO -     [6] 1 <= i8
+2026-03-08 11:36:07,892 - INFO -     [7] i8 <= g + 1
+2026-03-08 11:36:18,772 - INFO - syntax Correct
+2026-03-08 11:36:49,673 - INFO - Validate:
+2026-03-08 11:36:49,673 - INFO - [True, True, True, True, True, True, True]
+2026-03-08 11:36:49,673 - INFO - 
+2026-03-08 11:36:49,673 - INFO - Verify:
+2026-03-08 11:36:49,673 - INFO - []
+2026-03-08 11:36:49,673 - INFO - 
+2026-03-08 11:36:49,673 - INFO - Houdini iteration 2: All invariants are valid
+2026-03-08 11:37:00,553 - INFO - syntax Correct
+2026-03-08 11:37:31,453 - INFO - Validate:
+2026-03-08 11:37:31,453 - INFO - [True, True, True, True, True, True, True]
+2026-03-08 11:37:31,453 - INFO - 
+2026-03-08 11:37:31,453 - INFO - Verify:
+2026-03-08 11:37:31,453 - INFO - []
+2026-03-08 11:37:31,453 - INFO - 
+2026-03-08 11:37:52,219 - INFO - Deduplicated 3 loop invariants in final code
+2026-03-08 11:38:02,936 - INFO - syntax Correct
+2026-03-08 11:38:33,734 - INFO - Validate:
+2026-03-08 11:38:33,734 - INFO - [True, True, True, True]
+2026-03-08 11:38:33,734 - INFO - 
+2026-03-08 11:38:33,734 - INFO - Verify:
+2026-03-08 11:38:33,734 - INFO - []
+2026-03-08 11:38:33,734 - INFO - 
+2026-03-08 11:38:33,735 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-08 11:38:33,735 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_67/1.c
+2026-03-08 11:38:33,735 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_67/1_invariants.txt
+2026-03-08 11:38:33,735 - INFO - 
+============================================================
+2026-03-08 11:38:33,735 - INFO - Final first_pass results:
+2026-03-08 11:38:33,735 - INFO -   syntax=1
+2026-03-08 11:38:33,735 - INFO -   valid=1
+2026-03-08 11:38:33,735 - INFO -   satisfy=None
+2026-03-08 11:38:33,735 - INFO - ============================================================
+2026-03-08 11:38:33,735 - INFO - 
+============================================================
+2026-03-08 11:38:33,735 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:38:33,735 - INFO -   Total API calls: 9
+2026-03-08 11:38:33,735 - INFO -   Total prompt tokens (input): 9,456
+2026-03-08 11:38:33,735 - INFO -   Total completion tokens (output): 43,620
+2026-03-08 11:38:33,735 - INFO -   Total tokens: 53,076
+2026-03-08 11:38:33,735 - INFO -   Average per call:
+2026-03-08 11:38:33,735 - INFO -     Prompt: 1050.7 tokens
+2026-03-08 11:38:33,735 - INFO -     Completion: 4846.7 tokens
+2026-03-08 11:38:33,735 - INFO -     Total: 5897.3 tokens
+2026-03-08 11:38:33,735 - INFO - ============================================================
+2026-03-08 11:38:33,735 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_67/1.c
+2026-03-08 11:38:33,735 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_67/1_invariants.txt
+2026-03-08 11:38:44,166 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

@@ -1,0 +1,471 @@
+2026-03-08 11:37:03,193 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:37:03,205 - INFO - Found 1 loops
+2026-03-08 11:37:03,206 - INFO - 
+============================================================
+2026-03-08 11:37:03,206 - INFO - Main generation pass 1/1
+2026-03-08 11:37:03,206 - INFO - ============================================================
+2026-03-08 11:37:03,206 - INFO - Loaded single prompt template: simple
+2026-03-08 11:37:03,206 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:37:03,206 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:37:03,220 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:39:11,984 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>
+We analyze the loop state and updates to design inductive, verification-friendly invariants.
+
+Key observations:
+- cotj starts at 0 and is incremented by 1 each iteration. The loop guard is cotj <= ll - 1, so the number of iterations equals max(0, ll) (since ll is e*3 and may be negative).
+- lu cycles through 0,1,2 every iteration due to lu = (lu + 1) % 3.
+- t is incremented by y and then by 1 each iteration; since y is initialized to 0 and never modified inside the loop, t increases by (y + 1) per iteration, i.e., by 1.
+
+From these, we can capture:
+- A simple non-negativity/conservation relation for the loop counter: cotj >= 0. This holds at initialization and is preserved by the body (cotj increases by 1 each iteration while the loop only executes when cotj <= ll - 1).
+- The relation between lu and cotj: lu == cotj % 3. Since lu starts at 0 and increments by 1 mod 3 each iteration, after cotj iterations, lu equals cotj modulo 3.
+- A conservation/transition law for t using the initial value of t: t == \at(t, Pre) + cotj * (y + 1). Because y is constant (0) throughout the loop, t increases by (y+1) per iteration, so after cotj iterations t equals the initial t plus cotj*(y+1).
+
+We also provide a loop variant to ensure termination: ll - cotj decreases by 1 each iteration and is non-negative at loop entry when the loop condition holds (cotj <= ll - 1).
+
+Invariants chosen:
+- cotj >= 0 (non-negativity of the loop counter)
+- lu == cotj % 3 (cyclic progression of lu with cotj)
+- t == \at(t, Pre) + cotj*(y + 1) (conservation of t progression)
+
+Assignments:
+- loop assigns cotj, t, lu
+
+Variant:
+- loop variant ll - cotj
+
+These invariants are inductive, do not rely on non-parameter local variables, and are verification-friendly for Frama-C/WP.
+</reasoning>
+<code>/*@
+  loop invariant cotj &gt;= 0;
+  loop invariant lu == cotj % 3;
+  loop invariant t == \at(t, Pre) + cotj * (y + 1);
+  loop assigns cotj, t, lu;
+  loop variant ll - cotj;
+*/
+while (1) {
+      if (!(cotj<=ll-1)) {
+          break;
+      }
+      cotj = cotj + 1;
+      t = t + y;
+      lu = (lu+1)%3;
+      t += 1;
+  }</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:39:11,984 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:39:11,997 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:40:38,661 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>The loop updates are:
+- cotj is incremented by 1 each iteration (cotj = cotj + 1).
+- t is increased by y (which is initialized to 0) and then increased by 1 (t += 1), so effectively t increases by 1 per iteration.
+- lu is updated to (lu+1) % 3, i.e., cycles through 0,1,2,0,...
+
+From these updates:
+- A core relational invariant is t == \at(t,Pre) + cotj, capturing that after k iterations, t equals its initial value plus the number of iterations (cotj).
+- A strong invariant relating the cycle of lu to cotj is lu == cotj % 3, since both increment by 1 per iteration (mod 3 starts from 0).
+- A minimal progress bound on the loop counter cotj is 0 <= cotj <= ll, but to be safe for all possible ll (ll may be negative), we constrain it with an implication that activates only when ll >= 0: (ll >= 0) ==> (0 <= cotj && cotj <= ll). This gives a nonnegative bound and an upper bound tied to ll when ll is nonnegative.
+- We also provide a loop variant to guarantee termination: ll - cotj decreases by 1 each iteration and remains nonnegative whenever the loop body runs (the loop runs only while cotj <= ll - 1).
+
+These invariants are inductive:
+- They hold before the first iteration (cotj = 0, t = t0, lu = 0).
+- They are preserved by every loop iteration due to the exact updates shown above, and the variant decreases to ensure termination.
+The loop assignments include all variables modified inside the loop: cotj, t, lu. The invariant uses only permitted variables and the function parameters with \at(t,Pre) to refer to the initial t value. The invariant is strong and directly explains the state updates without introducing unrelated facts. </reasoning>
+<code>/*@
+  loop invariant (ll >= 0) ==> (0 &lt= cotj && cotj &lt= ll);
+  loop invariant lu == cotj % 3;
+  loop invariant t == \at(t,Pre) + cotj;
+  loop assigns cotj, t, lu;
+  loop variant ll - cotj;
+*/
+while (1) {
+      if (!(cotj<=ll-1)) {
+          break;
+      }
+      cotj = cotj + 1;
+      t = t + y;
+      lu = (lu+1)%3;
+      t += 1;
+  }</code>
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:40:38,662 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:40:38,675 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:41:17,890 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I derived invariants that are (1) true before the first iteration, (2) preserved by the body when the guard is true, and (3) together allow proving the usual exit facts.
+
+Key facts about the loop:
+- ll is initialized once to e*3 and never modified. I expose that with ll == 3 * \at(e,Pre).
+- y is initialized to 0 and never modified, so y == 0 is a strong invariant that simplifies reasoning about t.
+- cotj starts at 0 and is incremented by 1 each executed iteration. The loop continues only while cotj <= ll-1, so cotj remains in [0..ll] whenever ll >= 0. To make the invariant hold even when ll < 0 (in which case the loop cannot run at all because 0 <= cotj <= ll-1 cannot hold), I use the disjunction (ll < 0) || (0 <= cotj && cotj <= ll). This form is true initially and is inductive when the guard is true.
+- lu is updated by (lu+1)%3 each executed iteration. The exact conservation relation lu == (cotj % 3) captures the cyclical behavior and is preserved by the body. I also assert the expected range 0 <= lu <= 2.
+- The primary state-transition law for t is recorded as t == \at(t,Pre) + cotj. Each executed iteration increases cotj by 1 and increases t by 1 (because y == 0), so this equality is inductive and explains the evolution of t precisely.
+
+Loop assigns is exact: only cotj, t, and lu are written by the loop.
+
+I avoided using \at on locals (only used \at(e,Pre) and \at(t,Pre) which are parameters), used no quantifiers, and kept invariants strong and directly tied to the loop updates.
+</reasoning>
+<code>
+int main1(int t,int e){
+  int ll, y, lu, cotj;
+
+  ll=e*3;
+  y=0;
+  lu=0;
+  cotj=0;
+
+  /*@
+    loop invariant ll == 3 * \at(e,Pre);
+    loop invariant y == 0;
+    loop invariant (ll < 0) || (0 <= cotj && cotj <= ll);
+    loop invariant 0 <= lu && lu <= 2;
+    loop invariant lu == (cotj % 3);
+    loop invariant t == \at(t,Pre) + cotj;
+    loop assigns cotj, t, lu;
+  */
+  while (1) {
+        if (!(cotj<=ll-1)) {
+            break;
+        }
+        cotj = cotj + 1;
+        t = t + y;
+        lu = (lu+1)%3;
+        t += 1;
+    }
+
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:41:17,891 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:41:17,904 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:41:59,917 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>We need inductive loop invariants that are strong and verification-friendly for Frama-C/WP. The loop updates are:
+- cotj increments by 1 each iteration
+- t increments by 1 each iteration (since y = 0 throughout the loop; t = t + y followed by t += 1)
+- lu cycles as (lu+1) mod 3
+
+From these updates we can derive two core relational invariants:
+- t tracks the initial value of t plus the number of iterations, i.e., t == \at(t, Pre) + cotj
+- lu tracks cotj modulo 3, i.e., lu == cotj % 3
+
+Additionally, a simple non-decreasing counter invariant helps with progress:
+- 0 <= cotj
+
+These invariants are:
+- true before the first iteration (cotj = 0, lu = 0, t = \at(t, Pre))
+- preserved by each iteration (cotj increments, t increments by 1, lu cycles mod 3)
+- useful to help verify termination via the loop guard cotj <= ll-1
+
+The loop assigns must include all modified variables: cotj, lu, t.
+
+Thus the invariants are strong, inductive, and do not rely on non-parameters except using \at(t, Pre) for the initial t. They are also safe for all possible values of ll (i.e., e*3), including negative e, since 0 <= cotj and the t/lu relations hold regardless of how many iterations occur. I did not add any unrelated invariants, and I did not alter the loop guard or loop body. I avoided using any forbidden constructs and kept the code structurally unchanged apart from the ACSL annotations. </reasoning>
+<code>int main1(int t,int e){
+  int ll, y, lu, cotj;
+
+  ll=e*3;
+  y=0;
+  lu=0;
+  cotj=0;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant t == \at(t, Pre) + cotj;
+    loop invariant lu == cotj % 3;
+    loop invariant 0 <= cotj;
+    loop assigns cotj, lu, t;
+  */
+  while (1) {
+      if (!(cotj<=ll-1)) {
+          break;
+      }
+      cotj = cotj + 1;
+      t = t + y;
+      lu = (lu+1)%3;
+      t += 1;
+  }
+
+}</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:41:59,917 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:41:59,931 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:42:30,376 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I selected invariants that are inductive, explain the state transition, and give the minimal bounds needed for verification:
+
+- Core relational equality (conservation law) for t:
+  t == \at(t,Pre) + cotj*(y + 1)
+  This captures exactly how t evolves: each loop iteration does t := t + y; t := t + 1, so t increases by (y+1) per increment of cotj. Using \at(t,Pre) is allowed because t is a function parameter.
+
+- Progress / counter bounds:
+  0 <= cotj
+  (ll >= 0) ==> cotj <= ll
+  These state that cotj never becomes negative (it starts at 0 and only increases) and, when ll is non-negative, cotj never exceeds ll. The second is stated as an implication so it holds even if ll is negative (in which case the loop does not execute).
+
+- Relational equality for the modulo counter lu:
+  lu == cotj % 3
+  This exactly expresses that lu cycles with cotj modulo 3 (both start at 0 and are incremented together). From 0 <= cotj this also ensures 0 <= lu <= 2.
+
+- Constancy of y and of ll with respect to the initial parameter e:
+  y == 0
+  ll == \at(e,Pre) * 3
+  These are strong facts established by the initialization before the loop and useful for simplification during verification. \at(e,Pre) is allowed because e is a parameter.
+
+- Exact loop assigns:
+  The loop only modifies t, cotj, and lu, so loop assigns t, cotj, lu; is complete and exact.
+
+I avoided a loop variant to keep the annotations simple and robust for both ll >= 0 and ll < 0 cases. All invariants use only the available variables; \at(...) is used only on parameters (t and e) as allowed. The invariants are inductive: the relational equalities are preserved by the body (one increment of cotj corresponds to one application of the update law for t and lu), and the bounds are preserved because the body increments cotj by 1 and the guard ensures cotj was <= ll-1 when entering an iteration.
+</reasoning>
+<code>
+int main1(int t,int e){
+  int ll, y, lu, cotj;
+
+  ll=e*3;
+  y=0;
+  lu=0;
+  cotj=0;
+
+  /*@
+    loop invariant y == 0;
+    loop invariant ll == \at(e,Pre) * 3;
+    loop invariant t == \at(t,Pre) + cotj * (y + 1);
+    loop invariant lu == cotj % 3;
+    loop invariant 0 <= cotj;
+    loop invariant (ll >= 0) ==> cotj <= ll;
+    loop assigns t, cotj, lu;
+  */
+  while (1) {
+      if (!(cotj<=ll-1)) {
+          break;
+      }
+      cotj = cotj + 1;
+      t = t + y;
+      lu = (lu+1)%3;
+      t += 1;
+  }
+
+}
+</code>
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:42:30,376 - INFO - 
+----- Candidate 1/5 full code begin -----
+/*@
+  loop invariant cotj &gt;= 0;
+  loop invariant lu == cotj % 3;
+  loop invariant t == \at(t, Pre) + cotj * (y + 1);
+  loop assigns cotj, t, lu;
+  loop variant ll - cotj;
+*/
+while (1) {
+      if (!(cotj<=ll-1)) {
+          break;
+      }
+      cotj = cotj + 1;
+      t = t + y;
+      lu = (lu+1)%3;
+      t += 1;
+  }
+----- Candidate 1/5 full code end -----
+2026-03-08 11:42:30,376 - INFO - 
+----- Candidate 2/5 full code begin -----
+/*@
+  loop invariant (ll >= 0) ==> (0 &lt= cotj && cotj &lt= ll);
+  loop invariant lu == cotj % 3;
+  loop invariant t == \at(t,Pre) + cotj;
+  loop assigns cotj, t, lu;
+  loop variant ll - cotj;
+*/
+while (1) {
+      if (!(cotj<=ll-1)) {
+          break;
+      }
+      cotj = cotj + 1;
+      t = t + y;
+      lu = (lu+1)%3;
+      t += 1;
+  }
+----- Candidate 2/5 full code end -----
+2026-03-08 11:42:30,376 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int t,int e){
+  int ll, y, lu, cotj;
+
+  ll=e*3;
+  y=0;
+  lu=0;
+  cotj=0;
+
+  /*@
+    loop invariant ll == 3 * \at(e,Pre);
+    loop invariant y == 0;
+    loop invariant (ll < 0) || (0 <= cotj && cotj <= ll);
+    loop invariant 0 <= lu && lu <= 2;
+    loop invariant lu == (cotj % 3);
+    loop invariant t == \at(t,Pre) + cotj;
+    loop assigns cotj, t, lu;
+  */
+  while (1) {
+        if (!(cotj<=ll-1)) {
+            break;
+        }
+        cotj = cotj + 1;
+        t = t + y;
+        lu = (lu+1)%3;
+        t += 1;
+    }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-08 11:42:30,376 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int t,int e){
+  int ll, y, lu, cotj;
+
+  ll=e*3;
+  y=0;
+  lu=0;
+  cotj=0;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant t == \at(t, Pre) + cotj;
+    loop invariant lu == cotj % 3;
+    loop invariant 0 <= cotj;
+    loop assigns cotj, lu, t;
+  */
+  while (1) {
+      if (!(cotj<=ll-1)) {
+          break;
+      }
+      cotj = cotj + 1;
+      t = t + y;
+      lu = (lu+1)%3;
+      t += 1;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-08 11:42:30,376 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int t,int e){
+  int ll, y, lu, cotj;
+
+  ll=e*3;
+  y=0;
+  lu=0;
+  cotj=0;
+
+  /*@
+    loop invariant y == 0;
+    loop invariant ll == \at(e,Pre) * 3;
+    loop invariant t == \at(t,Pre) + cotj * (y + 1);
+    loop invariant lu == cotj % 3;
+    loop invariant 0 <= cotj;
+    loop invariant (ll >= 0) ==> cotj <= ll;
+    loop assigns t, cotj, lu;
+  */
+  while (1) {
+      if (!(cotj<=ll-1)) {
+          break;
+      }
+      cotj = cotj + 1;
+      t = t + y;
+      lu = (lu+1)%3;
+      t += 1;
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-03-08 11:42:30,376 - INFO - Successfully generated 5/5 candidates
+2026-03-08 11:42:30,377 - INFO - Checking 11 invariants for conflicts...
+2026-03-08 11:42:30,379 - INFO -   Conflict detected:
+2026-03-08 11:42:30,379 - INFO -     [6] (ll < 0) || (0 <= cotj && cotj <= ll)
+2026-03-08 11:42:30,379 - INFO -     [11] (ll >= 0) ==> cotj <= ll
+2026-03-08 11:42:30,380 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:42:30,380 - INFO -   1: int main1(int t,int e){
+2026-03-08 11:42:30,380 - INFO -   2:   int ll, y, lu, cotj;
+2026-03-08 11:42:30,380 - INFO -   3: 
+2026-03-08 11:42:30,380 - INFO -   4:   ll=e*3;
+2026-03-08 11:42:30,380 - INFO -   5:   y=0;
+2026-03-08 11:42:30,380 - INFO -   6:   lu=0;
+2026-03-08 11:42:30,380 - INFO -   7:   cotj=0;
+2026-03-08 11:42:30,380 - INFO -   8: 
+2026-03-08 11:42:30,380 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:42:30,380 - INFO -   10: /*@
+2026-03-08 11:42:30,380 - INFO - DEBUG: Total lines: 34
+2026-03-08 11:42:41,362 - INFO - syntax Correct
+2026-03-08 11:43:12,421 - INFO - Validate:
+2026-03-08 11:43:12,421 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-08 11:43:12,421 - INFO - 
+2026-03-08 11:43:12,421 - INFO - Verify:
+2026-03-08 11:43:12,421 - INFO - []
+2026-03-08 11:43:12,421 - INFO - 
+2026-03-08 11:43:12,421 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-08 11:43:23,419 - INFO - syntax Correct
+2026-03-08 11:43:54,518 - INFO - Validate:
+2026-03-08 11:43:54,518 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-08 11:43:54,518 - INFO - 
+2026-03-08 11:43:54,518 - INFO - Verify:
+2026-03-08 11:43:54,518 - INFO - []
+2026-03-08 11:43:54,518 - INFO - 
+2026-03-08 11:44:09,706 - INFO - Deduplicated 6 loop invariants in final code
+2026-03-08 11:44:20,509 - INFO - syntax Correct
+2026-03-08 11:44:51,404 - INFO - Validate:
+2026-03-08 11:44:51,405 - INFO - [True, True, True, True, True, True]
+2026-03-08 11:44:51,405 - INFO - 
+2026-03-08 11:44:51,405 - INFO - Verify:
+2026-03-08 11:44:51,405 - INFO - []
+2026-03-08 11:44:51,405 - INFO - 
+2026-03-08 11:44:51,405 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-08 11:44:51,405 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_83/1.c
+2026-03-08 11:44:51,405 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_83/1_invariants.txt
+2026-03-08 11:44:51,405 - INFO - 
+============================================================
+2026-03-08 11:44:51,405 - INFO - Final first_pass results:
+2026-03-08 11:44:51,405 - INFO -   syntax=1
+2026-03-08 11:44:51,405 - INFO -   valid=1
+2026-03-08 11:44:51,405 - INFO -   satisfy=None
+2026-03-08 11:44:51,405 - INFO - ============================================================
+2026-03-08 11:44:51,405 - INFO - 
+============================================================
+2026-03-08 11:44:51,405 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:44:51,405 - INFO -   Total API calls: 0
+2026-03-08 11:44:51,405 - INFO -   Total prompt tokens (input): 0
+2026-03-08 11:44:51,405 - INFO -   Total completion tokens (output): 0
+2026-03-08 11:44:51,405 - INFO -   Total tokens: 0
+2026-03-08 11:44:51,405 - INFO - ============================================================
+2026-03-08 11:44:51,406 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_83/1.c
+2026-03-08 11:44:51,406 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_83/1_invariants.txt
+2026-03-08 11:45:26,948 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

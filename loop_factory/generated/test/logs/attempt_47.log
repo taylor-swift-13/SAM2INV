@@ -1,0 +1,468 @@
+2026-03-08 11:22:20,670 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:22:20,689 - INFO - Found 1 loops
+2026-03-08 11:22:20,691 - INFO - 
+============================================================
+2026-03-08 11:22:20,691 - INFO - Main generation pass 1/1
+2026-03-08 11:22:20,691 - INFO - ============================================================
+2026-03-08 11:22:20,691 - INFO - Loaded single prompt template: simple
+2026-03-08 11:22:20,691 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:22:20,691 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:22:20,715 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:23:15,988 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>Chosen invariants capture the exact state evolution of the loop under the given updates, ensuring inductiveness and aiding WP verification:
+
+- ae + d == u: Each iteration decreases ae by 4 and increases d by 4, so their sum remains constant and equal to the initial u. This is a strong, exact conservation law describing the core state transition.
+- vx - d == 3: Initially vx = 3 and d = 0. Since vx is updated by vx := d + vx (with d already incremented to d+4), the invariant vx - d remains equal to the initial vx minus initial d, i.e., 3, across reachable states.
+- bw3s == \at(u, Pre): bw3s is assigned once from u and never modified; this invariant enforces that bw3s remains the initial function-parameter value throughout the loop.
+- (e == 0) || (e == bw3s): Initially e = 0. Each iteration either leaves e at 0 (when the loop doesn’t execute) or sets e to bw3s in the only possible iteration, so e is always either 0 or bw3s in loop-reachable states.
+
+Loop assigns are the variables actually modified by the loop body: ae, d, e, vx. A loop variant bw3s - e is provided to enforce termination progress: since e < bw3s initially (when the loop executes), bw3s - e is non-negative and strictly decreases once per iteration (in this context, there is at most one iteration, after which the loop exits).
+
+These invariants are inductive given the transition relations, do not rely on uninitialized quantities, and are verification-friendly for Frama-C/WP. They also avoid introducing unrelated properties and keep the code unchanged besides the loop annotations. </reasoning>
+<code>int main1(int u){
+  int bw3s, e, d, ae, vx;
+
+  bw3s=u;
+  e=0;
+  d=e;
+  ae=u;
+  vx=3;
+
+  /*@
+    loop invariant bw3s == \at(u, Pre);
+    loop invariant ae + d == u;
+    loop invariant vx - d == 3;
+    loop invariant (e == 0) || (e == bw3s);
+    loop assigns ae, d, e, vx;
+    loop variant bw3s - e;
+  */
+  while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }
+
+}</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:23:15,988 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:23:16,005 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:24:47,318 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>
+We need inductive, verification-friendly loop annotations for the given loop. Key observations:
+
+- The loop body updates four variables: ae, d, vx, e. The only remaining variable bw3s is a loop-bound constant (assigned from u at entry) and u stays constant, so we can relate bw3s and u in invariants.
+
+- A core conservation/relational relation that explains the loop updates is that the combination of vx and d follows a fixed offset from the initial values. In the initial state, vx = 3 and d = 0, so vx - d = 3. After the loop body executes once, d becomes 4 and vx becomes 7, so vx - d remains 3. This invariant vx - d == 3 is preserved for states reached when the loop guard is true, and serves as a useful relational invariant.
+
+- Minimal progress bounds: the loop will terminate after at most one iteration because e is set to bw3s inside the body, so the next guard check will fail (assuming e < bw3s was true to enter). A safety variant that decreases with each iteration is bw3s - e. When the loop executes, e becomes bw3s, making bw3s - e = 0, and termination follows.
+
+- Additional invariants that are safe for all initial values of u:
+  - d >= 0 (d starts at 0 and only increases by 4)
+  - ae <= u (ae starts at u and decreases by 4 each iteration)
+  - bw3s == u (bw3s is assigned from u at entry and never changed)
+
+- Loop assigns: ae, d, vx, e are modified inside the loop; bw3s and u are not.
+
+Thus we propose the following loop invariants and variant:
+- invariants:
+  - bw3s == u
+  - d >= 0
+  - ae <= u
+  - vx - d == 3
+- variant:
+  - (bw3s - e)
+- assigns:
+  - ae, d, vx, e
+
+These are inductive: they hold before the first iteration (initial state) and are preserved across the loop body when the loop guard is true (e < bw3s). The variant guarantees progress toward termination when a loop iteration is possible.
+</reasoning>
+<code>/*@
+  loop invariant bw3s == u;
+  loop invariant d &gt;= 0;
+  loop invariant ae &lt;= u;
+  loop invariant vx - d == 3;
+  loop variant (bw3s - e);
+  loop assigns ae, d, vx, e;
+*/
+while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }</code>
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:24:47,318 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:24:47,331 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:25:45,589 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+The loop is extremely short and updates a small set of variables deterministically:
+- ae decreases by 4 each iteration (ae' = ae - 4)
+- d increases by 4 each iteration (d' = d + 4)
+- vx becomes vx' = vx + d' (since vx is updated after d)
+- e is assigned to bw3s, effectively ending the loop after one iteration ifbw3s > 0
+- bw3s, u remain unchanged in the loop
+
+From the loop context and transition, the reachable states at a loop head satisfy:
+- bw3s == \at(u, Pre)
+- e is either 0 (before any iteration) or bw3s (after an iteration)
+- d is either 0 (before) or 4 (after the single possible iteration)
+- ae is either \at(u,Pre) (before) or \at(u,Pre) - 4 (after)
+- vx is either 3 (before) or 7 (after)
+
+Thus we propose inductive invariants that are preserved by the loop body and capture the above relationships, without relying on quantifiers or non-supported constructs:
+- bw3s == \at(u, Pre) to fix the initial value of bw3s
+- If e == 0 (before first iteration), then d == 0, ae == \at(u, Pre), and vx == 3
+- If e > 0 (after an iteration), then d == 4, ae + 4 == \at(u, Pre), and vx == 7
+- e is either 0 or bw3s (captures the transition of e)
+
+Additionally, we specify:
+- loop assigns ae, d, vx, e
+- loop variant bw3s - e to show progress towards loop termination
+
+These invariants are strong and directly reflect the single-step transition behavior, ensuring inductiveness for Frama-C/WP verification.
+</reasoning>
+<code>int main1(int u){
+  int bw3s, e, d, ae, vx;
+
+  bw3s=u;
+  e=0;
+  d=e;
+  ae=u;
+  vx=3;
+
+  /* >>> LOOP INVARIANTS <<< */
+  /*@
+    loop invariant (bw3s == \at(u, Pre));
+    loop invariant ((e == 0) ==> (d == 0 && ae == \at(u, Pre) && vx == 3));
+    loop invariant ((e > 0) ==> (d == 4 && ae + 4 == \at(u, Pre) && vx == 7));
+    loop invariant ((e == 0) || (e == bw3s));
+    loop assigns ae, d, vx, e;
+    loop variant bw3s - e;
+  */
+  while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }
+
+}</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:25:45,590 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:25:45,603 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:26:51,114 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>Invariants chosen aim to be inductive and verification-friendly for Frama-C/WP.
+
+- Core conservation: ae + d == u
+  Rationale: initially ae == u and d == 0, and in each iteration ae is decreased by 4 while d is increased by 4, so their sum remains equal to the initial parameter u. This invariant is preserved by the loop body.
+
+- Parameter consistency: bw3s == u
+  Rationale: bw3s is assigned from the parameter u before the loop and never modified inside the loop, so this relation holds before the first iteration and is preserved across iterations.
+
+- Minimal progress: loop variant (bw3s - e)
+  Rationale: The loop guard is e < bw3s. The body sets e = bw3s, so the variant strictly decreases from bw3s - e (which is > 0 when the loop can execute) to 0 after the body executes, ensuring progress toward termination.
+
+- Exact assigns: ae, d, vx, e
+  Rationale: The loop body updates ae, d, vx, and e exactly, so those are the variables the loop may modify.
+
+These invariants are chosen to be strong and inductive, avoid relying on local state that could violate invariants, and keep the original code structure unchanged outside the annotation block. The \at() operator is not used since the only parameter is u, which can be referred to directly as a function parameter. The invariants do not introduce unrelated properties and respect the allowed ACSL constructs. </reasoning>
+<code>int main1(int u){
+  int bw3s, e, d, ae, vx;
+
+  bw3s=u;
+  e=0;
+  d=e;
+  ae=u;
+  vx=3;
+
+  /*@ 
+    loop invariant ae + d == u;
+    loop invariant bw3s == u;
+    loop assigns ae, d, vx, e;
+    loop variant (bw3s - e);
+  @*/
+  while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }
+
+}</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:26:51,115 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:26:51,127 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:27:43,544 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>The loop updates ae and d with a conserved sum: ae decreases by 4 while d increases by 4, so ae + d remains equal to the original input u throughout the loop. Since bw3s is assigned from u before the loop and never changed inside, bw3s == u holds as an invariant. The loop also progresses deterministically: e is set to bw3s inside the loop, so the loop runs at most once (0 iterations if u <= 0; 1 iteration if u > 0). A simple progress metric is bw3s - e, which strictly decreases from a positive value to 0 on the single possible iteration. The invariant vx - d == 3 captures the observed relation between vx and d given the initial vx = 3 and the update vx = vx + d after d has been incremented. These invariants are inductive (preserved by the loop body) and verification-friendly for Frama-C/WP. The loop assigns ae, d, vx, and e. </reasoning>
+<code>int main1(int u){
+  int bw3s, e, d, ae, vx;
+
+  bw3s=u;
+  e=0;
+  d=e;
+  ae=u;
+  vx=3;
+
+  /*@
+     loop invariant ae + d == u;
+     loop invariant bw3s == u;
+     loop invariant e <= bw3s;
+     loop invariant vx - d == 3;
+     loop assigns ae, d, vx, e;
+     loop variant bw3s - e;
+  */
+  while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }
+
+}</code>
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:27:43,545 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int u){
+  int bw3s, e, d, ae, vx;
+
+  bw3s=u;
+  e=0;
+  d=e;
+  ae=u;
+  vx=3;
+
+  /*@
+    loop invariant bw3s == \at(u, Pre);
+    loop invariant ae + d == u;
+    loop invariant vx - d == 3;
+    loop invariant (e == 0) || (e == bw3s);
+    loop assigns ae, d, e, vx;
+    loop variant bw3s - e;
+  */
+  while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-03-08 11:27:43,545 - INFO - 
+----- Candidate 2/5 full code begin -----
+/*@
+  loop invariant bw3s == u;
+  loop invariant d &gt;= 0;
+  loop invariant ae &lt;= u;
+  loop invariant vx - d == 3;
+  loop variant (bw3s - e);
+  loop assigns ae, d, vx, e;
+*/
+while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }
+----- Candidate 2/5 full code end -----
+2026-03-08 11:27:43,545 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int u){
+  int bw3s, e, d, ae, vx;
+
+  bw3s=u;
+  e=0;
+  d=e;
+  ae=u;
+  vx=3;
+
+  /* >>> LOOP INVARIANTS <<< */
+  /*@
+    loop invariant (bw3s == \at(u, Pre));
+    loop invariant ((e == 0) ==> (d == 0 && ae == \at(u, Pre) && vx == 3));
+    loop invariant ((e > 0) ==> (d == 4 && ae + 4 == \at(u, Pre) && vx == 7));
+    loop invariant ((e == 0) || (e == bw3s));
+    loop assigns ae, d, vx, e;
+    loop variant bw3s - e;
+  */
+  while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-08 11:27:43,545 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int u){
+  int bw3s, e, d, ae, vx;
+
+  bw3s=u;
+  e=0;
+  d=e;
+  ae=u;
+  vx=3;
+
+  /*@ 
+    loop invariant ae + d == u;
+    loop invariant bw3s == u;
+    loop assigns ae, d, vx, e;
+    loop variant (bw3s - e);
+  @*/
+  while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-08 11:27:43,545 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int u){
+  int bw3s, e, d, ae, vx;
+
+  bw3s=u;
+  e=0;
+  d=e;
+  ae=u;
+  vx=3;
+
+  /*@
+     loop invariant ae + d == u;
+     loop invariant bw3s == u;
+     loop invariant e <= bw3s;
+     loop invariant vx - d == 3;
+     loop assigns ae, d, vx, e;
+     loop variant bw3s - e;
+  */
+  while (e<bw3s) {
+      ae -= 4;
+      d += 4;
+      vx = (d)+(vx);
+      e = bw3s;
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-03-08 11:27:43,545 - INFO - Successfully generated 5/5 candidates
+2026-03-08 11:27:43,546 - INFO - Checking 10 invariants for conflicts...
+2026-03-08 11:27:43,547 - INFO -   Conflict detected:
+2026-03-08 11:27:43,547 - INFO -     [3] vx - d == 3
+2026-03-08 11:27:43,547 - INFO -     [7] ((e == 0) ==> (d == 0 && ae == \at(u, Pre) && vx == 3))
+2026-03-08 11:27:43,547 - INFO -   Conflict detected:
+2026-03-08 11:27:43,547 - INFO -     [3] vx - d == 3
+2026-03-08 11:27:43,547 - INFO -     [8] ((e > 0) ==> (d == 4 && ae + 4 == \at(u, Pre) && vx == 7))
+2026-03-08 11:27:43,548 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:27:43,548 - INFO -   1: int main1(int u){
+2026-03-08 11:27:43,548 - INFO -   2:   int bw3s, e, d, ae, vx;
+2026-03-08 11:27:43,548 - INFO -   3: 
+2026-03-08 11:27:43,548 - INFO -   4:   bw3s=u;
+2026-03-08 11:27:43,548 - INFO -   5:   e=0;
+2026-03-08 11:27:43,548 - INFO -   6:   d=e;
+2026-03-08 11:27:43,548 - INFO -   7:   ae=u;
+2026-03-08 11:27:43,548 - INFO -   8:   vx=3;
+2026-03-08 11:27:43,548 - INFO -   9: 
+2026-03-08 11:27:43,548 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:27:43,548 - INFO - DEBUG: Total lines: 30
+2026-03-08 11:27:54,438 - INFO - syntax Correct
+2026-03-08 11:28:25,369 - INFO - Validate:
+2026-03-08 11:28:25,369 - INFO - [True, True, False, True, True, True, True, False]
+2026-03-08 11:28:25,369 - INFO - 
+2026-03-08 11:28:25,369 - INFO - Verify:
+2026-03-08 11:28:25,369 - INFO - []
+2026-03-08 11:28:25,369 - INFO - 
+2026-03-08 11:28:25,369 - INFO - Houdini iteration 1: Removed 2 failed invariants
+2026-03-08 11:28:25,369 - INFO -   Before: 8 invariants
+2026-03-08 11:28:25,369 - INFO -   After: 6 invariants
+2026-03-08 11:28:25,369 - INFO -   Remaining invariants:
+2026-03-08 11:28:25,369 - INFO -     [1] bw3s == \at(u, Pre)
+2026-03-08 11:28:25,369 - INFO -     [2] ae + d == u
+2026-03-08 11:28:25,369 - INFO -     [3] (e == 0) || (e == bw3s)
+2026-03-08 11:28:25,369 - INFO -     [4] bw3s == u
+2026-03-08 11:28:25,369 - INFO -     [5] (bw3s == \at(u, Pre))
+2026-03-08 11:28:25,369 - INFO -     [6] ((e == 0) || (e == bw3s))
+2026-03-08 11:28:36,223 - INFO - syntax Correct
+2026-03-08 11:29:07,103 - INFO - Validate:
+2026-03-08 11:29:07,103 - INFO - [True, True, True, True, True, True]
+2026-03-08 11:29:07,103 - INFO - 
+2026-03-08 11:29:07,103 - INFO - Verify:
+2026-03-08 11:29:07,103 - INFO - []
+2026-03-08 11:29:07,103 - INFO - 
+2026-03-08 11:29:07,103 - INFO - Houdini iteration 2: All invariants are valid
+2026-03-08 11:29:17,974 - INFO - syntax Correct
+2026-03-08 11:29:48,832 - INFO - Validate:
+2026-03-08 11:29:48,832 - INFO - [True, True, True, True, True, True]
+2026-03-08 11:29:48,832 - INFO - 
+2026-03-08 11:29:48,832 - INFO - Verify:
+2026-03-08 11:29:48,832 - INFO - []
+2026-03-08 11:29:48,832 - INFO - 
+2026-03-08 11:29:59,455 - INFO - Deduplicated 2 loop invariants in final code
+2026-03-08 11:30:10,206 - INFO - syntax Correct
+2026-03-08 11:30:40,968 - INFO - Validate:
+2026-03-08 11:30:40,968 - INFO - [True, True, True, True]
+2026-03-08 11:30:40,968 - INFO - 
+2026-03-08 11:30:40,968 - INFO - Verify:
+2026-03-08 11:30:40,968 - INFO - []
+2026-03-08 11:30:40,968 - INFO - 
+2026-03-08 11:30:40,969 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-08 11:30:40,969 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_47/1.c
+2026-03-08 11:30:40,969 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_47/1_invariants.txt
+2026-03-08 11:30:40,969 - INFO - 
+============================================================
+2026-03-08 11:30:40,969 - INFO - Final first_pass results:
+2026-03-08 11:30:40,969 - INFO -   syntax=1
+2026-03-08 11:30:40,969 - INFO -   valid=1
+2026-03-08 11:30:40,969 - INFO -   satisfy=None
+2026-03-08 11:30:40,969 - INFO - ============================================================
+2026-03-08 11:30:40,969 - INFO - 
+============================================================
+2026-03-08 11:30:40,969 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:30:40,969 - INFO -   Total API calls: 1
+2026-03-08 11:30:40,969 - INFO -   Total prompt tokens (input): 1,121
+2026-03-08 11:30:40,969 - INFO -   Total completion tokens (output): 5,939
+2026-03-08 11:30:40,969 - INFO -   Total tokens: 7,060
+2026-03-08 11:30:40,969 - INFO -   Average per call:
+2026-03-08 11:30:40,969 - INFO -     Prompt: 1121.0 tokens
+2026-03-08 11:30:40,969 - INFO -     Completion: 5939.0 tokens
+2026-03-08 11:30:40,969 - INFO -     Total: 7060.0 tokens
+2026-03-08 11:30:40,969 - INFO - ============================================================
+2026-03-08 11:30:40,969 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_47/1.c
+2026-03-08 11:30:40,969 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_47/1_invariants.txt
+2026-03-08 11:31:06,062 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

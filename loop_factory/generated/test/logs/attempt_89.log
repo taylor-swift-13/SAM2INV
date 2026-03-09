@@ -1,0 +1,466 @@
+2026-03-08 11:40:09,277 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:40:09,289 - INFO - Found 1 loops
+2026-03-08 11:40:09,291 - INFO - 
+============================================================
+2026-03-08 11:40:09,291 - INFO - Main generation pass 1/1
+2026-03-08 11:40:09,291 - INFO - ============================================================
+2026-03-08 11:40:09,291 - INFO - Loaded single prompt template: simple
+2026-03-08 11:40:09,291 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:40:09,291 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:40:09,305 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:42:55,931 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>The loop updates are:
+- uxo := uxo + 1
+- z9 := 2 * z9
+with j constant (initialized before the loop to 5, since (1%29) + 4 = 5). A strong, inductive invariant pair that reflects these updates is:
+- z9 == (1 << uxo), which exactly captures the relation between z9 and the counter uxo (starting from z9=1, uxo=0 and doubling/updating together).
+- j == 5 (j does not change in the loop, equal to its initial value 5).
+To ensure the shift in (1 << uxo) is well-defined, we also assert uxo >= 0 as a basic bound.
+Additionally, a loop variant is provided to prove termination: j - z9 decreases while the loop guard z9 <= j holds, and the loop terminates when z9 > j. The loop assigns are exactly the variables modified inside the loop: uxo and z9.
+These invariants are inductive (base case holds at loop entry, preserved by each iteration) and verification-friendly for Frama-C/WP. </reasoning>
+<code>int main1(){
+  int j, z9, uxo;
+
+  j=(1%29)+4;
+  z9=1;
+  uxo=0;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant j == 5;
+    loop invariant uxo >= 0;
+    loop invariant z9 == (1 << uxo);
+    loop assigns uxo, z9;
+    loop variant j - z9;
+  */
+  while (z9<=j) {
+      uxo = (1)+(uxo);
+      z9 = 2*z9;
+  }
+
+}</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:42:55,932 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:42:55,947 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:44:22,007 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop annotations for the given loop. The loop updates are:
+- uxo := uxo + 1
+- z9 := 2 * z9
+- j is unchanged
+
+A strong, inductive invariant should relate z9 and uxo in a way that holds at loop entry and is preserved by each iteration. Since the initial state (from the context) has z9 = 1 and uxo = 0, after k iterations we have z9 = 2^k and uxo = k. To express this without an exponent operator, we encode a finite, exact relational mapping for the actual reachable iteration counts within this loop (0, 1, 2, 3) as a piecewise invariant:
+- if uxo == 0 then z9 == 1
+- if uxo == 1 then z9 == 2
+- if uxo == 2 then z9 == 4
+- if uxo == 3 then z9 == 8
+
+This invariant is strong and exact for all states reachable during and after the loop given the specific initialization j = (1%29) + 4, z9 = 1, uxo = 0, and the updates performed inside the loop. Additionally, we add a simple progress bound using loop variant j - z9, which strictly decreases whenever the loop continues (as z9 increases and j is constant). We also note that the loop assigns uxo and z9.
+
+We avoid altering the code and do not use any unsupported constructs. The invariant is crafted to be inductive and non-tautological, and the variant ensures termination reasoning. </reasoning>
+<code>int main1(){
+  int j, z9, uxo;
+
+  j=(1%29)+4;
+  z9=1;
+  uxo=0;
+
+  /*@
+    loop invariant ((uxo == 0) ==> (z9 == 1))  &&
+                   ((uxo == 1) ==> (z9 == 2))  &&
+                   ((uxo == 2) ==> (z9 == 4))  &&
+                   ((uxo == 3) ==> (z9 == 8));
+    loop invariant z9 <= j;
+    loop assigns uxo, z9;
+    loop variant j - z9;
+  */
+  while (z9<=j) {
+      uxo = (1)+(uxo);
+      z9 = 2*z9;
+  }
+
+}</code>
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:44:22,007 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:44:22,022 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:46:16,092 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+Observations from the loop:
+- Each iteration increments uxo by 1 and doubles z9 (uxo := uxo + 1; z9 := 2*z9).
+- The loop guard is z9 <= j and j is initialized to 5 (since j = (1%29) + 4 = 5) and does not change inside the loop.
+
+A strong inductive invariant that captures the exact state evolution is:
+- z9 == (1 << uxo)
+This holds initially (z9 = 1, uxo = 0, so 1 == 1 << 0) and is preserved by the updates:
+- If z9 == (1 << uxo) before an iteration, after the iteration we have z9' = 2*z9 = 2*(1 << uxo) = (1 << (uxo+1)) and uxo' = uxo + 1, hence z9' == (1 << uxo').
+
+This invariant is strong and non-tautological, and it stays true for all iterations, including the final one where the guard becomes false afterward.
+
+Minimal progress measure (loop variant) can be chosen as (j - z9). Since the loop guard ensures z9 <= j at the start of every iteration, (j - z9) is non-negative at each iteration start and decreases strictly because z9 is doubled each time (j - z9' = j - 2*z9 < j - z9 as long as z9 > 0). This provides a well-founded descent proving termination.
+
+All loop updates are accounted for in loop assigns: uxo and z9.
+
+Therefore, the following inductive loop invariants and bounds are suitable:
+- loop invariant z9 == (1 << uxo)
+- loop invariant uxo >= 0
+- loop assigns uxo, z9
+- loop variant (j - z9)
+</reasoning>
+<code>/*@
+  loop invariant z9 == (1 << uxo);
+  loop invariant uxo >= 0;
+  loop assigns uxo, z9;
+  loop variant (j - z9);
+*/
+while (z9<=j) {
+      uxo = (1)+(uxo);
+      z9 = 2*z9;
+  }</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:46:16,092 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:46:16,107 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:46:57,092 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I choose invariants that directly capture the state-transition law of the loop and give simple, checkable numeric bounds so WP can discharge the necessary proof obligations.
+
+Core relational equality (conservation law)
+- z9 == (1 << uxo)
+  - This compactly encodes the fact that z9 is doubled while uxo is incremented: starting from z9==1 and uxo==0, each iteration performs z9 := 2*z9 and uxo := uxo+1, so z9 remains exactly 2^{uxo}. I use the bit-shift 1 << uxo to express 2^{uxo} in a way that the WP plug-in can reason about integer doublings.
+
+Progress / bounds
+- uxo >= 0
+- z9 >= 1
+  - These are the natural non-negativity / positivity bounds given the initial values (uxo starts at 0, z9 at 1) and preserved by the loop actions.
+
+Function-level constant
+- j == (1 % 29) + 4
+  - j is not modified by the loop; exposing its initialized constant value is often helpful to WP.
+
+Loop assigns
+- The loop only modifies uxo and z9, so loop assigns uxo, z9; is exact and complete.
+
+Variant (termination)
+- j + 1 - uxo
+  - This integer expression strictly decreases by 1 at every iteration (uxo increases by 1), and is non-negative at every loop head under the invariant and the guard, giving a simple decreasing termination metric.
+
+Notes on inductiveness and exit facts:
+- The equality z9 == (1 << uxo) is true initially (z9==1, uxo==0) and preserved because the body replaces (z9, uxo) by (2*z9, uxo+1), and (1 << (uxo+1)) == 2 * (1 << uxo).
+- Combined with the loop guard z9 <= j, the equality gives the expected connection between uxo and j on loop entry and supports the variant reasoning.
+- The invariants are kept minimal and focused on relations necessary to prove preservation, termination, and to state the loop assigns exactly.
+
+I avoid using \at(...) (not allowed on locals), quantifiers, or additional unrelated invariants.
+</reasoning>
+<code>
+int main1(){
+  int j, z9, uxo;
+
+  j=(1%29)+4;
+  z9=1;
+  uxo=0;
+
+  /*@
+    loop invariant (uxo >= 0);
+    loop invariant (z9 >= 1);
+    loop invariant (z9 == (1 << uxo));
+    loop invariant (j == (1 % 29) + 4);
+    loop assigns uxo, z9;
+    loop variant (j + 1 - uxo);
+  */
+  while (z9<=j) {
+        uxo = (1)+(uxo);
+        z9 = 2*z9;
+  }
+
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:46:57,092 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:46:57,108 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:49:03,522 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+Goal: Provide inductive, verification-friendly loop invariants and assigns for the given loop.
+Key loop behavior:
+- uxo is incremented by 1 each iteration: uxo := uxo + 1
+- z9 is doubled each iteration: z9 := 2 * z9
+- The loop guard is z9 <= j and j remains constant during the loop.
+
+Long-run invariant that captures the exact state relation across iterations:
+- z9 == (1) << uxo
+This expresses that starting from z9 = 1 and uxo = 0, after t iterations, z9 becomes 2^t and uxo becomes t. This relation is preserved by the updates:
+- If z9 == 1 << uxo before an iteration, then after the iteration z9' = 2*z9 = 2*(1<<uxo) = 1 << (uxo+1) and uxo' = uxo+1, so z9' == 1 << uxo'.
+
+Additionally, ensure a non-negative, decreasing measure for termination:
+- loop variant j - z9
+Since the loop continues only while z9 <= j, the value (j - z9) is non-negative at the start of each iteration and strictly decreases after each iteration (z9 doubles).
+
+To keep the invariant strong but simple, also assert the non-negativity of uxo:
+- 0 <= uxo
+
+Assignments inside the loop are exactly the updated variables:
+- loop assigns uxo, z9
+
+These invariants are inductive and verification-friendly for Frama-C/WP.
+
+</reasoning>
+<code>int main1(){
+  int j, z9, uxo;
+
+  j=(1%29)+4;
+  z9=1;
+  uxo=0;
+
+  /*@
+    loop invariant z9 == (1) << uxo;
+    loop invariant 0 <= uxo;
+    loop assigns uxo, z9;
+    loop variant j - z9;
+  @*/
+  while (z9<=j) {
+      uxo = (1)+(uxo);
+      z9 = 2*z9;
+  }
+
+}</code>
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:49:03,523 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(){
+  int j, z9, uxo;
+
+  j=(1%29)+4;
+  z9=1;
+  uxo=0;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant j == 5;
+    loop invariant uxo >= 0;
+    loop invariant z9 == (1 << uxo);
+    loop assigns uxo, z9;
+    loop variant j - z9;
+  */
+  while (z9<=j) {
+      uxo = (1)+(uxo);
+      z9 = 2*z9;
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-03-08 11:49:03,523 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(){
+  int j, z9, uxo;
+
+  j=(1%29)+4;
+  z9=1;
+  uxo=0;
+
+  /*@
+    loop invariant ((uxo == 0) ==> (z9 == 1))  &&
+                   ((uxo == 1) ==> (z9 == 2))  &&
+                   ((uxo == 2) ==> (z9 == 4))  &&
+                   ((uxo == 3) ==> (z9 == 8));
+    loop invariant z9 <= j;
+    loop assigns uxo, z9;
+    loop variant j - z9;
+  */
+  while (z9<=j) {
+      uxo = (1)+(uxo);
+      z9 = 2*z9;
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-03-08 11:49:03,523 - INFO - 
+----- Candidate 3/5 full code begin -----
+/*@
+  loop invariant z9 == (1 << uxo);
+  loop invariant uxo >= 0;
+  loop assigns uxo, z9;
+  loop variant (j - z9);
+*/
+while (z9<=j) {
+      uxo = (1)+(uxo);
+      z9 = 2*z9;
+  }
+----- Candidate 3/5 full code end -----
+2026-03-08 11:49:03,523 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(){
+  int j, z9, uxo;
+
+  j=(1%29)+4;
+  z9=1;
+  uxo=0;
+
+  /*@
+    loop invariant (uxo >= 0);
+    loop invariant (z9 >= 1);
+    loop invariant (z9 == (1 << uxo));
+    loop invariant (j == (1 % 29) + 4);
+    loop assigns uxo, z9;
+    loop variant (j + 1 - uxo);
+  */
+  while (z9<=j) {
+        uxo = (1)+(uxo);
+        z9 = 2*z9;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-08 11:49:03,523 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(){
+  int j, z9, uxo;
+
+  j=(1%29)+4;
+  z9=1;
+  uxo=0;
+
+  /*@
+    loop invariant z9 == (1) << uxo;
+    loop invariant 0 <= uxo;
+    loop assigns uxo, z9;
+    loop variant j - z9;
+  @*/
+  while (z9<=j) {
+      uxo = (1)+(uxo);
+      z9 = 2*z9;
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-03-08 11:49:03,523 - INFO - Successfully generated 5/5 candidates
+2026-03-08 11:49:03,523 - INFO - Checking 9 invariants for conflicts...
+2026-03-08 11:49:03,524 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:49:03,524 - INFO -   1: int main1(){
+2026-03-08 11:49:03,524 - INFO -   2:   int j, z9, uxo;
+2026-03-08 11:49:03,524 - INFO -   3: 
+2026-03-08 11:49:03,524 - INFO -   4:   j=(1%29)+4;
+2026-03-08 11:49:03,524 - INFO -   5:   z9=1;
+2026-03-08 11:49:03,524 - INFO -   6:   uxo=0;
+2026-03-08 11:49:03,524 - INFO -   7: 
+2026-03-08 11:49:03,524 - INFO -   8:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:49:03,524 - INFO -   9: /*@
+2026-03-08 11:49:03,524 - INFO -   10:   loop invariant j == 5;
+2026-03-08 11:49:03,524 - INFO - DEBUG: Total lines: 30
+2026-03-08 11:49:14,502 - INFO - syntax Correct
+2026-03-08 11:49:45,424 - INFO - Validate:
+2026-03-08 11:49:45,425 - INFO - [True, True, False, True, False, True, True, True, True]
+2026-03-08 11:49:45,425 - INFO - 
+2026-03-08 11:49:45,425 - INFO - Verify:
+2026-03-08 11:49:45,425 - INFO - []
+2026-03-08 11:49:45,425 - INFO - 
+2026-03-08 11:49:45,425 - INFO - Houdini iteration 1: Removed 2 failed invariants
+2026-03-08 11:49:45,425 - INFO -   Before: 9 invariants
+2026-03-08 11:49:45,425 - INFO -   After: 7 invariants
+2026-03-08 11:49:45,425 - INFO -   Remaining invariants:
+2026-03-08 11:49:45,425 - INFO -     [1] j == 5
+2026-03-08 11:49:45,425 - INFO -     [2] uxo >= 0
+2026-03-08 11:49:45,425 - INFO -     [3] ((uxo == 0) ==> (z9 == 1))  &&
+                   ((uxo == 1) ==> (z9 == 2))  &&
+                   ((uxo == 2) ==> (z9 == 4))  &&
+                   ((uxo == 3) ==> (z9 == 8))
+2026-03-08 11:49:45,425 - INFO -     [4] (uxo >= 0)
+2026-03-08 11:49:45,425 - INFO -     [5] (z9 >= 1)
+2026-03-08 11:49:45,425 - INFO -     [6] (z9 == (1 << uxo))
+2026-03-08 11:49:45,425 - INFO -     [7] 0 <= uxo
+2026-03-08 11:49:56,579 - INFO - syntax Correct
+2026-03-08 11:50:27,646 - INFO - Validate:
+2026-03-08 11:50:27,646 - INFO - [True, True, True, True, True, False, True]
+2026-03-08 11:50:27,646 - INFO - 
+2026-03-08 11:50:27,646 - INFO - Verify:
+2026-03-08 11:50:27,646 - INFO - []
+2026-03-08 11:50:27,646 - INFO - 
+2026-03-08 11:50:27,647 - INFO - Houdini iteration 2: Removed 1 failed invariants
+2026-03-08 11:50:27,647 - INFO -   Before: 7 invariants
+2026-03-08 11:50:27,647 - INFO -   After: 6 invariants
+2026-03-08 11:50:27,647 - INFO -   Remaining invariants:
+2026-03-08 11:50:27,647 - INFO -     [1] j == 5
+2026-03-08 11:50:27,647 - INFO -     [2] uxo >= 0
+2026-03-08 11:50:27,647 - INFO -     [3] ((uxo == 0) ==> (z9 == 1))  &&
+                   ((uxo == 1) ==> (z9 == 2))  &&
+                   ((uxo == 2) ==> (z9 == 4))  &&
+                   ((uxo == 3) ==> (z9 == 8))
+2026-03-08 11:50:27,647 - INFO -     [4] (uxo >= 0)
+2026-03-08 11:50:27,647 - INFO -     [5] (z9 >= 1)
+2026-03-08 11:50:27,647 - INFO -     [6] 0 <= uxo
+2026-03-08 11:50:38,645 - INFO - syntax Correct
+2026-03-08 11:51:09,551 - INFO - Validate:
+2026-03-08 11:51:09,551 - INFO - [True, True, True, True, True, True]
+2026-03-08 11:51:09,551 - INFO - 
+2026-03-08 11:51:09,551 - INFO - Verify:
+2026-03-08 11:51:09,551 - INFO - []
+2026-03-08 11:51:09,551 - INFO - 
+2026-03-08 11:51:09,551 - INFO - Houdini iteration 3: All invariants are valid
+2026-03-08 11:51:20,518 - INFO - syntax Correct
+2026-03-08 11:51:51,434 - INFO - Validate:
+2026-03-08 11:51:51,435 - INFO - [True, True, True, True, True, True]
+2026-03-08 11:51:51,435 - INFO - 
+2026-03-08 11:51:51,435 - INFO - Verify:
+2026-03-08 11:51:51,435 - INFO - []
+2026-03-08 11:51:51,435 - INFO - 
+2026-03-08 11:51:57,660 - INFO - Deduplicated 2 loop invariants in final code
+2026-03-08 11:52:08,462 - INFO - syntax Correct
+2026-03-08 11:52:39,234 - INFO - Validate:
+2026-03-08 11:52:39,235 - INFO - [True, True, True, True]
+2026-03-08 11:52:39,235 - INFO - 
+2026-03-08 11:52:39,235 - INFO - Verify:
+2026-03-08 11:52:39,235 - INFO - []
+2026-03-08 11:52:39,235 - INFO - 
+2026-03-08 11:52:39,235 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-08 11:52:39,235 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_89/1.c
+2026-03-08 11:52:39,235 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_89/1_invariants.txt
+2026-03-08 11:52:39,235 - INFO - 
+============================================================
+2026-03-08 11:52:39,235 - INFO - Final first_pass results:
+2026-03-08 11:52:39,235 - INFO -   syntax=1
+2026-03-08 11:52:39,235 - INFO -   valid=1
+2026-03-08 11:52:39,235 - INFO -   satisfy=None
+2026-03-08 11:52:39,235 - INFO - ============================================================
+2026-03-08 11:52:39,236 - INFO - 
+============================================================
+2026-03-08 11:52:39,236 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:52:39,236 - INFO -   Total API calls: 79
+2026-03-08 11:52:39,236 - INFO -   Total prompt tokens (input): 81,919
+2026-03-08 11:52:39,236 - INFO -   Total completion tokens (output): 427,297
+2026-03-08 11:52:39,236 - INFO -   Total tokens: 509,216
+2026-03-08 11:52:39,236 - INFO -   Average per call:
+2026-03-08 11:52:39,236 - INFO -     Prompt: 1036.9 tokens
+2026-03-08 11:52:39,236 - INFO -     Completion: 5408.8 tokens
+2026-03-08 11:52:39,236 - INFO -     Total: 6445.8 tokens
+2026-03-08 11:52:39,236 - INFO - ============================================================
+2026-03-08 11:52:39,236 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_89/1.c
+2026-03-08 11:52:39,236 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_89/1_invariants.txt
+2026-03-08 11:53:06,631 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

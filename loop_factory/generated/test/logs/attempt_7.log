@@ -1,0 +1,441 @@
+2026-03-09 12:53:25,969 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-09 12:53:26,099 - INFO - Found 1 loops
+2026-03-09 12:53:26,171 - INFO - 
+============================================================
+2026-03-09 12:53:26,173 - INFO - Main generation pass 1/1
+2026-03-09 12:53:26,173 - INFO - ============================================================
+2026-03-09 12:53:26,173 - INFO - Loaded single prompt template: simple
+2026-03-09 12:53:26,173 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-09 12:53:26,182 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-09 12:53:26,215 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 12:56:32,865 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop annotations for the given loop. Key observations:
+- psj and n0 are constant through the loop, with n0 == psj (n0 is initialized from psj and never changed).
+- The loop updates only bcp and hd; psj and n0 remain fixed.
+- A natural inductive invariant capturing the conservation/update pattern is n0 == psj, which holds before the first iteration and is preserved each iteration.
+- A non-trivial progress bound is hd <= psj + n0. Since n0 == psj, this is hd <= 2*psj, and since hd is updated to (psj - bcp) + n0 after the inner update, this bound is preserved.
+- A loop variant that decreases each iteration is psj - bcp, because bcp increments by 1 each iteration while psj stays constant; this guarantees termination (when bcp reaches psj, the guard fails).
+Thus, we propose:
+- loop invariant n0 == psj;
+- loop invariant hd <= psj + n0;
+- loop assigns bcp, hd;
+- loop variant psj - bcp;
+These invariants are true at initialization (n0 == psj holds; hd = 0 <= psj + n0), are preserved by each iteration (bcp increases, hd updated accordingly, and n0/psj stay equal), and the variant decreases to support termination. The inner if condition psj < psj + 3 is always true, so hd is updated by adding n0, but this behavior is captured in the hd update via hd = psj - bcp; then hd += n0.
+</reasoning>
+<code>int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant n0 == psj;
+    loop invariant hd <= psj + n0;
+    loop assigns bcp, hd;
+    loop variant psj - bcp;
+  */
+  while (bcp < psj) {
+      bcp = bcp + 1;
+      hd = psj - bcp;
+      if (psj < psj + 3) {
+          hd += n0;
+      }
+  }
+
+}</code>
+----- Candidate 1/5 raw response end -----
+2026-03-09 12:56:32,865 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-09 12:56:32,882 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 12:56:59,136 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>
+I propose invariants that (1) capture the exact relation that the loop enforces on hd (the core conservation law), (2) keep tight bounds on the loop counter bcp so the variant can be shown non-negative, and (3) record that psj and n0 are conserved and equal (this follows from their initialization and they are not modified by the loop).
+
+Core relational equality:
+- After the first iteration the code sets hd to psj - bcp + n0. Because the initial state is special (bcp == -1 and hd == 0), the invariant must allow that initial exceptional pair while asserting the general relation for all other iterations. Therefore I use the disjunction (bcp == -1 && hd == 0) || hd == psj - bcp + n0. This holds before the loop and is preserved by the body:
+  - If bcp == -1 and hd == 0, one step makes bcp == 0 and sets hd := psj - 0 + n0, so the RHS holds after the step.
+  - If the RHS holds before the step, after incrementing bcp the RHS holds with the new bcp.
+
+Bounds and progress:
+- bcp is initialized to -1 and only increases by 1 each iteration, and the guard is bcp < psj, so invariant -1 <= bcp <= psj is safe and useful. The non-strict upper bound is preferred (guard is not an invariant).
+- The loop variant psj - bcp is a natural non-negative integer that strictly decreases each iteration (since bcp is incremented) and is therefore suitable for termination checking.
+
+Conservation of unchanged variables:
+- n0 == psj is stated because both are initialized equal before the loop and neither is modified in the loop; it is a helpful, strong invariant.
+
+Assigns:
+- The loop exactly modifies bcp and hd; n0 and psj remain unchanged.
+
+These invariants are inductive and verification-friendly: they explain the state transition for hd, provide strict numeric bounds for bcp and a decreasing variant, and precisely list the modified variables.
+</reasoning>
+<code>
+int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant -1 <= bcp && bcp <= psj;
+    loop invariant n0 == psj;
+    loop invariant (bcp == -1 && hd == 0) || hd == (psj - bcp + n0);
+    loop assigns bcp, hd;
+    loop variant (psj - bcp);
+  */
+  while (bcp<psj) {
+        bcp = bcp + 1;
+        hd = psj-bcp;
+        if (psj<psj+3) {
+            hd += n0;
+        }
+  }
+
+}
+</code>
+----- Candidate 2/5 raw response end -----
+2026-03-09 12:56:59,137 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-09 12:56:59,155 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 13:00:12,419 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>The loop has four variables: bcp (loop counter), hd (a derived value), n0 (constant within the loop), and psj (constant within the loop). A good inductive invariant should:
+- hold at loop entry (initialization),
+- be preserved by every iteration under the loop guard (inductiveness),
+- help deduce post-conditions when the loop exits.
+
+Key observation:
+- The update inside the loop effectively yields hd' = psj - bcp' + n0, where bcp' = bcp + 1.
+- Therefore hd' + bcp' = psj + n0, a constant. This suggests a relational invariant hd + bcp == psj + n0 that becomes true after the first iteration.
+- Initially, hd = 0 and bcp = -1, which does not satisfy hd + bcp == psj + n0 (0 + -1 != 36). However, the initial state does satisfy a fallback condition: hd == 0 && bcp == -1 && n0 == psj (since n0 is set to psj). Thus a disjunctive invariant can capture both the initial state and the inductive invariant after the first iteration.
+
+Chosen invariants:
+- Primary relational fact (inductive when not in the initial state): hd + bcp == psj + n0.
+- Initial-state fallback: hd == 0 && bcp == -1 && n0 == psj.
+
+Hence use:
+  (hd + bcp == psj + n0) || (hd == 0 && bcp == -1 && n0 == psj)
+
+Progress (termination) is guaranteed by a loop variant psj - bcp, which decreases by 1 each iteration as bcp increments while psj is constant. The loop assigns are bcp and hd since those are the only variables modified inside the loop. The invariant is strong (not tautological) and directly reflects the observed state transition hd' + bcp' = psj + n0 when the inductive case applies.
+
+Now provide the annotated code with the invariant, assigns, and variant. 
+</reasoning>
+<code>int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant (hd + bcp == psj + n0) || (hd == 0 && bcp == -1 && n0 == psj);
+    loop assigns bcp, hd;
+    loop variant psj - bcp;
+  */
+  while (bcp<psj) {
+      bcp = bcp + 1;
+      hd = psj-bcp;
+      if (psj<psj+3) {
+          hd += n0;
+      }
+  }
+
+}</code>
+----- Candidate 3/5 raw response end -----
+2026-03-09 13:00:12,420 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-09 13:00:12,437 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 13:02:39,297 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>We need inductive loop invariants that are sound, informative, and help WP prove termination and required post-conditions without modifying the code. The loop updates are:
+- bcp := bcp + 1
+- hd  := psj - bcp (then hd += n0 because the if is always true for the given psj)
+
+Key observations to design invariants:
+- psj and n0 are constants within the loop (psj is set before the loop and never changed; n0 is assigned from psj and never changed).
+- bcp starts at -1 and increments by 1 while bcp < psj, so -1 <= bcp <= psj and the loop exits when bcp == psj.
+- hd is assigned to psj - bcp followed by adding n0; thus after an iteration, hd = psj - bcp + n0, which implies hd is always in the range [0, psj + n0] after the first iteration, and hd is 0 before the first iteration.
+- A useful relational invariant that is preserved by each iteration is hd + bcp <= psj + n0. Indeed, before an iteration this sum is <= psj + n0; after an iteration with bcp' = bcp + 1 and hd' = psj - bcp' + n0, we get hd' + bcp' = psj + n0, which still satisfies <= psj + n0. Thus this invariant is inductive.
+- For progress, a loop variant (psj - bcp) decreases by 1 each iteration (starting at psj - (-1) = psj+1 and ending at 0 when bcp reaches psj).
+
+Thus we propose the following invariants and annotations:
+- -1 <= bcp <= psj
+- 0 <= hd <= psj + n0
+- (bcp + hd) <= (psj + n0)
+- loop assigns bcp, hd
+- loop variant (psj - bcp)
+
+These are inductive, informative, and do not rely on any unknowns. They use only available variables (bcp, hd, psj, n0) and respect the formatting/usage rules.
+
+</reasoning>
+<code>int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant -1 <= bcp <= psj;
+    loop invariant 0 <= hd <= psj + n0;
+    loop invariant (bcp + hd) <= (psj + n0);
+    loop assigns bcp, hd;
+    loop variant (psj - bcp);
+  */
+  while (bcp&lt;psj) {
+      bcp = bcp + 1;
+      hd = psj-bcp;
+      if (psj&lt;psj+3) {
+          hd += n0;
+      }
+  }
+
+}</code>
+----- Candidate 4/5 raw response end -----
+2026-03-09 13:02:39,298 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-09 13:02:39,313 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-09 13:04:46,706 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>Reasoning about invariants:
+- The loop updates two state variables: bcp (which is incremented by 1 each iteration) and hd (which is recomputed as psj - bcp, then conditionally increased by n0; since psj < psj+3 is always true, hd ultimately becomes psj - bcp + n0 after every iteration).
+- Core state transition law (for iterations after the first): bcp' = bcp + 1 and hd' = psj - bcp' + n0. This expresses the exact relation between the post-state variables after an iteration.
+- Initialization: before the first iteration, bcp = -1 and hd = 0. A natural base-case invariant is hd == 0 when bcp == -1.
+- Since psj and n0 never change inside the loop, a condensed inductive invariant can be expressed as:
+  - If bcp == -1, then hd == 0.
+  - If bcp != -1, then hd == psj - bcp + n0.
+  This captures the initial state and all subsequent states with the correct state-transition relation.
+- Loop assigns: the loop updates bcp and hd, so the assigns clause is exactly "bcp, hd".
+- Loop variant: to prove progress, psj - bcp decreases by 1 each iteration (since bcp increments by 1), and is always non-negative while the loop guard bcp < psj holds.
+
+These invariants are inductive:
+- They hold at loop entry (bcp == -1 implies hd == 0; and the alternative case is vacuously true since bcp != -1 is false).
+- They are preserved by each iteration due to the exact update structure hd' = psj - bcp' + n0 with bcp' = bcp + 1, and because the loop guard ensures bcp <= psj throughout the loop.
+
+</reasoning>
+<code>int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant (bcp == -1) ==> (hd == 0);
+    loop invariant (bcp != -1) ==> (hd == psj - bcp + n0);
+    loop assigns bcp, hd;
+    loop variant psj - bcp;
+  */
+  while (bcp<psj) {
+      bcp = bcp + 1;
+      hd = psj-bcp;
+      if (psj<psj+3) {
+          hd += n0;
+      }
+  }
+
+}</code>
+----- Candidate 5/5 raw response end -----
+2026-03-09 13:04:46,707 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant n0 == psj;
+    loop invariant hd <= psj + n0;
+    loop assigns bcp, hd;
+    loop variant psj - bcp;
+  */
+  while (bcp < psj) {
+      bcp = bcp + 1;
+      hd = psj - bcp;
+      if (psj < psj + 3) {
+          hd += n0;
+      }
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-03-09 13:04:46,707 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant -1 <= bcp && bcp <= psj;
+    loop invariant n0 == psj;
+    loop invariant (bcp == -1 && hd == 0) || hd == (psj - bcp + n0);
+    loop assigns bcp, hd;
+    loop variant (psj - bcp);
+  */
+  while (bcp<psj) {
+        bcp = bcp + 1;
+        hd = psj-bcp;
+        if (psj<psj+3) {
+            hd += n0;
+        }
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-03-09 13:04:46,707 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant (hd + bcp == psj + n0) || (hd == 0 && bcp == -1 && n0 == psj);
+    loop assigns bcp, hd;
+    loop variant psj - bcp;
+  */
+  while (bcp<psj) {
+      bcp = bcp + 1;
+      hd = psj-bcp;
+      if (psj<psj+3) {
+          hd += n0;
+      }
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-09 13:04:46,707 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant -1 <= bcp <= psj;
+    loop invariant 0 <= hd <= psj + n0;
+    loop invariant (bcp + hd) <= (psj + n0);
+    loop assigns bcp, hd;
+    loop variant (psj - bcp);
+  */
+  while (bcp&lt;psj) {
+      bcp = bcp + 1;
+      hd = psj-bcp;
+      if (psj&lt;psj+3) {
+          hd += n0;
+      }
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-09 13:04:46,707 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(){
+  int psj, n0, bcp, hd;
+
+  psj=(1%13)+17;
+  n0=psj;
+  bcp=-1;
+  hd=0;
+
+  /*@
+    loop invariant (bcp == -1) ==> (hd == 0);
+    loop invariant (bcp != -1) ==> (hd == psj - bcp + n0);
+    loop assigns bcp, hd;
+    loop variant psj - bcp;
+  */
+  while (bcp<psj) {
+      bcp = bcp + 1;
+      hd = psj-bcp;
+      if (psj<psj+3) {
+          hd += n0;
+      }
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-03-09 13:04:46,707 - INFO - Successfully generated 5/5 candidates
+2026-03-09 13:04:46,708 - INFO - Checking 10 invariants for conflicts...
+2026-03-09 13:04:46,710 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-09 13:04:46,710 - INFO -   1: int main1(){
+2026-03-09 13:04:46,710 - INFO -   2:   int psj, n0, bcp, hd;
+2026-03-09 13:04:46,710 - INFO -   3: 
+2026-03-09 13:04:46,710 - INFO -   4:   psj=(1%13)+17;
+2026-03-09 13:04:46,710 - INFO -   5:   n0=psj;
+2026-03-09 13:04:46,710 - INFO -   6:   bcp=-1;
+2026-03-09 13:04:46,710 - INFO -   7:   hd=0;
+2026-03-09 13:04:46,710 - INFO -   8: 
+2026-03-09 13:04:46,710 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-09 13:04:46,710 - INFO -   10: /*@
+2026-03-09 13:04:46,710 - INFO - DEBUG: Total lines: 32
+2026-03-09 13:04:57,890 - INFO - syntax Correct
+2026-03-09 13:05:28,854 - INFO - Validate:
+2026-03-09 13:05:28,854 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-09 13:05:28,854 - INFO - 
+2026-03-09 13:05:28,854 - INFO - Verify:
+2026-03-09 13:05:28,854 - INFO - []
+2026-03-09 13:05:28,854 - INFO - 
+2026-03-09 13:05:28,854 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-09 13:05:39,800 - INFO - syntax Correct
+2026-03-09 13:06:10,753 - INFO - Validate:
+2026-03-09 13:06:10,753 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-09 13:06:10,753 - INFO - 
+2026-03-09 13:06:10,753 - INFO - Verify:
+2026-03-09 13:06:10,753 - INFO - []
+2026-03-09 13:06:10,753 - INFO - 
+2026-03-09 13:07:03,471 - INFO - Deduplicated 5 loop invariants in final code
+2026-03-09 13:07:14,224 - INFO - syntax Correct
+2026-03-09 13:07:45,063 - INFO - Validate:
+2026-03-09 13:07:45,063 - INFO - [True, True, True, True, True, True, True]
+2026-03-09 13:07:45,063 - INFO - 
+2026-03-09 13:07:45,064 - INFO - Verify:
+2026-03-09 13:07:45,064 - INFO - []
+2026-03-09 13:07:45,064 - INFO - 
+2026-03-09 13:07:45,064 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-09 13:07:45,064 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_7/1.c
+2026-03-09 13:07:45,064 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_7/1_invariants.txt
+2026-03-09 13:07:45,064 - INFO - 
+============================================================
+2026-03-09 13:07:45,064 - INFO - Final first_pass results:
+2026-03-09 13:07:45,064 - INFO -   syntax=1
+2026-03-09 13:07:45,064 - INFO -   valid=1
+2026-03-09 13:07:45,064 - INFO -   satisfy=None
+2026-03-09 13:07:45,064 - INFO - ============================================================
+2026-03-09 13:07:45,064 - INFO - 
+============================================================
+2026-03-09 13:07:45,064 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-09 13:07:45,064 - INFO -   Total API calls: 17
+2026-03-09 13:07:45,064 - INFO -   Total prompt tokens (input): 17,486
+2026-03-09 13:07:45,064 - INFO -   Total completion tokens (output): 96,232
+2026-03-09 13:07:45,064 - INFO -   Total tokens: 113,718
+2026-03-09 13:07:45,064 - INFO -   Average per call:
+2026-03-09 13:07:45,064 - INFO -     Prompt: 1028.6 tokens
+2026-03-09 13:07:45,064 - INFO -     Completion: 5660.7 tokens
+2026-03-09 13:07:45,064 - INFO -     Total: 6689.3 tokens
+2026-03-09 13:07:45,064 - INFO - ============================================================
+2026-03-09 13:07:45,064 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_7/1.c
+2026-03-09 13:07:45,065 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_7/1_invariants.txt
+2026-03-09 13:08:47,408 - INFO - LLM quality-gate raw response: {
+  "ok": true,
+  "reason": "pass"
+}
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

@@ -1,0 +1,435 @@
+2026-03-08 11:16:59,606 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:16:59,618 - INFO - Found 1 loops
+2026-03-08 11:16:59,619 - INFO - 
+============================================================
+2026-03-08 11:16:59,619 - INFO - Main generation pass 1/1
+2026-03-08 11:16:59,619 - INFO - ============================================================
+2026-03-08 11:16:59,619 - INFO - Loaded single prompt template: simple
+2026-03-08 11:16:59,619 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:16:59,619 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:16:59,637 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:17:52,330 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>The loop updates given are:
+- yb = yb + 1
+- mtk = mtk + 1
+- lr = lr + mtk  (where mtk is the updated value)
+- s = (x26s + 1) - 1  which is s = x26s (x26s is constant inside the loop)
+
+From the initial state (lr=8, yb=0, mtk=0, x26s=0, s=1), the effect of the body makes:
+- yb and mtk both increase by exactly 1, so yb == mtk is preserved.
+- lr increases by the new value of mtk, so lr == 8 + mtk*(mtk+1)/2 is an exact invariant across iterations (since adding mtk after increment yields a telescoping sum).
+- s becomes x26s (with x26s constant), so s >= x26s holds before and after the body; in this particular loop, s - x26s becomes 1 before the first iteration and 0 after, and since x26s does not change, there can be at most one iteration. This gives a natural loop-variant (s - x26s) that strictly decreases from 1 to 0 and then the loop exits.
+
+Therefore, suitable inductive invariants are:
+- yb == mtk
+- lr == 8 + mtk*(mtk+1)/2
+- s >= x26s
+- (s - x26s) >= 0
+- (s - x26s) <= 1
+And a loop variant:
+- (s - x26s)
+
+The loop assigns are precisely the variables that get modified inside the loop: yb, mtk, lr, s. The invariants are strong and capture the exact state progression, while remaining verifiable by Frama-C/WP. These invariants hold at loop entry (initial state) and are preserved by the body for the steps where the guard holds (x26s+1 <= s). The (s - x26s) variant decreases from 1 to 0, ensuring termination of the loop as required. </reasoning>
+<code>/*@ 
+  loop invariant yb == mtk;
+  loop invariant lr == 8 + mtk*(mtk+1)/2;
+  loop invariant s >= x26s;
+  loop invariant (s - x26s) >= 0;
+  loop invariant (s - x26s) <= 1;
+  loop assigns yb, mtk, lr, s;
+  loop variant (s - x26s);
+*/
+while (1) {
+      if (!(x26s+1<=s)) {
+          break;
+      }
+      yb = yb + 1;
+      mtk += 1;
+      lr += mtk;
+      s = (x26s+1)-1;
+  }</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:17:52,330 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:17:52,346 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:18:45,600 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>We analyze the loop state and key updates to craft inductive invariants that Frama-C/WP can verify.
+
+Observations:
+- Loop state variables modified inside the loop are: yb, mtk, lr, s. The available set also includes x26s, which is not modified.
+- Updates per iteration:
+  - yb := yb + 1
+  - mtk := mtk + 1
+  - lr := lr + mtk (where mtk is the updated value)
+  - s := x26s (which is constant 0)
+- A simple and strong relational invariant is that mtk and yb stay in sync: mtk == yb, which is initially true (0 == 0) and preserved by the body since both are incremented by 1 each iteration.
+- From the initial condition lr == 8 and the update lr' = lr + mtk' with mtk' = mtk + 1 and mtk == yb, we can derive a closed-form invariant for lr in terms of yb: lr == 8 + yb*(yb+1)/2. This holds initially (yb=0 → lr=8) and is preserved because yb increments by 1 each iteration and lr increases by the new mtk', which equals yb+1.
+- A simple state invariant s >= x26s holds initially (1 >= 0) and is preserved since s is set to x26s (0) in the body, so after the iteration s becomes 0, which still satisfies s >= x26s.
+- To ensure termination, provide a loop_variant that decreases every iteration while the loop guard holds. A natural choice is s - x26s, which starts at 1 and becomes 0 after the single iteration (and then the loop terminates).
+
+Therefore, the loop invariants to insert are:
+- mtk == yb
+- lr == 8 + yb*(yb+1)/2
+- s >= x26s
+And:
+- loop assigns lr, mtk, yb, s
+- loop variant (s - x26s)
+
+These invariants are inductive, concise, and directly reflect the loop’s state updates and termination behavior. They do not introduce any unrelated facts, and they rely only on variables in scope (lr, mtk, s, yb, x26s). The unknown() calls are not present and will remain untouched.
+
+</reasoning>
+<code>int main1(){
+  int s, x26s, mtk, yb, lr;
+
+  s=1;
+  x26s=0;
+  mtk=x26s;
+  yb=x26s;
+  lr=8;
+
+  /*@
+    loop invariant mtk == yb;
+    loop invariant lr == 8 + yb*(yb+1)/2;
+    loop invariant s >= x26s;
+    loop assigns lr, mtk, yb, s;
+    loop variant s - x26s;
+  */
+while (1) {
+      if (!(x26s+1<=s)) {
+          break;
+      }
+      yb = yb + 1;
+      mtk += 1;
+      lr += mtk;
+      s = (x26s+1)-1;
+  }
+
+}
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:18:45,600 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:18:45,613 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:20:01,118 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. The loop runs exactly one iteration under the current initial state, but we should provide invariants that are valid for any potential number of iterations and are easy for WP to verify.
+
+Key observations that drive invariants:
+- Each iteration increments yb by 1 and mtk by 1. Therefore mtk == yb is an invariant (initially 0 == 0 and preserved by the two increments).
+- lr is updated by lr += mtk after mtk is incremented. With mtk == yb and starting lr = 8, after t iterations we have lr = 8 + sum_{i=1..t} i = 8 + t(t+1)/2. Since t == yb, we obtain lr == 8 + yb*(yb+1)/2 as an invariant.
+- s is set to (x26s+1)-1, which equals x26s, every iteration. Thus s >= x26s is a simple invariant that holds initially (1 >= 0) and remains true after each update (s becomes x26s, so s >= x26s still holds; it will also ensure the loop exits when the guard would fail).
+- A loop variant that strictly decreases on each iteration helps prove termination. Since the loop consumes one iteration when the guard x26s+1 <= s is true, a natural measure is s - x26s, which starts at 1 (when s=1, x26s=0) and becomes 0 after the first iteration (s becomes x26s). This non-negative, strictly decreasing variant fits well.
+
+Thus, the following invariants and assigns are appropriate:
+- loop invariant mtk == yb;
+- loop invariant lr == 8 + yb*(yb+1)/2;
+- loop invariant s >= x26s;
+- loop assigns lr, mtk, s, yb;
+- loop variant s - x26s.
+
+These are inductive (preserved by each iteration when the inner guard allows progress) and explicitly capture the core state-update relationships in the loop.
+
+</reasoning>
+<code>int main1(){
+  int s, x26s, mtk, yb, lr;
+
+  s=1;
+  x26s=0;
+  mtk=x26s;
+  yb=x26s;
+  lr=8;
+
+  /*@
+    loop invariant mtk == yb;
+    loop invariant lr == 8 + yb*(yb+1)/2;
+    loop invariant s >= x26s;
+    loop assigns lr, mtk, s, yb;
+    loop variant s - x26s;
+  */
+  while (1) {
+      if (!(x26s+1<=s)) {
+          break;
+      }
+      yb = yb + 1;
+      mtk += 1;
+      lr += mtk;
+      s = (x26s+1)-1;
+  }
+
+}</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:20:01,118 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:20:01,131 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:20:49,548 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>The loop runs exactly once. Starting state: s = 1, x26s = 0, mtk = 0, yb = 0, lr = 8. The condition inside the loop is if (!(x26s+1 <= s)) break; with x26s = 0 this is equivalent to if (!(1 <= s)) break;, so for the first iteration the body executes (since 1 <= 1 is true). Inside the body:
+- yb increments by 1
+- mtk increments by 1
+- lr increments by the new mtk
+- s becomes (x26s+1) - 1 = x26s = 0
+
+After the first iteration, s = 0, so the guard 1 <= s is false and the loop terminates.
+
+From that, we can establish a strong inductive invariant that describes the state after k iterations (here k is either 0 or 1):
+- mtk is the number of iterations performed (mtk >= 0)
+- yb == mtk (yb and mtk increase together by 1 each iteration)
+- lr = 8 + mtk*(mtk+1)/2 (lr starts at 8 and each iteration adds the new mtk)
+- s is within [0,1] throughout execution (starts at 1 and becomes 0 after the first iteration)
+
+These invariants are preserved by the loop body:
+- If before an iteration mtk = k, then after the iteration mtk = k+1, yb = k+1, lr = 8 + (k+1)(k+2)/2, and s is updated to 0 if it was 1. Hence the relations hold for k -> k+1.
+- The loop assigns exactly yb, mtk, lr, and s, so the declared assigns set is precise.
+
+The loop variant s decreases from 1 to 0 in the single iteration, ensuring termination of the loop (the actual termination happens via the break).
+
+Thus the following invariants are inductive and verification-friendly for Frama-C/WP. </reasoning>
+<code>/*@
+  loop invariant mtk >= 0;
+  loop invariant yb == mtk;
+  loop invariant lr == 8 + mtk*(mtk+1)/2;
+  loop invariant s >= 0 && s <= 1;
+  loop assigns yb, mtk, lr, s;
+  loop variant s;
+*/</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:20:49,548 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:20:49,565 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:21:22,654 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+We need inductive loop invariants that are strong and verification-friendly for Frama-C/WP. Observations from the loop:
+
+- x26s is never modified inside the loop; it starts at 0. Therefore x26s == 0 is an invariant that is preserved.
+- yb is incremented by 1 each iteration, and mtk is incremented by 1 each iteration, with yb starting at 0 and mtk starting at 0. Thus yb == mtk is a natural invariant.
+- lr is updated as lr += mtk after mtk has been incremented. This yields the exact relationship lr = 8 + mtk*(mtk+1)/2 at every loop head (starting from lr=8, mtk=0). This is a strong, exact invariant relating lr and mtk.
+- The loop assigns the variables that are mutated inside: yb, mtk, lr, s.
+- A loop variant for termination can be a simple expression that decreases when the loop body executes. Since s starts at 1 and is set to 0 in the body (given x26s == 0), using s as the loop variant is valid: s decreases from 1 to 0 on the single iteration and then the loop guard fails.
+
+These invariants are preserved by the loop body:
+- If the pre-state satisfies x26s == 0, yb == mtk, lr == 8 + mtk*(mtk+1)/2, and mtk >= 0, then after:
+  - yb := yb + 1 and mtk := mtk + 1, we have yb' == mtk'.
+  - lr := lr + mtk' ensures lr' == 8 + mtk'*(mtk'+1)/2.
+  - s := (x26s+1) - 1 evaluates to 0 (since x26s == 0). The invariant does not constrain s except via the variant.
+
+Thus the following invariants are inductive and verification-friendly.
+
+</reasoning>
+<code>/*@
+  loop invariant x26s == 0;
+  loop invariant yb == mtk;
+  loop invariant lr == 8 + mtk*(mtk + 1)/2;
+  loop assigns yb, mtk, lr, s;
+  loop variant s;
+*/
+while (1) {
+      if (!(x26s+1<=s)) {
+          break;
+      }
+      yb = yb + 1;
+      mtk += 1;
+      lr += mtk;
+      s = (x26s+1)-1;
+  }</code>
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:21:22,654 - INFO - 
+----- Candidate 1/5 full code begin -----
+/*@ 
+  loop invariant yb == mtk;
+  loop invariant lr == 8 + mtk*(mtk+1)/2;
+  loop invariant s >= x26s;
+  loop invariant (s - x26s) >= 0;
+  loop invariant (s - x26s) <= 1;
+  loop assigns yb, mtk, lr, s;
+  loop variant (s - x26s);
+*/
+while (1) {
+      if (!(x26s+1<=s)) {
+          break;
+      }
+      yb = yb + 1;
+      mtk += 1;
+      lr += mtk;
+      s = (x26s+1)-1;
+  }
+----- Candidate 1/5 full code end -----
+2026-03-08 11:21:22,654 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(){
+  int s, x26s, mtk, yb, lr;
+
+  s=1;
+  x26s=0;
+  mtk=x26s;
+  yb=x26s;
+  lr=8;
+
+  /*@
+    loop invariant mtk == yb;
+    loop invariant lr == 8 + yb*(yb+1)/2;
+    loop invariant s >= x26s;
+    loop assigns lr, mtk, yb, s;
+    loop variant s - x26s;
+  */
+while (1) {
+      if (!(x26s+1<=s)) {
+          break;
+      }
+      yb = yb + 1;
+      mtk += 1;
+      lr += mtk;
+      s = (x26s+1)-1;
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-03-08 11:21:22,654 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(){
+  int s, x26s, mtk, yb, lr;
+
+  s=1;
+  x26s=0;
+  mtk=x26s;
+  yb=x26s;
+  lr=8;
+
+  /*@
+    loop invariant mtk == yb;
+    loop invariant lr == 8 + yb*(yb+1)/2;
+    loop invariant s >= x26s;
+    loop assigns lr, mtk, s, yb;
+    loop variant s - x26s;
+  */
+  while (1) {
+      if (!(x26s+1<=s)) {
+          break;
+      }
+      yb = yb + 1;
+      mtk += 1;
+      lr += mtk;
+      s = (x26s+1)-1;
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-08 11:21:22,654 - INFO - 
+----- Candidate 4/5 full code begin -----
+/*@
+  loop invariant mtk >= 0;
+  loop invariant yb == mtk;
+  loop invariant lr == 8 + mtk*(mtk+1)/2;
+  loop invariant s >= 0 && s <= 1;
+  loop assigns yb, mtk, lr, s;
+  loop variant s;
+*/
+----- Candidate 4/5 full code end -----
+2026-03-08 11:21:22,654 - INFO - 
+----- Candidate 5/5 full code begin -----
+/*@
+  loop invariant x26s == 0;
+  loop invariant yb == mtk;
+  loop invariant lr == 8 + mtk*(mtk + 1)/2;
+  loop assigns yb, mtk, lr, s;
+  loop variant s;
+*/
+while (1) {
+      if (!(x26s+1<=s)) {
+          break;
+      }
+      yb = yb + 1;
+      mtk += 1;
+      lr += mtk;
+      s = (x26s+1)-1;
+  }
+----- Candidate 5/5 full code end -----
+2026-03-08 11:21:22,655 - INFO - Successfully generated 5/5 candidates
+2026-03-08 11:21:22,655 - INFO - Checking 8 invariants for conflicts...
+2026-03-08 11:21:22,657 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:21:22,657 - INFO -   1: int main1(){
+2026-03-08 11:21:22,657 - INFO -   2:   int s, x26s, mtk, yb, lr;
+2026-03-08 11:21:22,657 - INFO -   3: 
+2026-03-08 11:21:22,657 - INFO -   4:   s=1;
+2026-03-08 11:21:22,657 - INFO -   5:   x26s=0;
+2026-03-08 11:21:22,657 - INFO -   6:   mtk=x26s;
+2026-03-08 11:21:22,657 - INFO -   7:   yb=x26s;
+2026-03-08 11:21:22,657 - INFO -   8:   lr=8;
+2026-03-08 11:21:22,657 - INFO -   9: 
+2026-03-08 11:21:22,657 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:21:22,657 - INFO - DEBUG: Total lines: 33
+2026-03-08 11:21:33,598 - INFO - syntax Correct
+2026-03-08 11:22:04,539 - INFO - Validate:
+2026-03-08 11:22:04,540 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-08 11:22:04,540 - INFO - 
+2026-03-08 11:22:04,540 - INFO - Verify:
+2026-03-08 11:22:04,540 - INFO - []
+2026-03-08 11:22:04,540 - INFO - 
+2026-03-08 11:22:04,540 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-08 11:22:15,542 - INFO - syntax Correct
+2026-03-08 11:22:46,532 - INFO - Validate:
+2026-03-08 11:22:46,532 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-08 11:22:46,532 - INFO - 
+2026-03-08 11:22:46,532 - INFO - Verify:
+2026-03-08 11:22:46,532 - INFO - []
+2026-03-08 11:22:46,532 - INFO - 
+2026-03-08 11:23:30,098 - INFO - Deduplicated 3 loop invariants in final code
+2026-03-08 11:23:40,929 - INFO - syntax Correct
+2026-03-08 11:24:11,744 - INFO - Validate:
+2026-03-08 11:24:11,744 - INFO - [True, True, True, True, True]
+2026-03-08 11:24:11,744 - INFO - 
+2026-03-08 11:24:11,744 - INFO - Verify:
+2026-03-08 11:24:11,744 - INFO - []
+2026-03-08 11:24:11,744 - INFO - 
+2026-03-08 11:24:11,745 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-08 11:24:11,745 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_40/1.c
+2026-03-08 11:24:11,745 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_40/1_invariants.txt
+2026-03-08 11:24:11,745 - INFO - 
+============================================================
+2026-03-08 11:24:11,745 - INFO - Final first_pass results:
+2026-03-08 11:24:11,745 - INFO -   syntax=1
+2026-03-08 11:24:11,745 - INFO -   valid=1
+2026-03-08 11:24:11,745 - INFO -   satisfy=None
+2026-03-08 11:24:11,745 - INFO - ============================================================
+2026-03-08 11:24:11,745 - INFO - 
+============================================================
+2026-03-08 11:24:11,745 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:24:11,745 - INFO -   Total API calls: 10
+2026-03-08 11:24:11,745 - INFO -   Total prompt tokens (input): 9,717
+2026-03-08 11:24:11,745 - INFO -   Total completion tokens (output): 57,425
+2026-03-08 11:24:11,745 - INFO -   Total tokens: 67,142
+2026-03-08 11:24:11,745 - INFO -   Average per call:
+2026-03-08 11:24:11,745 - INFO -     Prompt: 971.7 tokens
+2026-03-08 11:24:11,745 - INFO -     Completion: 5742.5 tokens
+2026-03-08 11:24:11,745 - INFO -     Total: 6714.2 tokens
+2026-03-08 11:24:11,745 - INFO - ============================================================
+2026-03-08 11:24:11,745 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_40/1.c
+2026-03-08 11:24:11,745 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_40/1_invariants.txt
+2026-03-08 11:24:35,315 - INFO - LLM quality-gate raw response: {
+  "ok": true,
+  "reason": "pass"
+}
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...

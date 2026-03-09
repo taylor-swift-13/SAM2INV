@@ -1,0 +1,396 @@
+2026-03-08 11:32:53,573 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-08 11:32:53,594 - INFO - Found 1 loops
+2026-03-08 11:32:53,595 - INFO - 
+============================================================
+2026-03-08 11:32:53,595 - INFO - Main generation pass 1/1
+2026-03-08 11:32:53,595 - INFO - ============================================================
+2026-03-08 11:32:53,595 - INFO - Loaded single prompt template: simple
+2026-03-08 11:32:53,595 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-08 11:32:53,595 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-08 11:32:53,612 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:34:54,623 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>The loop has two key arithmetic variables: x and zvry. A strong, inductive relation that explains the updates is:
+- zvry == x mod 4
+
+Reasoning:
+- Initially, x = 0 and zvry = 0, so zvry == x mod 4 holds (0 == 0).
+- Each iteration, x is incremented by 1 and zvry is updated by zvry = (zvry + 1) % 4. If we assume zvry == x mod 4 at the start of an iteration, then after the unconditional update:
+  - x' = x + 1
+  - zvry' = (zvry + 1) % 4
+  Substituting zvry = x % 4 gives:
+  zvry' = (x % 4 + 1) % 4 = (x + 1) % 4 = x' % 4
+  Thus zvry' == x' mod 4, preserving the invariant.
+- The condition inside the loop (s0qi+5 <= s0qi+iza) is evaluated, but given the initial values (s0qi = 0, iza = 1), it is false, so the extra branch (zvry = zvry + zvry) does not alter the invariant. Even if the condition were true in another context, the invariant isolates the essential relation between zvry and x.
+- A minimal progress bound is x <= iza, which holds initially (0 <= 1) and is preserved because x increments by 1 while the loop guard ensures x < iza before the iteration, so x' <= iza.
+- A loop variant iza - x decreases by 1 each iteration (while x < iza), ensuring termination.
+
+Therefore, the invariant zvry == x % 4 is inductive and strong, x <= iza provides a simple progress bound, the loop assigns zvry and x, and there is a decreasing loop variant iza - x to aid termination proofs.</reasoning>
+<code>/*@
+  loop invariant zvry == x % 4;
+  loop invariant x <= iza;
+  loop assigns zvry, x;
+  loop variant iza - x;
+*/
+while (x&lt;iza) {
+      zvry = (zvry+1)%4;
+      x = x + 1;
+      if (s0qi+5<=s0qi+iza) {
+          zvry = zvry + zvry;
+      }
+  }</code>
+----- Candidate 1/5 raw response end -----
+2026-03-08 11:34:54,624 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-08 11:34:54,637 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:36:57,385 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>Given the loop, we want inductive invariants that reflect the actual state evolution and are robust for Frama-C/WP. Key observations:
+- s0qi is never changed inside the loop (s0qi remains 0 in the provided initial state), so a simple invariant s0qi == 0 is strong and induction-friendly.
+- x is initialized to 0 and is incremented by 1 each iteration while x < iza. Therefore a natural bound 0 <= x <= iza (non-strict upper bound at loop head) serves as a strong, inductive invariant.
+- The inner update to zvry has two possible behaviors depending on whether 5 <= iza holds (since the condition is s0qi+5 <= s0qi+iza, which reduces to 5 <= iza given s0qi is constant). If 5 <= iza, zvry is first incremented modulo 4 and then doubled, which makes zvry even after each iteration. If 5 > iza (which constrains iza <= 4), there is no doubling and zvry effectively progresses by +1 modulo 4, preserving zvry == x at loop heads for the reachable cases (initially zvry=0, x=0). These lead to two clean, inductive cases:
+  - (5 <= iza) ==> zvry is even at loop heads (zvry % 2 == 0).
+  - (5 > iza) ==> zvry == x at loop heads.
+- The loop assigns must include only the modified variables, which are x and zvry. iza and s0qi remain constants within the loop.
+
+Thus we propose the following loop invariants:
+- 0 <= x <= iza
+- s0qi == 0
+- (5 <= iza) ==> (zvry % 2 == 0)
+- (5 > iza) ==> (zvry == x)
+- loop variant iza - x, to ensure termination as x increases toward iza.
+
+These invariants are strong, inductive, and tailored to the loop’s actual updates, while avoiding unrelated properties. They also comply with the restriction that loop guard is not itself made an invariant, and they respect the allowed ACSL syntax. </reasoning>
+<code>/*@
+  loop invariant 0 &lt;= x &amp;&amp; x &lt;= iza;
+  loop invariant s0qi == 0;
+  loop invariant (5 &lt;= iza) ==> (zvry % 2 == 0);
+  loop invariant (5 &gt; iza) ==> (zvry == x);
+  loop assigns x, zvry;
+  loop variant iza - x;
+*/</code>
+----- Candidate 2/5 raw response end -----
+2026-03-08 11:36:57,386 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-08 11:36:57,400 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:37:25,494 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I choose invariants that are inductive for the given loop and explain the state changes precisely:
+
+- Core conservation/relational equality: zvry == (x % 4).
+  - This captures the exact relation between zvry and x at the loop head. At loop entry x=0, zvry=0 so it holds. In the body zvry is first set to (zvry+1)%4 = ((x%4)+1)%4 = ((x+1)%4) and then x is incremented to x+1; hence at the next loop head zvry == (x % 4) holds again. The conditional doubling cannot invalidate it because we show the conditional is always false (see next invariant).
+
+- Invariants fixing unchanged initial locals: iza == 1 and s0qi == 0.
+  - These reflect that iza and s0qi are initialized before the loop and never modified in the loop. They are used to reason about the conditional below and make the invariant zvry == (x % 4) inductive.
+
+- Negation of the doubling condition: !(s0qi + 5 <= s0qi + iza).
+  - Since s0qi==0 and iza==1, this is equivalent to !(5 <= 1), i.e. the if-condition is always false. This guarantees the doubling branch never executes, so zvry is always updated only by the modulus assignment, making zvry == (x % 4) preserved.
+
+- Bounds/progress: 0 <= x && x <= iza, and loop variant iza - x.
+  - x starts at 0, increases by 1 each iteration, and remains <= iza (because we only enter the body when x < iza, hence x+1 <= iza). The variant iza - x is non-negative and strictly decreases by 1 each iteration, proving termination.
+
+- Exact assigns:
+  - The loop only writes x and zvry, so loop assigns x, zvry; is exact and permits WP to reason locally.
+
+All invariants use only the allowed variables and operators, avoid quantifiers and \at on locals, and are sufficiently strong and inductive for Frama-C/WP verification.
+</reasoning>
+<code>
+int main1(){
+  int iza, s0qi, zvry, x;
+
+  iza=1;
+  s0qi=0;
+  zvry=0;
+  x=0;
+
+  /*@
+    loop invariant iza == 1;
+    loop invariant s0qi == 0;
+    loop invariant 0 <= x && x <= iza;
+    loop invariant !(s0qi + 5 <= s0qi + iza);
+    loop invariant zvry == (x % 4);
+    loop assigns x, zvry;
+    loop variant (iza - x);
+  */
+  while (x<iza) {
+        zvry = (zvry+1)%4;
+        x = x + 1;
+        if (s0qi+5<=s0qi+iza) {
+            zvry = zvry + zvry;
+        }
+  }
+
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-03-08 11:37:25,495 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-08 11:37:25,509 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:40:32,621 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+Goal: provide inductive, verification-friendly ACSL loop annotations for the given loop, using only the available variables: iza, s0qi, x, zvry.
+
+Observations:
+- The loop guard is x < iza. A natural progress measure is (iza - x), which decreases by 1 each iteration since x is incremented by 1 every iteration. Hence, a loop variant can be iza - x.
+- The updates inside the loop are:
+  - zvry = (zvry + 1) % 4
+  - x = x + 1
+  - possibly zvry = zvry + zvry if (s0qi+5 <= s0qi+iza)
+- Given the initial values iza=1, s0qi=0, the test (s0qi+5 <= s0qi+iza) becomes 5 <= iza, which is false since iza < 5 in this program (iza=1). Therefore, in this particular program, the then-branch never executes. To guide the verifier and ensure inductiveness, we add an invariant that guarantees the if-branch cannot occur: iza < 5.
+- A core relational invariant that holds across iterations is zvry == x % 4, because:
+  - Initially, x=0, zvry=0, so zvry == x % 4 holds.
+  - Each iteration starts with zvry updated to (zvry+1) % 4, then x is incremented by 1. If the then-branch does not execute (as ensured by iza < 5), the invariant is preserved: (zvry+1) % 4 == (x+1) % 4 when starting from zvry == x % 4.
+  - Although the then-branch could break this relation in general, the fact iza < 5 rules out the condition that enables that path, making zvy == x % 4 a strong, inductive invariant for this particular loop.
+- Additional bound: x <= iza is a straightforward invariant since the loop only runs while x < iza.
+- All invariants use only allowed variables and modest arithmetic; the loop assigns are precisely the variables that can change inside the loop: x and zvry.
+
+Chosen invariants and facts:
+- x <= iza (invariant)
+- zvry == x % 4 (relational invariant / core conservation)
+- iza < 5 (progress-related invariant to rule out the then-branch)
+- loop variant iza - x (shows termination progress)
+- loop assigns x, zvry
+
+These are inductive and verification-friendly for Frama-C/WP given the loop structure and initial values.
+</reasoning>
+<code>/*@
+  loop invariant x <= iza;
+  loop invariant zvry == x % 4;
+  loop invariant iza &lt; 5;
+  loop assigns x, zvry;
+  loop variant iza - x;
+*/
+while (x&lt;iza) {
+    zvry = (zvry+1)%4;
+    x = x + 1;
+    if (s0qi+5<=s0qi+iza) {
+        zvry = zvry + zvry;
+    }
+}</code>
+----- Candidate 4/5 raw response end -----
+2026-03-08 11:40:32,621 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-08 11:40:32,634 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-08 11:42:21,751 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>The loop updates are:
+- x is incremented by 1 each iteration.
+- zvry is updated to (zvry+1) mod 4 each iteration (and the conditional block may modify zvry further, but for this specific code path with iza = 1 and s0qi unchanged, the condition 5 <= iza is false, so the inner if body is never taken in this execution).
+
+A strong, inductive invariant that captures the core state evolution is:
+- 0 <= x <= iza, which ensures x does not overshoot the loop bound.
+- zvry == x % 4, which expresses the core relational update between zvry and x when the per-iteration updates occur in the normal (non-doubling) path.
+
+Additionally, we specify the loop assigns and a loop variant to prove termination:
+- loop assigns x, zvry
+- loop variant iza - x
+
+These invariants are inductive along the actual execution path (the inner if is not taken for iza = 1), and are verification-friendly for Frama-C/WP.
+
+</reasoning>
+<code>int main1(){
+  int iza, s0qi, zvry, x;
+
+  iza=1;
+  s0qi=0;
+  zvry=0;
+  x=0;
+
+  /*@
+    loop invariant 0 <= x <= iza;
+    loop invariant zvry == x % 4;
+    loop assigns x, zvry;
+    loop variant iza - x;
+  */
+  while (x<iza) {
+      zvry = (zvry+1)%4;
+      x = x + 1;
+      if (s0qi+5<=s0qi+iza) {
+          zvry = zvry + zvry;
+      }
+  }
+
+}
+----- Candidate 5/5 raw response end -----
+2026-03-08 11:42:21,751 - INFO - 
+----- Candidate 1/5 full code begin -----
+/*@
+  loop invariant zvry == x % 4;
+  loop invariant x <= iza;
+  loop assigns zvry, x;
+  loop variant iza - x;
+*/
+while (x&lt;iza) {
+      zvry = (zvry+1)%4;
+      x = x + 1;
+      if (s0qi+5<=s0qi+iza) {
+          zvry = zvry + zvry;
+      }
+  }
+----- Candidate 1/5 full code end -----
+2026-03-08 11:42:21,751 - INFO - 
+----- Candidate 2/5 full code begin -----
+/*@
+  loop invariant 0 &lt;= x &amp;&amp; x &lt;= iza;
+  loop invariant s0qi == 0;
+  loop invariant (5 &lt;= iza) ==> (zvry % 2 == 0);
+  loop invariant (5 &gt; iza) ==> (zvry == x);
+  loop assigns x, zvry;
+  loop variant iza - x;
+*/
+----- Candidate 2/5 full code end -----
+2026-03-08 11:42:21,751 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(){
+  int iza, s0qi, zvry, x;
+
+  iza=1;
+  s0qi=0;
+  zvry=0;
+  x=0;
+
+  /*@
+    loop invariant iza == 1;
+    loop invariant s0qi == 0;
+    loop invariant 0 <= x && x <= iza;
+    loop invariant !(s0qi + 5 <= s0qi + iza);
+    loop invariant zvry == (x % 4);
+    loop assigns x, zvry;
+    loop variant (iza - x);
+  */
+  while (x<iza) {
+        zvry = (zvry+1)%4;
+        x = x + 1;
+        if (s0qi+5<=s0qi+iza) {
+            zvry = zvry + zvry;
+        }
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-03-08 11:42:21,751 - INFO - 
+----- Candidate 4/5 full code begin -----
+/*@
+  loop invariant x <= iza;
+  loop invariant zvry == x % 4;
+  loop invariant iza &lt; 5;
+  loop assigns x, zvry;
+  loop variant iza - x;
+*/
+while (x&lt;iza) {
+    zvry = (zvry+1)%4;
+    x = x + 1;
+    if (s0qi+5<=s0qi+iza) {
+        zvry = zvry + zvry;
+    }
+}
+----- Candidate 4/5 full code end -----
+2026-03-08 11:42:21,751 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(){
+  int iza, s0qi, zvry, x;
+
+  iza=1;
+  s0qi=0;
+  zvry=0;
+  x=0;
+
+  /*@
+    loop invariant 0 <= x <= iza;
+    loop invariant zvry == x % 4;
+    loop assigns x, zvry;
+    loop variant iza - x;
+  */
+  while (x<iza) {
+      zvry = (zvry+1)%4;
+      x = x + 1;
+      if (s0qi+5<=s0qi+iza) {
+          zvry = zvry + zvry;
+      }
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-03-08 11:42:21,751 - INFO - Successfully generated 5/5 candidates
+2026-03-08 11:42:21,752 - INFO - Checking 8 invariants for conflicts...
+2026-03-08 11:42:21,754 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-08 11:42:21,754 - INFO -   1: int main1(){
+2026-03-08 11:42:21,754 - INFO -   2:   int iza, s0qi, zvry, x;
+2026-03-08 11:42:21,754 - INFO -   3: 
+2026-03-08 11:42:21,754 - INFO -   4:   iza=1;
+2026-03-08 11:42:21,754 - INFO -   5:   s0qi=0;
+2026-03-08 11:42:21,754 - INFO -   6:   zvry=0;
+2026-03-08 11:42:21,754 - INFO -   7:   x=0;
+2026-03-08 11:42:21,754 - INFO -   8: 
+2026-03-08 11:42:21,754 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-08 11:42:21,754 - INFO -   10: /*@
+2026-03-08 11:42:21,754 - INFO - DEBUG: Total lines: 30
+2026-03-08 11:42:32,673 - INFO - syntax Correct
+2026-03-08 11:43:03,580 - INFO - Validate:
+2026-03-08 11:43:03,580 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-08 11:43:03,580 - INFO - 
+2026-03-08 11:43:03,580 - INFO - Verify:
+2026-03-08 11:43:03,580 - INFO - []
+2026-03-08 11:43:03,580 - INFO - 
+2026-03-08 11:43:03,581 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-08 11:43:14,522 - INFO - syntax Correct
+2026-03-08 11:43:45,437 - INFO - Validate:
+2026-03-08 11:43:45,438 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-08 11:43:45,438 - INFO - 
+2026-03-08 11:43:45,438 - INFO - Verify:
+2026-03-08 11:43:45,438 - INFO - []
+2026-03-08 11:43:45,438 - INFO - 
+2026-03-08 11:43:57,942 - INFO - Deduplicated 6 loop invariants in final code
+2026-03-08 11:44:08,714 - INFO - syntax Correct
+2026-03-08 11:44:39,488 - INFO - Validate:
+2026-03-08 11:44:39,488 - INFO - [True, True, True, True]
+2026-03-08 11:44:39,488 - INFO - 
+2026-03-08 11:44:39,488 - INFO - Verify:
+2026-03-08 11:44:39,488 - INFO - []
+2026-03-08 11:44:39,488 - INFO - 
+2026-03-08 11:44:39,488 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-08 11:44:39,488 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_73/1.c
+2026-03-08 11:44:39,489 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_73/1_invariants.txt
+2026-03-08 11:44:39,489 - INFO - 
+============================================================
+2026-03-08 11:44:39,489 - INFO - Final first_pass results:
+2026-03-08 11:44:39,489 - INFO -   syntax=1
+2026-03-08 11:44:39,489 - INFO -   valid=1
+2026-03-08 11:44:39,489 - INFO -   satisfy=None
+2026-03-08 11:44:39,489 - INFO - ============================================================
+2026-03-08 11:44:39,489 - INFO - 
+============================================================
+2026-03-08 11:44:39,489 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-08 11:44:39,489 - INFO -   Total API calls: 0
+2026-03-08 11:44:39,489 - INFO -   Total prompt tokens (input): 0
+2026-03-08 11:44:39,489 - INFO -   Total completion tokens (output): 0
+2026-03-08 11:44:39,489 - INFO -   Total tokens: 0
+2026-03-08 11:44:39,489 - INFO - ============================================================
+2026-03-08 11:44:39,489 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_73/1.c
+2026-03-08 11:44:39,489 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_73/1_invariants.txt
+2026-03-08 11:44:54,016 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
+2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
+2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
+2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
+2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
+2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
+2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
+2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
+2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
+2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
+2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
+2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
+2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
+2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
+2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
+2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
+2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
+2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
+2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
+2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
+2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
+2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
+2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
