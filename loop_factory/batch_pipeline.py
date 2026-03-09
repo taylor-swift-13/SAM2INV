@@ -112,6 +112,8 @@ _code_open_re_global = re.compile(r"<\s*code\s*>\s*", re.IGNORECASE)
 _code_close_re_global = re.compile(r"\s*<\s*/\s*code\s*>", re.IGNORECASE)
 _reasoning_tag_re_global = re.compile(r"<\s*(think|reasoning)\s*>", re.IGNORECASE)
 _code_tag_re_global = re.compile(r"<\s*code\s*>", re.IGNORECASE)
+_reasoning_extract_re_global = re.compile(r"<\s*reasoning\s*>([\s\S]*?)<\s*/\s*reasoning\s*>", re.IGNORECASE)
+_think_extract_re_global = re.compile(r"<\s*think\s*>([\s\S]*?)<\s*/\s*think\s*>", re.IGNORECASE)
 
 
 def _strip_cot_wrappers(text: str) -> str:
@@ -125,6 +127,17 @@ def _strip_cot_wrappers(text: str) -> str:
 def _has_cot(text: str) -> bool:
     t = text or ""
     return bool(_reasoning_tag_re_global.search(t) and _code_tag_re_global.search(t))
+
+
+def _extract_cot_text(text: str) -> str:
+    t = text or ""
+    m = _reasoning_extract_re_global.search(t)
+    if m:
+        return m.group(1).strip()
+    m = _think_extract_re_global.search(t)
+    if m:
+        return m.group(1).strip()
+    return ""
 
 
 def _compose_rejected_with_reason(rej: Dict[str, str]) -> str:
@@ -1353,37 +1366,81 @@ def main() -> None:
     forced_code_tasks: Dict[str, Dict] = {}
     aug_rejected_tasks: Dict[str, Dict] = {}
     teacher_rejected_tasks: Dict[str, Dict] = {}
+    forced_cot_by_code: Dict[str, str] = {}
+    aug_rejected_cot_by_code: Dict[str, str] = {}
+    teacher_rejected_cot_by_code: Dict[str, str] = {}
 
     for rec in sft_records:
-        code = _strip_think(rec["output"])
-        if code and code not in forced_code_tasks:
+        raw = rec.get("output", "") or ""
+        code = _strip_think(raw)
+        if not code:
+            continue
+        if _has_cot(raw):
+            cot = _extract_cot_text(raw)
+            if cot:
+                forced_cot_by_code.setdefault(code, cot)
+            continue
+        if code not in forced_code_tasks:
             forced_code_tasks[code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": code}
     for rec in dpo_teacher_records:
-        code = _strip_think(rec["chosen"])
-        if code and code not in forced_code_tasks:
-            forced_code_tasks[code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": code}
+        raw_chosen = rec.get("chosen", "") or ""
+        code = _strip_think(raw_chosen)
+        if code:
+            if _has_cot(raw_chosen):
+                cot = _extract_cot_text(raw_chosen)
+                if cot:
+                    forced_cot_by_code.setdefault(code, cot)
+            elif code not in forced_code_tasks:
+                forced_code_tasks[code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": code}
         rej_text = (rec.get("rejected", "") or "").strip()
         if rej_text and (not _has_cot(rej_text)):
             rej_code = _strip_think(rej_text)
             if rej_code and rej_code not in teacher_rejected_tasks:
                 teacher_rejected_tasks[rej_code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": rej_code}
+        elif rej_text and _has_cot(rej_text):
+            rej_code = _strip_think(rej_text)
+            if rej_code:
+                cot = _extract_cot_text(rej_text)
+                if cot:
+                    teacher_rejected_cot_by_code.setdefault(rej_code, cot)
     for rec in dpo_aug_records:
-        code = _strip_think(rec["chosen"])
-        if code and code not in forced_code_tasks:
-            forced_code_tasks[code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": code}
+        raw_chosen = rec.get("chosen", "") or ""
+        code = _strip_think(raw_chosen)
+        if code:
+            if _has_cot(raw_chosen):
+                cot = _extract_cot_text(raw_chosen)
+                if cot:
+                    forced_cot_by_code.setdefault(code, cot)
+            elif code not in forced_code_tasks:
+                forced_code_tasks[code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": code}
         # dpo_aug.rejected uses a separate rejected reverse-COT pass.
-        rej_code = _strip_think(rec["rejected"])
-        if rej_code and rej_code not in aug_rejected_tasks:
+        rej_raw = rec.get("rejected", "") or ""
+        rej_code = _strip_think(rej_raw)
+        if not rej_code:
+            continue
+        if _has_cot(rej_raw):
+            cot = _extract_cot_text(rej_raw)
+            if cot:
+                aug_rejected_cot_by_code.setdefault(rej_code, cot)
+            continue
+        if rej_code not in aug_rejected_tasks:
             aug_rejected_tasks[rej_code] = {"system_prompt": reverse_cot_context, "user_prompt": rec["input"], "code_output": rej_code}
+
+    # Skip any queued code already covered by existing COT payloads in JSONL.
+    forced_code_tasks = {k: v for k, v in forced_code_tasks.items() if k not in forced_cot_by_code}
+    aug_rejected_tasks = {k: v for k, v in aug_rejected_tasks.items() if k not in aug_rejected_cot_by_code}
+    teacher_rejected_tasks = {k: v for k, v in teacher_rejected_tasks.items() if k not in teacher_rejected_cot_by_code}
 
     all_cot_tasks: List[Dict] = list(forced_code_tasks.values())
 
-    _emit_cot_log(f"COT Phase#1: generating reverse-COTs for {len(all_cot_tasks)} code pieces (dedup inside)...")
+    _emit_cot_log(
+        f"COT Phase#1: generating reverse-COTs for {len(all_cot_tasks)} code pieces "
+        f"(existing={len(forced_cot_by_code)}, dedup inside)..."
+    )
     cot_map = generate_reverse_cots_batch(all_cot_tasks, cot_client, cot_model)
     cot_ok = sum(1 for v in cot_map.values() if v)
     _emit_cot_log(f"COT Phase#1: {cot_ok}/{len(cot_map)} unique COTs generated successfully.")
 
-    forced_cot_by_code: Dict[str, str] = {}
     missing_forced_codes: Set[str] = set()
     for code, task in forced_code_tasks.items():
         # Pass 1 outputs are reused by normalized code for api.output / dpo*.chosen.
@@ -1394,9 +1451,11 @@ def main() -> None:
         else:
             missing_forced_codes.add(code)
 
-    aug_rejected_cot_by_code: Dict[str, str] = {}
     if aug_rejected_tasks:
-        _emit_cot_log(f"COT Phase#2: generating rejected reverse-COTs for {len(aug_rejected_tasks)} unique dpo_aug.rejected code pieces...")
+        _emit_cot_log(
+            f"COT Phase#2: generating rejected reverse-COTs for {len(aug_rejected_tasks)} "
+            f"unique dpo_aug.rejected code pieces (existing={len(aug_rejected_cot_by_code)})..."
+        )
     for code, task in aug_rejected_tasks.items():
         cot = generate_reverse_cot_rejected(reverse_cot_context, task["user_prompt"], code, cot_client, cot_model)
         if cot:
@@ -1404,9 +1463,11 @@ def main() -> None:
         else:
             missing_forced_codes.add(code)
 
-    teacher_rejected_cot_by_code: Dict[str, str] = {}
     if teacher_rejected_tasks:
-        _emit_cot_log(f"COT Phase#3: generating rejected reverse-COTs for {len(teacher_rejected_tasks)} unique dpo_teacher.rejected code pieces...")
+        _emit_cot_log(
+            f"COT Phase#3: generating rejected reverse-COTs for {len(teacher_rejected_tasks)} "
+            f"unique dpo_teacher.rejected code pieces (existing={len(teacher_rejected_cot_by_code)})..."
+        )
     for code, task in teacher_rejected_tasks.items():
         cot = generate_reverse_cot_rejected(reverse_cot_context, task["user_prompt"], code, cot_client, cot_model)
         if cot:
