@@ -1,0 +1,20 @@
+int main1(int b,int k){
+  int l, i, a;
+
+  l=(k%12)+13;
+  i=0;
+  a=l;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+
+while (i<l) {
+      a = k+(-5);
+      a = a+a;
+      i = i+3;
+  }
+/*@
+  assert !(i<l) &&
+         (l == k%12 + 13);
+*/
+
+}

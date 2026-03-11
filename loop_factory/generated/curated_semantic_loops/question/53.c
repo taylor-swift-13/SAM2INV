@@ -1,0 +1,19 @@
+int main1(int a){
+  int y, h, v;
+
+  y=(a%7)+18;
+  h=0;
+  v=-5;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+
+while (h<y) {
+      v = v+v;
+      h = h+5;
+  }
+/*@
+  assert !(h<y) &&
+         (a == \at(a, Pre));
+*/
+
+}

@@ -1,440 +1,810 @@
-2026-03-08 11:40:10,900 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-08 11:40:10,912 - INFO - Found 1 loops
-2026-03-08 11:40:10,913 - INFO - 
+2026-03-11 04:22:00,173 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 04:22:00,198 - INFO - Found 2 loops
+2026-03-11 04:22:00,200 - INFO - 
 ============================================================
-2026-03-08 11:40:10,913 - INFO - Main generation pass 1/1
-2026-03-08 11:40:10,913 - INFO - ============================================================
-2026-03-08 11:40:10,913 - INFO - Loaded single prompt template: simple
-2026-03-08 11:40:10,913 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-08 11:40:10,913 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-08 11:40:10,929 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:41:20,623 - INFO - 
+2026-03-11 04:22:00,200 - INFO - Main generation pass 1/1
+2026-03-11 04:22:00,200 - INFO - ============================================================
+2026-03-11 04:22:00,200 - INFO - Loaded single prompt template: simple
+2026-03-11 04:22:00,200 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 04:22:00,200 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 04:22:00,215 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:23:47,872 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>
-Chosen invariants and annotations aim to be inductive and verification-friendly for Frama-C/WP:
+<reasoning>We need inductive invariants for two loops in main1 that are friendly to Frama-C/WP and reveal the state updates.
 
-- Core conservation/relational equality: f2 == 3 * \at(j, Pre)
-  - Reason: f2 is initialized to j*3 before the loop and never updated inside the loop. Therefore, f2 remains exactly three times the initial value of j, i.e., f2 == 3 * \at(j, Pre). This captures the state relation across iterations in a way that is preserved by the loop body.
+Observations from the code and loop semantics:
 
-- Minimal progress bound for the loop counter: au3 >= 0
-  - Reason: au3 is initialized to 0 and incremented by 1 every iteration (au3++). This invariant is true at loop entry and is preserved by every iteration, providing a simple progression bound for the loop counter.
+- Loop 0 (while (al > p43)):
+  - Modifications per iteration: al -= p43; i += j0; l0i5 += (nn0o - j0); p43 += 1; p8 += l0i5.
+  - Initially: nn0o = f, j0 = 0, p43 = 0, al = (i%28) + 10, l0i5 = i, p8 = -3.
+  - Since j0 is never changed in this loop, i is constant throughout the loop.
+  - l0i5 increases by nn0o each iteration, so after t iterations l0i5 = i + t*nn0o.
+  - p43 increments by 1 each iteration, so after t iterations p43 = t.
+  - al is decreased by the old p43 value, so after t iterations al = al_initial - (t*(t-1))/2 where al_initial = (i%28)+10.
+  - p8 accumulates l0i5 each iteration; with l0i5 = i + t*nn0o, one can derive p8 = (-3) + i + nn0o - (t*(t-1))/2 = (-3) + i + nn0o - p43*(p43-1)/2.
+  - Useful invariant relations (holding for all iterations):
+    - i remains equal to its initial value: i == \at(i,Pre)
+    - j0 stays 0: j0 == 0
+    - nn0o stays equal to f: nn0o == f
+    - l0i5 tracks i and nn0o: l0i5 == i + nn0o
+    - p43 counts iterations and is >= 0: p43 >= 0
+    - al follows al_initial minus triangular term: al == ((i % 28) + 10) - (p43*(p43-1))/2
+    - p8 follows initial value minus triangular term: p8 == -3 + i + nn0o - (p43*(p43-1))/2
+  - These invariants are strong, directly reflect the state transition laws, and are inductive with the loop body.
 
-- Loop assigns: au3, lf4, j
-  - Reason: These are the variables modified within the loop body.
+- Loop 1 (while (p8 > y)):
+  - Modifications per iteration: p8 -= y; y++; j0 = y + j0; p43 = p43*p43; j0 += nn0o.
+  - Before Loop 1 starts, from the Loop 0 post-state:
+    - y == 0, p43 == 1, j0 == 0, l0i5 == i + nn0o, p8 == -3 + i + nn0o, al == (i%28)+10
+  - Derived recurrences (with t the number of iterations performed in Loop 1, hence y == t):
+    - p43 starts at 1 and remains 1 because 1*1 == 1; so p43 == 1 is invariant.
+    - j0 evolves as: j0_t = j0_{t-1} + y_t + nn0o, with y_t = t, yielding j0 == t*(t+1)/2 + t*nn0o = y*(y+1)/2 + y*nn0o.
+    - p8 evolves as: p8_t = p8_{start} - sum_{s=1..t} y_s = (-3 + i + nn0o) - t*(t-1)/2 = (-3) + i + nn0o - (y*(y-1))/2.
+    - l0i5 and i remain unchanged during Loop 1, so l0i5 == i + nn0o and i == \at(i,Pre) remain true.
+  - Therefore strong invariants for Loop 1 include:
+    - i == \at(i,Pre)
+    - p43 == 1
+    - y >= 0
+    - j0 == y*nn0o + y*(y+1)/2
+    - p8 == (-3) + i + nn0o - (y*(y-1))/2
+    - l0i5 == i + nn0o
+    - nn0o == f
+  - These invariants correctly capture the exact updates and are inductive with the loop body.
 
-Note: We avoid adding lf4 <= f2 as an invariant since f2 can be negative for some inputs (depending on the initial j), which would make the invariant false at loop entry in those cases. The chosen invariants are valid for all possible initial values and are inductive given the loop structure.
-
-Optionally, a loop variant could be added for termination proof (e.g., f2 - lf4). However, since f2 can be negative depending on the initial parameter, using a loop variant that assumes f2 >= lf4 at entry might not be valid for all inputs. To keep verification robust across all inputs, this solution omits the explicit loop_variant in the code block.
+Notes:
+- We avoid using \at(local, Pre) except on function parameters (i is a parameter; using i == \at(i,Pre) is allowed). We do not use \at for non-parameter locals like nn0o.
+- We list explicit loop assigns for each loop: the set of variables modified within that loop.
+- We omit an explicit loop variant (optional in ACSL) to keep invariants precise and avoid delicate termination-measure handling.
 
 </reasoning>
-<code>/*@
-  loop invariant f2 == 3 * \at(j, Pre);
-  loop invariant au3 >= 0;
-  loop assigns au3, lf4, j;
-*/
-while (1) {
-      if (!(lf4<=f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
-  }</code>
+<code>int main1(int i,int f){
+  int nn0o, j0, p43, al, p8, l0i5, y;
+
+  nn0o=f;
+  j0=0;
+  p43=0;
+  al=(i%28)+10;
+  p8=-3;
+  l0i5=i;
+  y=0;
+
+  /*@
+    loop invariant i == \at(i,Pre);
+    loop invariant al == (((i) % 28) + 10) - ((p43 * (p43 - 1)) / 2);
+    loop invariant p43 >= 0;
+    loop invariant l0i5 == i + nn0o;
+    loop invariant j0 == 0;
+    loop invariant p8 == -3 + nn0o + i - ((p43 * (p43 - 1)) / 2);
+    loop invariant nn0o == f;
+    loop assigns al, i, l0i5, p43, p8;
+  */
+  while (al>p43) {
+      al = al - p43;
+      i += j0;
+      l0i5 = (nn0o-j0)+(l0i5);
+      p43 += 1;
+      p8 += l0i5;
+  }
+
+  /*@
+    loop invariant i == \at(i,Pre);
+    loop invariant p43 == 1;
+    loop invariant y >= 0;
+    loop invariant j0 == y*nn0o + (y*(y+1))/2;
+    loop invariant p8 == (-3) + i + nn0o - (y*(y-1))/2;
+    loop invariant l0i5 == i + nn0o;
+    loop invariant nn0o == f;
+    loop assigns p8, y, j0, p43;
+  */
+  while (p8>y) {
+      p8 = p8 - y;
+      y++;
+      j0 = (y)+(j0);
+      p43 = p43*p43;
+      j0 = j0 + nn0o;
+  }
+
+}</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-08 11:41:20,623 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-08 11:41:20,636 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:42:56,911 - INFO - 
+2026-03-11 04:23:47,873 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 04:23:47,889 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:32:46,692 - INFO - 
 ----- Candidate 2/5 raw response begin -----
 <reasoning>
-We need inductive, verification-friendly loop annotations for the given loop. We aim for strong, non-tautological invariants that capture how the state evolves across iterations and provide a clean termination measure.
+For the two loops, I designed inductive, verification-friendly invariants that capture the exact state evolution while keeping the annotations concise and independent of non-deterministic behavior.
 
-Key observations:
-- f2 is assigned once before the loop as f2 = j*3 and never updated inside the loop. Therefore, f2 remains equal to 3 * initial_j, i.e., f2 == 3 * \at(j, Pre).
-- Each iteration increments au3 by 1, and updates j by adding the new au3 value. Starting from j0 = \at(j,Pre) and au3 = 0, after t iterations we have j = j0 + sum_{k=1..t} k = j0 + t*(t+1)/2. This yields the invariant: j == \at(j,Pre) + au3*(au3+1)/2.
-- au3 starts at 0 and only increases, so au3 >= 0 is a natural invariant.
-- A termination measure (loop variant) that decreases with each iteration can be f2 - lf4. Since the loop continues only while lf4 <= f2 and lf4 starts at 1 and doubles each iteration, the value f2 - lf4 is non-negative at the start of an iteration and strictly decreases when the next iteration occurs (lf4 doubles, so f2 - lf4 becomes smaller). This provides a minimal, robust progress bound.
+Loop 0 (the first loop):
+- The updates yield a closed-form relation:
+  - j0 remains 0 throughout the loop (it is never changed there).
+  - l0i5 is updated by adding nn0o each iteration, so l0i5 = i + p43 * f, given nn0o = f.
+  - al starts from (\at(i,Pre)%28) + 10 and decreases by p43 each iteration according to al := al - p43, which yields al = (\at(i,Pre)%28) + 10 - p43*(p43-1)/2.
+  - p8 starts at -3 and accumulates l0i5, which equals -3 + p43 * \at(i,Pre) + f * p43*(p43+1)/2.
+  - i does not change because j0 is 0; thus i == \at(i,Pre) is a stable invariant.
+  - nn0o stays equal to f (set once at the start) and remains unchanged.
+- The loop assigns are exactly the variables modified inside the loop: al, i, l0i5, p43, p8.
+- A suitable loop variant is (al - p43). While the loop guard al > p43 holds, this quantity decreases by 1 each iteration, ensuring termination.
 
-Thus we add:
-- loop invariant f2 == 3 * \at(j, Pre);
-- loop invariant j == \at(j, Pre) + au3*(au3+1)/2;
-- loop invariant au3 >= 0;
-- loop assigns au3, lf4, j;
-- loop variant f2 - lf4;
+Loop 1 (the second loop):
+- Inside this loop, p8 is decreased by y, y is incremented, j0 is updated by adding the new y, and p43 is squared.
+- Useful invariant: j0 equals y*(y+1)/2 after each iteration (since j0 starts at 0 and the recurrence j0 := y + j0 with y incrementing by 1 yields j0 = sum_{t=1..y} t).
+- nn0o remains equal to f and i remains equal to its initial value, so we include these invariants as well.
+- The loop assigns are p8, y, j0, p43.
+- A natural loop variant is (p8 - y). Because the loop guard requires p8 > y, this quantity is positive at loop head and decreases by at least y+1 each iteration, guaranteeing termination.
 
-These invariants are inductive (hold initially and are preserved by iterations) and help Frama-C/WP verify termination and required properties without modifying the code.
+These invariants are strong enough (not tautological), reference only permitted variables (parameters with \at(param,Pre) where needed), and do not modify the original code beyond adding ACSL annotations.
 </reasoning>
-<code>int main1(int j){
-  int f2, lf4, au3;
-
-  f2=j*3;
-  lf4=1;
-  au3=0;
-
-  /*@ 
-    loop invariant f2 == 3 * \at(j, Pre);
-    loop invariant j == \at(j, Pre) + au3*(au3+1)/2;
-    loop invariant au3 >= 0;
-    loop assigns au3, lf4, j;
-    loop variant f2 - lf4;
-  */
-  while (1) {
-      if (!(lf4<=f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
+<code>/*@
+  loop invariant nn0o == f;
+  loop invariant i == \at(i,Pre);
+  loop invariant l0i5 == \at(i,Pre) + p43 * f;
+  loop invariant al == (\at(i,Pre) % 28) + 10 - (p43 * (p43 - 1)) / 2;
+  loop invariant j0 == 0;
+  loop invariant p8 == -3 + p43 * \at(i,Pre) + f * p43 * (p43 + 1) / 2;
+  loop assigns al, i, l0i5, p43, p8;
+  loop variant (al - p43);
+*/
+while (al>p43) {
+      al = al - p43;
+      i += j0;
+      l0i5 = (nn0o-j0)+(l0i5);
+      p43 += 1;
+      p8 += l0i5;
   }
 
-}</code>
+/*@
+  loop invariant nn0o == f;
+  loop invariant i == \at(i,Pre);
+  loop invariant j0 == y*(y+1)/2;
+  loop invariant p43 >= 0;
+  loop assigns p8, y, j0, p43;
+  loop variant (p8 - y);
+*/
+while (p8>y) {
+      p8 = p8 - y;
+      y++;
+      j0 = (y)+(j0);
+      p43 = p43*p43;
+      j0 = j0 + nn0o;
+  }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-08 11:42:56,911 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-08 11:42:56,926 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:45:25,907 - INFO - 
+2026-03-11 04:32:46,692 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 04:32:46,705 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:49:29,974 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants for the given loop. Observations from the loop:
-- au3 starts at 0 and increments by 1 each iteration.
-- lf4 starts at 1 and doubles each iteration.
-- j starts at its initial value and, in each iteration, increases by the current au3 (which is incremented before use).
-- f2 is initialized once before the loop as f2 = j * 3 and is never updated inside the loop. Thus f2 remains 3 * initial_j := 3 * \at(j, Pre).
-From these, we can derive exact closed-form relations that hold invariantly across iterations:
-- f2 == 3 * \at(j, Pre): f2 is constant and tied to the initial j.
-- j == \at(j, Pre) + au3*(au3+1)/2: cumulative sum of 1..au3 updates j, since au3 goes 1,2,3,... across iterations.
-- lf4 == (1 << au3): lf4 starts at 1 and doubles each iteration, so lf4 = 2^au3 = 1 << au3.
-- au3 >= 0: non-negativity and monotonic non-decrease of au3.
+<EMPTY_RESPONSE>
+----- Candidate 3/5 raw response end -----
+2026-03-11 04:49:29,974 - WARNING -   Failed to extract code from candidate 3
+2026-03-11 04:49:29,974 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 04:49:29,986 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:52:10,157 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>For the two loops, I constructed inductive invariants that tightly capture the state evolution and are friendly to Frama-C/WP verification.
 
-These invariants are inductive:
-- Before the first iteration: au3=0, lf4=1, j=\at(j,Pre), so the relations hold.
-- Each iteration maintains the equalities: au3 increments by 1, lf4 doubles, and j increases by the new au3, preserving the closed-form formulas.
-Progress bound (loop variant) can be expressed as f2 - lf4, which starts non-negative (since lf4 <= f2 when the loop body executes) and strictly decreases every iteration (lf4 doubles, so f2 - lf4 decreases while the loop continues). This gives a straightforward termination argument.
+First loop:
+- al evolves as al = al_init - p43*(p43-1)/2, where al_init = (\at(i,Pre) % 28) + 10. So a strong invariant is al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2.
+- p43 counts iterations and stays non-negative: p43 >= 0.
+- p8 accumulates l0i5 over iterations. With l0i5 starting at i0 = \at(i,Pre) and l0i5 updated as l0i5 += (nn0o - j0) and nn0o = \at(f,Pre), the closed form p8 == -3 + p43*i0 + nn0o*p43*(p43+1)/2 holds. This invariant ties p8, p43, i, and f together across iterations.
+- l0i5 evolves deterministically: l0i5 == i0 + p43*nn0o, i.e., l0i5 == \at(i,Pre) + p43*\at(f,Pre).
+- i remains constant (since i += j0 and j0 is 0), so i == \at(i,Pre) is a valid invariant.
+- j0 remains 0 and nn0o remains \at(f,Pre) (these are constants throughout this loop), so j0 == 0 and nn0o == \at(f,Pre).
+These invariants collectively are inductive and align with the provided transition relation for the first loop. The loop assigns cover all variables modified in the loop: al, i, l0i5, p43, p8. A loop variant al - p43 provides a decreasing measure to prove termination.
 
-Assigns set: the loop modifies au3, lf4, and j. f2 is not assigned inside the loop.
+Second loop:
+- y starts at 0 and increments by 1 each iteration; thus y >= 0 is natural.
+- j0 increases by nn0o every iteration, and since nn0o == \at(f,Pre) is constant, j0 == y * \at(f,Pre) is an exact invariant for this loop.
+- p43 gets updated as p43 = p43*p43; since p43 starts non-negative, p43 >= 0 remains true.
+- p8 never increases in this loop and starts at some value <= -3, so p8 <= -3 is preserved.
+A loop variant p8 - y is chosen to show progress: it decreases each iteration (the update yields p8' - y' = (p8 - y) - (y+1)), and remains non-negative at loop entry (guaranteed by the guard p8 > y). The invariant set keeps the relationship between j0 and y simple and inductive.
 
-We provide the invariants as a single block with multiple loop invariant clauses, and include a loop variant for termination proof. The constants use allowed ACSL constructs, including \at(j, Pre) to refer to the initial parameter value. The code itself remains unchanged except for the added ACSL annotations. </reasoning>
+These invariants are strong, relate directly to the loop updates, and avoid introducing unrelated facts. They respect the restriction on using only available variables and parameters, and they avoid modifying the function’s original logic beyond annotations. The unknown() calls remain untouched, and \at(param,Pre) is used only for function parameters, as required.
 
-<code>int main1(int j){
-  int f2, lf4, au3;
+</reasoning>
+<code>int main1(int i,int f){
+  int nn0o, j0, p43, al, p8, l0i5, y;
 
-  f2=j*3;
-  lf4=1;
-  au3=0;
+  nn0o=f;
+  j0=0;
+  p43=0;
+  al=(i%28)+10;
+  p8=-3;
+  l0i5=i;
+  y=0;
 
   /*@
-    loop invariant f2 == 3 * \at(j, Pre);
-    loop invariant j == \at(j, Pre) + au3*(au3+1)/2;
-    loop invariant lf4 == (1 << au3);
-    loop invariant au3 >= 0;
-    loop assigns au3, lf4, j;
-    loop variant f2 - lf4;
+    loop invariant i == \at(i,Pre);
+    loop invariant j0 == 0;
+    loop invariant nn0o == \at(f,Pre);
+    loop invariant l0i5 == \at(i,Pre) + p43 * \at(f,Pre);
+    loop invariant al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2;
+    loop invariant p8 == -3 + p43 * \at(i,Pre) + \at(f,Pre) * p43*(p43 + 1)/2;
+    loop invariant p43 >= 0;
+    loop assigns al, i, l0i5, p43, p8;
+    loop variant al - p43;
   */
-  while (1) {
-      if (!(lf4<=f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
+  while (al>p43) {
+      al = al - p43;
+      i += j0;
+      l0i5 = (nn0o-j0)+(l0i5);
+      p43 += 1;
+      p8 += l0i5;
+  }
+
+  /*@
+    loop invariant y >= 0;
+    loop invariant p8 <= -3;
+    loop invariant j0 == y * \at(f,Pre);
+    loop invariant p43 >= 0;
+    loop assigns p8, y, j0, p43;
+    loop variant p8 - y;
+  */
+  while (p8>y) {
+      p8 = p8 - y;
+      y++;
+      j0 = (y)+(j0);
+      p43 = p43*p43;
+      j0 = j0 + nn0o;
   }
 
 }</code>
------ Candidate 3/5 raw response end -----
-2026-03-08 11:45:25,907 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-08 11:45:25,920 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:47:19,952 - INFO - 
------ Candidate 4/5 raw response begin -----
+----- Candidate 4/5 raw response end -----
+2026-03-11 04:52:10,158 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 04:52:10,173 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:54:22,377 - INFO - 
+----- Candidate 5/5 raw response begin -----
 <reasoning>
-Chosen invariants capture the exact state progression caused by the loop updates and provide a clear, inductive relation that Frama-C/WP can verify.
+The two loops evolve the state with well-defined arithmetic progressions. We derive inductive, verification-friendly invariants that express the exact state in terms of the initial function parameters (i and f) and the loop counters.
 
-Key observations from the loop:
-- Updates per iteration: au3 is incremented by 1, lf4 is doubled, and j is increased by the new au3 value.
-- f2 is fixed inside the loop (f2 was initialized before the loop as f2 = j*3 and is never updated within the loop).
-- The loop exits when lf4 > f2.
+Loop 0 (before the first loop completes):
+- Observations from updates:
+  - i is only updated by i += j0, but j0 remains 0 throughout this loop, so i never changes. Therefore, i == \at(i,Pre) is an invariant.
+  - j0 is initialized to 0 and never changes in this loop, so j0 == 0 is invariant.
+  - nn0o is assigned once from f and never changes, so nn0o == \at(f,Pre) is invariant.
+  - l0i5 starts as i and evolves by l0i5 := (nn0o - j0) + l0i5; with j0 = 0, this becomes l0i5 = i + p43 * f throughout the loop, i.e., l0i5 == \at(i,Pre) + p43 * \at(f,Pre).
+  - p43 starts at 0 and increments by 1 each iteration, so after k iterations p43 = k; al is updated by al := al - p43, so al follows al = al0 - k*(k-1)/2, where al0 = (\at(i,Pre) % 28) + 10. This gives the exact invariant al == ((\at(i,Pre) % 28) + 10) - (p43*(p43-1))/2.
+  - p8 is updated by p8 += l0i5 (where l0i5 has been updated in the same iteration). With the derived closed forms, p8 has a closed form in terms of p43, i, and f: p8 == -3 + \at(i,Pre) + (\at(f,Pre)) * p43*(p43+1)/2. This is a strong, exact invariant.
+- These invariants are inductive (they hold initially and are preserved by each iteration) and allow a straightforward verification in Frama-C/WP.
 
-Core conservation/relational equality:
-- The current value of j after t iterations equals the initial j plus the sum of the first t natural numbers: j = j_initial + t*(t+1)/2, where t = au3 at that point.
-- Since j is the function parameter, we express the initial value using \at(j, Pre). Thus the exact inductive invariant is:
-  j == \at(j, Pre) + au3*(au3+1)/2
+Loop 1 (second loop):
+- Observations from updates:
+  - i and f remain constant; hence i == \at(i,Pre) and f == \at(f,Pre) are invariants. Also nn0o == \at(f,Pre).
+  - p43 starts at 1 and is squared each iteration; with p43_0 = 1, p43 remains 1 for all iterations, so p43 == 1 is invariant.
+  - y starts at 0 and increments by 1 each iteration; thus y >= 0 is invariant.
+  - l0i5 evolves as l0i5 == \at(i,Pre) + y * \at(f,Pre).
+  - j0 accumulates as j0 == (y*(y+1))/2 + y * \at(f,Pre).
+  - p8 evolves as p8 == -3 + \at(i,Pre) + \at(f,Pre) - y*(y-1)/2.
+- A simple, well-founded loop variant for Loop 1 is p8 - y, which decreases strictly on each iteration (since p8 decreases by y and y increases by 1, so (p8 - y) becomes smaller). It remains non-negative whenever the loop guard p8 > y holds, ensuring termination is supported by the variant.
 
-Progress bound (loop variant):
-- A natural decreasing measure is f2 - lf4. Inside the loop, lf4 increases (by doubling), so f2 - lf4 strictly decreases while the loop continues (since lf4 > 0). Also, the loop body only executes when lf4 <= f2, so f2 - lf4 >= 0 at the start of each iteration. This makes f2 - lf4 a suitable loop variant.
-
-Other invariants:
-- au3 >= 0 holds initially (au3 = 0) and is preserved since au3 is incremented by 1 each iteration.
-
-Loop assigns:
-- The loop modifies au3, lf4, and j. f2 is not written inside the loop.
-
-Note: We do not attempt to relate lf4 directly to au3 with exponentiation (since ACSL here is restricted to +, -, *, /, % and standard boolean/logical operators). Instead, the triangular-number relation for j and the progress measure f2 - lf4 provide a clear inductive and progress-oriented basis for verification.
+Combining these, we annotate both loops with precise, inductive invariants and complete loop assigns. We avoid any unrelated invariants and keep the original code structure intact.
 </reasoning>
 <code>
-/*@
-  loop invariant j == \at(j, Pre) + au3*(au3+1)/2;
-  loop invariant au3 >= 0;
-  loop assigns au3, lf4, j;
-  loop variant f2 - lf4;
-*/
-while (1) {
-      if (!(lf4 <= f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
-  }
-</code>
------ Candidate 4/5 raw response end -----
-2026-03-08 11:47:19,952 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-08 11:47:19,967 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:49:48,908 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants for the given loop. Observing the loop updates:
-- f2 is initialized to 3 * j (with j the parameter) and never changed inside the loop.
-- lf4 starts at 1 and doubles every iteration: lf4 := 2*lf4.
-- au3 starts at 0 and is incremented by 1 each iteration: au3 := au3 + 1.
-- j is updated as j := j + au3 after increasing au3, so the increment is the new value of au3 (i.e., 1 on the first iteration, 2 on the second, etc.).
+int main1(int i,int f){
+  int nn0o, j0, p43, al, p8, l0i5, y;
 
-From these updates we can derive a single core relation that must hold at all times when the loop can continue, expressed in terms of the function parameter initial value \at(j, Pre): after k iterations (au3 == k), the current j equals initial_j + sum_{t=1..k} t = initial_j + k*(k+1)/2. Also f2 stays equal to 3 * initial_j. These two relations are inductive:
-
-- Core conservation: f2 == 3 * \at(j, Pre)
-- Relational update: j == \at(j, Pre) + au3*(au3+1)/2
-
-Additionally, simple progress bounds help: au3 >= 0 (non-negative always). We also provide a well-founded loop variant to aid termination: f2 - lf4, which is non-negative whenever the loop guard lf4 <= f2 holds and strictly decreases as lf4 doubles.
-
-We declare loop assigns for the loop: j, au3, lf4 (f2 is not assigned inside the loop). The invariants are written so they hold before the first iteration (given initial values) and are preserved by every iteration (inductiveness). The loop guard remains lf4 <= f2; invariants are not considered guards themselves.
-
-</reasoning>
-<code>int main1(int j){
-  int f2, lf4, au3;
-
-  f2=j*3;
-  lf4=1;
-  au3=0;
-
-  /*@ 
-    loop invariant f2 == 3 * \at(j, Pre);
-    loop invariant j == \at(j,Pre) + au3*(au3+1)/2;
-    loop invariant au3 >= 0;
-    loop assigns j, au3, lf4;
-    loop variant f2 - lf4;
-  */
-while (1) {
-      if (!(lf4<=f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
-  }
-
-}</code>
------ Candidate 5/5 raw response end -----
-2026-03-08 11:49:48,908 - INFO - 
------ Candidate 1/5 full code begin -----
-/*@
-  loop invariant f2 == 3 * \at(j, Pre);
-  loop invariant au3 >= 0;
-  loop assigns au3, lf4, j;
-*/
-while (1) {
-      if (!(lf4<=f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
-  }
------ Candidate 1/5 full code end -----
-2026-03-08 11:49:48,908 - INFO - 
------ Candidate 2/5 full code begin -----
-int main1(int j){
-  int f2, lf4, au3;
-
-  f2=j*3;
-  lf4=1;
-  au3=0;
-
-  /*@ 
-    loop invariant f2 == 3 * \at(j, Pre);
-    loop invariant j == \at(j, Pre) + au3*(au3+1)/2;
-    loop invariant au3 >= 0;
-    loop assigns au3, lf4, j;
-    loop variant f2 - lf4;
-  */
-  while (1) {
-      if (!(lf4<=f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
-  }
-
-}
------ Candidate 2/5 full code end -----
-2026-03-08 11:49:48,908 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(int j){
-  int f2, lf4, au3;
-
-  f2=j*3;
-  lf4=1;
-  au3=0;
+  nn0o=f;
+  j0=0;
+  p43=0;
+  al=(i%28)+10;
+  p8=-3;
+  l0i5=i;
+  y=0;
 
   /*@
-    loop invariant f2 == 3 * \at(j, Pre);
-    loop invariant j == \at(j, Pre) + au3*(au3+1)/2;
-    loop invariant lf4 == (1 << au3);
-    loop invariant au3 >= 0;
-    loop assigns au3, lf4, j;
-    loop variant f2 - lf4;
+    loop invariant al == ((\at(i,Pre) % 28) + 10) - (p43 * (p43 - 1)) / 2;
+    loop invariant i == \at(i,Pre);
+    loop invariant j0 == 0;
+    loop invariant nn0o == \at(f,Pre);
+    loop invariant l0i5 == \at(i,Pre) + p43 * \at(f,Pre);
+    loop invariant p8 == -3 + \at(i,Pre) + (\at(f,Pre)) * p43 * (p43 + 1) / 2;
+    loop invariant p43 >= 0;
+    loop assigns al, i, l0i5, p43, p8;
+    loop variant al - p43;
   */
-  while (1) {
-      if (!(lf4<=f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
+  while (al>p43) {
+        al = al - p43;
+        i += j0;
+        l0i5 = (nn0o-j0)+(l0i5);
+        p43 += 1;
+        p8 += l0i5;
+    }
+
+  /*@
+    loop invariant i == \at(i,Pre);
+    loop invariant f == \at(f,Pre);
+    loop invariant nn0o == \at(f,Pre);
+    loop invariant p43 == 1;
+    loop invariant y >= 0;
+    loop invariant l0i5 == \at(i,Pre) + y * \at(f,Pre);
+    loop invariant j0 == (y * (y + 1)) / 2 + y * \at(f,Pre);
+    loop invariant p8 == -3 + \at(i,Pre) + \at(f,Pre) - (y * (y - 1)) / 2;
+    loop assigns p8, y, j0, p43;
+    loop variant (p8 - y);
+  */
+  while (p8>y) {
+        p8 = p8 - y;
+        y++;
+        j0 = (y)+(j0);
+        p43 = p43*p43;
+        j0 = j0 + nn0o;
+    }
+
+}
+</code>
+----- Candidate 5/5 raw response end -----
+2026-03-11 04:54:22,377 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int i,int f){
+  int nn0o, j0, p43, al, p8, l0i5, y;
+
+  nn0o=f;
+  j0=0;
+  p43=0;
+  al=(i%28)+10;
+  p8=-3;
+  l0i5=i;
+  y=0;
+
+  /*@
+    loop invariant i == \at(i,Pre);
+    loop invariant al == (((i) % 28) + 10) - ((p43 * (p43 - 1)) / 2);
+    loop invariant p43 >= 0;
+    loop invariant l0i5 == i + nn0o;
+    loop invariant j0 == 0;
+    loop invariant p8 == -3 + nn0o + i - ((p43 * (p43 - 1)) / 2);
+    loop invariant nn0o == f;
+    loop assigns al, i, l0i5, p43, p8;
+  */
+  while (al>p43) {
+      al = al - p43;
+      i += j0;
+      l0i5 = (nn0o-j0)+(l0i5);
+      p43 += 1;
+      p8 += l0i5;
+  }
+
+  /*@
+    loop invariant i == \at(i,Pre);
+    loop invariant p43 == 1;
+    loop invariant y >= 0;
+    loop invariant j0 == y*nn0o + (y*(y+1))/2;
+    loop invariant p8 == (-3) + i + nn0o - (y*(y-1))/2;
+    loop invariant l0i5 == i + nn0o;
+    loop invariant nn0o == f;
+    loop assigns p8, y, j0, p43;
+  */
+  while (p8>y) {
+      p8 = p8 - y;
+      y++;
+      j0 = (y)+(j0);
+      p43 = p43*p43;
+      j0 = j0 + nn0o;
   }
 
 }
------ Candidate 3/5 full code end -----
-2026-03-08 11:49:48,908 - INFO - 
------ Candidate 4/5 full code begin -----
+----- Candidate 1/5 full code end -----
+2026-03-11 04:54:22,377 - INFO - 
+----- Candidate 2/5 full code begin -----
 /*@
-  loop invariant j == \at(j, Pre) + au3*(au3+1)/2;
-  loop invariant au3 >= 0;
-  loop assigns au3, lf4, j;
-  loop variant f2 - lf4;
+  loop invariant nn0o == f;
+  loop invariant i == \at(i,Pre);
+  loop invariant l0i5 == \at(i,Pre) + p43 * f;
+  loop invariant al == (\at(i,Pre) % 28) + 10 - (p43 * (p43 - 1)) / 2;
+  loop invariant j0 == 0;
+  loop invariant p8 == -3 + p43 * \at(i,Pre) + f * p43 * (p43 + 1) / 2;
+  loop assigns al, i, l0i5, p43, p8;
+  loop variant (al - p43);
 */
-while (1) {
-      if (!(lf4 <= f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
+while (al>p43) {
+      al = al - p43;
+      i += j0;
+      l0i5 = (nn0o-j0)+(l0i5);
+      p43 += 1;
+      p8 += l0i5;
   }
------ Candidate 4/5 full code end -----
-2026-03-08 11:49:48,908 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int j){
-  int f2, lf4, au3;
 
-  f2=j*3;
-  lf4=1;
-  au3=0;
+/*@
+  loop invariant nn0o == f;
+  loop invariant i == \at(i,Pre);
+  loop invariant j0 == y*(y+1)/2;
+  loop invariant p43 >= 0;
+  loop assigns p8, y, j0, p43;
+  loop variant (p8 - y);
+*/
+while (p8>y) {
+      p8 = p8 - y;
+      y++;
+      j0 = (y)+(j0);
+      p43 = p43*p43;
+      j0 = j0 + nn0o;
+  }
+----- Candidate 2/5 full code end -----
+2026-03-11 04:54:22,377 - WARNING - Candidate 3/5 full code: <None> (failed to extract)
+2026-03-11 04:54:22,377 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int i,int f){
+  int nn0o, j0, p43, al, p8, l0i5, y;
 
-  /*@ 
-    loop invariant f2 == 3 * \at(j, Pre);
-    loop invariant j == \at(j,Pre) + au3*(au3+1)/2;
-    loop invariant au3 >= 0;
-    loop assigns j, au3, lf4;
-    loop variant f2 - lf4;
+  nn0o=f;
+  j0=0;
+  p43=0;
+  al=(i%28)+10;
+  p8=-3;
+  l0i5=i;
+  y=0;
+
+  /*@
+    loop invariant i == \at(i,Pre);
+    loop invariant j0 == 0;
+    loop invariant nn0o == \at(f,Pre);
+    loop invariant l0i5 == \at(i,Pre) + p43 * \at(f,Pre);
+    loop invariant al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2;
+    loop invariant p8 == -3 + p43 * \at(i,Pre) + \at(f,Pre) * p43*(p43 + 1)/2;
+    loop invariant p43 >= 0;
+    loop assigns al, i, l0i5, p43, p8;
+    loop variant al - p43;
   */
-while (1) {
-      if (!(lf4<=f2)) {
-          break;
-      }
-      au3++;
-      lf4 = 2*lf4;
-      j = j + au3;
+  while (al>p43) {
+      al = al - p43;
+      i += j0;
+      l0i5 = (nn0o-j0)+(l0i5);
+      p43 += 1;
+      p8 += l0i5;
   }
+
+  /*@
+    loop invariant y >= 0;
+    loop invariant p8 <= -3;
+    loop invariant j0 == y * \at(f,Pre);
+    loop invariant p43 >= 0;
+    loop assigns p8, y, j0, p43;
+    loop variant p8 - y;
+  */
+  while (p8>y) {
+      p8 = p8 - y;
+      y++;
+      j0 = (y)+(j0);
+      p43 = p43*p43;
+      j0 = j0 + nn0o;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-11 04:54:22,377 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int i,int f){
+  int nn0o, j0, p43, al, p8, l0i5, y;
+
+  nn0o=f;
+  j0=0;
+  p43=0;
+  al=(i%28)+10;
+  p8=-3;
+  l0i5=i;
+  y=0;
+
+  /*@
+    loop invariant al == ((\at(i,Pre) % 28) + 10) - (p43 * (p43 - 1)) / 2;
+    loop invariant i == \at(i,Pre);
+    loop invariant j0 == 0;
+    loop invariant nn0o == \at(f,Pre);
+    loop invariant l0i5 == \at(i,Pre) + p43 * \at(f,Pre);
+    loop invariant p8 == -3 + \at(i,Pre) + (\at(f,Pre)) * p43 * (p43 + 1) / 2;
+    loop invariant p43 >= 0;
+    loop assigns al, i, l0i5, p43, p8;
+    loop variant al - p43;
+  */
+  while (al>p43) {
+        al = al - p43;
+        i += j0;
+        l0i5 = (nn0o-j0)+(l0i5);
+        p43 += 1;
+        p8 += l0i5;
+    }
+
+  /*@
+    loop invariant i == \at(i,Pre);
+    loop invariant f == \at(f,Pre);
+    loop invariant nn0o == \at(f,Pre);
+    loop invariant p43 == 1;
+    loop invariant y >= 0;
+    loop invariant l0i5 == \at(i,Pre) + y * \at(f,Pre);
+    loop invariant j0 == (y * (y + 1)) / 2 + y * \at(f,Pre);
+    loop invariant p8 == -3 + \at(i,Pre) + \at(f,Pre) - (y * (y - 1)) / 2;
+    loop assigns p8, y, j0, p43;
+    loop variant (p8 - y);
+  */
+  while (p8>y) {
+        p8 = p8 - y;
+        y++;
+        j0 = (y)+(j0);
+        p43 = p43*p43;
+        j0 = j0 + nn0o;
+    }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-08 11:49:48,908 - INFO - Successfully generated 5/5 candidates
-2026-03-08 11:49:48,909 - INFO - Checking 4 invariants for conflicts...
-2026-03-08 11:49:48,910 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-08 11:49:48,910 - INFO -   1: int main1(int j){
-2026-03-08 11:49:48,910 - INFO -   2:   int f2, lf4, au3;
-2026-03-08 11:49:48,910 - INFO -   3: 
-2026-03-08 11:49:48,910 - INFO -   4:   f2=j*3;
-2026-03-08 11:49:48,910 - INFO -   5:   lf4=1;
-2026-03-08 11:49:48,910 - INFO -   6:   au3=0;
-2026-03-08 11:49:48,910 - INFO -   7: 
-2026-03-08 11:49:48,910 - INFO -   8:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-08 11:49:48,910 - INFO -   9: /*@
-2026-03-08 11:49:48,910 - INFO -   10:   loop invariant f2 == 3 * \at(j, Pre);
-2026-03-08 11:49:48,911 - INFO - DEBUG: Total lines: 26
-2026-03-08 11:49:59,818 - INFO - syntax Correct
-2026-03-08 11:50:30,865 - INFO - Validate:
-2026-03-08 11:50:30,866 - INFO - [True, True, True, False]
-2026-03-08 11:50:30,866 - INFO - 
-2026-03-08 11:50:30,866 - INFO - Verify:
-2026-03-08 11:50:30,866 - INFO - []
-2026-03-08 11:50:30,866 - INFO - 
-2026-03-08 11:50:30,866 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-08 11:50:30,866 - INFO -   Before: 4 invariants
-2026-03-08 11:50:30,866 - INFO -   After: 3 invariants
-2026-03-08 11:50:30,866 - INFO -   Remaining invariants:
-2026-03-08 11:50:30,866 - INFO -     [1] f2 == 3 * \at(j, Pre)
-2026-03-08 11:50:30,866 - INFO -     [2] au3 >= 0
-2026-03-08 11:50:30,866 - INFO -     [3] j == \at(j, Pre) + au3*(au3+1)/2
-2026-03-08 11:50:41,659 - INFO - syntax Correct
-2026-03-08 11:51:12,530 - INFO - Validate:
-2026-03-08 11:51:12,530 - INFO - [True, True, True]
-2026-03-08 11:51:12,530 - INFO - 
-2026-03-08 11:51:12,530 - INFO - Verify:
-2026-03-08 11:51:12,530 - INFO - []
-2026-03-08 11:51:12,530 - INFO - 
-2026-03-08 11:51:12,530 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-08 11:51:23,301 - INFO - syntax Correct
-2026-03-08 11:51:54,067 - INFO - Validate:
-2026-03-08 11:51:54,068 - INFO - [True, True, True]
-2026-03-08 11:51:54,068 - INFO - 
-2026-03-08 11:51:54,068 - INFO - Verify:
-2026-03-08 11:51:54,068 - INFO - []
-2026-03-08 11:51:54,068 - INFO - 
-2026-03-08 11:52:10,702 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-08 11:52:10,702 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_90/1.c
-2026-03-08 11:52:10,702 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_90/1_invariants.txt
-2026-03-08 11:52:10,702 - INFO - 
-============================================================
-2026-03-08 11:52:10,702 - INFO - Final first_pass results:
-2026-03-08 11:52:10,702 - INFO -   syntax=1
-2026-03-08 11:52:10,702 - INFO -   valid=1
-2026-03-08 11:52:10,702 - INFO -   satisfy=None
-2026-03-08 11:52:10,702 - INFO - ============================================================
-2026-03-08 11:52:10,703 - INFO - 
-============================================================
-2026-03-08 11:52:10,703 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-08 11:52:10,703 - INFO -   Total API calls: 77
-2026-03-08 11:52:10,703 - INFO -   Total prompt tokens (input): 80,094
-2026-03-08 11:52:10,703 - INFO -   Total completion tokens (output): 419,636
-2026-03-08 11:52:10,703 - INFO -   Total tokens: 499,730
-2026-03-08 11:52:10,703 - INFO -   Average per call:
-2026-03-08 11:52:10,703 - INFO -     Prompt: 1040.2 tokens
-2026-03-08 11:52:10,703 - INFO -     Completion: 5449.8 tokens
-2026-03-08 11:52:10,703 - INFO -     Total: 6490.0 tokens
-2026-03-08 11:52:10,703 - INFO - ============================================================
-2026-03-08 11:52:10,703 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_90/1.c
-2026-03-08 11:52:10,703 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_90/1_invariants.txt
-2026-03-08 11:52:44,210 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
-2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
-2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
-2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
-2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
-2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
-2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
-2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
-2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
-2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
-2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
-2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
-2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
-2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
-2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
-2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
-2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
-2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
-2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
-2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 04:54:22,377 - INFO - Successfully generated 4/5 candidates
+2026-03-11 04:54:22,379 - INFO - Checking 16 invariants for conflicts...
+2026-03-11 04:54:22,383 - INFO - Checking 14 invariants for conflicts...
+2026-03-11 04:54:22,387 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 04:54:22,387 - INFO -   1: int main1(int i,int f){
+2026-03-11 04:54:22,387 - INFO -   2:   int nn0o, j0, p43, al, p8, l0i5, y;
+2026-03-11 04:54:22,387 - INFO -   3: 
+2026-03-11 04:54:22,387 - INFO -   4:   nn0o=f;
+2026-03-11 04:54:22,387 - INFO -   5:   j0=0;
+2026-03-11 04:54:22,387 - INFO -   6:   p43=0;
+2026-03-11 04:54:22,387 - INFO -   7:   al=(i%28)+10;
+2026-03-11 04:54:22,387 - INFO -   8:   p8=-3;
+2026-03-11 04:54:22,387 - INFO -   9:   l0i5=i;
+2026-03-11 04:54:22,387 - INFO -   10:   y=0;
+2026-03-11 04:54:22,387 - INFO - DEBUG: Total lines: 67
+2026-03-11 04:54:22,588 - INFO - syntax Correct
+2026-03-11 04:54:53,440 - INFO - Validate:
+2026-03-11 04:54:53,440 - INFO - [True, True, True, False, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:54:53,440 - INFO - 
+2026-03-11 04:54:53,440 - INFO - Verify:
+2026-03-11 04:54:53,440 - INFO - []
+2026-03-11 04:54:53,440 - INFO - 
+2026-03-11 04:54:53,440 - INFO - Houdini iteration 1: Removed 2 failed invariants
+2026-03-11 04:54:53,440 - INFO -   Before: 30 invariants
+2026-03-11 04:54:53,440 - INFO -   After: 28 invariants
+2026-03-11 04:54:53,440 - INFO -   Remaining invariants:
+2026-03-11 04:54:53,440 - INFO -     [1] i == \at(i,Pre)
+2026-03-11 04:54:53,440 - INFO -     [2] al == (((i) % 28) + 10) - ((p43 * (p43 - 1)) / 2)
+2026-03-11 04:54:53,440 - INFO -     [3] p43 >= 0
+2026-03-11 04:54:53,440 - INFO -     [4] j0 == 0
+2026-03-11 04:54:53,440 - INFO -     [5] nn0o == f
+2026-03-11 04:54:53,440 - INFO -     [6] l0i5 == \at(i,Pre) + p43 * f
+2026-03-11 04:54:53,440 - INFO -     [7] al == (\at(i,Pre) % 28) + 10 - (p43 * (p43 - 1)) / 2
+2026-03-11 04:54:53,440 - INFO -     [8] p8 == -3 + p43 * \at(i,Pre) + f * p43 * (p43 + 1) / 2
+2026-03-11 04:54:53,440 - INFO -     [9] nn0o == \at(f,Pre)
+2026-03-11 04:54:53,440 - INFO -     [10] l0i5 == \at(i,Pre) + p43 * \at(f,Pre)
+2026-03-11 04:54:53,440 - INFO -     [11] al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2
+2026-03-11 04:54:53,440 - INFO -     [12] p8 == -3 + p43 * \at(i,Pre) + \at(f,Pre) * p43*(p43 + 1)/2
+2026-03-11 04:54:53,440 - INFO -     [13] al == ((\at(i,Pre) % 28) + 10) - (p43 * (p43 - 1)) / 2
+2026-03-11 04:54:53,440 - INFO -     [14] p8 == -3 + \at(i,Pre) + (\at(f,Pre)) * p43 * (p43 + 1) / 2
+2026-03-11 04:54:53,440 - INFO -     [15] i == \at(i,Pre)
+2026-03-11 04:54:53,440 - INFO -     [16] p43 == 1
+2026-03-11 04:54:53,440 - INFO -     [17] y >= 0
+2026-03-11 04:54:53,440 - INFO -     [18] j0 == y*nn0o + (y*(y+1))/2
+2026-03-11 04:54:53,440 - INFO -     [19] p8 == (-3) + i + nn0o - (y*(y-1))/2
+2026-03-11 04:54:53,440 - INFO -     [20] nn0o == f
+2026-03-11 04:54:53,440 - INFO -     [21] j0 == y*(y+1)/2
+2026-03-11 04:54:53,440 - INFO -     [22] p43 >= 0
+2026-03-11 04:54:53,440 - INFO -     [23] p8 <= -3
+2026-03-11 04:54:53,440 - INFO -     [24] j0 == y * \at(f,Pre)
+2026-03-11 04:54:53,440 - INFO -     [25] f == \at(f,Pre)
+2026-03-11 04:54:53,440 - INFO -     [26] nn0o == \at(f,Pre)
+2026-03-11 04:54:53,440 - INFO -     [27] j0 == (y * (y + 1)) / 2 + y * \at(f,Pre)
+2026-03-11 04:54:53,440 - INFO -     [28] p8 == -3 + \at(i,Pre) + \at(f,Pre) - (y * (y - 1)) / 2
+2026-03-11 04:54:53,640 - INFO - syntax Correct
+2026-03-11 04:55:24,872 - INFO - Validate:
+2026-03-11 04:55:24,872 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, False, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:55:24,872 - INFO - 
+2026-03-11 04:55:24,872 - INFO - Verify:
+2026-03-11 04:55:24,872 - INFO - []
+2026-03-11 04:55:24,872 - INFO - 
+2026-03-11 04:55:24,873 - INFO - Houdini iteration 2: Removed 2 failed invariants
+2026-03-11 04:55:24,873 - INFO -   Before: 28 invariants
+2026-03-11 04:55:24,873 - INFO -   After: 26 invariants
+2026-03-11 04:55:24,873 - INFO -   Remaining invariants:
+2026-03-11 04:55:24,873 - INFO -     [1] i == \at(i,Pre)
+2026-03-11 04:55:24,873 - INFO -     [2] al == (((i) % 28) + 10) - ((p43 * (p43 - 1)) / 2)
+2026-03-11 04:55:24,873 - INFO -     [3] p43 >= 0
+2026-03-11 04:55:24,873 - INFO -     [4] j0 == 0
+2026-03-11 04:55:24,873 - INFO -     [5] nn0o == f
+2026-03-11 04:55:24,873 - INFO -     [6] l0i5 == \at(i,Pre) + p43 * f
+2026-03-11 04:55:24,873 - INFO -     [7] al == (\at(i,Pre) % 28) + 10 - (p43 * (p43 - 1)) / 2
+2026-03-11 04:55:24,873 - INFO -     [8] p8 == -3 + p43 * \at(i,Pre) + f * p43 * (p43 + 1) / 2
+2026-03-11 04:55:24,873 - INFO -     [9] nn0o == \at(f,Pre)
+2026-03-11 04:55:24,873 - INFO -     [10] l0i5 == \at(i,Pre) + p43 * \at(f,Pre)
+2026-03-11 04:55:24,873 - INFO -     [11] al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2
+2026-03-11 04:55:24,873 - INFO -     [12] p8 == -3 + p43 * \at(i,Pre) + \at(f,Pre) * p43*(p43 + 1)/2
+2026-03-11 04:55:24,873 - INFO -     [13] al == ((\at(i,Pre) % 28) + 10) - (p43 * (p43 - 1)) / 2
+2026-03-11 04:55:24,873 - INFO -     [14] i == \at(i,Pre)
+2026-03-11 04:55:24,873 - INFO -     [15] y >= 0
+2026-03-11 04:55:24,873 - INFO -     [16] j0 == y*nn0o + (y*(y+1))/2
+2026-03-11 04:55:24,873 - INFO -     [17] p8 == (-3) + i + nn0o - (y*(y-1))/2
+2026-03-11 04:55:24,873 - INFO -     [18] nn0o == f
+2026-03-11 04:55:24,873 - INFO -     [19] j0 == y*(y+1)/2
+2026-03-11 04:55:24,873 - INFO -     [20] p43 >= 0
+2026-03-11 04:55:24,873 - INFO -     [21] p8 <= -3
+2026-03-11 04:55:24,873 - INFO -     [22] j0 == y * \at(f,Pre)
+2026-03-11 04:55:24,873 - INFO -     [23] f == \at(f,Pre)
+2026-03-11 04:55:24,873 - INFO -     [24] nn0o == \at(f,Pre)
+2026-03-11 04:55:24,873 - INFO -     [25] j0 == (y * (y + 1)) / 2 + y * \at(f,Pre)
+2026-03-11 04:55:24,873 - INFO -     [26] p8 == -3 + \at(i,Pre) + \at(f,Pre) - (y * (y - 1)) / 2
+2026-03-11 04:55:25,071 - INFO - syntax Correct
+2026-03-11 04:55:56,941 - INFO - Validate:
+2026-03-11 04:55:56,941 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, False, True, True, True, True, True]
+2026-03-11 04:55:56,941 - INFO - 
+2026-03-11 04:55:56,941 - INFO - Verify:
+2026-03-11 04:55:56,941 - INFO - []
+2026-03-11 04:55:56,941 - INFO - 
+2026-03-11 04:55:56,941 - INFO - Houdini iteration 3: Removed 2 failed invariants
+2026-03-11 04:55:56,941 - INFO -   Before: 26 invariants
+2026-03-11 04:55:56,941 - INFO -   After: 24 invariants
+2026-03-11 04:55:56,941 - INFO -   Remaining invariants:
+2026-03-11 04:55:56,941 - INFO -     [1] i == \at(i,Pre)
+2026-03-11 04:55:56,941 - INFO -     [2] al == (((i) % 28) + 10) - ((p43 * (p43 - 1)) / 2)
+2026-03-11 04:55:56,941 - INFO -     [3] p43 >= 0
+2026-03-11 04:55:56,941 - INFO -     [4] j0 == 0
+2026-03-11 04:55:56,941 - INFO -     [5] nn0o == f
+2026-03-11 04:55:56,941 - INFO -     [6] l0i5 == \at(i,Pre) + p43 * f
+2026-03-11 04:55:56,941 - INFO -     [7] al == (\at(i,Pre) % 28) + 10 - (p43 * (p43 - 1)) / 2
+2026-03-11 04:55:56,941 - INFO -     [8] p8 == -3 + p43 * \at(i,Pre) + f * p43 * (p43 + 1) / 2
+2026-03-11 04:55:56,941 - INFO -     [9] nn0o == \at(f,Pre)
+2026-03-11 04:55:56,941 - INFO -     [10] l0i5 == \at(i,Pre) + p43 * \at(f,Pre)
+2026-03-11 04:55:56,941 - INFO -     [11] al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2
+2026-03-11 04:55:56,941 - INFO -     [12] p8 == -3 + p43 * \at(i,Pre) + \at(f,Pre) * p43*(p43 + 1)/2
+2026-03-11 04:55:56,941 - INFO -     [13] al == ((\at(i,Pre) % 28) + 10) - (p43 * (p43 - 1)) / 2
+2026-03-11 04:55:56,941 - INFO -     [14] i == \at(i,Pre)
+2026-03-11 04:55:56,941 - INFO -     [15] y >= 0
+2026-03-11 04:55:56,941 - INFO -     [16] j0 == y*nn0o + (y*(y+1))/2
+2026-03-11 04:55:56,941 - INFO -     [17] nn0o == f
+2026-03-11 04:55:56,941 - INFO -     [18] j0 == y*(y+1)/2
+2026-03-11 04:55:56,941 - INFO -     [19] p43 >= 0
+2026-03-11 04:55:56,941 - INFO -     [20] j0 == y * \at(f,Pre)
+2026-03-11 04:55:56,941 - INFO -     [21] f == \at(f,Pre)
+2026-03-11 04:55:56,941 - INFO -     [22] nn0o == \at(f,Pre)
+2026-03-11 04:55:56,941 - INFO -     [23] j0 == (y * (y + 1)) / 2 + y * \at(f,Pre)
+2026-03-11 04:55:56,941 - INFO -     [24] p8 == -3 + \at(i,Pre) + \at(f,Pre) - (y * (y - 1)) / 2
+2026-03-11 04:55:57,144 - INFO - syntax Correct
+2026-03-11 04:56:29,141 - INFO - Validate:
+2026-03-11 04:56:29,141 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, False]
+2026-03-11 04:56:29,141 - INFO - 
+2026-03-11 04:56:29,141 - INFO - Verify:
+2026-03-11 04:56:29,141 - INFO - []
+2026-03-11 04:56:29,141 - INFO - 
+2026-03-11 04:56:29,141 - INFO - Houdini iteration 4: Removed 2 failed invariants
+2026-03-11 04:56:29,141 - INFO -   Before: 24 invariants
+2026-03-11 04:56:29,141 - INFO -   After: 22 invariants
+2026-03-11 04:56:29,141 - INFO -   Remaining invariants:
+2026-03-11 04:56:29,141 - INFO -     [1] i == \at(i,Pre)
+2026-03-11 04:56:29,141 - INFO -     [2] al == (((i) % 28) + 10) - ((p43 * (p43 - 1)) / 2)
+2026-03-11 04:56:29,141 - INFO -     [3] p43 >= 0
+2026-03-11 04:56:29,141 - INFO -     [4] j0 == 0
+2026-03-11 04:56:29,141 - INFO -     [5] nn0o == f
+2026-03-11 04:56:29,141 - INFO -     [6] l0i5 == \at(i,Pre) + p43 * f
+2026-03-11 04:56:29,141 - INFO -     [7] al == (\at(i,Pre) % 28) + 10 - (p43 * (p43 - 1)) / 2
+2026-03-11 04:56:29,141 - INFO -     [8] p8 == -3 + p43 * \at(i,Pre) + f * p43 * (p43 + 1) / 2
+2026-03-11 04:56:29,141 - INFO -     [9] nn0o == \at(f,Pre)
+2026-03-11 04:56:29,141 - INFO -     [10] l0i5 == \at(i,Pre) + p43 * \at(f,Pre)
+2026-03-11 04:56:29,141 - INFO -     [11] al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2
+2026-03-11 04:56:29,141 - INFO -     [12] p8 == -3 + p43 * \at(i,Pre) + \at(f,Pre) * p43*(p43 + 1)/2
+2026-03-11 04:56:29,141 - INFO -     [13] al == ((\at(i,Pre) % 28) + 10) - (p43 * (p43 - 1)) / 2
+2026-03-11 04:56:29,141 - INFO -     [14] i == \at(i,Pre)
+2026-03-11 04:56:29,141 - INFO -     [15] y >= 0
+2026-03-11 04:56:29,141 - INFO -     [16] j0 == y*nn0o + (y*(y+1))/2
+2026-03-11 04:56:29,141 - INFO -     [17] nn0o == f
+2026-03-11 04:56:29,141 - INFO -     [18] p43 >= 0
+2026-03-11 04:56:29,141 - INFO -     [19] j0 == y * \at(f,Pre)
+2026-03-11 04:56:29,141 - INFO -     [20] f == \at(f,Pre)
+2026-03-11 04:56:29,141 - INFO -     [21] nn0o == \at(f,Pre)
+2026-03-11 04:56:29,141 - INFO -     [22] j0 == (y * (y + 1)) / 2 + y * \at(f,Pre)
+2026-03-11 04:56:29,350 - INFO - syntax Correct
+2026-03-11 04:57:01,060 - INFO - Validate:
+2026-03-11 04:57:01,060 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True]
+2026-03-11 04:57:01,060 - INFO - 
+2026-03-11 04:57:01,060 - INFO - Verify:
+2026-03-11 04:57:01,060 - INFO - []
+2026-03-11 04:57:01,060 - INFO - 
+2026-03-11 04:57:01,061 - INFO - Houdini iteration 5: Removed 1 failed invariants
+2026-03-11 04:57:01,061 - INFO -   Before: 22 invariants
+2026-03-11 04:57:01,061 - INFO -   After: 21 invariants
+2026-03-11 04:57:01,061 - INFO -   Remaining invariants:
+2026-03-11 04:57:01,061 - INFO -     [1] i == \at(i,Pre)
+2026-03-11 04:57:01,061 - INFO -     [2] al == (((i) % 28) + 10) - ((p43 * (p43 - 1)) / 2)
+2026-03-11 04:57:01,061 - INFO -     [3] p43 >= 0
+2026-03-11 04:57:01,061 - INFO -     [4] j0 == 0
+2026-03-11 04:57:01,061 - INFO -     [5] nn0o == f
+2026-03-11 04:57:01,061 - INFO -     [6] l0i5 == \at(i,Pre) + p43 * f
+2026-03-11 04:57:01,061 - INFO -     [7] al == (\at(i,Pre) % 28) + 10 - (p43 * (p43 - 1)) / 2
+2026-03-11 04:57:01,061 - INFO -     [8] p8 == -3 + p43 * \at(i,Pre) + f * p43 * (p43 + 1) / 2
+2026-03-11 04:57:01,061 - INFO -     [9] nn0o == \at(f,Pre)
+2026-03-11 04:57:01,061 - INFO -     [10] l0i5 == \at(i,Pre) + p43 * \at(f,Pre)
+2026-03-11 04:57:01,061 - INFO -     [11] al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2
+2026-03-11 04:57:01,061 - INFO -     [12] p8 == -3 + p43 * \at(i,Pre) + \at(f,Pre) * p43*(p43 + 1)/2
+2026-03-11 04:57:01,061 - INFO -     [13] al == ((\at(i,Pre) % 28) + 10) - (p43 * (p43 - 1)) / 2
+2026-03-11 04:57:01,061 - INFO -     [14] i == \at(i,Pre)
+2026-03-11 04:57:01,061 - INFO -     [15] y >= 0
+2026-03-11 04:57:01,061 - INFO -     [16] j0 == y*nn0o + (y*(y+1))/2
+2026-03-11 04:57:01,061 - INFO -     [17] nn0o == f
+2026-03-11 04:57:01,061 - INFO -     [18] p43 >= 0
+2026-03-11 04:57:01,061 - INFO -     [19] f == \at(f,Pre)
+2026-03-11 04:57:01,061 - INFO -     [20] nn0o == \at(f,Pre)
+2026-03-11 04:57:01,061 - INFO -     [21] j0 == (y * (y + 1)) / 2 + y * \at(f,Pre)
+2026-03-11 04:57:01,276 - INFO - syntax Correct
+2026-03-11 04:57:32,883 - INFO - Validate:
+2026-03-11 04:57:32,883 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True]
+2026-03-11 04:57:32,883 - INFO - 
+2026-03-11 04:57:32,883 - INFO - Verify:
+2026-03-11 04:57:32,883 - INFO - []
+2026-03-11 04:57:32,883 - INFO - 
+2026-03-11 04:57:32,883 - INFO - Houdini iteration 6: Removed 1 failed invariants
+2026-03-11 04:57:32,883 - INFO -   Before: 21 invariants
+2026-03-11 04:57:32,883 - INFO -   After: 20 invariants
+2026-03-11 04:57:32,883 - INFO -   Remaining invariants:
+2026-03-11 04:57:32,883 - INFO -     [1] i == \at(i,Pre)
+2026-03-11 04:57:32,883 - INFO -     [2] al == (((i) % 28) + 10) - ((p43 * (p43 - 1)) / 2)
+2026-03-11 04:57:32,883 - INFO -     [3] p43 >= 0
+2026-03-11 04:57:32,883 - INFO -     [4] j0 == 0
+2026-03-11 04:57:32,883 - INFO -     [5] nn0o == f
+2026-03-11 04:57:32,883 - INFO -     [6] l0i5 == \at(i,Pre) + p43 * f
+2026-03-11 04:57:32,883 - INFO -     [7] al == (\at(i,Pre) % 28) + 10 - (p43 * (p43 - 1)) / 2
+2026-03-11 04:57:32,883 - INFO -     [8] p8 == -3 + p43 * \at(i,Pre) + f * p43 * (p43 + 1) / 2
+2026-03-11 04:57:32,883 - INFO -     [9] nn0o == \at(f,Pre)
+2026-03-11 04:57:32,883 - INFO -     [10] l0i5 == \at(i,Pre) + p43 * \at(f,Pre)
+2026-03-11 04:57:32,883 - INFO -     [11] al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2
+2026-03-11 04:57:32,883 - INFO -     [12] p8 == -3 + p43 * \at(i,Pre) + \at(f,Pre) * p43*(p43 + 1)/2
+2026-03-11 04:57:32,883 - INFO -     [13] al == ((\at(i,Pre) % 28) + 10) - (p43 * (p43 - 1)) / 2
+2026-03-11 04:57:32,883 - INFO -     [14] i == \at(i,Pre)
+2026-03-11 04:57:32,883 - INFO -     [15] y >= 0
+2026-03-11 04:57:32,883 - INFO -     [16] nn0o == f
+2026-03-11 04:57:32,883 - INFO -     [17] p43 >= 0
+2026-03-11 04:57:32,883 - INFO -     [18] f == \at(f,Pre)
+2026-03-11 04:57:32,883 - INFO -     [19] nn0o == \at(f,Pre)
+2026-03-11 04:57:32,883 - INFO -     [20] j0 == (y * (y + 1)) / 2 + y * \at(f,Pre)
+2026-03-11 04:57:33,089 - INFO - syntax Correct
+2026-03-11 04:58:04,562 - INFO - Validate:
+2026-03-11 04:58:04,562 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False]
+2026-03-11 04:58:04,562 - INFO - 
+2026-03-11 04:58:04,562 - INFO - Verify:
+2026-03-11 04:58:04,562 - INFO - []
+2026-03-11 04:58:04,562 - INFO - 
+2026-03-11 04:58:04,562 - INFO - Houdini iteration 7: Removed 1 failed invariants
+2026-03-11 04:58:04,562 - INFO -   Before: 20 invariants
+2026-03-11 04:58:04,562 - INFO -   After: 19 invariants
+2026-03-11 04:58:04,562 - INFO -   Remaining invariants:
+2026-03-11 04:58:04,562 - INFO -     [1] i == \at(i,Pre)
+2026-03-11 04:58:04,562 - INFO -     [2] al == (((i) % 28) + 10) - ((p43 * (p43 - 1)) / 2)
+2026-03-11 04:58:04,562 - INFO -     [3] p43 >= 0
+2026-03-11 04:58:04,562 - INFO -     [4] j0 == 0
+2026-03-11 04:58:04,562 - INFO -     [5] nn0o == f
+2026-03-11 04:58:04,562 - INFO -     [6] l0i5 == \at(i,Pre) + p43 * f
+2026-03-11 04:58:04,562 - INFO -     [7] al == (\at(i,Pre) % 28) + 10 - (p43 * (p43 - 1)) / 2
+2026-03-11 04:58:04,562 - INFO -     [8] p8 == -3 + p43 * \at(i,Pre) + f * p43 * (p43 + 1) / 2
+2026-03-11 04:58:04,562 - INFO -     [9] nn0o == \at(f,Pre)
+2026-03-11 04:58:04,562 - INFO -     [10] l0i5 == \at(i,Pre) + p43 * \at(f,Pre)
+2026-03-11 04:58:04,562 - INFO -     [11] al == ((\at(i,Pre) % 28) + 10) - p43*(p43 - 1)/2
+2026-03-11 04:58:04,562 - INFO -     [12] p8 == -3 + p43 * \at(i,Pre) + \at(f,Pre) * p43*(p43 + 1)/2
+2026-03-11 04:58:04,562 - INFO -     [13] al == ((\at(i,Pre) % 28) + 10) - (p43 * (p43 - 1)) / 2
+2026-03-11 04:58:04,563 - INFO -     [14] i == \at(i,Pre)
+2026-03-11 04:58:04,563 - INFO -     [15] y >= 0
+2026-03-11 04:58:04,563 - INFO -     [16] nn0o == f
+2026-03-11 04:58:04,563 - INFO -     [17] p43 >= 0
+2026-03-11 04:58:04,563 - INFO -     [18] f == \at(f,Pre)
+2026-03-11 04:58:04,563 - INFO -     [19] nn0o == \at(f,Pre)
+2026-03-11 04:58:04,775 - INFO - syntax Correct
+2026-03-11 04:58:36,220 - INFO - Validate:
+2026-03-11 04:58:36,220 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:58:36,220 - INFO - 
+2026-03-11 04:58:36,220 - INFO - Verify:
+2026-03-11 04:58:36,220 - INFO - []
+2026-03-11 04:58:36,220 - INFO - 
+2026-03-11 04:58:36,220 - INFO - Houdini iteration 8: All invariants are valid
+2026-03-11 04:58:36,432 - INFO - syntax Correct
+2026-03-11 04:59:07,862 - INFO - Validate:
+2026-03-11 04:59:07,862 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:59:07,863 - INFO - 
+2026-03-11 04:59:07,863 - INFO - Verify:
+2026-03-11 04:59:07,863 - INFO - []
+2026-03-11 04:59:07,863 - INFO - 
+2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
+2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
+2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
+2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
+2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
+2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
+2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
+2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
+2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

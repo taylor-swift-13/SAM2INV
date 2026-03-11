@@ -1,526 +1,487 @@
-2026-03-09 12:53:25,961 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-09 12:53:26,082 - INFO - Found 1 loops
-2026-03-09 12:53:26,143 - INFO - 
+2026-03-11 17:11:46,523 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 17:11:46,538 - INFO - Found 1 loops
+2026-03-11 17:11:46,539 - INFO - 
 ============================================================
-2026-03-09 12:53:26,144 - INFO - Main generation pass 1/1
-2026-03-09 12:53:26,145 - INFO - ============================================================
-2026-03-09 12:53:26,145 - INFO - Loaded single prompt template: simple
-2026-03-09 12:53:26,146 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-09 12:53:26,152 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-09 12:53:26,184 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 12:59:57,687 - INFO - 
+2026-03-11 17:11:46,539 - INFO - Main generation pass 1/1
+2026-03-11 17:11:46,539 - INFO - ============================================================
+2026-03-11 17:11:46,539 - INFO - Loaded single prompt template: simple
+2026-03-11 17:11:46,539 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 17:11:46,539 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 17:11:47,450 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 17:13:49,974 - INFO - 
 ----- Candidate 1/5 raw response begin -----
 <reasoning>
-The loop updates follow a simple state transition:
-- m increases by 5 each iteration, and the loop continues while m < d.
-- c54 is set to d - m (with m the value at the start of the iteration), then z is increased by this c54.
+Goal: produce inductive, verification-friendly ACSL loop annotations for the given loop in main1. We want invariants that:
+- Capture the essential state evolution (conservation/transition) without over-constraining the state.
+- Are preserved by every iteration (inductive) and hold at loop entry (initialization).
+- Offer clear progress toward termination (loop variant).
 
-From these transitions we can derive a precise, inductive invariant that ties the current state to the initial state (\at(z, Pre)) and the current m and d:
-- A direct relation for c54 across iterations:
-  - At the very first iteration (m == 0): c54 == d.
-  - After the first iteration and for m > 0: c54 == d - m + 5.
-  This captures that c54 is updated to d - m_old, and after m has been increased by 5, the previous c54 equals d - m + 5.
+Key observations from the code:
+- ll starts at 0 and is incremented by 1 each iteration.
+- mqj is constant within the loop (mqj = w*2) and the loop guard is ll <= mqj - 1.
+- u3h starts at 2 and is updated by adding s each iteration.
+- s is constrained by the code:
+  - If u3h >= 9, then s is set to -1.
+  - If u3h <= 2, then s is set to 1 (expressed as !(u3h > 2)).
+  - Otherwise, s keeps its previous value.
+- From the update rules, u3h evolves between 2 and 9, and s only takes values -1 or 1.
 
-- A complete relation for z in terms of the initial z, current m, and d:
-  - After t iterations (m = 5t), z equals z_start + t*d - 5*(t*(t-1)/2).
-  - Replacing t with m/5 (valid since m is 0,5,10,... during the loop), we obtain:
-    z == \at(z, Pre) + (m/5)*d - 5 * (((m/5) * ((m/5) - 1)) / 2)
+From these, a clean, inductive invariant set is:
+- 0 <= ll (ll never becomes negative).
+- (ll <= mqj) || (mqj <= 0) (covers both positive and non-positive mqj safely, ensuring the loop has the intended non-emptiness).
+- 2 <= u3h <= 9 (u3h stays within [2,9] due to the update rules).
+- (s == 1) || (s == -1) (s only takes -1 or 1).
+- loop assigns ll, u3h, s.
+- loop variant mqj - ll (strictly decreases by 1 each iteration, ensuring termination).
 
-These two invariants together are inductive and informative for Frama-C/WP:
-- They reflect the state evolution exactly (conservation/relational).
-- They use only allowed variables (c54, d, m, z) and the function parameter z with \at(z, Pre) for the initial value.
-- They provide a precise loop variant to help termination: (d - m), which decreases by 5 each iteration while the loop guard (m < d) holds.
+These invariants are strong enough to help Frama-C WP prove correctness while remaining faithful to the code semantics. The “core conservation/relational equality” idea is embodied by the invariant 2 <= u3h <= 9 together with s ∈ {-1,1}, which together describe how the per-iteration updates constrain the state evolution (u3h moves by +/-1, constrained within [2,9]). The invariants do not attempt to over-serialize the exact path of u3h but capture the invariant envelope and the update behavior.
 
-The loop assigns clause must list all modified variables inside the loop body: c54, m, z.
-
-Putting this into ACSL, we get a strong, verification-friendly invariant set that is inductive and precise.
+Note: We do not modify unknown()/unknownN(), and we keep the function body unchanged aside from annotations. The loop assigns explicitly include ll, u3h, and s.
 </reasoning>
-<code>int main1(int z){
-  int d, m, c54;
+<code>int main1(int c,int w){
+  int mqj, ll, u3h, s;
 
-  d=(z%14)+20;
-  m=0;
-  c54=d;
+  mqj=w*2;
+  ll=0;
+  u3h=2;
+  s=1;
 
   /*@
-    loop invariant ((m == 0) ==> (c54 == d)) &&
-                   ((m > 0) ==> (c54 == d - m + 5));
-    loop invariant z == \at(z, Pre) + ((m/5) * d) - (5 * (((m/5) * ((m/5) - 1)) / 2));
-    loop assigns c54, m, z;
-    loop variant (d - m);
-  */
-  while (m<d) {
-      c54 = d-m;
-      m = m + 5;
-      z += c54;
+    loop invariant 0 <= ll;
+    loop invariant (ll <= mqj) || (mqj <= 0);
+    loop invariant 2 <= u3h <= 9;
+    loop invariant (s == 1) || (s == -1);
+    loop assigns ll, u3h, s;
+    loop variant mqj - ll;
+  @*/
+  while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
 
 }</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-09 12:59:57,688 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-09 12:59:57,703 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 13:03:56,955 - INFO - 
+2026-03-11 17:13:49,976 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 17:13:50,045 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 17:17:15,474 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>
-I derived invariants that are inductive, precise about state changes, and usable by WP.
+<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. Key observations about the loop updates:
+- ll is incremented by 1 each iteration; thus ll is non-decreasing and ll >= 0 holds from initialization.
+- u3h starts at 2 and is updated by s each iteration, where s is set to 1 when u3h <= 2, and set to -1 when u3h >= 9; overall, u3h stays in the range [2, ∞) and never drops below 2. Hence u3h >= 2 is a valid invariant.
+- s toggles between 1 and -1 (initially 1); so (s == 1 || s == -1) is invariant.
+- A robust relational invariants arises from the update: new_u3h = u3h + s and new_ll = ll + 1. This implies (u3h - ll) changes by (s - 1) per iteration, and since s ∈ {1, -1}, (s - 1) ∈ {0, -2}, so (u3h - ll) remains even across iterations. Thus ((u3h - ll) % 2 == 0) is a strong invariant explaining the loop updates without depending on mqj’s sign.
+- For termination progression, a loop variant can be mqj - ll, which strictly decreases by 1 each iteration while the loop guard holds (ll <= mqj - 1). This is well-founded because when the guard is true, mqj - ll >= 1.
 
-- d is initialized from the input parameter z and never modified; I expose that as a constant relation: d == (\at(z, Pre) % 14) + 20. This helps the prover replace d by a known expression.
-- m is a counter that starts at 0 and increments by 5 each iteration. I assert m >= 0, m % 5 == 0 and an upper bound m <= d + 4 which is preserved by the body (after an iteration m can overshoot d by at most 4). The divisibility m % 5 == 0 is crucial to allow rewriting m/5 as an exact integer.
-- c54 is always set to the value computed from the previous m: initially c54==d (when m==0), and for subsequent iterations c54 == d - (m - 5). This captures the assignment c54 = d - m (where m is the value before the increment) in a loop-head form that is preserved by the body.
-- I add a precise conservation law for z: expressing z in closed form in terms of the initial \at(z, Pre), d and k = m/5 (the number of completed iterations). The closed form is z == \at(z,Pre) + k*d - (5 * k * (k - 1))/2. To avoid fraction issues I used the exact integer expression (written as the same formula but respecting integer arithmetic) and kept the factoring explicit; the invariant also relies on m%5==0 so k = m/5 is an integer.
-- The loop assigns clause exactly lists the variables modified by the loop: c54, m, z.
-- The loop variant d - m is a natural decreasing measure: while the guard m < d holds this is a non-negative integer and it strictly decreases by 5 on each iteration.
+Hence we propose:
+- loop invariant ll >= 0
+- loop invariant u3h >= 2
+- loop invariant (s == 1) || (s == -1)
+- loop invariant ((u3h - ll) % 2 == 0)
+- loop assigns ll, u3h, s
+- loop variant mqj - ll
 
-All invariants avoid quantifiers and only use available variables and \at(z, Pre) (allowed). They are strong enough to prove preservation and to derive facts at loop exit (e.g. when the guard fails m >= d follows from the invariant and the guard negation).
-</reasoning>
-<code>
-int main1(int z){
-  int d, m, c54;
+These invariants are inductive (hold before first iteration and preserved by each iteration) and verification-friendly, and they illuminate the loop’s state update behavior. They do not depend on the sign of mqj and do not modify the function's semantics. The invariant about the parity of (u3h - ll) directly captures the conservation-like relation induced by the per-iteration updates u3h := u3h + s and ll := ll + 1. They avoid tautologies and do not introduce unrelated facts. </reasoning>
+<code>int main1(int c,int w){
+  int mqj, ll, u3h, s;
 
-  d=(z%14)+20;
-  m=0;
-  c54=d;
+  mqj=w*2;
+  ll=0;
+  u3h=2;
+  s=1;
 
   /*@
-    loop invariant d == (\at(z, Pre) % 14) + 20;
-    loop invariant 0 <= m;
-    loop invariant m % 5 == 0;
-    loop invariant m <= d + 4;
-    loop invariant (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5));
-    loop invariant 2*(z - \at(z, Pre)) == 2*(m/5)*d - 5*(m/5)*((m/5) - 1);
-    loop assigns c54, m, z;
-    loop variant d - m;
+    loop invariant ll &gt;= 0;
+    loop invariant u3h &gt;= 2;
+    loop invariant (s == 1) || (s == -1);
+    loop invariant ((u3h - ll) % 2 == 0);
+    loop assigns ll, u3h, s;
+    loop variant mqj - ll;
   */
-  while (m<d) {
-        c54 = d-m;
-        m = m + 5;
-        z += c54;
+  while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
 
-}
-</code>
+}</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-09 13:03:56,956 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-09 13:03:56,973 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 13:04:40,656 - INFO - 
+2026-03-11 17:17:15,475 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 17:17:15,544 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 17:21:06,307 - INFO - 
 ----- Candidate 3/5 raw response begin -----
 <reasoning>
-I chose invariants that are inductive, explain the state changes, and are friendly to WP:
-
-- Core conservation relation (state transition law):
-  z is expressed exactly in closed form as a function of m and the initial z (\at(z, Pre)). Since m increases by 5 each iteration, k = m/5 counts completed iterations; the sum of the added values (d - 5*i) for i=0..k-1 equals k*d - 5*(k*(k-1)/2). The invariant
-    z == \at(z, Pre) + (m/5) * d - (5 * ((m/5) * ((m/5) - 1))) / 2
-  captures that conservation precisely and is preserved by the loop body (it explains how z is updated when m increases by 5 and c54 contributes d - old_m).
-
-- Progress / counter invariants:
-  m is non-negative, always a multiple of 5 (m % 5 == 0), and never grows beyond d+4. The upper bound m <= d+4 is chosen because when the guard m < d holds we have m <= d-1, so m+5 <= d+4; this lets us prove the invariant is preserved at the next loop head. These facts allow WP to reason about integer division m/5 (it's exact because m%5 == 0).
-
-- Loop assigns:
-  The body modifies exactly c54, m, and z, so "loop assigns c54, m, z;" is complete and precise.
-
-- Variant:
-  (d - m + 4) / 5 is a natural integer variant: it is non-negative under the invariant m <= d+4 and strictly decreases by at least 1 on each iteration while the guard holds, so it proves termination.
-
-I avoided quantifiers, predicates, or any \at on local variables. I kept the core equality strong (not a weak bound) to enable Frama-C/WP to establish preservation and post-loop facts.
+Planned loop invariants and reasoning:
+- Core conservation / relation: mqj is constant throughout the loop and equals w * 2. This is preserved by the code since mqj is assigned once before the loop and never modified inside.
+- Counter bounds (progress): The loop counter ll starts at 0 and is increased by 1 each iteration, with the loop guard ll <= mqj - 1. A safe invariant is 0 <= ll and ll <= mqj, which ensures ll progresses toward mqj and the loop terminates when ll reaches mqj.
+- Arithmetic variable bounds: u3h starts at 2 and is updated by adding s each iteration, where s is either 1 or -1. Observing the code’s logic, u3h remains in the range [2, 9] during the loop (it can hit 9 at the start of an iteration, then immediately drop to 8, and cycles between 2 and 9). This yields the invariant 2 <= u3h <= 9.
+- Sign of the step variable: s is assigned to either 1 or -1; thus s == 1 || s == -1 holds throughout.
+- Loop assigns: ll, u3h, s are the variables possibly modified inside the loop body.
+- Loop variant: mqj - ll decreases by 1 each iteration (ll increments by 1) and is non-negative while the loop guard holds, ensuring termination.
+- These invariants are inductive: they hold initially (before the first iteration) given the initializations, and are preserved by every loop iteration because the updates to ll, u3h, and s stay within the stated bounds, and mqj remains equal to w*2.
 </reasoning>
-<code>
-int main1(int z){
-  int d, m, c54;
+<code>int main1(int c,int w){
+  int mqj, ll, u3h, s;
 
-  d=(z%14)+20;
-  m=0;
-  c54=d;
+  mqj=w*2;
+  ll=0;
+  u3h=2;
+  s=1;
 
   /*@
-    loop invariant d == (\at(z, Pre) % 14) + 20;
-    loop invariant 0 <= m;
-    loop invariant m % 5 == 0;
-    loop invariant m <= d + 4;
-    loop invariant z == \at(z, Pre) + (m/5) * d - (5 * ((m/5) * ((m/5) - 1))) / 2;
-    loop assigns c54, m, z;
-    loop variant (d - m + 4) / 5;
+    loop invariant mqj == w * 2;
+    loop invariant 0 <= ll;
+    loop invariant ll <= mqj;
+    loop invariant 2 <= u3h && u3h <= 9;
+    loop invariant s == 1 || s == -1;
+    loop assigns ll, u3h, s;
+    loop variant mqj - ll;
   */
-while (m<d) {
-      c54 = d-m;
-      m = m + 5;
-      z += c54;
+  while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
 
-}
-</code>
+}</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-09 13:04:40,657 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-09 13:04:40,675 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 13:07:50,175 - INFO - 
+2026-03-11 17:21:06,308 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 17:21:06,377 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 17:24:18,548 - INFO - 
 ----- Candidate 4/5 raw response begin -----
 <reasoning>
-I constructed invariants to be inductive, explanatory of the state updates, and sufficient to prove properties at loop exit.
+I analyzed the loop behavior and derived inductive properties that are independent of specific w values (to remain valid for all possible inputs). The loop updates are:
+- ll increments by 1 each iteration.
+- u3h increments by s, where s is updated to 1 when u3h <= 2 and to -1 when u3h >= 9; otherwise s remains unchanged.
+From these updates, I established invariants that are preserved across iterations and hold before the first iteration, without assuming anything about the sign of mqj (which depends on w). The chosen invariants are:
 
-Key points and choices:
-- Conservation (relational) equality: z is expressed exactly as a function of the current m and the initial z (\at(z,Pre)). After k iterations (k = m/5) we have accumulated k*d - 5*k*(k-1)/2 to z. I encoded this as an integer equality without introducing new logic symbols: 
-  2*(z - \at(z,Pre)) == 2*(m/5)*d - 5*(m/5)*((m/5) - 1).
-  This avoids fractional arithmetic and is preserved by the loop update (m increases by 5 each step).
-- Arithmetic/structural invariants:
-  - d is constant and equal to its initialization: d == \at(z, Pre) % 14 + 20.
-  - m is a non-negative multiple of 5 (m%5 == 0) and cannot overshoot d by more than 4 (0 <= m <= d + 4). The latter captures the possible overshoot when m increments by 5 and is useful at loop exit.
-  - c54 is tied exactly to m and d at loop-head: initially (m==0) c54==d, and otherwise (m>=5) c54 == d - (m - 5). This records that c54 stores the d - previous_m value used to update z in the preceding iteration.
-- Assigns: the loop explicitly modifies only c54, m, and z — this is the exact and complete assigns clause.
-- Variant: (d - m + 4) / 5 is a natural integer variant that is non-negative while the guard m<d holds and decreases by exactly 1 each iteration (since m increases by 5).
+- mqj == w * 2: mqj is assigned once before the loop and never changed, preserving its relationship to the parameter w.
+- 0 <= ll: ll starts at 0 and only increases, so it remains non-negative.
+- 2 <= u3h <= 9: initial u3h is 2, and the update rules ensure u3h stays within [2, 9] throughout execution (when u3h >= 9, s becomes -1; when u3h <= 2, s becomes 1; otherwise s is unchanged; thus u3h moves within [2,9]).
+- (u3h + ll) % 2 == 0: parity of the sum u3h + ll remains even across iterations because ll increments by 1 and u3h changes by either +1 or -1; starting from 2 (even), this parity remains invariant.
+- (s == 1) || (s == -1): s is initialized to 1 and only ever assigned to 1 or -1, and never other values.
+- loop variant mqj - ll: non-negative and strictly decreasing by 1 each iteration when the loop guard holds, ensuring termination.
 
-The combination of these invariants:
-- holds initially (checked against the given initial state),
-- is preserved by the body because they precisely capture the arithmetic effects (m+=5, c54 updated to d-m_old, z increased by c54),
-- and yields useful facts at exit (in particular the exact relation for z and bounds on m).
+These invariants are strong, inductive, and do not require rewriting or relying on internal details outside the loop. They also align with the allowed operators and do not rely on local variables outside the function’s scope.
 
-All annotations use only available variables and \at(z, Pre) per the rules.
 </reasoning>
-<code>
-int main1(int z){
-  int d, m, c54;
-
-  d=(z%14)+20;
-  m=0;
-  c54=d;
-
-  /*@
-    loop invariant d == \at(z, Pre) % 14 + 20;
-    loop invariant 0 <= m && m % 5 == 0 && m <= d + 4;
-    loop invariant 2*(z - \at(z, Pre)) == 2*(m/5)*d - 5*(m/5)*((m/5) - 1);
-    loop invariant ( (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5)) );
-    loop assigns c54, m, z;
-    loop variant (d - m + 4) / 5;
-  */
-  while (m<d) {
-        c54 = d-m;
-        m = m + 5;
-        z += c54;
-  }
-
-}
-</code>
+<code>/*@
+  loop invariant mqj == w * 2;
+  loop invariant 0 <= ll;
+  loop invariant 2 <= u3h <= 9;
+  loop invariant ((u3h + ll) % 2) == 0;
+  loop invariant (s == 1) || (s == -1);
+  loop assigns ll, u3h, s;
+  loop variant mqj - ll;
+*/
+while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
+  }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-09 13:07:50,175 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-09 13:07:50,187 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 13:09:03,227 - INFO - 
+2026-03-11 17:24:18,548 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 17:24:18,614 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 17:27:02,108 - INFO - 
 ----- Candidate 5/5 raw response begin -----
-<reasoning>We need inductive loop invariants that are friendly to Frama-C/WP and reflect the state updates of the loop.
+<reasoning>We analyze the loop state and derive inductive, verification-friendly invariants that capture the loop’s essential state and its updates without overconstraining for possible negative values of mqj (derived from w).
 
-- Core conservation/relational equality: The loop increases z by c54 where c54 = d - m at the start of each iteration, and m increases by 5. Over k iterations (with m = 5k at the start of an iteration), z accumulates sum_{i=0}^{k-1} (d - 5i). Using k = m/5 (since m is 0,5,10,... during the loop), we can express z in terms of the initial z value \at(z, Pre): 
-  z = \at(z, Pre) + (d * (m/5)) - 5 * ((m/5) * ((m/5) - 1)) / 2
+Key observations:
+- mqj is constant inside the loop and initialized as mqj = w*2.
+- ll starts at 0 and is incremented by 1 each iteration; the loop guard is ll <= mqj - 1, so the loop executes exactly mqj times when mqj > 0, and 0 times otherwise.
+- u3h starts at 2 and evolves according to s. The code sets s to -1 when u3h >= 9, and to 1 when u3h <= 2 (i.e., when !(u3h > 2)). Between these boundaries, s retains its previous value. This creates a sawtooth pattern that keeps u3h within a bounded range.
+- Indeed, u3h stays within the closed interval [2, 9] throughout the loop, and s only takes the values 1 or -1 (the assignments in the loop only assign 1 or -1 to s).
 
-  This is an exact invariant that captures the entire state evolution of z relative to d and m.
+From these observations, we propose the following inductive invariants:
+- 0 <= ll: ll never becomes negative (it starts at 0 and is only incremented).
+- 2 <= u3h && u3h <= 9: u3h stays within the observed bounds for all iterations.
+- (s == 1) || (s == -1): s is always either 1 or -1 since the loop only assigns these two values.
+- loop assigns ll, u3h, s: all modified variables within the loop are listed.
 
-- Progress bound: Keep m % 5 == 0 to reflect that m starts at 0 and increments by 5 each iteration.
+Additionally, a loop variant mqj - ll provides a decreasing measure that proves termination (when the loop runs, mqj - ll is non-negative and decreases by 1 each iteration).
 
-- Loop assigns: The loop modifies z, m, and c54 (as seen in the loop body).
+These invariants are strong, inductive, and directly reflect the loop’s real state updates without introducing unrelated constraints. They do not rely on Pre state or at-clauses beyond function parameters, and they avoid using any unknown() constructs or out-of-scope variables.
 
-- Loop variant: d - m decreases by 5 each iteration and is non-negative at the start of each iteration (guard m < d). This ensures termination reasoning.
+</reasoning>
+<code>int main1(int c,int w){
+  int mqj, ll, u3h, s;
 
-Thus we use:
-  - invariant z == \at(z, Pre) + (d * (m/5)) - 5 * ((m/5) * ((m/5) - 1)) / 2
-  - invariant m % 5 == 0
-  - assigns z, m, c54
-  - variant d - m
-
-This invariant is strong (inductive) and directly reflects the loop’s arithmetic transition.</reasoning>
-<code>int main1(int z){
-  int d, m, c54;
-
-  d=(z%14)+20;
-  m=0;
-  c54=d;
+  mqj=w*2;
+  ll=0;
+  u3h=2;
+  s=1;
 
   /*@
-    loop invariant z == \at(z, Pre) + (d * (m/5)) - 5 * ((m/5) * ((m/5) - 1)) / 2;
-    loop invariant m % 5 == 0;
-    loop assigns z, m, c54;
-    loop variant d - m;
+    loop invariant 0 &lt;= ll;
+    loop invariant 2 &lt;= u3h &amp;&amp; u3h &lt;= 9;
+    loop invariant (s == 1) || (s == -1);
+    loop assigns ll, u3h, s;
+    loop variant mqj - ll;
   */
-  while (m&lt;d) {
-      c54 = d-m;
-      m = m + 5;
-      z += c54;
+  while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-09 13:09:03,227 - INFO - 
+2026-03-11 17:27:02,108 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int z){
-  int d, m, c54;
+int main1(int c,int w){
+  int mqj, ll, u3h, s;
 
-  d=(z%14)+20;
-  m=0;
-  c54=d;
+  mqj=w*2;
+  ll=0;
+  u3h=2;
+  s=1;
 
   /*@
-    loop invariant ((m == 0) ==> (c54 == d)) &&
-                   ((m > 0) ==> (c54 == d - m + 5));
-    loop invariant z == \at(z, Pre) + ((m/5) * d) - (5 * (((m/5) * ((m/5) - 1)) / 2));
-    loop assigns c54, m, z;
-    loop variant (d - m);
-  */
-  while (m<d) {
-      c54 = d-m;
-      m = m + 5;
-      z += c54;
+    loop invariant 0 <= ll;
+    loop invariant (ll <= mqj) || (mqj <= 0);
+    loop invariant 2 <= u3h <= 9;
+    loop invariant (s == 1) || (s == -1);
+    loop assigns ll, u3h, s;
+    loop variant mqj - ll;
+  @*/
+  while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-09 13:09:03,227 - INFO - 
+2026-03-11 17:27:02,108 - INFO - 
 ----- Candidate 2/5 full code begin -----
-int main1(int z){
-  int d, m, c54;
+int main1(int c,int w){
+  int mqj, ll, u3h, s;
 
-  d=(z%14)+20;
-  m=0;
-  c54=d;
+  mqj=w*2;
+  ll=0;
+  u3h=2;
+  s=1;
 
   /*@
-    loop invariant d == (\at(z, Pre) % 14) + 20;
-    loop invariant 0 <= m;
-    loop invariant m % 5 == 0;
-    loop invariant m <= d + 4;
-    loop invariant (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5));
-    loop invariant 2*(z - \at(z, Pre)) == 2*(m/5)*d - 5*(m/5)*((m/5) - 1);
-    loop assigns c54, m, z;
-    loop variant d - m;
+    loop invariant ll &gt;= 0;
+    loop invariant u3h &gt;= 2;
+    loop invariant (s == 1) || (s == -1);
+    loop invariant ((u3h - ll) % 2 == 0);
+    loop assigns ll, u3h, s;
+    loop variant mqj - ll;
   */
-  while (m<d) {
-        c54 = d-m;
-        m = m + 5;
-        z += c54;
+  while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-09 13:09:03,227 - INFO - 
+2026-03-11 17:27:02,108 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int z){
-  int d, m, c54;
+int main1(int c,int w){
+  int mqj, ll, u3h, s;
 
-  d=(z%14)+20;
-  m=0;
-  c54=d;
+  mqj=w*2;
+  ll=0;
+  u3h=2;
+  s=1;
 
   /*@
-    loop invariant d == (\at(z, Pre) % 14) + 20;
-    loop invariant 0 <= m;
-    loop invariant m % 5 == 0;
-    loop invariant m <= d + 4;
-    loop invariant z == \at(z, Pre) + (m/5) * d - (5 * ((m/5) * ((m/5) - 1))) / 2;
-    loop assigns c54, m, z;
-    loop variant (d - m + 4) / 5;
+    loop invariant mqj == w * 2;
+    loop invariant 0 <= ll;
+    loop invariant ll <= mqj;
+    loop invariant 2 <= u3h && u3h <= 9;
+    loop invariant s == 1 || s == -1;
+    loop assigns ll, u3h, s;
+    loop variant mqj - ll;
   */
-while (m<d) {
-      c54 = d-m;
-      m = m + 5;
-      z += c54;
+  while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-09 13:09:03,227 - INFO - 
+2026-03-11 17:27:02,108 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(int z){
-  int d, m, c54;
-
-  d=(z%14)+20;
-  m=0;
-  c54=d;
-
-  /*@
-    loop invariant d == \at(z, Pre) % 14 + 20;
-    loop invariant 0 <= m && m % 5 == 0 && m <= d + 4;
-    loop invariant 2*(z - \at(z, Pre)) == 2*(m/5)*d - 5*(m/5)*((m/5) - 1);
-    loop invariant ( (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5)) );
-    loop assigns c54, m, z;
-    loop variant (d - m + 4) / 5;
-  */
-  while (m<d) {
-        c54 = d-m;
-        m = m + 5;
-        z += c54;
+/*@
+  loop invariant mqj == w * 2;
+  loop invariant 0 <= ll;
+  loop invariant 2 <= u3h <= 9;
+  loop invariant ((u3h + ll) % 2) == 0;
+  loop invariant (s == 1) || (s == -1);
+  loop assigns ll, u3h, s;
+  loop variant mqj - ll;
+*/
+while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
-
-}
 ----- Candidate 4/5 full code end -----
-2026-03-09 13:09:03,227 - INFO - 
+2026-03-11 17:27:02,108 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(int z){
-  int d, m, c54;
+int main1(int c,int w){
+  int mqj, ll, u3h, s;
 
-  d=(z%14)+20;
-  m=0;
-  c54=d;
+  mqj=w*2;
+  ll=0;
+  u3h=2;
+  s=1;
 
   /*@
-    loop invariant z == \at(z, Pre) + (d * (m/5)) - 5 * ((m/5) * ((m/5) - 1)) / 2;
-    loop invariant m % 5 == 0;
-    loop assigns z, m, c54;
-    loop variant d - m;
+    loop invariant 0 &lt;= ll;
+    loop invariant 2 &lt;= u3h &amp;&amp; u3h &lt;= 9;
+    loop invariant (s == 1) || (s == -1);
+    loop assigns ll, u3h, s;
+    loop variant mqj - ll;
   */
-  while (m&lt;d) {
-      c54 = d-m;
-      m = m + 5;
-      z += c54;
+  while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-09 13:09:03,227 - INFO - Successfully generated 5/5 candidates
-2026-03-09 13:09:03,228 - INFO - Checking 13 invariants for conflicts...
-2026-03-09 13:09:03,232 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-09 13:09:03,232 - INFO -   1: int main1(int z){
-2026-03-09 13:09:03,232 - INFO -   2:   int d, m, c54;
-2026-03-09 13:09:03,232 - INFO -   3: 
-2026-03-09 13:09:03,232 - INFO -   4:   d=(z%14)+20;
-2026-03-09 13:09:03,232 - INFO -   5:   m=0;
-2026-03-09 13:09:03,232 - INFO -   6:   c54=d;
-2026-03-09 13:09:03,232 - INFO -   7: 
-2026-03-09 13:09:03,232 - INFO -   8:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-09 13:09:03,232 - INFO -   9: /*@
-2026-03-09 13:09:03,232 - INFO -   10:   loop invariant ((m == 0) ==> (c54 == d)) &&
-2026-03-09 13:09:03,232 - INFO - DEBUG: Total lines: 33
-2026-03-09 13:09:24,317 - INFO - syntax Correct
-2026-03-09 13:09:55,685 - INFO - Validate:
-2026-03-09 13:09:55,685 - INFO - [True, False, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-09 13:09:55,685 - INFO - 
-2026-03-09 13:09:55,685 - INFO - Verify:
-2026-03-09 13:09:55,685 - INFO - []
-2026-03-09 13:09:55,685 - INFO - 
-2026-03-09 13:09:55,685 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-09 13:09:55,685 - INFO -   Before: 13 invariants
-2026-03-09 13:09:55,686 - INFO -   After: 12 invariants
-2026-03-09 13:09:55,686 - INFO -   Remaining invariants:
-2026-03-09 13:09:55,686 - INFO -     [1] ((m == 0) ==> (c54 == d)) &&
-                   ((m > 0) ==> (c54 == d - m + 5))
-2026-03-09 13:09:55,686 - INFO -     [2] d == (\at(z, Pre) % 14) + 20
-2026-03-09 13:09:55,686 - INFO -     [3] 0 <= m
-2026-03-09 13:09:55,686 - INFO -     [4] m % 5 == 0
-2026-03-09 13:09:55,686 - INFO -     [5] m <= d + 4
-2026-03-09 13:09:55,686 - INFO -     [6] (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5))
-2026-03-09 13:09:55,686 - INFO -     [7] 2*(z - \at(z, Pre)) == 2*(m/5)*d - 5*(m/5)*((m/5) - 1)
-2026-03-09 13:09:55,686 - INFO -     [8] z == \at(z, Pre) + (m/5) * d - (5 * ((m/5) * ((m/5) - 1))) / 2
-2026-03-09 13:09:55,686 - INFO -     [9] d == \at(z, Pre) % 14 + 20
-2026-03-09 13:09:55,686 - INFO -     [10] 0 <= m && m % 5 == 0 && m <= d + 4
-2026-03-09 13:09:55,686 - INFO -     [11] ( (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5)) )
-2026-03-09 13:09:55,686 - INFO -     [12] z == \at(z, Pre) + (d * (m/5)) - 5 * ((m/5) * ((m/5) - 1)) / 2
-2026-03-09 13:10:07,029 - INFO - syntax Correct
-2026-03-09 13:10:38,188 - INFO - Validate:
-2026-03-09 13:10:38,188 - INFO - [True, True, True, True, True, True, False, True, True, True, True, True]
-2026-03-09 13:10:38,188 - INFO - 
-2026-03-09 13:10:38,188 - INFO - Verify:
-2026-03-09 13:10:38,188 - INFO - []
-2026-03-09 13:10:38,188 - INFO - 
-2026-03-09 13:10:38,188 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-09 13:10:38,188 - INFO -   Before: 12 invariants
-2026-03-09 13:10:38,188 - INFO -   After: 11 invariants
-2026-03-09 13:10:38,188 - INFO -   Remaining invariants:
-2026-03-09 13:10:38,188 - INFO -     [1] ((m == 0) ==> (c54 == d)) &&
-                   ((m > 0) ==> (c54 == d - m + 5))
-2026-03-09 13:10:38,188 - INFO -     [2] d == (\at(z, Pre) % 14) + 20
-2026-03-09 13:10:38,188 - INFO -     [3] 0 <= m
-2026-03-09 13:10:38,188 - INFO -     [4] m % 5 == 0
-2026-03-09 13:10:38,188 - INFO -     [5] m <= d + 4
-2026-03-09 13:10:38,188 - INFO -     [6] (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5))
-2026-03-09 13:10:38,188 - INFO -     [7] z == \at(z, Pre) + (m/5) * d - (5 * ((m/5) * ((m/5) - 1))) / 2
-2026-03-09 13:10:38,188 - INFO -     [8] d == \at(z, Pre) % 14 + 20
-2026-03-09 13:10:38,188 - INFO -     [9] 0 <= m && m % 5 == 0 && m <= d + 4
-2026-03-09 13:10:38,188 - INFO -     [10] ( (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5)) )
-2026-03-09 13:10:38,188 - INFO -     [11] z == \at(z, Pre) + (d * (m/5)) - 5 * ((m/5) * ((m/5) - 1)) / 2
-2026-03-09 13:10:49,328 - INFO - syntax Correct
-2026-03-09 13:11:20,365 - INFO - Validate:
-2026-03-09 13:11:20,365 - INFO - [True, True, True, True, True, True, False, True, True, True, True]
-2026-03-09 13:11:20,365 - INFO - 
-2026-03-09 13:11:20,365 - INFO - Verify:
-2026-03-09 13:11:20,365 - INFO - []
-2026-03-09 13:11:20,365 - INFO - 
-2026-03-09 13:11:20,365 - INFO - Houdini iteration 3: Removed 1 failed invariants
-2026-03-09 13:11:20,365 - INFO -   Before: 11 invariants
-2026-03-09 13:11:20,365 - INFO -   After: 10 invariants
-2026-03-09 13:11:20,365 - INFO -   Remaining invariants:
-2026-03-09 13:11:20,365 - INFO -     [1] ((m == 0) ==> (c54 == d)) &&
-                   ((m > 0) ==> (c54 == d - m + 5))
-2026-03-09 13:11:20,365 - INFO -     [2] d == (\at(z, Pre) % 14) + 20
-2026-03-09 13:11:20,365 - INFO -     [3] 0 <= m
-2026-03-09 13:11:20,365 - INFO -     [4] m % 5 == 0
-2026-03-09 13:11:20,365 - INFO -     [5] m <= d + 4
-2026-03-09 13:11:20,365 - INFO -     [6] (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5))
-2026-03-09 13:11:20,365 - INFO -     [7] d == \at(z, Pre) % 14 + 20
-2026-03-09 13:11:20,365 - INFO -     [8] 0 <= m && m % 5 == 0 && m <= d + 4
-2026-03-09 13:11:20,365 - INFO -     [9] ( (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5)) )
-2026-03-09 13:11:20,365 - INFO -     [10] z == \at(z, Pre) + (d * (m/5)) - 5 * ((m/5) * ((m/5) - 1)) / 2
-2026-03-09 13:11:31,307 - INFO - syntax Correct
-2026-03-09 13:12:02,308 - INFO - Validate:
-2026-03-09 13:12:02,309 - INFO - [True, True, True, True, True, True, True, True, True, False]
-2026-03-09 13:12:02,309 - INFO - 
-2026-03-09 13:12:02,309 - INFO - Verify:
-2026-03-09 13:12:02,309 - INFO - []
-2026-03-09 13:12:02,309 - INFO - 
-2026-03-09 13:12:02,309 - INFO - Houdini iteration 4: Removed 1 failed invariants
-2026-03-09 13:12:02,309 - INFO -   Before: 10 invariants
-2026-03-09 13:12:02,309 - INFO -   After: 9 invariants
-2026-03-09 13:12:02,309 - INFO -   Remaining invariants:
-2026-03-09 13:12:02,309 - INFO -     [1] ((m == 0) ==> (c54 == d)) &&
-                   ((m > 0) ==> (c54 == d - m + 5))
-2026-03-09 13:12:02,309 - INFO -     [2] d == (\at(z, Pre) % 14) + 20
-2026-03-09 13:12:02,309 - INFO -     [3] 0 <= m
-2026-03-09 13:12:02,309 - INFO -     [4] m % 5 == 0
-2026-03-09 13:12:02,309 - INFO -     [5] m <= d + 4
-2026-03-09 13:12:02,309 - INFO -     [6] (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5))
-2026-03-09 13:12:02,309 - INFO -     [7] d == \at(z, Pre) % 14 + 20
-2026-03-09 13:12:02,309 - INFO -     [8] 0 <= m && m % 5 == 0 && m <= d + 4
-2026-03-09 13:12:02,309 - INFO -     [9] ( (m == 0 && c54 == d) || (m >= 5 && c54 == d - (m - 5)) )
-2026-03-09 13:12:13,219 - INFO - syntax Correct
-2026-03-09 13:12:44,135 - INFO - Validate:
-2026-03-09 13:12:44,135 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-09 13:12:44,135 - INFO - 
-2026-03-09 13:12:44,135 - INFO - Verify:
-2026-03-09 13:12:44,135 - INFO - []
-2026-03-09 13:12:44,135 - INFO - 
-2026-03-09 13:12:44,135 - INFO - Houdini iteration 5: All invariants are valid
-2026-03-09 13:12:55,096 - INFO - syntax Correct
-2026-03-09 13:13:26,000 - INFO - Validate:
-2026-03-09 13:13:26,001 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-09 13:13:26,001 - INFO - 
-2026-03-09 13:13:26,001 - INFO - Verify:
-2026-03-09 13:13:26,001 - INFO - []
-2026-03-09 13:13:26,001 - INFO - 
-2026-03-09 13:13:40,614 - INFO - Deduplicated 7 loop invariants in final code
-2026-03-09 13:13:51,430 - INFO - syntax Correct
-2026-03-09 13:14:22,303 - INFO - Validate:
-2026-03-09 13:14:22,303 - INFO - [True, True, True, True, True]
-2026-03-09 13:14:22,303 - INFO - 
-2026-03-09 13:14:22,303 - INFO - Verify:
-2026-03-09 13:14:22,303 - INFO - []
-2026-03-09 13:14:22,303 - INFO - 
-2026-03-09 13:14:22,303 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-09 13:14:22,303 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_9/1.c
-2026-03-09 13:14:22,303 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_9/1_invariants.txt
-2026-03-09 13:14:22,303 - INFO - 
+2026-03-11 17:27:02,108 - INFO - Successfully generated 5/5 candidates
+2026-03-11 17:27:02,110 - INFO - Checking 10 invariants for conflicts...
+2026-03-11 17:27:02,113 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 17:27:02,113 - INFO -   1: int main1(int c,int w){
+2026-03-11 17:27:02,113 - INFO -   2:   int mqj, ll, u3h, s;
+2026-03-11 17:27:02,113 - INFO -   3: 
+2026-03-11 17:27:02,113 - INFO -   4:   mqj=w*2;
+2026-03-11 17:27:02,113 - INFO -   5:   ll=0;
+2026-03-11 17:27:02,113 - INFO -   6:   u3h=2;
+2026-03-11 17:27:02,113 - INFO -   7:   s=1;
+2026-03-11 17:27:02,113 - INFO -   8: 
+2026-03-11 17:27:02,113 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-11 17:27:02,113 - INFO -   10: /*@
+2026-03-11 17:27:02,113 - INFO - DEBUG: Total lines: 35
+2026-03-11 17:27:02,305 - INFO - syntax Correct
+2026-03-11 17:27:33,354 - INFO - Validate:
+2026-03-11 17:27:33,354 - INFO - [True, True, True, True, True, True, False, True, True, True]
+2026-03-11 17:27:33,354 - INFO - 
+2026-03-11 17:27:33,354 - INFO - Verify:
+2026-03-11 17:27:33,354 - INFO - []
+2026-03-11 17:27:33,354 - INFO - 
+2026-03-11 17:27:33,354 - INFO - Houdini iteration 1: Removed 1 failed invariants
+2026-03-11 17:27:33,354 - INFO -   Before: 10 invariants
+2026-03-11 17:27:33,354 - INFO -   After: 9 invariants
+2026-03-11 17:27:33,354 - INFO -   Remaining invariants:
+2026-03-11 17:27:33,354 - INFO -     [1] 0 <= ll
+2026-03-11 17:27:33,354 - INFO -     [2] (ll <= mqj) || (mqj <= 0)
+2026-03-11 17:27:33,354 - INFO -     [3] 2 <= u3h <= 9
+2026-03-11 17:27:33,354 - INFO -     [4] (s == 1) || (s == -1)
+2026-03-11 17:27:33,354 - INFO -     [5] ((u3h - ll) % 2 == 0)
+2026-03-11 17:27:33,354 - INFO -     [6] mqj == w * 2
+2026-03-11 17:27:33,354 - INFO -     [7] 2 <= u3h && u3h <= 9
+2026-03-11 17:27:33,354 - INFO -     [8] s == 1 || s == -1
+2026-03-11 17:27:33,354 - INFO -     [9] ((u3h + ll) % 2) == 0
+2026-03-11 17:27:33,571 - INFO - syntax Correct
+2026-03-11 17:28:04,537 - INFO - Validate:
+2026-03-11 17:28:04,537 - INFO - [True, True, True, True, True, True, True, True, True]
+2026-03-11 17:28:04,537 - INFO - 
+2026-03-11 17:28:04,537 - INFO - Verify:
+2026-03-11 17:28:04,537 - INFO - []
+2026-03-11 17:28:04,537 - INFO - 
+2026-03-11 17:28:04,537 - INFO - Houdini iteration 2: All invariants are valid
+2026-03-11 17:28:04,782 - INFO - syntax Correct
+2026-03-11 17:28:35,773 - INFO - Validate:
+2026-03-11 17:28:35,773 - INFO - [True, True, True, True, True, True, True, True, True]
+2026-03-11 17:28:35,773 - INFO - 
+2026-03-11 17:28:35,773 - INFO - Verify:
+2026-03-11 17:28:35,773 - INFO - []
+2026-03-11 17:28:35,773 - INFO - 
+2026-03-11 17:29:12,853 - INFO - Deduplicated 5 loop invariants in final code
+2026-03-11 17:29:13,061 - INFO - syntax Correct
+2026-03-11 17:29:43,931 - INFO - Validate:
+2026-03-11 17:29:43,931 - INFO - [True, True, True, True, True, True]
+2026-03-11 17:29:43,931 - INFO - 
+2026-03-11 17:29:43,931 - INFO - Verify:
+2026-03-11 17:29:43,931 - INFO - []
+2026-03-11 17:29:43,931 - INFO - 
+2026-03-11 17:29:43,931 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 17:29:43,932 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_9/1.c
+2026-03-11 17:29:43,932 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_9/1_invariants.txt
+2026-03-11 17:29:43,932 - INFO - 
 ============================================================
-2026-03-09 13:14:22,303 - INFO - Final first_pass results:
-2026-03-09 13:14:22,303 - INFO -   syntax=1
-2026-03-09 13:14:22,303 - INFO -   valid=1
-2026-03-09 13:14:22,303 - INFO -   satisfy=None
-2026-03-09 13:14:22,303 - INFO - ============================================================
-2026-03-09 13:14:22,304 - INFO - 
+2026-03-11 17:29:43,932 - INFO - Final first_pass results:
+2026-03-11 17:29:43,932 - INFO -   syntax=1
+2026-03-11 17:29:43,932 - INFO -   valid=1
+2026-03-11 17:29:43,932 - INFO -   satisfy=None
+2026-03-11 17:29:43,932 - INFO - ============================================================
+2026-03-11 17:29:43,932 - INFO - 
 ============================================================
-2026-03-09 13:14:22,304 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-09 13:14:22,304 - INFO -   Total API calls: 55
-2026-03-09 13:14:22,304 - INFO -   Total prompt tokens (input): 56,833
-2026-03-09 13:14:22,304 - INFO -   Total completion tokens (output): 276,329
-2026-03-09 13:14:22,304 - INFO -   Total tokens: 333,162
-2026-03-09 13:14:22,304 - INFO -   Average per call:
-2026-03-09 13:14:22,304 - INFO -     Prompt: 1033.3 tokens
-2026-03-09 13:14:22,304 - INFO -     Completion: 5024.2 tokens
-2026-03-09 13:14:22,304 - INFO -     Total: 6057.5 tokens
-2026-03-09 13:14:22,304 - INFO - ============================================================
-2026-03-09 13:14:22,304 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_9/1.c
-2026-03-09 13:14:22,304 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_9/1_invariants.txt
-2026-03-09 13:14:44,782 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail: Invariants cover m and c54 relations but miss the essential conservation law for z (no invariant relating z to its initial value or cumulative updates). They also lack an explicit non-negative lower bound or a proper loop variant for m to support termination (m <= d+4 is weak and does not show progress); redundancy in the c54/m relations is present. All modified variables must be semantically summarized (z is not)."}
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 17:29:43,932 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 17:29:43,932 - INFO -   Total API calls: 66
+2026-03-11 17:29:43,932 - INFO -   Total prompt tokens (input): 76,780
+2026-03-11 17:29:43,932 - INFO -   Total completion tokens (output): 539,589
+2026-03-11 17:29:43,932 - INFO -   Total tokens: 616,369
+2026-03-11 17:29:43,932 - INFO -   Average per call:
+2026-03-11 17:29:43,932 - INFO -     Prompt: 1163.3 tokens
+2026-03-11 17:29:43,932 - INFO -     Completion: 8175.6 tokens
+2026-03-11 17:29:43,932 - INFO -     Total: 9338.9 tokens
+2026-03-11 17:29:43,932 - INFO - ============================================================
+2026-03-11 17:29:43,932 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_9/1.c
+2026-03-11 17:29:43,932 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_9/1_invariants.txt
+2026-03-11 17:30:25,628 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "fail"
+}
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

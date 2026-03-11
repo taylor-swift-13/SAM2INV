@@ -1,0 +1,20 @@
+int main1(int b,int m){
+  int y, t, v;
+
+  y=m+7;
+  t=3;
+  v=3;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+
+while (t<=y-3) {
+      v = v+t;
+      v = v-v;
+      t = t+3;
+  }
+/*@
+  assert !(t<=y-3) &&
+         (v == 0 || v == 3);
+*/
+
+}

@@ -1,14 +1,20 @@
-int main1(int z){
-  int d, m, c54;
+int main1(int c,int w){
+  int mqj, ll, u3h, s;
 
-  d=(z%14)+20;
-  m=0;
-  c54=d;
+  mqj=w*2;
+  ll=0;
+  u3h=2;
+  s=1;
 
-  while (m<d) {
-      c54 = d-m;
-      m = m + 5;
-      z += c54;
+  while (ll<=mqj-1) {
+      if (u3h>=9) {
+          s = -1;
+      }
+      if (!(u3h>2)) {
+          s = 1;
+      }
+      u3h = u3h + s;
+      ll = ll + 1;
   }
 
 }

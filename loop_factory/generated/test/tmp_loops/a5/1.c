@@ -1,18 +1,19 @@
-int main1(int r,int i){
-  int x06e, gt, w, hmk0;
+int main1(int s,int z){
+  int m, hg, b5bi, h;
 
-  x06e=r+9;
-  gt=0;
-  w=x06e;
-  hmk0=x06e;
+  m=z;
+  hg=3;
+  b5bi=3;
+  h=1;
 
-  while (1) {
-      if (!(gt<=x06e-1)) {
-          break;
+  for (; hg<=m-1; hg = hg + 1) {
+      if (b5bi>=12) {
+          h = -1;
       }
-      gt = gt + 1;
-      hmk0 = hmk0 + gt;
-      w = x06e-gt;
+      if (!(b5bi>3)) {
+          h = 1;
+      }
+      b5bi += h;
   }
 
 }

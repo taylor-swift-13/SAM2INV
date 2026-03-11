@@ -1,0 +1,20 @@
+int main1(int b,int n){
+  int m, s, k, v;
+
+  m=(b%7)+6;
+  s=0;
+  k=n;
+  v=-4;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+
+while (s<=m-1) {
+      k = k+3;
+      s = s+1;
+  }
+/*@
+  assert !(s<=m-1) &&
+         (k == \at(n, Pre) + 3*s);
+*/
+
+}

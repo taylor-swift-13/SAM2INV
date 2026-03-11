@@ -1,470 +1,689 @@
-2026-03-08 11:34:05,424 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-08 11:34:05,444 - INFO - Found 1 loops
-2026-03-08 11:34:05,445 - INFO - 
+2026-03-11 04:10:25,906 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 04:10:25,924 - INFO - Found 2 loops
+2026-03-11 04:10:25,925 - INFO - 
 ============================================================
-2026-03-08 11:34:05,445 - INFO - Main generation pass 1/1
-2026-03-08 11:34:05,445 - INFO - ============================================================
-2026-03-08 11:34:05,445 - INFO - Loaded single prompt template: simple
-2026-03-08 11:34:05,445 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-08 11:34:05,445 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-08 11:34:05,464 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:35:21,725 - INFO - 
+2026-03-11 04:10:25,925 - INFO - Main generation pass 1/1
+2026-03-11 04:10:25,925 - INFO - ============================================================
+2026-03-11 04:10:25,925 - INFO - Loaded single prompt template: simple
+2026-03-11 04:10:25,925 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 04:10:25,925 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 04:10:25,941 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:13:18,192 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>
-I chose a set of inductive invariants that capture the core state progression driven by the loop:
+<reasoning>For the two loops in main1, I built inductive invariants that reflect the explicit state updates and are verification-friendly for Frama-C/WP.
 
-- xku == 3*woo: Each iteration increments xku by 3 and increments woo by 1, so the linear relation xku = 3*woo is preserved.
-- uj == woo % 8: uj is advanced by 1 modulo 8 each iteration, so after woo iterations, uj equals woo mod 8.
-- fc == (2*f + woo*(woo+1)/2) % 8: Since fc starts at 2*f and each iteration adds the then-current uj to fc modulo 8, and uj iterates as 1,2,3,...,8,1,2,..., the cumulative sum of uj up to woo iterations equals woo*(woo+1)/2 modulo 8. Therefore fc equals the initial fc plus that sum, modulo 8.
-- 0 <= woo: woo only increases from 0, and the loop guard ensures it never goes negative.
-- n64 == f: n64 stores the initial f value and is never changed, so it remains equal to f.
+Loop 0 (the en4-controlled loop):
+- The visible state updates are:
+  - sl increases by 1 each iteration.
+  - qzh increases by 1 each iteration.
+  - k4 increases by 1 each iteration (and also by f, which is 0 here).
+  - en4 decreases by 1 each iteration.
+- From these, sl and qzh advance in lockstep, so sl == qzh is an exact invariant across iterations (starting from 0,0 and both incrementing by 1 each iteration).
+- Similarly, k4 increases by 1 per iteration while qzh increases by 1 per iteration, so k4 == qzh is another exact invariant.
+- en4 monotonically decreases to 0; we preserve 0 <= en4 as a non-negativity invariant, which also supports termination reasoning.
+- These invariants are strong and directly express the loop’s state-transition behavior: the core conservation/slave-relations are en4 decreases by 1 while qzh and sl and k4 each increase by 1; the loop assigns are sl, k4, qzh, en4; a loop variant en4 ensures termination.
+  
+Loop 1 (the second loop with the sl and o updates):
+- The loop does not modify qzh, so any invariant must tolerate qzh as a constant within the loop body. The loop condition is while (sl > o) with updates:
+  - sl becomes (sl - o) squared (non-negative since it’s a square).
+  - o is incremented by 1 and then by qzh.
+- A robust, verification-friendly invariant set here is simply to assert non-negativity constraints that are preserved by the arithmetic:
+  - 0 <= sl (since sl is assigned to a square)
+  - 0 <= o (o is incremented and starts positive)
+  - 0 <= qzh (qzh is nonnegative and unchanged in the loop)
+- These invariants capture the essential, monotone properties of the loop without over-committing to exact numerical relationships that would depend on the initial values. The loop assigns are sl and o; qzh is read-only within this loop.
 
-I added a loop variant n64 - woo to provide a decreasing measure, ensuring progress toward termination since woo increments by 1 each iteration while staying under n64.
+In summary, the invariants chosen are strong enough to be inductive, reflect the exact state transitions, and keep the loop assigns precise and complete. The first loop includes a loop variant en4 to ensure termination; the second loop does not require a variant, given the guard and the updates, but non-negativity invariants help with verification and readability.</reasoning>
+<code>int main1(){
+  int o, f, k4, sl, qzh, en4;
 
-These invariants are inductive (preserved by each iteration) and verification-friendly for Frama-C/WP, without modifying the program logic or using disallowed constructs.
-
-</reasoning>
-<code>int main1(int f,int z){
-  int n64, uj, woo, xku, fc;
-
-  n64=f;
-  uj=0;
-  woo=0;
-  xku=0;
-  fc=f*2;
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
 
   /*@
-    loop invariant n64 == f;
-    loop invariant xku == 3*woo;
-    loop invariant uj == woo % 8;
-    loop invariant fc == (2*f + woo*(woo+1)/2) % 8;
-    loop invariant 0 <= woo;
-    loop assigns xku, uj, woo, fc;
-    loop variant n64 - woo;
+    loop invariant sl == qzh;
+    loop invariant k4 == qzh;
+    loop invariant 0 &lt;= en4;
+    loop assigns sl, k4, qzh, en4;
+    loop variant en4;
   */
-  while (woo<n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
   }
 
-}</code>
+  /*@
+    loop invariant 0 <= sl;
+    loop invariant 0 <= o;
+    loop invariant 0 <= qzh;
+    loop assigns sl, o;
+  */
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
+  }
+
+} </code>
 ----- Candidate 1/5 raw response end -----
-2026-03-08 11:35:21,726 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-08 11:35:21,740 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:36:43,687 - INFO - 
+2026-03-11 04:13:18,192 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 04:13:18,205 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:19:59,491 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>The loop updates are simple and highly regular:
-- uj advances by 1 modulo 8 every iteration, starting from 0.
-- woo increments by 1 each iteration, acting as the loop counter.
-- xku increments by 3 each iteration, thus xku = 3 * woo.
-- n64 is a fixed bound derived from the input f (n64 = f), never changed inside the loop.
+<reasoning>Loop 0:
+- The updates are: sl = sl + 1; k4 = k4 + 1; qzh = qzh + 1; en4 = en4 - 1; k4 += f (with f = 0).
+- After i iterations (while en4 > 0), sl = i, k4 = i, qzh = i, en4 = 6 - i.
+- A compact, inductive set of invariants that captures this state evolution:
+  - sl == k4 and sl == qzh (all three counters move together).
+  - en4 + sl == 6 (conservation of the total 6 between en4 and the incrementing counter sl).
+- Loop assigns must reflect all variables written in the loop body: sl, k4, qzh, en4.
+These invariants are strong, directly describe the loop state, and are preserved by each iteration.
 
-From these, we can express strong inductive invariants:
-- uj == woo % 8 captures the exact cycle of uj with the loop counter woo.
-- xku == 3 * woo captures the linear relation between xku and woo.
-- n64 == f binds the loop bound to the initial function parameter.
+Loop 1:
+- The loop body uses only sl, o, qzh, with qzh unchanged in the loop and sl, o updated in a non-linear way.
+- In the actual run, the loop does not execute because initially sl = 6 and o = 34 (sl > o is false). Nevertheless, we provide invariants that will hold if the loop were entered.
+- Reasonable, verification-friendly invariants:
+  - sl >= 0 and o >= 34 (sl is the square of a difference, hence non-negative; o only increases).
+  - qzh >= 0 (qzh is never decreased and started from 0 or higher).
+- These invariants are simple, monotone, and relate to the key arithmetic changes without introducing unsafe assumptions.
+- Loop assigns for this loop are sl and o (qzh is not modified inside the loop).
 
-We also provide a loop variant to prove termination:
-- n64 - woo decreases by 1 each iteration and is non-negative whenever the loop guard is true (woo < n64).
+These choices provide inductive, verification-friendly loop invariants that explain the state evolution while keeping the code unchanged other than the annotations. </reasoning>
 
-We avoid relying on fc-based invariants because fc is initialized to f*2 and then updated with modulo 8; keeping fc invariants robust to negative initial f is delicate. The core relational invariants above are inductive and verification-friendly, and they explicitly reflect the state updates without modifying the original code.
+<code>int main1(){
+  int o, f, k4, sl, qzh, en4;
 
-</reasoning>
-<code>int main1(int f,int z){
-  int n64, uj, woo, xku, fc;
-
-  n64=f;
-  uj=0;
-  woo=0;
-  xku=0;
-  fc=f*2;
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
 
   /*@
-    loop invariant n64 == f;
-    loop invariant uj == woo % 8;
-    loop invariant xku == 3*woo;
-    loop variant n64 - woo;
-    loop assigns fc, uj, woo, xku;
-  @*/
-  while (woo<n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
+    loop invariant sl == k4 && sl == qzh;
+    loop invariant en4 + sl == 6;
+    loop assigns sl, k4, qzh, en4;
+  */
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
+  }
+
+  /*@
+    loop invariant sl >= 0 && o >= 34;
+    loop invariant qzh >= 0;
+    loop assigns sl, o;
+  */
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
   }
 
 }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-08 11:36:43,687 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-08 11:36:43,703 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:38:46,314 - INFO - 
+2026-03-11 04:19:59,491 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 04:19:59,504 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:21:34,541 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>We need inductive loop invariants and a complete, verification-friendly set of ACSL annotations for the given loop. The loop updates four stateful variables: xku, uj, woo, fc. A core conservation relation that explains the state transition is how xku and woo relate after each iteration: xku increases by 3 and woo increases by 1, hence xku == 3 * woo is preserved across iterations (assuming the invariant holds initially and the updates are the only changes). This provides a strong, exact relational invariant tying two evolving variables together.
+<reasoning>For the two loops, I designed inductive invariants that are easy to prove and align with the loop updates, while keeping the code unchanged.
 
-Additional robust invariants that hold at loop entry and are preserved by the loop body:
-- n64 == f: n64 is initialized from f and never modified inside the loop, so it stays equal to f throughout.
-- 0 <= woo: woo starts at 0 and only increases, so it is always non-negative.
-- 0 <= uj && uj < 8: uj is updated as (uj+1) % 8, so it always stays within 0..7.
+Loop 0 (the one that updates en4, sl, qzh, k4, and f):
+- A core conservation relation: en4 + qzh remains constant because en4 decreases by 1 each iteration and qzh increases by 1. Given the initial state en4 = 6 and qzh = 0, en4 + qzh == 6 holds throughout.
+- Simple bounds: en4 >= 0 and qzh >= 0 since en4 is decremented only while > 0 and qzh is incremented.
+- A strong relational invariant due to f = 0: k4 increments by 1, and sl increments by 1, so k4 == sl remains invariant (starting from 0,0). This helps relate the two counters within the loop.
+- Loop assigns: sl, k4, qzh, en4 are modified by the loop body.
+- Loop variant: en4 decreases by 1 each iteration, so en4 is a suitable loop variant to show termination.
 
-A loop variant to aid termination is included: loop variant n64 - woo, which strictly decreases by 1 each iteration while the loop guard is true (woo < n64), and is non-negative on entry to the loop body when the guard holds.
+Loop 1 (the one with o, sl, qzh):
+- The loop does not modify qzh; so qzh is invariant in value during this loop. The natural bounds to establish inductiveness are sl >= 0, o >= 0, and qzh >= 0, since sl is assigned to nonnegative values (squared) and o grows monotonically.
+- Loop assigns: sl, o are modified by the loop body.
+- No loop variant is provided (optional per guidelines); termination is assumed by the behavior of the problem instance, but the invariants above are enough to reason about safety and non-negativity.
 
-Loop assigns: fc, uj, woo, xku are the variables modified inside the loop body; n64 and f are not assigned within the loop.
+These invariants are inductive, do not modify the original logic, and are chosen to be verification-friendly for Frama-C/WP. They avoid tautologies, and only introduce meaningful state-relations aligned with the actual loop updates. </reasoning>
+<code>int main1(){
+  int o, f, k4, sl, qzh, en4;
 
-These invariants are inductive and verification-friendly: they are strong, relate updated state faithfully, and avoid over-strong or tautological statements. They avoid using Pre for local variables and respect the available variable constraints.
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
 
-</reasoning>
-<code>int main1(int f,int z){
-  int n64, uj, woo, xku, fc;
-
-  n64=f;
-  uj=0;
-  woo=0;
-  xku=0;
-  fc=f*2;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant n64 == f;
-    loop invariant 0 <= woo;
-    loop invariant 0 <= uj && uj < 8;
-    loop invariant xku == 3*woo;
-    loop assigns fc, uj, woo, xku;
-    loop variant n64 - woo;
+    loop invariant en4 + qzh == 6;
+    loop invariant en4 >= 0;
+    loop invariant qzh >= 0;
+    loop invariant k4 == sl;
+    loop assigns sl, k4, qzh, en4;
+    loop variant en4;
+  */
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
+  }
+
+  /*@
+    loop invariant sl >= 0;
+    loop invariant o >= 0;
+    loop invariant qzh >= 0;
+    loop assigns sl, o;
+  */
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
+  }
+
+}
+----- Candidate 3/5 raw response end -----
+2026-03-11 04:21:34,542 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 04:21:34,558 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:23:13,027 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+First loop (updating en4, sl, k4, qzh) has a clear linear state progression:
+- sl increases by 1 each iteration
+- k4 increases by 1 each iteration (plus f, which is 0 here)
+- qzh increases by 1 each iteration
+- en4 decreases by 1 each iteration
+
+A strong, inductive invariant that captures this state transition is the conservation relation:
+sl - k4 - qzh - en4 = constant
+
+With the initial values (sl=0, k4=0, qzh=0, en4=6), this constant is -6. This invariant remains true after every iteration because each update preserves the sum sl - k4 - qzh - en4.
+
+Additionally, we can provide minimal progress bounds:
+- en4 decreases (loop variant en4) and en4 remains >= 0 throughout the loop execution
+- non-negativity bounds for sl, k4, qzh are straightforward given the updates and initial values
+
+Therefore, the first loop will have:
+- core invariant: sl - k4 - qzh - en4 == -6
+- progress: loop variant en4; and simple bounds 0 <= en4, 0 <= sl, 0 <= k4, 0 <= qzh
+- explicit assigns: sl, k4, qzh, en4
+
+Second loop operates on o, sl, qzh. Inside the loop, sl and o are updated, while qzh remains constant (and, after the first loop, qzh equals 6). A clean inductive invariant set for the second loop is:
+- 0 <= sl
+- 0 <= o
+- qzh == 6
+
+These are preserved by the body since:
+- sl becomes (sl - o)^2, which is >= 0
+- o becomes o + qzh + 1, which is >= o + 1, hence >= 0
+- qzh is not modified in the loop
+
+The loop assigns for the second loop are sl and o.
+
+No changes are made to the code structure beyond adding these ACSL annotations.
+</reasoning>
+<code>int main1(){
+  int o, f, k4, sl, qzh, en4;
+
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
+
+  /*@
+    loop invariant sl - k4 - qzh - en4 == -6;
+    loop invariant 0 &lt;= en4;
+    loop invariant 0 &lt;= sl;
+    loop invariant 0 &lt;= k4;
+    loop invariant 0 &lt;= qzh;
+    loop assigns sl, k4, qzh, en4;
+    loop variant en4;
   @*/
-  while (woo<n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
+  }
+
+  /*@
+    loop invariant 0 <= sl;
+    loop invariant 0 <= o;
+    loop invariant qzh == 6;
+    loop assigns sl, o;
+  @*/
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
   }
 
 }</code>
------ Candidate 3/5 raw response end -----
-2026-03-08 11:38:46,315 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-08 11:38:46,327 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:41:31,058 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the loop in main1. Key observations:
-- uj is updated as uj = (uj+1) % 8 and woo is incremented by 1 every iteration, starting from 0. Therefore:
-  - uj is always equal to woo mod 8: uj == woo % 8 (invariant).
-- fc is updated by fc = (fc + uj) % 8. If we look at the value of fc after k iterations, it satisfies a congruence with a closed form: fc ≡ 2*f + sum_{i=1..woo} (i mod 8) (mod 8). Since sum_{i=1..woo} (i mod 8) ≡ woo*(woo+1)/2 (mod 8), fc is congruent to 2*f + woo*(woo+1)/2 modulo 8. This gives a robust invariant that holds from initialization and is preserved by each iteration:
-  (fc - (2*f + woo*(woo+1)/2)) % 8 == 0.
-- Using a simple progress bound for the loop counter, we can declare 0 <= woo to ensure woo progresses non-negatively.
-- For termination, we include a loop variant: n64 - woo, which decreases by 1 each iteration and is non-negative whenever the loop body is executed (due to the guard woo < n64).
-
-Thus the invariants are:
-- 0 <= woo
-- uj == woo % 8
-- (fc - (2*f + woo*(woo+1)/2)) % 8 == 0
-With loop assigns {xku, uj, woo, fc} and loop variant (n64 - woo). This set is inductive, tight, and verification-friendly for Frama-C/WP. Note we avoid modifying the function body and do not introduce new variables. </reasoning>
-<code>/*@
-  loop invariant 0 &lt;= woo;
-  loop invariant uj == woo % 8;
-  loop invariant (fc - (2*f + woo*(woo+1)/2)) % 8 == 0;
-  loop assigns xku, uj, woo, fc;
-  loop variant n64 - woo;
-*/
-while (woo&lt;n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
-  }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-08 11:41:31,059 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-08 11:41:31,071 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:43:24,598 - INFO - 
+2026-03-11 04:23:13,028 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 04:23:13,043 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:25:33,323 - INFO - 
 ----- Candidate 5/5 raw response begin -----
-<reasoning>The loop exhibits a simple linear relation between two state variables: xku is incremented by 3 each iteration and woo is incremented by 1. This yields a conserved/relational invariant xku == 3*woo, which is inductive given the updates:
-- Before an iteration, xku = 3*woo.
-- After updates: xku' = xku + 3 and woo' = woo + 1, so xku' = 3*(woo+1) = 3*woo' holds.
+<reasoning>For the first loop:
+- Observed update pattern: sl increments by 1, qzh increments by 1, en4 decrements by 1, and k4 increments by 1 (via k4 += 1 after its own increment). A tight relational invariant that captures the core state evolution is that en4 decreases exactly as sl increases, since en4 is initialized to 6 and is decremented once per loop while sl is incremented once per loop. Therefore en4 == 6 - sl is inductive.
+- Additionally, qzh starts at 0 and is incremented by 1 each iteration, while sl also increments by 1 per iteration; thus qzh == sl is an inductive relation.
+- Loop assigns must list all variables that may be modified inside the loop: sl, k4, qzh, en4.
+- For termination, en4 decreases by 1 each iteration, so loop variant en4 is appropriate (non-negative and strictly decreasing while the loop runs).
 
-Additional robust invariants that hold regardless of the input f (or n64) based on the initialization and the loop's modulo behavior:
-- n64 == f ensures the loop bound is tied to the initial parameter f, and n64 is never written within the loop.
-- 0 <= woo ensures progress counter is nonnegative (woo starts at 0 and increments by 1 each iteration).
-- 0 <= uj && uj < 8 reflects the modulo-8 cycling of uj, which is updated as (uj+1) % 8 each iteration.
+For the second loop:
+- The loop body is guarded by if (!(sl > o)) break; thus the loop only runs when sl > o.
+- Inside, sl becomes (sl - o)^2, which is always >= 0, so sl >= 0 is preserved by any execution that occurs. Since o increments by 1 + qzh and qzh is nonnegative from the preceding code, o never decreases and thus o >= 34 holds before and after any loop iteration (the pre-state here has o = 34 and qzh >= 0 from prior loop).
+- Therefore two inductive invariants can be asserted that hold before each iteration: sl >= 0 and o >= 34.
+- Loop assigns are sl and o. A loop variant is not strictly necessary here since termination follows from the guarded condition and the monotonic growth of o (with nonnegative qzh).
 
-Finally, a loop variant that proves termination is given by (n64 - woo): it starts nonnegative when the loop condition holds (woo < n64) and decreases by 1 each iteration, ensuring termination when woo reaches n64.
+These invariants are strong, inductive, and directly reflect the loop updates without modifying the original code. They also respect the restrictions on variables and syntax. </reasoning>
+<code>int main1(){
+  int o, f, k4, sl, qzh, en4;
 
-The loop assigns explicitly are the mutated variables within the loop body: xku, uj, woo, fc. We do not constrain fc further due to C's modulo semantics with potentially negative values stemming from an initial f, so we avoid asserting a specific fc range.
-
-These invariants are inductive and verification-friendly: they are preserved by each loop iteration and relate to the loop's updates without modifying the original code beyond annotations. They do not rely on unknown() or Pre-state, and they stay within the allowed ACSL constructs. </reasoning>
-<code>int main1(int f,int z){
-  int n64, uj, woo, xku, fc;
-
-  n64=f;
-  uj=0;
-  woo=0;
-  xku=0;
-  fc=f*2;
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
 
   /*@
-    loop invariant n64 == f;
-    loop invariant 0 <= woo;
-    loop invariant 0 <= uj && uj &lt; 8;
-    loop invariant xku == 3 * woo;
-    loop assigns xku, uj, woo, fc;
-    loop variant (n64 - woo);
-  */
-  while (woo&lt;n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
+    loop invariant en4 == 6 - sl;
+    loop invariant qzh == sl;
+    loop assigns sl, k4, qzh, en4;
+    loop variant en4;
+  @*/
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
+  }
+
+  /*@
+    loop invariant sl >= 0;
+    loop invariant o >= 34;
+    loop assigns sl, o;
+  @*/
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-08 11:43:24,599 - INFO - 
+2026-03-11 04:25:33,323 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int f,int z){
-  int n64, uj, woo, xku, fc;
+int main1(){
+  int o, f, k4, sl, qzh, en4;
 
-  n64=f;
-  uj=0;
-  woo=0;
-  xku=0;
-  fc=f*2;
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
 
   /*@
-    loop invariant n64 == f;
-    loop invariant xku == 3*woo;
-    loop invariant uj == woo % 8;
-    loop invariant fc == (2*f + woo*(woo+1)/2) % 8;
-    loop invariant 0 <= woo;
-    loop assigns xku, uj, woo, fc;
-    loop variant n64 - woo;
+    loop invariant sl == qzh;
+    loop invariant k4 == qzh;
+    loop invariant 0 &lt;= en4;
+    loop assigns sl, k4, qzh, en4;
+    loop variant en4;
   */
-  while (woo<n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
+  }
+
+  /*@
+    loop invariant 0 <= sl;
+    loop invariant 0 <= o;
+    loop invariant 0 <= qzh;
+    loop assigns sl, o;
+  */
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-08 11:43:24,599 - INFO - 
+2026-03-11 04:25:33,323 - INFO - 
 ----- Candidate 2/5 full code begin -----
-int main1(int f,int z){
-  int n64, uj, woo, xku, fc;
+int main1(){
+  int o, f, k4, sl, qzh, en4;
 
-  n64=f;
-  uj=0;
-  woo=0;
-  xku=0;
-  fc=f*2;
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
 
   /*@
-    loop invariant n64 == f;
-    loop invariant uj == woo % 8;
-    loop invariant xku == 3*woo;
-    loop variant n64 - woo;
-    loop assigns fc, uj, woo, xku;
-  @*/
-  while (woo<n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
+    loop invariant sl == k4 && sl == qzh;
+    loop invariant en4 + sl == 6;
+    loop assigns sl, k4, qzh, en4;
+  */
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
+  }
+
+  /*@
+    loop invariant sl >= 0 && o >= 34;
+    loop invariant qzh >= 0;
+    loop assigns sl, o;
+  */
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-08 11:43:24,599 - INFO - 
+2026-03-11 04:25:33,323 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int f,int z){
-  int n64, uj, woo, xku, fc;
+int main1(){
+  int o, f, k4, sl, qzh, en4;
 
-  n64=f;
-  uj=0;
-  woo=0;
-  xku=0;
-  fc=f*2;
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant n64 == f;
-    loop invariant 0 <= woo;
-    loop invariant 0 <= uj && uj < 8;
-    loop invariant xku == 3*woo;
-    loop assigns fc, uj, woo, xku;
-    loop variant n64 - woo;
-  @*/
-  while (woo<n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
+    loop invariant en4 + qzh == 6;
+    loop invariant en4 >= 0;
+    loop invariant qzh >= 0;
+    loop invariant k4 == sl;
+    loop assigns sl, k4, qzh, en4;
+    loop variant en4;
+  */
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
+  }
+
+  /*@
+    loop invariant sl >= 0;
+    loop invariant o >= 0;
+    loop invariant qzh >= 0;
+    loop assigns sl, o;
+  */
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-08 11:43:24,599 - INFO - 
+2026-03-11 04:25:33,323 - INFO - 
 ----- Candidate 4/5 full code begin -----
-/*@
-  loop invariant 0 &lt;= woo;
-  loop invariant uj == woo % 8;
-  loop invariant (fc - (2*f + woo*(woo+1)/2)) % 8 == 0;
-  loop assigns xku, uj, woo, fc;
-  loop variant n64 - woo;
-*/
-while (woo&lt;n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
-  }
------ Candidate 4/5 full code end -----
-2026-03-08 11:43:24,599 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int f,int z){
-  int n64, uj, woo, xku, fc;
+int main1(){
+  int o, f, k4, sl, qzh, en4;
 
-  n64=f;
-  uj=0;
-  woo=0;
-  xku=0;
-  fc=f*2;
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
 
   /*@
-    loop invariant n64 == f;
-    loop invariant 0 <= woo;
-    loop invariant 0 <= uj && uj &lt; 8;
-    loop invariant xku == 3 * woo;
-    loop assigns xku, uj, woo, fc;
-    loop variant (n64 - woo);
-  */
-  while (woo&lt;n64) {
-      xku = xku + 3;
-      uj = (uj+1)%8;
-      woo += 1;
-      fc = (fc+uj)%8;
+    loop invariant sl - k4 - qzh - en4 == -6;
+    loop invariant 0 &lt;= en4;
+    loop invariant 0 &lt;= sl;
+    loop invariant 0 &lt;= k4;
+    loop invariant 0 &lt;= qzh;
+    loop assigns sl, k4, qzh, en4;
+    loop variant en4;
+  @*/
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
+  }
+
+  /*@
+    loop invariant 0 <= sl;
+    loop invariant 0 <= o;
+    loop invariant qzh == 6;
+    loop assigns sl, o;
+  @*/
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-11 04:25:33,323 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(){
+  int o, f, k4, sl, qzh, en4;
+
+  o=34;
+  f=0;
+  k4=0;
+  sl=0;
+  qzh=0;
+  en4=(1%18)+5;
+
+  /*@
+    loop invariant en4 == 6 - sl;
+    loop invariant qzh == sl;
+    loop assigns sl, k4, qzh, en4;
+    loop variant en4;
+  @*/
+  while (1) {
+      if (!(en4>0)) {
+          break;
+      }
+      sl = sl+1*1;
+      k4 = k4+1*1;
+      qzh = qzh+1*1;
+      en4 = en4 - 1;
+      k4 += f;
+  }
+
+  /*@
+    loop invariant sl >= 0;
+    loop invariant o >= 34;
+    loop assigns sl, o;
+  @*/
+  while (1) {
+      if (!(sl>o)) {
+          break;
+      }
+      sl = sl - o;
+      o = o + 1;
+      sl = sl*sl;
+      o = o + qzh;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-08 11:43:24,599 - INFO - Successfully generated 5/5 candidates
-2026-03-08 11:43:24,600 - INFO - Checking 7 invariants for conflicts...
-2026-03-08 11:43:24,602 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-08 11:43:24,602 - INFO -   1: int main1(int f,int z){
-2026-03-08 11:43:24,602 - INFO -   2:   int n64, uj, woo, xku, fc;
-2026-03-08 11:43:24,602 - INFO -   3: 
-2026-03-08 11:43:24,602 - INFO -   4:   n64=f;
-2026-03-08 11:43:24,602 - INFO -   5:   uj=0;
-2026-03-08 11:43:24,602 - INFO -   6:   woo=0;
-2026-03-08 11:43:24,602 - INFO -   7:   xku=0;
-2026-03-08 11:43:24,602 - INFO -   8:   fc=f*2;
-2026-03-08 11:43:24,602 - INFO -   9: 
-2026-03-08 11:43:24,602 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-08 11:43:24,602 - INFO - DEBUG: Total lines: 29
-2026-03-08 11:43:35,906 - INFO - syntax Correct
-2026-03-08 11:44:07,117 - INFO - Validate:
-2026-03-08 11:44:07,117 - INFO - [True, True, True, False, True, True, True]
-2026-03-08 11:44:07,117 - INFO - 
-2026-03-08 11:44:07,117 - INFO - Verify:
-2026-03-08 11:44:07,117 - INFO - []
-2026-03-08 11:44:07,117 - INFO - 
-2026-03-08 11:44:07,118 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-08 11:44:07,118 - INFO -   Before: 7 invariants
-2026-03-08 11:44:07,118 - INFO -   After: 6 invariants
-2026-03-08 11:44:07,118 - INFO -   Remaining invariants:
-2026-03-08 11:44:07,118 - INFO -     [1] n64 == f
-2026-03-08 11:44:07,118 - INFO -     [2] xku == 3*woo
-2026-03-08 11:44:07,118 - INFO -     [3] uj == woo % 8
-2026-03-08 11:44:07,118 - INFO -     [4] 0 <= woo
-2026-03-08 11:44:07,118 - INFO -     [5] 0 <= uj && uj < 8
-2026-03-08 11:44:07,118 - INFO -     [6] (fc - (2*f + woo*(woo+1)/2)) % 8 == 0
-2026-03-08 11:44:18,147 - INFO - syntax Correct
-2026-03-08 11:44:49,042 - INFO - Validate:
-2026-03-08 11:44:49,042 - INFO - [True, True, True, True, True, False]
-2026-03-08 11:44:49,042 - INFO - 
-2026-03-08 11:44:49,042 - INFO - Verify:
-2026-03-08 11:44:49,042 - INFO - []
-2026-03-08 11:44:49,042 - INFO - 
-2026-03-08 11:44:49,042 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-08 11:44:49,042 - INFO -   Before: 6 invariants
-2026-03-08 11:44:49,042 - INFO -   After: 5 invariants
-2026-03-08 11:44:49,042 - INFO -   Remaining invariants:
-2026-03-08 11:44:49,042 - INFO -     [1] n64 == f
-2026-03-08 11:44:49,042 - INFO -     [2] xku == 3*woo
-2026-03-08 11:44:49,042 - INFO -     [3] uj == woo % 8
-2026-03-08 11:44:49,042 - INFO -     [4] 0 <= woo
-2026-03-08 11:44:49,042 - INFO -     [5] 0 <= uj && uj < 8
-2026-03-08 11:44:59,779 - INFO - syntax Correct
-2026-03-08 11:45:30,567 - INFO - Validate:
-2026-03-08 11:45:30,567 - INFO - [True, True, True, True, True]
-2026-03-08 11:45:30,567 - INFO - 
-2026-03-08 11:45:30,567 - INFO - Verify:
-2026-03-08 11:45:30,567 - INFO - []
-2026-03-08 11:45:30,567 - INFO - 
-2026-03-08 11:45:30,567 - INFO - Houdini iteration 3: All invariants are valid
-2026-03-08 11:45:41,243 - INFO - syntax Correct
-2026-03-08 11:46:12,028 - INFO - Validate:
-2026-03-08 11:46:12,028 - INFO - [True, True, True, True, True]
-2026-03-08 11:46:12,028 - INFO - 
-2026-03-08 11:46:12,028 - INFO - Verify:
-2026-03-08 11:46:12,028 - INFO - []
-2026-03-08 11:46:12,028 - INFO - 
-2026-03-08 11:46:33,267 - INFO - Deduplicated 3 loop invariants in final code
-2026-03-08 11:46:43,997 - INFO - syntax Correct
-2026-03-08 11:47:14,791 - INFO - Validate:
-2026-03-08 11:47:14,791 - INFO - [True, True, True, True]
-2026-03-08 11:47:14,791 - INFO - 
-2026-03-08 11:47:14,791 - INFO - Verify:
-2026-03-08 11:47:14,791 - INFO - []
-2026-03-08 11:47:14,791 - INFO - 
-2026-03-08 11:47:14,791 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-08 11:47:14,791 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_74/1.c
-2026-03-08 11:47:14,791 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_74/1_invariants.txt
-2026-03-08 11:47:14,791 - INFO - 
+2026-03-11 04:25:33,323 - INFO - Successfully generated 5/5 candidates
+2026-03-11 04:25:33,324 - INFO - Checking 11 invariants for conflicts...
+2026-03-11 04:25:33,325 - INFO -   Conflict detected:
+2026-03-11 04:25:33,325 - INFO -     [9] sl - k4 - qzh - en4 == -6
+2026-03-11 04:25:33,325 - INFO -     [10] en4 == 6 - sl
+2026-03-11 04:25:33,325 - INFO - Checking 9 invariants for conflicts...
+2026-03-11 04:25:33,326 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 04:25:33,326 - INFO -   1: int main1(){
+2026-03-11 04:25:33,326 - INFO -   2:   int o, f, k4, sl, qzh, en4;
+2026-03-11 04:25:33,326 - INFO -   3: 
+2026-03-11 04:25:33,326 - INFO -   4:   o=34;
+2026-03-11 04:25:33,326 - INFO -   5:   f=0;
+2026-03-11 04:25:33,326 - INFO -   6:   k4=0;
+2026-03-11 04:25:33,326 - INFO -   7:   sl=0;
+2026-03-11 04:25:33,326 - INFO -   8:   qzh=0;
+2026-03-11 04:25:33,326 - INFO -   9:   en4=(1%18)+5;
+2026-03-11 04:25:33,326 - INFO -   10: 
+2026-03-11 04:25:33,326 - INFO - DEBUG: Total lines: 60
+2026-03-11 04:25:33,528 - INFO - syntax Correct
+2026-03-11 04:26:04,830 - INFO - Validate:
+2026-03-11 04:26:04,830 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:26:04,830 - INFO - 
+2026-03-11 04:26:04,830 - INFO - Verify:
+2026-03-11 04:26:04,830 - INFO - []
+2026-03-11 04:26:04,830 - INFO - 
+2026-03-11 04:26:04,830 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-11 04:26:05,094 - INFO - syntax Correct
+2026-03-11 04:26:36,486 - INFO - Validate:
+2026-03-11 04:26:36,487 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:26:36,487 - INFO - 
+2026-03-11 04:26:36,487 - INFO - Verify:
+2026-03-11 04:26:36,487 - INFO - []
+2026-03-11 04:26:36,487 - INFO - 
+2026-03-11 04:28:10,673 - INFO - Deduplicated 15 loop invariants in final code
+2026-03-11 04:28:10,865 - INFO - syntax Correct
+2026-03-11 04:28:41,736 - INFO - Validate:
+2026-03-11 04:28:41,736 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-11 04:28:41,736 - INFO - 
+2026-03-11 04:28:41,736 - INFO - Verify:
+2026-03-11 04:28:41,736 - INFO - []
+2026-03-11 04:28:41,736 - INFO - 
+2026-03-11 04:28:41,736 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 04:28:41,737 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_74/1.c
+2026-03-11 04:28:41,737 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_74/1_invariants.txt
+2026-03-11 04:28:41,737 - INFO - 
 ============================================================
-2026-03-08 11:47:14,791 - INFO - Final first_pass results:
-2026-03-08 11:47:14,791 - INFO -   syntax=1
-2026-03-08 11:47:14,791 - INFO -   valid=1
-2026-03-08 11:47:14,791 - INFO -   satisfy=None
-2026-03-08 11:47:14,792 - INFO - ============================================================
-2026-03-08 11:47:14,792 - INFO - 
+2026-03-11 04:28:41,737 - INFO - Final first_pass results:
+2026-03-11 04:28:41,737 - INFO -   syntax=1
+2026-03-11 04:28:41,737 - INFO -   valid=1
+2026-03-11 04:28:41,737 - INFO -   satisfy=None
+2026-03-11 04:28:41,737 - INFO - ============================================================
+2026-03-11 04:28:41,737 - INFO - 
 ============================================================
-2026-03-08 11:47:14,792 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-08 11:47:14,792 - INFO -   Total API calls: 29
-2026-03-08 11:47:14,792 - INFO -   Total prompt tokens (input): 31,025
-2026-03-08 11:47:14,792 - INFO -   Total completion tokens (output): 175,851
-2026-03-08 11:47:14,792 - INFO -   Total tokens: 206,876
-2026-03-08 11:47:14,792 - INFO -   Average per call:
-2026-03-08 11:47:14,792 - INFO -     Prompt: 1069.8 tokens
-2026-03-08 11:47:14,792 - INFO -     Completion: 6063.8 tokens
-2026-03-08 11:47:14,792 - INFO -     Total: 7133.7 tokens
-2026-03-08 11:47:14,792 - INFO - ============================================================
-2026-03-08 11:47:14,792 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_74/1.c
-2026-03-08 11:47:14,792 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_74/1_invariants.txt
-2026-03-08 11:47:21,686 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
-2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
-2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
-2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
-2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
-2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
-2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
-2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
-2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
-2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
-2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
-2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
-2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
-2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
-2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
-2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
-2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
-2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
-2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
-2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 04:28:41,737 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 04:28:41,737 - INFO -   Total API calls: 2
+2026-03-11 04:28:41,737 - INFO -   Total prompt tokens (input): 2,324
+2026-03-11 04:28:41,737 - INFO -   Total completion tokens (output): 15,182
+2026-03-11 04:28:41,737 - INFO -   Total tokens: 17,506
+2026-03-11 04:28:41,737 - INFO -   Average per call:
+2026-03-11 04:28:41,737 - INFO -     Prompt: 1162.0 tokens
+2026-03-11 04:28:41,737 - INFO -     Completion: 7591.0 tokens
+2026-03-11 04:28:41,737 - INFO -     Total: 8753.0 tokens
+2026-03-11 04:28:41,737 - INFO - ============================================================
+2026-03-11 04:28:41,737 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_74/1.c
+2026-03-11 04:28:41,737 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_74/1_invariants.txt
+2026-03-11 04:29:18,132 - INFO - LLM quality-gate raw response: {
+  "ok": true,
+  "reason": "pass"
+}
+2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
+2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
+2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
+2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
+2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
+2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
+2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
+2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
+2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

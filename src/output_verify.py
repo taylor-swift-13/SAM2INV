@@ -400,4 +400,4 @@ if __name__ == "__main__":
     import logging
     logging.basicConfig(level=logging.INFO)
     verifier = OutputVerifier(logger=logging.getLogger(), output=True)
-    # verifier.run("output/NLA_lipus/1_temp.c")
+    verifier.run("/home/yangfp/SAM2INV/loop_factory/generated/test/annotated/48.c")

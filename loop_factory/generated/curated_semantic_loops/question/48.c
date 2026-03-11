@@ -1,0 +1,20 @@
+int main1(int m){
+  int n, q, v;
+
+  n=(m%14)+9;
+  q=0;
+  v=6;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+
+while (q<=n-3) {
+      v = v-v;
+      v = v+q;
+      q = q+3;
+  }
+/*@
+  assert !(q<=n-3) &&
+         (m == \at(m,Pre));
+*/
+
+}

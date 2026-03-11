@@ -1,438 +1,490 @@
-2026-03-09 12:53:25,976 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-09 12:53:26,089 - INFO - Found 1 loops
-2026-03-09 12:53:26,155 - INFO - 
+2026-03-11 16:24:17,711 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 16:24:17,747 - INFO - Found 1 loops
+2026-03-11 16:24:17,786 - INFO - 
 ============================================================
-2026-03-09 12:53:26,157 - INFO - Main generation pass 1/1
-2026-03-09 12:53:26,157 - INFO - ============================================================
-2026-03-09 12:53:26,159 - INFO - Loaded single prompt template: simple
-2026-03-09 12:53:26,161 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-09 12:53:26,165 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-09 12:53:26,198 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 12:56:34,895 - INFO - 
+2026-03-11 16:24:17,787 - INFO - Main generation pass 1/1
+2026-03-11 16:24:17,787 - INFO - ============================================================
+2026-03-11 16:24:17,787 - INFO - Loaded single prompt template: simple
+2026-03-11 16:24:17,787 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 16:24:17,794 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 16:24:19,295 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:26:10,748 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We need inductive loop invariants that are preservation-friendly for Frama-C/WP and use only allowed variables. Key observations from the loop:
+<reasoning>
+I analyzed the loop to derive strong, inductive invariants that are preserved across iterations and assist termination reasoning.
 
-- Updates per iteration: i := i + 2; s6g := s6g + 2; n := n + 1; The guard is n < f32. f32 is initialized to 20 and never changes, so the loop terminates when n reaches 20.
-- A strong conservation law exists: i - 2*n remains constant across iterations because (i+2) - 2*(n+1) = i - 2*n. With the given initial values i = 2 and n = 20, i - 2*n = -38. Thus a robust invariant is i - 2*n == -38.
-- A natural progress bound is n <= f32. Initially n == f32, and whenever the loop body executes (which requires n < f32), n increases by 1, so n remains <= f32 after the increment.
-- A natural loop variant that strictly decreases when the loop executes is f32 - n. Since the loop only executes when n < f32, f32 - n > 0 at run start and decreases by 1 each iteration.
+Key observations:
+- The variable nc8 is constant during the loop (as per the transition relation).
+- q and p8q are incremented by exactly 1 each iteration.
+- q3 is incremented by 1 each iteration and starts equal to nc8.
+- The initial state satisfies q = 1, p8q = 0, q3 = nc8, nc8 = initial constant.
+- A natural invariant pair can relate the three arithmetic variables that are updated in lockstep:
+  - p8q increments by 1 each iteration, and q starts at 1; hence p8q == q - 1.
+  - q3 also increments by 1 each iteration and starts at nc8; hence q3 == nc8 + p8q (equivalently q3 - nc8 == p8q). This implies q3 == nc8 + (q - 1) as a consequence of the previous invariant.
+- These relations are preserved by the transition:
+  - q -> q+1, p8q -> p8q+1, so p8q' == (q+1) - 1 holds if p8q == q - 1 holds before.
+  - q3 -> q3+1, nc8 unchanged, so q3' == nc8 + p8q' if q3 == nc8 + p8q before.
 
-Therefore, appropriate loop annotations are:
-- loop invariant i - 2*n == -38
-- loop invariant n <= f32
-- loop assigns i, n, s6g
-- loop variant f32 - n
+Progress bounds:
+- The loop decreases the non-invariant but monotone component nc8 - q (since q increases by 1 each iteration) while the guard mve1>0 && q<=nc8 is true. Therefore nc8 - q is a valid loop variant (non-increasing and strictly decreases by 1 each iteration while the guard holds).
 
-These invariants are inductive: they hold before the first iteration and are preserved when the loop body executes under the guard. The two invariants together characterize the relationship and bound between i and n; the variant ensures termination progress when iterations occur.
+Assignments:
+- The loop modifies mve1, q, q3, and p8q. nc8 remains unchanged.
+
+Thus the chosen invariants are:
+- q3 == nc8 + p8q
+- p8q == q - 1
+With loop assigns: mve1, q, q3, p8q
+And a loop variant: nc8 - q
+
+These are inductive, strong, and verification-friendly for Frama-C/WP.
 
 </reasoning>
 <code>int main1(){
-  int f32, n, s6g, i;
+  int nc8, q3, mve1, q, p8q;
 
-  f32=1+19;
-  n=f32;
-  s6g=0;
-  i=2;
+  nc8=(1%17)+16;
+  q3= nc8;
+  mve1=34;
+  q=1;
+  p8q=0;
 
   /*@
-     loop invariant i - 2*n == -38;
-     loop invariant n <= f32;
-     loop assigns i, n, s6g;
-     loop variant f32 - n;
+    loop invariant (q3 == nc8 + p8q);
+    loop invariant (p8q == q - 1);
+    loop assigns mve1, q, q3, p8q;
+    loop variant (nc8 - q);
   */
-  while (1) {
-      if (!(n<f32)) {
-          break;
+  while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
       }
-      i += 2;
-      s6g += 2;
-      n += 1;
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
+  }
+
+}
+----- Candidate 1/5 raw response end -----
+2026-03-11 16:26:10,749 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 16:26:10,814 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:28:32,501 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>
+We need inductive, verification-friendly loop invariants for the given loop.
+Observations about the loop updates:
+- q is incremented by 1 every iteration.
+- q3 is incremented by 1 every iteration, and initially q3 == nc8.
+- p8q is incremented by 1 every iteration, and initially p8q == 0.
+- nc8 is never changed.
+
+Therefore, a natural, strong, inductive pair of relational invariants that explain the loop updates are:
+- q3 == nc8 + (q - 1)
+  This holds initially (q = 1, q3 = nc8) and is preserved since both sides increase by 1 per iteration.
+- p8q == q - 1
+  This also holds initially (0 == 0) and is preserved since both sides increase by 1 per iteration.
+
+Additionally, provide a minimal progress/termination measure:
+- loop variant nc8 + 1 - q
+  This decreases by 1 on each iteration while the loop guard is true, and remains non-negative throughout the loop's life (precondition q <= nc8).
+
+Assigns:
+- The loop writes to mve1, q, q3, p8q, and nc8 is not assigned; thus:
+  loop assigns mve1, q, q3, p8q;
+
+These invariants are strong, non-tautological, and inductive under the given code since the updates to q, q3, and p8q are uniform across both branches of the if statement.
+
+Note: The loop guard is mve1 > 0 && q <= nc8, and the invariants are intended to hold whenever the guard is true (i.e., at loop head before each iteration). The chosen invariants do not depend on mve1 and are preserved irrespective of which branch executes.
+</reasoning>
+<code>int main1(){
+  int nc8, q3, mve1, q, p8q;
+
+  nc8=(1%17)+16;
+  q3=nc8;
+  mve1=34;
+  q=1;
+  p8q=0;
+
+  /*@
+    loop invariant q3 == nc8 + (q - 1);
+    loop invariant p8q == q - 1;
+    loop assigns mve1, q, q3, p8q;
+    loop variant nc8 + 1 - q;
+  */
+  while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
+      }
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
   }
 
 }</code>
------ Candidate 1/5 raw response end -----
-2026-03-09 12:56:34,895 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-09 12:56:34,914 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 12:58:22,280 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>
-I choose invariants that precisely describe the state relation produced by each loop iteration and that are strong enough to show the loop cannot actually run given the preceding code.
-
-- Core conservation/relational equality: s6g == 2 * (n - f32). The loop increments n by +1 and s6g by +2 each iteration, and n is initially equal to f32; hence s6g is always twice the difference (n - f32). This captures the state transition law linking n and s6g.
-- Secondary relational equality: i - 2 == s6g. i starts at 2 and increases by 2 each iteration, so the offset (i - 2) equals s6g. This ties i together with s6g and n.
-- Minimal progress/bound: n >= f32. Since s6g >= 0 by the first equality, we infer n >= f32; expressing this explicitly gives the non-strict bound (the weakened form of the loop guard) that is useful at loop exit. Because this bound implies the loop guard (n < f32) is false, the loop is unreachable in the present program state; that is consistent with the initial assignments (n == f32) and is inductive.
-- loop assigns: exactly the three variables modified in the body (i, n, s6g).
-
-I did not add a loop variant because the chosen invariant makes the loop body unreachable (so a variant is unnecessary) and many standard variants would clash with the non-strict bound invariant (e.g. f32 - n would be non-positive under n >= f32). The given invariants are inductive (they hold before the loop and are preserved) and are verification friendly for Frama-C/WP.
-</reasoning>
-<code>
-int main1(){
-  int f32, n, s6g, i;
-
-  f32=1+19;
-  n=f32;
-  s6g=0;
-  i=2;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-   loop invariant i - 2 == s6g;
-   loop invariant s6g == 2 * (n - f32);
-   loop invariant n >= f32;
-   loop assigns i, n, s6g;
- */
- while (1) {
-       if (!(n<f32)) {
-           break;
-       }
-       i += 2;
-       s6g += 2;
-       n += 1;
-   }
-
-}
-</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-09 12:58:22,280 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-09 12:58:22,302 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 12:58:49,135 - INFO - 
+2026-03-11 16:28:32,501 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 16:28:32,575 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:30:44,971 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>
-I inspected the loop: on each executed iteration n increases by 1, both i and s6g increase by 2. The initial state before the loop is f32 == 1+19, n == f32, i == 2, s6g == 0, and f32 is not modified by the loop. Therefore the exact relational equalities below are preserved by the body and hold initially:
+<reasoning>The loop updates four arithmetic variables in a regular way: q and q3 are both incremented by 1 every iteration, and p8q is incremented by 1 every iteration as well. A strong relational invariant can capture these parallel increments:
 
-- i == 2 + 2*(n - f32)
-  (explains how i evolves relative to n; initially n-f32 == 0 so i==2, and both sides increase by 2 when n increases by 1)
+- q3 == nc8 + (q - 1): Since initially q3 == nc8 and each iteration performs q3 += 1 and q += 1, this relation is preserved by induction.
+- p8q == q - 1: Since initially p8q == 0 and each iteration performs p8q += 1 and q += 1, this relation is also preserved by induction.
 
-- s6g == 2*(n - f32)
-  (same reasoning for s6g)
+These invariants are independent of the branch taken for mve1 because q, q3, and p8q are all updated unconditionally in the loop body.
 
-To ensure the loop variant is non-negative and to capture progress toward loop exit, I add n <= f32 (so f32 - n is >= 0) and use (f32 - n) as the loop variant — it decreases by 1 each iteration because n increases by 1. The loop assigns are exactly the variables modified by the body: i, s6g, n.
+Progress guarantees:
+- loop variant: nc8 - q. With each iteration q increments by 1, so nc8 - q decreases by 1 and stays non-negative while the loop may continue. This provides a minimal progress bound to aid termination proofs.
 
-These invariants are strong, inductive, and directly explain the state transition law of the loop. They do not use \at or any forbidden constructs and keep the original code unchanged.
-</reasoning>
-<code>
-int main1(){
-  int f32, n, s6g, i;
+Loop assigns:
+- mve1, q, q3, p8q are the variables modified inside the loop.
 
-  f32=1+19;
-  n=f32;
-  s6g=0;
-  i=2;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant i == 2 + 2*(n - f32);
-    loop invariant s6g == 2*(n - f32);
-    loop invariant n <= f32;
-    loop assigns i, s6g, n;
-    loop variant (f32 - n);
-  */
-while (1) {
-      if (!(n<f32)) {
-          break;
+These invariants are inductive, tight (not tautological), and directly tied to the loop’s state transitions, aiding Frama-C WP verification without altering the program logic or using forbidden constructs. </reasoning>
+<code>/*@
+  loop invariant q3 == nc8 + (q - 1);
+  loop invariant p8q == q - 1;
+  loop assigns mve1, q, q3, p8q;
+  loop variant nc8 - q;
+*/
+while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
       }
-      i += 2;
-      s6g += 2;
-      n += 1;
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
+  }</code>
+----- Candidate 3/5 raw response end -----
+2026-03-11 16:30:44,971 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 16:30:45,033 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:34:04,371 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>Chosen invariants capture the exact, inductive state relations that hold across loop iterations, leveraging the observed linear updates in q, q3, p8q and the constant nc8.
+
+- Core conservation/relational equalities
+  - p8q == q - 1
+  - q3 == q + 16
+  These two equalities are preserved by every iteration because:
+  - q increases by 1 each iteration, so p8q' = p8q + 1 and q' - 1 = (q + 1) - 1 = q; with initial p8q = 0 and q = 1, they hold initially and are preserved by the body updates.
+  - q3 increases by 1 each iteration, so q3' = q3 + 1 and q' + 16 = (q + 1) + 16; with initial q3 = 17, they hold initially and are preserved.
+
+- Progress bounds / termination aid
+  - loop variant nc8 - q: since q is incremented every iteration, this is strictly decreasing while the loop guard is true (mve1 > 0 and q <= nc8), and bounded below by 0.
+  - loop invariant q <= nc8 + 1: derives from the guard q <= nc8 and the post-increment of q; ensures a monotone, non-strict bound that is preserved through iterations.
+
+- Loop assigns
+  - The loop modifies mve1, q, q3, and p8q exactly, so we declare loop assigns mve1, q, q3, p8q.
+
+These invariants are inductive (hold at entry, preserved by each iteration under the guard) and purpose-built to be verification-friendly for Frama-C/WP, with exact relational equalities that tie the evolving state variables together and a clear, decreasing variant for termination proof.</reasoning>
+<code>int main1(){
+  int nc8, q3, mve1, q, p8q;
+
+  nc8=(1%17)+16;
+  q3=nc8;
+  mve1=34;
+  q=1;
+  p8q=0;
+
+  /*@ 
+    loop invariant q3 == q + 16;
+    loop invariant p8q == q - 1;
+    loop invariant q <= nc8 + 1;
+    loop assigns mve1, q, q3, p8q;
+    loop variant nc8 - q;
+  @*/
+  while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
+      }
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
   }
 
 }
-</code>
------ Candidate 3/5 raw response end -----
-2026-03-09 12:58:49,135 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-09 12:58:49,154 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 13:01:45,476 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>We analyze the loop state and derive inductive, verification-friendly invariants that relate the evolving variables.
-
-Given initial state:
-- f32 = 20, n = 20, i = 2, s6g = 0
-
-Loop body (executed when n < f32) updates:
-- i' = i + 2
-- s6g' = s6g + 2
-- n' = n + 1
-
-To capture the exact linear relationship preserved by each iteration, derive invariants of the form:
-- i = 2*n + b
-- s6g = 2*n + d
-
-Using the initial state (n = 20, i = 2, s6g = 0) gives:
-- 2 = 2*20 + b => b = -38
-- 0 = 2*20 + d => d = -40
-
-Thus the two exact inductive invariants are:
-- i == 2*n - 38
-- s6g == 2*n - 40
-
-Additionally, since in the loop we require n <= f32 to maintain the loop guard, we include:
-- n <= f32
-
-A minimal loop variant that decreases with each iteration (to aid termination proofs) is:
-- f32 - n
-
-These invariants are preserved by the loop body:
-- If i = 2*n - 38 and s6g = 2*n - 40 hold before an iteration, after the body (n' = n+1, i' = i+2, s6g' = s6g+2) we have:
-  i' = 2*(n+1) - 38 and s6g' = 2*(n+1) - 40, so the invariants remain true.
-- The guard condition for entering the body is n < f32, hence n <= f32 is maintained.
-
-The loop assigns reflect that i, s6g, and n are potentially modified by the loop body. The variant f32 - n is non-negative and strictly decreases when the loop body is executed, ensuring termination.
-
-</reasoning>
-<code>/*@ 
-  loop invariant i == 2*n - 38;
-  loop invariant s6g == 2*n - 40;
-  loop invariant n <= f32;
-  loop assigns i, s6g, n;
-  loop variant f32 - n;
-@*/
-while (1) {
-      if (!(n<f32)) {
-          break;
-      }
-      i += 2;
-      s6g += 2;
-      n += 1;
-  }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-09 13:01:45,477 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-09 13:01:45,490 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 13:02:22,354 - INFO - 
+2026-03-11 16:34:04,372 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 16:34:04,430 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:37:02,770 - INFO - 
 ----- Candidate 5/5 raw response begin -----
 <reasoning>
-I chose invariants that precisely capture how i and s6g evolve with n and the constant f32. Since f32 is not modified in the loop, it can serve as the reference (initial) value. Each loop iteration does: i += 2; s6g += 2; n += 1. Therefore the number of iterations performed so far is (n - f32), and the arithmetic relations are:
+We synthesize inductive loop invariants that capture the core state relations preserved by every iteration and help Frama-C/WP verify the loop termination and post-conditions.
 
-- i = 2 + 2*(n - f32)
-- s6g = 2*(n - f32)
+Key conserved relations (state transition laws):
+- p8q == q - 1
+  Since p8q starts at 0 and is incremented by 1 every iteration, while q is also incremented by 1 each iteration, the difference p8q - (q - 1) remains 0. This is preserved across iterations.
+- q3 == nc8 + (q - 1)
+  Initially q3 = nc8. Each iteration increments q and q3 by 1, so the difference q3 - (nc8 + (q - 1)) stays 0. This invariant is preserved.
+- q >= 1
+  q starts at 1 and is incremented by 1 every iteration, so it remains >= 1 throughout.
 
-These are the core conservation equalities explaining the state transition. They hold at loop entry (with n == f32 they give the initial values i==2 and s6g==0) and are preserved by the body: when n increases by 1, both right-hand sides increase by the appropriate amounts.
+Progress measure (loop variant):
+- nc8 - q
+  With the loop guard mve1 > 0 && q <= nc8, every iteration increases q by 1 while nc8 remains constant, so nc8 - q strictly decreases by 1. This provides a decreasing variant ensuring termination.
 
-For progress/termination I used the variant f32 - n (natural number, non-negative at loop entry) and the corresponding invariant f32 - n >= 0 (equivalently n <= f32). This shows the variant is non-negative and strictly decreases on each taken iteration, proving termination of the loop.
+Assigns:
+- The loop modifies mve1, q, q3, p8q, so loop assigns mve1, q, q3, p8q.
 
-The loop assigns clause is exact: the loop only modifies i, s6g and n; f32 is not changed.
+These invariants are strong (non-tautological), inductive (preserved by the transition), and directly relate the updated variables to initial constants. They do not rely on function parameters or unknowns, and they respect the allowed ACSL constructs and formatting.
 
-All invariants use only the available variables {f32, n, i, s6g} and avoid forbidden constructs. Parentheses are added to make arithmetic grouping explicit.
 </reasoning>
-<code>
-int main1(){
-  int f32, n, s6g, i;
+<code>int main1(){
+  int nc8, q3, mve1, q, p8q;
 
-  f32=1+19;
-  n=f32;
-  s6g=0;
-  i=2;
+  nc8=(1%17)+16;
+  q3=nc8;
+  mve1=34;
+  q=1;
+  p8q=0;
 
   /*@
-    loop invariant i == (2 + 2*(n - f32));
-    loop invariant s6g == (2*(n - f32));
-    loop invariant (f32 - n) >= 0;
-    loop assigns i, s6g, n;
-    loop variant (f32 - n);
+    loop invariant q3 == nc8 + (q - 1);
+    loop invariant p8q == q - 1;
+    loop invariant q >= 1;
+    loop assigns mve1, q, q3, p8q;
+    loop variant nc8 - q;
   */
-while (1) {
-      if (!(n<f32)) {
-          break;
+  while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
       }
-      i += 2;
-      s6g += 2;
-      n += 1;
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
   }
 
-}
-</code>
+}</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-09 13:02:22,354 - INFO - 
+2026-03-11 16:37:02,773 - INFO - 
 ----- Candidate 1/5 full code begin -----
 int main1(){
-  int f32, n, s6g, i;
+  int nc8, q3, mve1, q, p8q;
 
-  f32=1+19;
-  n=f32;
-  s6g=0;
-  i=2;
+  nc8=(1%17)+16;
+  q3= nc8;
+  mve1=34;
+  q=1;
+  p8q=0;
 
   /*@
-     loop invariant i - 2*n == -38;
-     loop invariant n <= f32;
-     loop assigns i, n, s6g;
-     loop variant f32 - n;
+    loop invariant (q3 == nc8 + p8q);
+    loop invariant (p8q == q - 1);
+    loop assigns mve1, q, q3, p8q;
+    loop variant (nc8 - q);
   */
-  while (1) {
-      if (!(n<f32)) {
-          break;
+  while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
       }
-      i += 2;
-      s6g += 2;
-      n += 1;
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-09 13:02:22,354 - INFO - 
+2026-03-11 16:37:02,773 - INFO - 
 ----- Candidate 2/5 full code begin -----
 int main1(){
-  int f32, n, s6g, i;
+  int nc8, q3, mve1, q, p8q;
 
-  f32=1+19;
-  n=f32;
-  s6g=0;
-  i=2;
+  nc8=(1%17)+16;
+  q3=nc8;
+  mve1=34;
+  q=1;
+  p8q=0;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-   loop invariant i - 2 == s6g;
-   loop invariant s6g == 2 * (n - f32);
-   loop invariant n >= f32;
-   loop assigns i, n, s6g;
- */
- while (1) {
-       if (!(n<f32)) {
-           break;
-       }
-       i += 2;
-       s6g += 2;
-       n += 1;
-   }
+  /*@
+    loop invariant q3 == nc8 + (q - 1);
+    loop invariant p8q == q - 1;
+    loop assigns mve1, q, q3, p8q;
+    loop variant nc8 + 1 - q;
+  */
+  while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
+      }
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
+  }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-09 13:02:22,354 - INFO - 
+2026-03-11 16:37:02,773 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(){
-  int f32, n, s6g, i;
-
-  f32=1+19;
-  n=f32;
-  s6g=0;
-  i=2;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant i == 2 + 2*(n - f32);
-    loop invariant s6g == 2*(n - f32);
-    loop invariant n <= f32;
-    loop assigns i, s6g, n;
-    loop variant (f32 - n);
-  */
-while (1) {
-      if (!(n<f32)) {
-          break;
+/*@
+  loop invariant q3 == nc8 + (q - 1);
+  loop invariant p8q == q - 1;
+  loop assigns mve1, q, q3, p8q;
+  loop variant nc8 - q;
+*/
+while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
       }
-      i += 2;
-      s6g += 2;
-      n += 1;
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
+  }
+----- Candidate 3/5 full code end -----
+2026-03-11 16:37:02,773 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(){
+  int nc8, q3, mve1, q, p8q;
+
+  nc8=(1%17)+16;
+  q3=nc8;
+  mve1=34;
+  q=1;
+  p8q=0;
+
+  /*@ 
+    loop invariant q3 == q + 16;
+    loop invariant p8q == q - 1;
+    loop invariant q <= nc8 + 1;
+    loop assigns mve1, q, q3, p8q;
+    loop variant nc8 - q;
+  @*/
+  while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
+      }
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
   }
 
 }
------ Candidate 3/5 full code end -----
-2026-03-09 13:02:22,354 - INFO - 
------ Candidate 4/5 full code begin -----
-/*@ 
-  loop invariant i == 2*n - 38;
-  loop invariant s6g == 2*n - 40;
-  loop invariant n <= f32;
-  loop assigns i, s6g, n;
-  loop variant f32 - n;
-@*/
-while (1) {
-      if (!(n<f32)) {
-          break;
-      }
-      i += 2;
-      s6g += 2;
-      n += 1;
-  }
 ----- Candidate 4/5 full code end -----
-2026-03-09 13:02:22,354 - INFO - 
+2026-03-11 16:37:02,773 - INFO - 
 ----- Candidate 5/5 full code begin -----
 int main1(){
-  int f32, n, s6g, i;
+  int nc8, q3, mve1, q, p8q;
 
-  f32=1+19;
-  n=f32;
-  s6g=0;
-  i=2;
+  nc8=(1%17)+16;
+  q3=nc8;
+  mve1=34;
+  q=1;
+  p8q=0;
 
   /*@
-    loop invariant i == (2 + 2*(n - f32));
-    loop invariant s6g == (2*(n - f32));
-    loop invariant (f32 - n) >= 0;
-    loop assigns i, s6g, n;
-    loop variant (f32 - n);
+    loop invariant q3 == nc8 + (q - 1);
+    loop invariant p8q == q - 1;
+    loop invariant q >= 1;
+    loop assigns mve1, q, q3, p8q;
+    loop variant nc8 - q;
   */
-while (1) {
-      if (!(n<f32)) {
-          break;
+  while (mve1>0&&q<=nc8) {
+      if (!(mve1<=q)) {
+          mve1 = 0;
       }
-      i += 2;
-      s6g += 2;
-      n += 1;
+      else {
+          mve1 = mve1 - q;
+      }
+      q += 1;
+      q3 += 1;
+      p8q += 1;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-09 13:02:22,355 - INFO - Successfully generated 5/5 candidates
-2026-03-09 13:02:22,355 - INFO - Checking 11 invariants for conflicts...
-2026-03-09 13:02:22,358 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-09 13:02:22,358 - INFO -   1: int main1(){
-2026-03-09 13:02:22,358 - INFO -   2:   int f32, n, s6g, i;
-2026-03-09 13:02:22,358 - INFO -   3: 
-2026-03-09 13:02:22,358 - INFO -   4:   f32=1+19;
-2026-03-09 13:02:22,358 - INFO -   5:   n=f32;
-2026-03-09 13:02:22,358 - INFO -   6:   s6g=0;
-2026-03-09 13:02:22,358 - INFO -   7:   i=2;
-2026-03-09 13:02:22,358 - INFO -   8: 
-2026-03-09 13:02:22,358 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-09 13:02:22,358 - INFO -   10: /*@
-2026-03-09 13:02:22,358 - INFO - DEBUG: Total lines: 34
-2026-03-09 13:02:33,339 - INFO - syntax Correct
-2026-03-09 13:03:04,290 - INFO - Validate:
-2026-03-09 13:03:04,290 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-09 13:03:04,290 - INFO - 
-2026-03-09 13:03:04,290 - INFO - Verify:
-2026-03-09 13:03:04,290 - INFO - []
-2026-03-09 13:03:04,290 - INFO - 
-2026-03-09 13:03:04,290 - INFO - Houdini iteration 1: All invariants are valid
-2026-03-09 13:03:15,295 - INFO - syntax Correct
-2026-03-09 13:03:46,254 - INFO - Validate:
-2026-03-09 13:03:46,254 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-09 13:03:46,254 - INFO - 
-2026-03-09 13:03:46,254 - INFO - Verify:
-2026-03-09 13:03:46,254 - INFO - []
-2026-03-09 13:03:46,254 - INFO - 
-2026-03-09 13:04:11,406 - INFO - Deduplicated 5 loop invariants in final code
-2026-03-09 13:04:22,307 - INFO - syntax Correct
-2026-03-09 13:04:53,163 - INFO - Validate:
-2026-03-09 13:04:53,163 - INFO - [True, True, True, True, True, True]
-2026-03-09 13:04:53,163 - INFO - 
-2026-03-09 13:04:53,163 - INFO - Verify:
-2026-03-09 13:04:53,163 - INFO - []
-2026-03-09 13:04:53,163 - INFO - 
-2026-03-09 13:04:53,163 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-09 13:04:53,163 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_16/1.c
-2026-03-09 13:04:53,163 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_16/1_invariants.txt
-2026-03-09 13:04:53,164 - INFO - 
+2026-03-11 16:37:02,773 - INFO - Successfully generated 5/5 candidates
+2026-03-11 16:37:02,776 - INFO - Checking 7 invariants for conflicts...
+2026-03-11 16:37:02,780 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 16:37:02,780 - INFO -   1: int main1(){
+2026-03-11 16:37:02,780 - INFO -   2:   int nc8, q3, mve1, q, p8q;
+2026-03-11 16:37:02,780 - INFO -   3: 
+2026-03-11 16:37:02,780 - INFO -   4:   nc8=(1%17)+16;
+2026-03-11 16:37:02,780 - INFO -   5:   q3=nc8;
+2026-03-11 16:37:02,780 - INFO -   6:   mve1=34;
+2026-03-11 16:37:02,780 - INFO -   7:   q=1;
+2026-03-11 16:37:02,780 - INFO -   8:   p8q=0;
+2026-03-11 16:37:02,780 - INFO -   9: 
+2026-03-11 16:37:02,780 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-11 16:37:02,780 - INFO - DEBUG: Total lines: 34
+2026-03-11 16:37:03,111 - INFO - syntax Correct
+2026-03-11 16:37:34,130 - INFO - Validate:
+2026-03-11 16:37:34,131 - INFO - [True, True, True, True, True, True, True]
+2026-03-11 16:37:34,131 - INFO - 
+2026-03-11 16:37:34,131 - INFO - Verify:
+2026-03-11 16:37:34,131 - INFO - []
+2026-03-11 16:37:34,131 - INFO - 
+2026-03-11 16:37:34,131 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-11 16:37:34,402 - INFO - syntax Correct
+2026-03-11 16:38:05,312 - INFO - Validate:
+2026-03-11 16:38:05,312 - INFO - [True, True, True, True, True, True, True]
+2026-03-11 16:38:05,312 - INFO - 
+2026-03-11 16:38:05,312 - INFO - Verify:
+2026-03-11 16:38:05,312 - INFO - []
+2026-03-11 16:38:05,312 - INFO - 
+2026-03-11 16:38:57,861 - INFO - Deduplicated 4 loop invariants in final code
+2026-03-11 16:38:58,077 - INFO - syntax Correct
+2026-03-11 16:39:28,834 - INFO - Validate:
+2026-03-11 16:39:28,834 - INFO - [True, True, True]
+2026-03-11 16:39:28,834 - INFO - 
+2026-03-11 16:39:28,834 - INFO - Verify:
+2026-03-11 16:39:28,834 - INFO - []
+2026-03-11 16:39:28,834 - INFO - 
+2026-03-11 16:39:28,835 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 16:39:28,835 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_16/1.c
+2026-03-11 16:39:28,835 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_16/1_invariants.txt
+2026-03-11 16:39:28,835 - INFO - 
 ============================================================
-2026-03-09 13:04:53,164 - INFO - Final first_pass results:
-2026-03-09 13:04:53,164 - INFO -   syntax=1
-2026-03-09 13:04:53,164 - INFO -   valid=1
-2026-03-09 13:04:53,164 - INFO -   satisfy=None
-2026-03-09 13:04:53,164 - INFO - ============================================================
-2026-03-09 13:04:53,164 - INFO - 
+2026-03-11 16:39:28,835 - INFO - Final first_pass results:
+2026-03-11 16:39:28,835 - INFO -   syntax=1
+2026-03-11 16:39:28,835 - INFO -   valid=1
+2026-03-11 16:39:28,835 - INFO -   satisfy=None
+2026-03-11 16:39:28,835 - INFO - ============================================================
+2026-03-11 16:39:28,835 - INFO - 
 ============================================================
-2026-03-09 13:04:53,164 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-09 13:04:53,164 - INFO -   Total API calls: 2
-2026-03-09 13:04:53,164 - INFO -   Total prompt tokens (input): 2,246
-2026-03-09 13:04:53,164 - INFO -   Total completion tokens (output): 11,385
-2026-03-09 13:04:53,164 - INFO -   Total tokens: 13,631
-2026-03-09 13:04:53,164 - INFO -   Average per call:
-2026-03-09 13:04:53,164 - INFO -     Prompt: 1123.0 tokens
-2026-03-09 13:04:53,164 - INFO -     Completion: 5692.5 tokens
-2026-03-09 13:04:53,164 - INFO -     Total: 6815.5 tokens
-2026-03-09 13:04:53,164 - INFO - ============================================================
-2026-03-09 13:04:53,164 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_16/1.c
-2026-03-09 13:04:53,164 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_16/1_invariants.txt
-2026-03-09 13:06:45,854 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 16:39:28,835 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 16:39:28,835 - INFO -   Total API calls: 28
+2026-03-11 16:39:28,835 - INFO -   Total prompt tokens (input): 28,128
+2026-03-11 16:39:28,835 - INFO -   Total completion tokens (output): 138,263
+2026-03-11 16:39:28,835 - INFO -   Total tokens: 166,391
+2026-03-11 16:39:28,835 - INFO -   Average per call:
+2026-03-11 16:39:28,835 - INFO -     Prompt: 1004.6 tokens
+2026-03-11 16:39:28,835 - INFO -     Completion: 4938.0 tokens
+2026-03-11 16:39:28,835 - INFO -     Total: 5942.5 tokens
+2026-03-11 16:39:28,835 - INFO - ============================================================
+2026-03-11 16:39:28,835 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_16/1.c
+2026-03-11 16:39:28,835 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_16/1_invariants.txt
+2026-03-11 16:40:18,099 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "fail"
+}
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

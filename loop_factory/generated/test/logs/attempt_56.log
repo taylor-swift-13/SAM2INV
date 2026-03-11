@@ -1,431 +1,476 @@
-2026-03-08 11:25:08,445 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-08 11:25:08,457 - INFO - Found 1 loops
-2026-03-08 11:25:08,458 - INFO - 
+2026-03-11 03:52:54,989 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 03:52:55,014 - INFO - Found 2 loops
+2026-03-11 03:52:55,015 - INFO - 
 ============================================================
-2026-03-08 11:25:08,458 - INFO - Main generation pass 1/1
-2026-03-08 11:25:08,458 - INFO - ============================================================
-2026-03-08 11:25:08,458 - INFO - Loaded single prompt template: simple
-2026-03-08 11:25:08,458 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-08 11:25:08,458 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-08 11:25:08,475 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:27:10,981 - INFO - 
+2026-03-11 03:52:55,015 - INFO - Main generation pass 1/1
+2026-03-11 03:52:55,015 - INFO - ============================================================
+2026-03-11 03:52:55,015 - INFO - Loaded single prompt template: simple
+2026-03-11 03:52:55,015 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 03:52:55,015 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 03:52:55,031 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 03:57:53,518 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. Observations:
-- Initial loop state (before first iteration) is o4=1, pctv=0, v=v0 (the parameter at entry), quk=v0, rz=v0-10.
-- In each iteration: pctv := pctv + o4*o4; o4 := o4 + 1; v := v + pctv; quk := quk + v + v.
-- After k iterations, o4 = k+1, pctv = sum_{i=1..k} i^2, and v = v0 + sum_{t=1..k} sum_{j=1..t} j^2.
-Useful closed forms:
-- sum_{i=1..k} i^2 = (k)(k+1)(2k+1)/6. With k = o4-1 this becomes pctv = ((o4-1)*o4*(2*o4-1))/6.
-- sum_{t=1..k} sum_{j=1..t} j^2 = k(k+1)^2(k+2)/12. With k = o4-1 and v0 = \at(v, Pre), we get v = v0 + ((o4-1)*o4^2*(o4+1))/12.
-These relations give strong, exact invariants that are preserved by each iteration. They also provide a clear loop-variant for termination: as long as o4 <= rz, the expression rz - o4 decreases by 1 each iteration.
-We keep the loop assigns to reflect all modified variables: o4, pctv, v, quk. We avoid making any assumptions about quk beyond its being assigned, since a separate exact relation for quk would complicate the invariant. The invariant uses only o4, pctv, v and the initial value of v (\at(v, Pre)).
-The proposed invariants are strong and inductive, and the loop variant ensures progress toward termination. </reasoning>
-<code>int main1(int v){
-  int rz, o4, pctv, quk;
+<reasoning>For the two loops we provide inductive invariants that reflect the essential state-update laws while remaining robust for WP verification.
 
-  rz=v-10;
-  o4=1;
-  pctv=0;
-  quk=v;
+Loop 0 (the while (ec > bb) loop)
+- Core conservation: ec decreases by the old bb value and bb increments by 1 each iteration, while ec is updated to reflect the cumulative subtraction of earlier bb values. This yields a closed-form relation between ec and bb that remains true throughout the loop: ec = 11 - (bb*(bb - 1))/2. Here 11 is the initial ec (since ec starts as (1%28)+10 = 11) and the initial bb is 0, so the formula holds at loop entry and is preserved by each iteration (ec' = ec - bb, bb' = bb + 1 ⇒ ec' = 11 - bb'*(bb'-1)/2). This is a strong, exact invariant capturing the loop’s arithmetic progression.
+- Additional simple bounds to aid reasoning: bb >= 0 (bb only increases) and i <= -3 (i starts at -3 and doubles every iteration, staying nonpositive and not exceeding -3).
+- Assignments: the loop mutates ec, bb, a89, and i.
+
+Loop 1 (the while (1) with break when ec <= 0)
+- Core conservation: in this loop, a89 increments by 1 and i increments by 1 each iteration, so a89 - i stays constant across iterations. The initial value before this loop is a89 - i = 1 (from a89 = -2 and i = -3 in the loop-entry reasoning, which yields -2 - (-3) = 1). Thus a89 - i == 1 is an exact invariant throughout this loop.
+- Simple nonneg bound: ec >= 0 is a safe invariant given the loop guard and updates (ec decreases by 1 while ec > 0 to stay inside the loop).
+- Assignments: the loop mutates ec, bb, a89, i, and fa.
+
+These invariants are inductive, directly reflect the actual updates performed by the loop bodies, and are verification-friendly for Frama-C/WP without modifying the original code or using invalid constructs.
+
+</reasoning>
+<code>int main1(){
+  int gi, gr, bb, ec, i, a89, fa;
+
+  gi=(1%33)+9;
+  gr=0;
+  bb=0;
+  ec=(1%28)+10;
+  i=-3;
+  a89=gr;
+  fa=gi;
 
   /*@
-    loop invariant o4 >= 1;
-    loop invariant pctv == ((o4 - 1) * o4 * (2 * o4 - 1)) / 6;
-    loop invariant v == \at(v, Pre) + ((o4 - 1) * o4 * o4 * (o4 + 1)) / 12;
-    loop assigns o4, pctv, v, quk;
-    loop variant rz - o4;
-  @*/
+    loop invariant ec == 11 - (bb*(bb - 1))/2;
+    loop invariant i <= -3;
+    loop invariant bb >= 0;
+    loop assigns ec, bb, a89, i;
+  */
+  while (ec>bb) {
+      ec -= bb;
+      bb++;
+      a89 += bb;
+      i = i*2;
+      a89 = a89 + i;
+  }
+
+  /*@
+    loop invariant a89 - i == 1;
+    loop invariant i >= -3;
+    loop invariant ec >= 0;
+    loop assigns ec, bb, a89, i, fa;
+  */
   while (1) {
-      if (!(o4<=rz)) {
+      if (!(ec>0)) {
           break;
       }
-      pctv = pctv+o4*o4;
-      o4++;
-      v = v + pctv;
-      quk = quk+v+v;
+      a89 = a89+1*1;
+      fa = fa+1*1;
+      i = i+1*1;
+      ec = ec - 1;
+      bb = bb + i;
   }
 
 }</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-08 11:27:10,981 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-08 11:27:10,995 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:28:58,801 - INFO - 
+2026-03-11 03:57:53,519 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 03:57:53,531 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:02:11,811 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>
-Loop analysis:
-- The loop body updates: pctv = pctv + o4*o4; o4++; v = v + pctv; quk = quk + v + v.
-- The number of iterations equals max(0, rz) since the loop continues while o4 <= rz and o4 starts at 1, incrementing each iteration. A robust invariant should not rely on specific bounds of rz to be valid for all inputs, since rz = v - 10 can be any int.
-- Core invariant (state relation) for pctv:
-  Let S(k) = sum_{i=1..k} i^2 = k(k+1)(2k+1)/6. After k iterations, o4 = k+1 and pctv = S(k).
-  Therefore pctv == ((o4 - 1) * o4 * (2*o4 - 1)) / 6 is an exact relation that holds before and after every iteration.
-  This is a conservation/relational equality describing how the primary arithmetic variable pctv evolves with o4.
-- Minimal progress bound:
-  Introduce a loop variant to ensure termination progress. A natural choice is rz - (o4 - 1) = rz - o4 + 1, which decreases by 1 each iteration and is non-negative whenever the loop would run (i.e., when o4 <= rz). This provides a clear measure of progress.
-- Other invariants:
-  - v is monotonically non-decreasing since it is updated by adding a non-negative pctv; thus v >= initial_v. We express this as v >= \at(v, Pre).
-  - quk is also non-decreasing because quk increases by 2*v each iteration; hence quk >= initial_v. Express as quk >= \at(v, Pre).
-- Loop assigns: all modified variables are o4, pctv, v, quk.
-- Invariants are designed to be inductive and not overly weak. The core pctv invariant is exact, while the v/quk invariants are simple monotonicity properties that hold throughout.
-</reasoning>
-<code>int main1(int v){
-  int rz, o4, pctv, quk;
-
-  rz=v-10;
-  o4=1;
-  pctv=0;
-  quk=v;
-
-  /*@
-    loop invariant pctv == ((o4 - 1) * o4 * (2 * o4 - 1)) / 6;
-    loop invariant v >= \at(v, Pre);
-    loop invariant quk >= \at(v, Pre);
-    loop invariant o4 >= 1;
-    loop assigns o4, pctv, v, quk;
-    loop variant (rz - o4 + 1);
-  */
-while (1) {
-      if (!(o4<=rz)) {
-          break;
-      }
-      pctv = pctv+o4*o4;
-      o4++;
-      v = v + pctv;
-      quk = quk+v+v;
-  }
-
-}</code>
+<EMPTY_RESPONSE>
 ----- Candidate 2/5 raw response end -----
-2026-03-08 11:28:58,801 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-08 11:28:58,817 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:29:37,817 - INFO - 
+2026-03-11 04:02:11,811 - WARNING -   Failed to extract code from candidate 2
+2026-03-11 04:02:11,811 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 04:02:11,823 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:04:24,900 - INFO - 
 ----- Candidate 3/5 raw response begin -----
 <reasoning>
-I choose a concise, strong relational invariant that exactly captures how pctv evolves with o4: pctv is the sum of squares 1^2 + ... + (o4-1)^2. To avoid quantifiers I use the closed-form formula sum_{i=1}^{n} i^2 = n*(n+1)*(2n+1)/6, instantiated with n = o4-1:
+For Loop 0 (ec > bb loop):
+- Core conservation/relational equality: We look for a linear invariant that remains constant through each transition. The loop updates are:
+  ec' = ec - bb
+  bb' = bb + 1
+  i' = i * 2
+  a89' = a89 + bb'  (since bb is updated before this step)
+  a89'' = a89' + i'  (final a89 after this iteration)
+  This leads to a preserved linear combination. Solving for a coefficient set that keeps a89 - bb - 2*i + ec invariant yields:
+  a89 - bb - 2*i + ec is constant across iterations. With initial values (ec, bb, i, a89) = (11, 0, -3, 0), this constant equals 17.
+- Progress bounds: bb starts at 0 and never goes negative; ec starts at 11 and, due to the guard ec > bb, remains nonnegative during iterations. We express this as bb >= 0 and ec >= 0 as invariants to emphasize boundedness.
+- Loop assigns: ec, bb, a89, i are modified inside the loop.
+These invariants are inductive and directly reflect the stated transition relation, helping Frama-C/WP discharge the loop.
 
-  pctv == ((o4-1)*o4*(2*o4-1))/6
+For Loop 1 (ec > 0 loop with early break):
+- Core conservation: The updates are:
+  ec' = ec - 1
+  i' = i + 1
+  a89' = a89 + 1
+  fa' = fa + 1
+  bb' = bb + i'
+  This yields a simple invariant ec + i = constant across iterations: ec' + i' = (ec - 1) + (i + 1) = ec + i. The initial value is 11 + (-3) = 8, so the invariant ec + i == 8 holds throughout.
+- Progress bounds: ec decreases by 1 each iteration and starts positive (ec > 0), so ec >= 0 is preserved.
+- Loop assigns: a89, bb, ec, fa, i are modified inside the loop.
 
-This is the core conservation/relational equality explaining the state transition: when the loop body executes with o4 = k it adds k*k and increments o4 to k+1, so the formula is preserved.
-
-I also add minimal, useful monotonicity bounds:
-- o4 >= 1, an obvious invariant from initialization and ++ updates (gives a lower bound for the closed-form).
-- v >= \at(v, Pre) and quk >= \at(v, Pre) to express that v and quk never decrease (pctv and v increments are non-negative). These are relevant to reasoning about the arithmetic updates and are preserved by the body.
-
-The loop assigns clause precisely lists the modified variables: pctv, o4, v, quk.
-
-For termination/progress I provide the natural integer variant rz - o4 + 1; under the loop guard (o4 <= rz) this is non-negative and strictly decreases by 1 each iteration because o4 is incremented exactly once per iteration.
-
-All invariants hold at entry (o4=1, pctv=0, v and quk equal \at(v,Pre)), are preserved by the body, and together with !guard (exit) give the expected facts (in particular o4 == rz+1 when the loop has executed to completion).
+The resulting ACSL annotations are crafted to be strong, inductive, and verification-friendly, reflecting the exact state updates and the minimal necessary state to reason about loop termination and safety.
 </reasoning>
 <code>
-int main1(int v){
-  int rz, o4, pctv, quk;
+int main1(){
+  int gi, gr, bb, ec, i, a89, fa;
 
-  rz=v-10;
-  o4=1;
-  pctv=0;
-  quk=v;
+  gi=(1%33)+9;
+  gr=0;
+  bb=0;
+  ec=(1%28)+10;
+  i=-3;
+  a89=gr;
+  fa=gi;
 
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant pctv == ((o4 - 1) * o4 * (2 * o4 - 1)) / 6;
-    loop invariant o4 >= 1;
-    loop invariant v >= \at(v, Pre);
-    loop invariant quk >= \at(v, Pre);
-    loop assigns pctv, o4, v, quk;
-    loop variant (rz - o4 + 1);
+    loop invariant a89 - bb - 2*i + ec == 17;
+    loop invariant (bb >= 0) && (ec >= 0);
+    loop assigns ec, bb, a89, i;
   */
-while (1) {
-      if (!(o4<=rz)) {
+  while (ec>bb) {
+      ec -= bb;
+      bb++;
+      a89 += bb;
+      i = i*2;
+      a89 = a89 + i;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant ec + i == 8;
+    loop invariant ec >= 0;
+    loop assigns a89, bb, ec, fa, i;
+  */
+  while (1) {
+      if (!(ec>0)) {
           break;
       }
-      pctv = pctv+o4*o4;
-      o4++;
-      v = v + pctv;
-      quk = quk+v+v;
+      a89 = a89+1*1;
+      fa = fa+1*1;
+      i = i+1*1;
+      ec = ec - 1;
+      bb = bb + i;
   }
 
 }
 </code>
 ----- Candidate 3/5 raw response end -----
-2026-03-08 11:29:37,818 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-08 11:29:37,831 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:30:53,253 - INFO - 
+2026-03-11 04:04:24,901 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 04:04:24,916 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:16:56,619 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop. The loop updates four stateful variables: pctv, o4, v, and quk, while rz is fixed after initialization (rz = v-10) and never changed inside the loop. A strong relational invariant is desirable to capture the exact progression of pctv with respect to o4. Since after t iterations, o4 = 1 + t and pctv accumulates sum_{i=1..t} i^2, we can express this exactly with a closed-form relation that avoids non-linear reasoning over history: 6*pctv == (o4-1)*o4*(2*o4-1). This is preserved across iterations and holds initially (pctv = 0, o4 = 1). Also, rz remains constant as \at(v, Pre) - 10, and v and quk never decrease below their initial value. We provide:
-- a core relational invariant: 6*pctv == (o4-1)*o4*(2*o4-1)
-- a conservation invariant for rz: rz == \at(v, Pre) - 10
-- monotonicity/conservative invariants: v >= \at(v, Pre) and quk >= \at(v, Pre)
-- a progress bound: loop variant rz - o4 (valid when the loop guard o4 <= rz holds)
-- a precise loop assigns set: pctv, o4, v, quk
+<EMPTY_RESPONSE>
+----- Candidate 4/5 raw response end -----
+2026-03-11 04:16:56,619 - WARNING -   Failed to extract code from candidate 4
+2026-03-11 04:16:56,619 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 04:16:56,633 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:23:54,055 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>For each loop, I add inductive invariants that are sound given the operations performed, and I specify the complete and exact loop assigns. The first loop (ec > bb) updates ec, bb, a89, and i; a correct inductive invariant should be preserved by those updates. A safe minimal set is:
+- ec >= 1 (derivable from the guard ec > bb and bb >= 0)
+- bb >= 0 (bb starts at 0 and only increments)
+- i <= -3 (initial i = -3 and i is updated as i = i*2, which keeps i ≤ -3 for all subsequent iterations)
+- loop assigns: ec, bb, a89, i
+- loop variant: ec - bb (this strictly decreases each iteration while the loop guard holds, ensuring termination)
 
-These are inductive, do not modify the function, and are verification-friendly for Frama-C/WP. The invariant 6*pctv == (o4-1)*o4*(2*o4-1) explicitly expresses the loop's arithmetic progression, and the other invariants ensure base-case reachability and non-regression of key quantities. </reasoning>
-<code>int main1(int v){
-  int rz, o4, pctv, quk;
+The second loop is a while(1) with a break when ec <= 0. It updates ec, bb, a89, fa, i. A safe inductive invariant that holds at the loop head is:
+- ec >= 0 (ec is decreased by 1 each iteration and the break condition is ec > 0)
+- loop assigns: a89, fa, i, ec, bb
+- loop variant: ec (since ec decreases by 1 whenever the body runs while ec > 0)
 
-  rz=v-10;
-  o4=1;
-  pctv=0;
-  quk=v;
+I avoided introducing any new variables or changing the original computation. The invariants are strict enough to be useful for WP proof but conservative to remain inductive under the given updates. I did not rely on function parameters (there are none) or on \at(Pre) for locals, per instructions. The chosen invariants reflect progress (loop variants) and state bounds (non-negativity-like bounds that hold across iterations).
+</reasoning>
+<code>int main1(){
+  int gi, gr, bb, ec, i, a89, fa;
 
+  gi=(1%33)+9;
+  gr=0;
+  bb=0;
+  ec=(1%28)+10;
+  i=-3;
+  a89=gr;
+  fa=gi;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 6*pctv == (o4-1)*o4*(2*o4-1);
-    loop invariant rz == \at(v, Pre) - 10;
-    loop invariant v >= \at(v, Pre);
-    loop invariant quk >= \at(v, Pre);
-    loop variant rz - o4;
-    loop assigns pctv, o4, v, quk;
+    loop invariant ec >= 1;
+    loop invariant bb >= 0;
+    loop invariant i <= -3;
+    loop assigns ec, bb, a89, i;
+    loop variant ec - bb;
+  */
+  while (ec>bb) {
+      ec -= bb;
+      bb++;
+      a89 += bb;
+      i = i*2;
+      a89 = a89 + i;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant ec >= 0;
+    loop assigns a89, fa, i, ec, bb;
+    loop variant ec;
   */
   while (1) {
-      if (!(o4<=rz)) {
+      if (!(ec>0)) {
           break;
       }
-      pctv = pctv+o4*o4;
-      o4++;
-      v = v + pctv;
-      quk = quk+v+v;
+      a89 = a89+1*1;
+      fa = fa+1*1;
+      i = i+1*1;
+      ec = ec - 1;
+      bb = bb + i;
   }
 
 }</code>
------ Candidate 4/5 raw response end -----
-2026-03-08 11:30:53,253 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-08 11:30:53,270 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:33:04,852 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop invariants for the loop. The loop updates follow a clear cumulative pattern:
-
-- o4 starts at 1 and increments by 1 each iteration, with the loop effectively running i iterations where i = o4 - 1.
-- pctv accumulates the sum of squares of o4 before the increment: pctv after i iterations equals sum_{k=1..i} k^2 = i(i+1)(2i+1)/6. In terms of o4, that becomes pctv == (o4 - 1) * o4 * (2*o4 - 1) / 6.
-- v accumulates the running total of pctv, starting from the initial v (which is \at(v, Pre)). A closed form in terms of i is v = v0 + i(i+1)^2(i+2)/12 with i = o4 - 1 and v0 = \at(v, Pre). Rewriting in terms of o4: v == \at(v, Pre) + (o4 - 1) * o4^2 * (o4 + 1) / 12.
-
-These give a strong, exact invariant pair that is preserved by each iteration, since the updates exactly follow the derived recurrence. We also add a simple lower bound on o4 (>= 1) and a loop variant that provides a progress measure: rz - o4, which strictly decreases while o4 <= rz and thus guarantees termination of the loop. We declare the loop assigns to precisely the modified variables: o4, pctv, v, quk.
-
-The resulting invariants are inductive (holding before the first iteration and preserved by each iteration) and verification-friendly for Frama-C/WP. The unknown() calls are not modified, and function parameter usage for \at(v, Pre) is correct. </reasoning>
-
-<code>/*@
-  loop invariant o4 >= 1;
-  loop invariant pctv == ((o4 - 1) * o4 * (2 * o4 - 1)) / 6;
-  loop invariant v == \at(v, Pre) + ((o4 - 1) * o4 * o4 * (o4 + 1)) / 12;
-  loop assigns o4, pctv, v, quk;
-  loop variant rz - o4;
-*/</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-08 11:33:04,852 - INFO - 
+2026-03-11 04:23:54,055 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int v){
-  int rz, o4, pctv, quk;
+int main1(){
+  int gi, gr, bb, ec, i, a89, fa;
 
-  rz=v-10;
-  o4=1;
-  pctv=0;
-  quk=v;
+  gi=(1%33)+9;
+  gr=0;
+  bb=0;
+  ec=(1%28)+10;
+  i=-3;
+  a89=gr;
+  fa=gi;
 
   /*@
-    loop invariant o4 >= 1;
-    loop invariant pctv == ((o4 - 1) * o4 * (2 * o4 - 1)) / 6;
-    loop invariant v == \at(v, Pre) + ((o4 - 1) * o4 * o4 * (o4 + 1)) / 12;
-    loop assigns o4, pctv, v, quk;
-    loop variant rz - o4;
-  @*/
+    loop invariant ec == 11 - (bb*(bb - 1))/2;
+    loop invariant i <= -3;
+    loop invariant bb >= 0;
+    loop assigns ec, bb, a89, i;
+  */
+  while (ec>bb) {
+      ec -= bb;
+      bb++;
+      a89 += bb;
+      i = i*2;
+      a89 = a89 + i;
+  }
+
+  /*@
+    loop invariant a89 - i == 1;
+    loop invariant i >= -3;
+    loop invariant ec >= 0;
+    loop assigns ec, bb, a89, i, fa;
+  */
   while (1) {
-      if (!(o4<=rz)) {
+      if (!(ec>0)) {
           break;
       }
-      pctv = pctv+o4*o4;
-      o4++;
-      v = v + pctv;
-      quk = quk+v+v;
+      a89 = a89+1*1;
+      fa = fa+1*1;
+      i = i+1*1;
+      ec = ec - 1;
+      bb = bb + i;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-08 11:33:04,852 - INFO - 
------ Candidate 2/5 full code begin -----
-int main1(int v){
-  int rz, o4, pctv, quk;
+2026-03-11 04:23:54,055 - WARNING - Candidate 2/5 full code: <None> (failed to extract)
+2026-03-11 04:23:54,055 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(){
+  int gi, gr, bb, ec, i, a89, fa;
 
-  rz=v-10;
-  o4=1;
-  pctv=0;
-  quk=v;
+  gi=(1%33)+9;
+  gr=0;
+  bb=0;
+  ec=(1%28)+10;
+  i=-3;
+  a89=gr;
+  fa=gi;
 
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant pctv == ((o4 - 1) * o4 * (2 * o4 - 1)) / 6;
-    loop invariant v >= \at(v, Pre);
-    loop invariant quk >= \at(v, Pre);
-    loop invariant o4 >= 1;
-    loop assigns o4, pctv, v, quk;
-    loop variant (rz - o4 + 1);
+    loop invariant a89 - bb - 2*i + ec == 17;
+    loop invariant (bb >= 0) && (ec >= 0);
+    loop assigns ec, bb, a89, i;
   */
-while (1) {
-      if (!(o4<=rz)) {
-          break;
-      }
-      pctv = pctv+o4*o4;
-      o4++;
-      v = v + pctv;
-      quk = quk+v+v;
+  while (ec>bb) {
+      ec -= bb;
+      bb++;
+      a89 += bb;
+      i = i*2;
+      a89 = a89 + i;
   }
 
-}
------ Candidate 2/5 full code end -----
-2026-03-08 11:33:04,852 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(int v){
-  int rz, o4, pctv, quk;
-
-  rz=v-10;
-  o4=1;
-  pctv=0;
-  quk=v;
-
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant pctv == ((o4 - 1) * o4 * (2 * o4 - 1)) / 6;
-    loop invariant o4 >= 1;
-    loop invariant v >= \at(v, Pre);
-    loop invariant quk >= \at(v, Pre);
-    loop assigns pctv, o4, v, quk;
-    loop variant (rz - o4 + 1);
+    loop invariant ec + i == 8;
+    loop invariant ec >= 0;
+    loop assigns a89, bb, ec, fa, i;
   */
-while (1) {
-      if (!(o4<=rz)) {
+  while (1) {
+      if (!(ec>0)) {
           break;
       }
-      pctv = pctv+o4*o4;
-      o4++;
-      v = v + pctv;
-      quk = quk+v+v;
+      a89 = a89+1*1;
+      fa = fa+1*1;
+      i = i+1*1;
+      ec = ec - 1;
+      bb = bb + i;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-08 11:33:04,852 - INFO - 
------ Candidate 4/5 full code begin -----
-int main1(int v){
-  int rz, o4, pctv, quk;
+2026-03-11 04:23:54,055 - WARNING - Candidate 4/5 full code: <None> (failed to extract)
+2026-03-11 04:23:54,055 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(){
+  int gi, gr, bb, ec, i, a89, fa;
 
-  rz=v-10;
-  o4=1;
-  pctv=0;
-  quk=v;
+  gi=(1%33)+9;
+  gr=0;
+  bb=0;
+  ec=(1%28)+10;
+  i=-3;
+  a89=gr;
+  fa=gi;
 
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 6*pctv == (o4-1)*o4*(2*o4-1);
-    loop invariant rz == \at(v, Pre) - 10;
-    loop invariant v >= \at(v, Pre);
-    loop invariant quk >= \at(v, Pre);
-    loop variant rz - o4;
-    loop assigns pctv, o4, v, quk;
+    loop invariant ec >= 1;
+    loop invariant bb >= 0;
+    loop invariant i <= -3;
+    loop assigns ec, bb, a89, i;
+    loop variant ec - bb;
+  */
+  while (ec>bb) {
+      ec -= bb;
+      bb++;
+      a89 += bb;
+      i = i*2;
+      a89 = a89 + i;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant ec >= 0;
+    loop assigns a89, fa, i, ec, bb;
+    loop variant ec;
   */
   while (1) {
-      if (!(o4<=rz)) {
+      if (!(ec>0)) {
           break;
       }
-      pctv = pctv+o4*o4;
-      o4++;
-      v = v + pctv;
-      quk = quk+v+v;
+      a89 = a89+1*1;
+      fa = fa+1*1;
+      i = i+1*1;
+      ec = ec - 1;
+      bb = bb + i;
   }
 
 }
------ Candidate 4/5 full code end -----
-2026-03-08 11:33:04,852 - INFO - 
------ Candidate 5/5 full code begin -----
-/*@
-  loop invariant o4 >= 1;
-  loop invariant pctv == ((o4 - 1) * o4 * (2 * o4 - 1)) / 6;
-  loop invariant v == \at(v, Pre) + ((o4 - 1) * o4 * o4 * (o4 + 1)) / 12;
-  loop assigns o4, pctv, v, quk;
-  loop variant rz - o4;
-*/
 ----- Candidate 5/5 full code end -----
-2026-03-08 11:33:04,852 - INFO - Successfully generated 5/5 candidates
-2026-03-08 11:33:04,853 - INFO - Checking 7 invariants for conflicts...
-2026-03-08 11:33:04,854 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-08 11:33:04,854 - INFO -   1: int main1(int v){
-2026-03-08 11:33:04,854 - INFO -   2:   int rz, o4, pctv, quk;
-2026-03-08 11:33:04,854 - INFO -   3: 
-2026-03-08 11:33:04,854 - INFO -   4:   rz=v-10;
-2026-03-08 11:33:04,854 - INFO -   5:   o4=1;
-2026-03-08 11:33:04,854 - INFO -   6:   pctv=0;
-2026-03-08 11:33:04,854 - INFO -   7:   quk=v;
-2026-03-08 11:33:04,854 - INFO -   8: 
-2026-03-08 11:33:04,854 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-08 11:33:04,854 - INFO -   10: /*@
-2026-03-08 11:33:04,854 - INFO - DEBUG: Total lines: 31
-2026-03-08 11:33:25,821 - INFO - syntax Correct
-2026-03-08 11:33:56,975 - INFO - Validate:
-2026-03-08 11:33:56,975 - INFO - [True, True, True, True, True, True, True]
-2026-03-08 11:33:56,975 - INFO - 
-2026-03-08 11:33:56,975 - INFO - Verify:
-2026-03-08 11:33:56,975 - INFO - []
-2026-03-08 11:33:56,975 - INFO - 
-2026-03-08 11:33:56,975 - INFO - Houdini iteration 1: All invariants are valid
-2026-03-08 11:34:17,994 - INFO - syntax Correct
-2026-03-08 11:34:49,129 - INFO - Validate:
-2026-03-08 11:34:49,129 - INFO - [True, True, True, True, True, True, True]
-2026-03-08 11:34:49,129 - INFO - 
-2026-03-08 11:34:49,129 - INFO - Verify:
-2026-03-08 11:34:49,129 - INFO - []
-2026-03-08 11:34:49,129 - INFO - 
-2026-03-08 11:35:15,140 - INFO - Deduplicated 2 loop invariants in final code
-2026-03-08 11:35:26,100 - INFO - syntax Correct
-2026-03-08 11:35:57,082 - INFO - Validate:
-2026-03-08 11:35:57,083 - INFO - [True, True, True, True, True]
-2026-03-08 11:35:57,083 - INFO - 
-2026-03-08 11:35:57,083 - INFO - Verify:
-2026-03-08 11:35:57,083 - INFO - []
-2026-03-08 11:35:57,083 - INFO - 
-2026-03-08 11:35:57,083 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-08 11:35:57,083 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_56/1.c
-2026-03-08 11:35:57,083 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_56/1_invariants.txt
-2026-03-08 11:35:57,083 - INFO - 
+2026-03-11 04:23:54,056 - INFO - Successfully generated 3/5 candidates
+2026-03-11 04:23:54,056 - INFO - Checking 6 invariants for conflicts...
+2026-03-11 04:23:54,057 - INFO -   Conflict detected:
+2026-03-11 04:23:54,057 - INFO -     [1] ec == 11 - (bb*(bb - 1))/2
+2026-03-11 04:23:54,057 - INFO -     [4] a89 - bb - 2*i + ec == 17
+2026-03-11 04:23:54,057 - INFO - Checking 4 invariants for conflicts...
+2026-03-11 04:23:54,057 - INFO -   Conflict detected:
+2026-03-11 04:23:54,057 - INFO -     [1] a89 - i == 1
+2026-03-11 04:23:54,057 - INFO -     [4] ec + i == 8
+2026-03-11 04:23:54,058 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 04:23:54,058 - INFO -   1: int main1(){
+2026-03-11 04:23:54,058 - INFO -   2:   int gi, gr, bb, ec, i, a89, fa;
+2026-03-11 04:23:54,058 - INFO -   3: 
+2026-03-11 04:23:54,058 - INFO -   4:   gi=(1%33)+9;
+2026-03-11 04:23:54,058 - INFO -   5:   gr=0;
+2026-03-11 04:23:54,058 - INFO -   6:   bb=0;
+2026-03-11 04:23:54,058 - INFO -   7:   ec=(1%28)+10;
+2026-03-11 04:23:54,058 - INFO -   8:   i=-3;
+2026-03-11 04:23:54,058 - INFO -   9:   a89=gr;
+2026-03-11 04:23:54,058 - INFO -   10:   fa=gi;
+2026-03-11 04:23:54,058 - INFO - DEBUG: Total lines: 48
+2026-03-11 04:23:54,261 - INFO - syntax Correct
+2026-03-11 04:24:25,177 - INFO - Validate:
+2026-03-11 04:24:25,177 - INFO - [True, True, True, True, True, False, False, True]
+2026-03-11 04:24:25,177 - INFO - 
+2026-03-11 04:24:25,177 - INFO - Verify:
+2026-03-11 04:24:25,177 - INFO - []
+2026-03-11 04:24:25,177 - INFO - 
+2026-03-11 04:24:25,177 - INFO - Houdini iteration 1: Removed 2 failed invariants
+2026-03-11 04:24:25,177 - INFO -   Before: 8 invariants
+2026-03-11 04:24:25,177 - INFO -   After: 6 invariants
+2026-03-11 04:24:25,177 - INFO -   Remaining invariants:
+2026-03-11 04:24:25,177 - INFO -     [1] ec == 11 - (bb*(bb - 1))/2
+2026-03-11 04:24:25,177 - INFO -     [2] i <= -3
+2026-03-11 04:24:25,177 - INFO -     [3] bb >= 0
+2026-03-11 04:24:25,177 - INFO -     [4] (bb >= 0) && (ec >= 0)
+2026-03-11 04:24:25,177 - INFO -     [5] ec >= 1
+2026-03-11 04:24:25,177 - INFO -     [6] ec >= 0
+2026-03-11 04:24:25,389 - INFO - syntax Correct
+2026-03-11 04:24:56,178 - INFO - Validate:
+2026-03-11 04:24:56,178 - INFO - [True, True, True, True, True, True]
+2026-03-11 04:24:56,178 - INFO - 
+2026-03-11 04:24:56,178 - INFO - Verify:
+2026-03-11 04:24:56,178 - INFO - []
+2026-03-11 04:24:56,178 - INFO - 
+2026-03-11 04:24:56,178 - INFO - Houdini iteration 2: All invariants are valid
+2026-03-11 04:24:56,392 - INFO - syntax Correct
+2026-03-11 04:25:27,165 - INFO - Validate:
+2026-03-11 04:25:27,165 - INFO - [True, True, True, True, True, True]
+2026-03-11 04:25:27,165 - INFO - 
+2026-03-11 04:25:27,165 - INFO - Verify:
+2026-03-11 04:25:27,165 - INFO - []
+2026-03-11 04:25:27,165 - INFO - 
+2026-03-11 04:26:30,317 - INFO - Deduplicated 3 loop invariants in final code
+2026-03-11 04:26:30,538 - INFO - syntax Correct
+2026-03-11 04:27:01,413 - INFO - Validate:
+2026-03-11 04:27:01,414 - INFO - [True, True, True, True, True]
+2026-03-11 04:27:01,414 - INFO - 
+2026-03-11 04:27:01,414 - INFO - Verify:
+2026-03-11 04:27:01,414 - INFO - []
+2026-03-11 04:27:01,414 - INFO - 
+2026-03-11 04:27:01,414 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 04:27:01,414 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_56/1.c
+2026-03-11 04:27:01,414 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_56/1_invariants.txt
+2026-03-11 04:27:01,414 - INFO - 
 ============================================================
-2026-03-08 11:35:57,083 - INFO - Final first_pass results:
-2026-03-08 11:35:57,083 - INFO -   syntax=1
-2026-03-08 11:35:57,083 - INFO -   valid=1
-2026-03-08 11:35:57,083 - INFO -   satisfy=None
-2026-03-08 11:35:57,083 - INFO - ============================================================
-2026-03-08 11:35:57,083 - INFO - 
+2026-03-11 04:27:01,415 - INFO - Final first_pass results:
+2026-03-11 04:27:01,415 - INFO -   syntax=1
+2026-03-11 04:27:01,415 - INFO -   valid=1
+2026-03-11 04:27:01,415 - INFO -   satisfy=None
+2026-03-11 04:27:01,415 - INFO - ============================================================
+2026-03-11 04:27:01,415 - INFO - 
 ============================================================
-2026-03-08 11:35:57,084 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-08 11:35:57,084 - INFO -   Total API calls: 3
-2026-03-08 11:35:57,084 - INFO -   Total prompt tokens (input): 3,248
-2026-03-08 11:35:57,084 - INFO -   Total completion tokens (output): 11,209
-2026-03-08 11:35:57,084 - INFO -   Total tokens: 14,457
-2026-03-08 11:35:57,084 - INFO -   Average per call:
-2026-03-08 11:35:57,084 - INFO -     Prompt: 1082.7 tokens
-2026-03-08 11:35:57,084 - INFO -     Completion: 3736.3 tokens
-2026-03-08 11:35:57,084 - INFO -     Total: 4819.0 tokens
-2026-03-08 11:35:57,084 - INFO - ============================================================
-2026-03-08 11:35:57,084 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_56/1.c
-2026-03-08 11:35:57,084 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_56/1_invariants.txt
-2026-03-08 11:36:50,616 - INFO - LLM quality-gate raw response: {
+2026-03-11 04:27:01,415 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 04:27:01,415 - INFO -   Total API calls: 15
+2026-03-11 04:27:01,415 - INFO -   Total prompt tokens (input): 22,778
+2026-03-11 04:27:01,415 - INFO -   Total completion tokens (output): 172,988
+2026-03-11 04:27:01,415 - INFO -   Total tokens: 195,766
+2026-03-11 04:27:01,415 - INFO -   Average per call:
+2026-03-11 04:27:01,415 - INFO -     Prompt: 1518.5 tokens
+2026-03-11 04:27:01,415 - INFO -     Completion: 11532.5 tokens
+2026-03-11 04:27:01,415 - INFO -     Total: 13051.1 tokens
+2026-03-11 04:27:01,415 - INFO - ============================================================
+2026-03-11 04:27:01,415 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_56/1.c
+2026-03-11 04:27:01,415 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_56/1_invariants.txt
+2026-03-11 04:27:55,987 - INFO - LLM quality-gate raw response: {
   "ok": false,
-  "reason": "fail"
+  "reason": "Second loop invariants are too weak: they only state ec >= 0 and do not capture relationships among all modified variables (ec, bb, i, a89, fa) or provide a genuine inductive relation. There is no loop variant to support termination reasoning for the second loop, and the invariants fail to comprehensively cover state updates. While the first loop invariants are strong and correct, the overall invariant set is not high-quality as required."
 }
-2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
-2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
-2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
-2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
-2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
-2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
-2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
-2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
-2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
-2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
-2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
-2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
-2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
-2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
-2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
-2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
-2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
-2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
-2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
+2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
+2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
+2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
+2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
+2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
+2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
+2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
+2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

@@ -1,15 +1,19 @@
-int main1(int j){
-  int ri, xq, m, r;
+int main1(){
+  int tn, baml, i, qoa;
 
-  ri=41;
-  xq=0;
-  m=8;
-  r=0;
+  tn=45;
+  baml=0;
+  i=0;
+  qoa=1;
 
-  while (xq<=ri-1) {
-      m = ri-xq;
-      r = r + ri;
-      xq += 1;
+  for (; baml<tn; baml++) {
+      if (i>=4) {
+          qoa = -1;
+      }
+      if (!(i>0)) {
+          qoa = 1;
+      }
+      i = i + qoa;
   }
 
 }

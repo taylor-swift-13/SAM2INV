@@ -1,468 +1,650 @@
-2026-03-08 11:31:41,998 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-08 11:31:42,014 - INFO - Found 1 loops
-2026-03-08 11:31:42,015 - INFO - 
+2026-03-11 04:05:43,692 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 04:05:43,718 - INFO - Found 2 loops
+2026-03-11 04:05:43,719 - INFO - 
 ============================================================
-2026-03-08 11:31:42,015 - INFO - Main generation pass 1/1
-2026-03-08 11:31:42,015 - INFO - ============================================================
-2026-03-08 11:31:42,015 - INFO - Loaded single prompt template: simple
-2026-03-08 11:31:42,015 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-08 11:31:42,015 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-08 11:31:42,034 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:32:12,844 - INFO - 
+2026-03-11 04:05:43,719 - INFO - Main generation pass 1/1
+2026-03-11 04:05:43,719 - INFO - ============================================================
+2026-03-11 04:05:43,719 - INFO - Loaded single prompt template: simple
+2026-03-11 04:05:43,719 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 04:05:43,719 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 04:05:43,734 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:10:18,963 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>
-I chose invariants that are (1) inductive (preserved by each iteration), (2) explain the state transition (core relational equality), and (3) give progress/bounds for the loop counter and modular variables so WP can prove termination and exit facts.
+<reasoning>Loop 0 (the first while loop)
+- We need inductive invariants that hold at the entry of every iteration and are preserved by the loop body.
+- Observing the transition:
+  - p7 is incremented each iteration: p7' = p7 + 1.
+  - os is updated as os' = os / 3 (integer division).
+  - h is updated as h' = (h + fy) * 3. Since fy is initialized to 0 and never changed in the code path of this loop, fy remains 0; hence h' = h * 3 and h stays non-negative if h starts non-negative.
+  - j' = j - p7 (where p7 is the value before increment).
+- A simple, strong invariant set that is preserved by each iteration is:
+  - os <= 0 (since os is divided by 3, starting from -5, and division of a non-positive value by 3 yields a non-positive value).
+  - p7 >= 0 (starts at 0 and increases by 1 every iteration).
+  - fy == 0 (fy is initialized to 0 and never modified in this loop path).
+  - h >= 0 (with fy == 0, h is multiplied by 3 each iteration, preserving non-negativity given initial h = 6).
+- These invariants are inductive:
+  - Initially (before first iteration): os = -5 ≤ 0, p7 = 0 ≥ 0, fy = 0, h = 6 ≥ 0.
+  - If the invariants hold before an iteration and the guard j > p7 is true, after the iteration:
+    - os' = os / 3 ≤ 0.
+    - p7' = p7 + 1 ≥ 0.
+    - fy' = fy = 0.
+    - h' = (h + fy) * 3 = h * 3 ≥ 0.
+- Progress/mutation points:
+  - A minimal loop progress measure is the implicit progress of p7 increasing; although we did not add a loop_variant, the loop assigns are explicit and the state advances toward termination due to the guard.
+- Loop assigns: j, p7, h, os (fy is not assigned inside the loop).
 
-Core relational equality:
-- yg == (oer % 7)
-  - Explanation: yg is always the current counter modulo 7. Initially yg=0 and oer=0, and each loop step does yg := (yg+1)%7 and oer := oer+1, so this equality is preserved.
+Loop 1
+- The second while loop only manipulates os with os -= 2; fy and os are in the available set for this loop, with fy fixed at 0.
+- An inductive invariant that is easy to verify and preserve:
+  - os <= -5 (initially -5; each iteration decreases os by 2, so it stays ≤ -5).
+  - fy == 0 (still true, since fy is not modified in this loop either).
+- These invariants are obviously preserved by os := os - 2 and hold at loop entry as well as after each iteration (since os becomes more negative or unchanged in the case of integer division in the prior loop, but here it's a direct subtraction).
+- Loop assigns: os (fy remains unchanged).
 
-Conservation / arithmetic relation:
-- ((t - 4 - (oer*(oer+1))/2) % 7) == 0
-  - Explanation: t initially equals 4. Each iteration adds the new yg value (which equals the new oer modulo 7). Summing 1..oer gives oer*(oer+1)/2; modulo 7 the accumulation matches t-4. This modular equality is quantifier-free and sufficient to capture the accumulation law needed to reason about t's updates.
-
-Progress and bounds:
-- 0 <= oer && oer <= i9y ensures oer is a non-negative iteration count and bounded by i9y; combined with the loop guard allows proving oer == i9y at loop exit.
-- 0 <= yg && yg < 7 keeps yg in the canonical residue range for the modular relation.
-
-Loop assigns:
-- Exactly the variables modified by the loop body: yg, oer, t.
-
-Variant:
-- i9y - oer (non-negative by the bound invariant and strictly decreases each iteration) proves termination.
-
-I sketched the inductiveness:
-- Base: holds from the pre-loop initial state (oer=0, yg=0, t=4).
-- Step: assume invariants hold before an iteration. After the body: oer' = oer+1, yg' = (yg+1)%7 = (oer+1)%7 by yg == oer%7, and t' = t + yg'. The modular conservation then updates as:
-  (t' - 4 - (oer'*(oer'+1))/2) ≡ (t - 4 - oer*(oer+1)/2) + yg' - (oer+1) ≡ 0 (mod 7),
-  because yg' ≡ (oer+1) (mod 7). Bounds and yg range are preserved by the body, and i9y is unchanged.
 </reasoning>
-<code>
-int main1(){
-  int i9y, yg, oer, t;
-
-  i9y=11;
-  yg=0;
-  oer=0;
-  t=1*4;
-
-  /*@
-    loop invariant 0 <= oer && oer <= i9y;
-    loop invariant 0 <= yg && yg < 7;
-    loop invariant yg == (oer % 7);
-    loop invariant ((t - 4 - (oer*(oer+1))/2) % 7) == 0;
-    loop assigns yg, oer, t;
-    loop variant (i9y - oer);
-  */
-  while (oer<i9y) {
-        yg = (yg+1)%7;
-        oer += 1;
-        t += yg;
-  }
-
-}
-</code>
------ Candidate 1/5 raw response end -----
-2026-03-08 11:32:12,845 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-08 11:32:12,861 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:32:45,550 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>
-I choose invariants that are strong, inductive, and explain the state transition precisely.
-
-Core relational equality (conservation law)
-- t == 4 + 21*(oer/7) + (yg*(yg+1))/2
-  This is the closed-form of the accumulated increments to t: every block of 7 iterations contributes 21, and the remainder r = oer % 7 (which equals yg) contributes 1+2+...+r = r*(r+1)/2. Together with yg == oer % 7 this exactly characterizes t as a function of oer and yg and is preserved by the loop update (checked for the r<6 and r==6 cases).
-
-Relational link between loop counters
-- yg == oer % 7
-  This directly captures the modular increment of yg relative to oer and is inductive: yg' = (yg+1)%7 and oer' = oer+1 imply yg' == oer'%7.
-
-Bounds / progress
-- 0 <= oer <= i9y ensures oer never exceeds the loop limit (initially 0 and grows by 1 each iteration).
-- 0 <= yg < 7 bounds yg to the expected residue range.
-- loop variant i9y - oer is a natural decreasing non-negative integer measure, ensuring termination.
-
-Exact assigns
-- loop assigns oer, yg, t; lists exactly the variables the loop updates.
-
-These invariants are sufficient to prove inductiveness: they hold initially, preserved by the step relation, and on loop exit (oer >= i9y) they give precise facts about t and yg in terms of oer (and hence in terms of i9y when needed).
-</reasoning>
-<code>
-int main1(){
-  int i9y, yg, oer, t;
-
-  i9y=11;
-  yg=0;
-  oer=0;
-  t=1*4;
-
-  /*@
-    loop invariant 0 <= oer && oer <= i9y;
-    loop invariant 0 <= yg && yg < 7;
-    loop invariant yg == (oer % 7);
-    loop invariant t == (4 + 21*(oer / 7) + (yg*(yg+1))/2);
-    loop assigns oer, yg, t;
-    loop variant (i9y - oer);
-  */
-  while (oer<i9y) {
-        yg = (yg+1)%7;
-        oer += 1;
-        t += yg;
-  }
-
-}
-</code>
------ Candidate 2/5 raw response end -----
-2026-03-08 11:32:45,550 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-08 11:32:45,570 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:33:19,926 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>In this loop, i9y is a constant (initially 11), oer is the loop counter that increases by 1 each iteration, yg cycles through 0..6 via (yg+1)%7, and t accumulates the current yg value (the new yg after the update). A strong inductive invariant is yg == oer % 7, which holds initially (0 == 0) and is preserved by the updates: after an iteration, oer becomes old oer + 1 and yg becomes (old yg + 1) % 7, so yg == oer % 7 remains true. The loop guard is oer < i9y, so we also maintain 0 <= oer <= i9y as a progress bound. Since i9y is 11 and oer increases by 1 each iteration, a natural loop variant is i9y - oer, which strictly decreases and ensures termination. We also include t >= 4 as a simple lower bound (t starts at 4 and only increases by a nonnegative amount). The loop assigns are exactly the variables that can be modified inside the loop: yg, oer, t. This setup provides a small, inductive, verification-friendly set of invariants and a precise loop variant. </reasoning>
-<code>/*@
-  loop invariant i9y == 11;
-  loop invariant yg == oer % 7;
-  loop invariant 0 <= oer && oer <= i9y;
-  loop invariant t >= 4;
-  loop assigns yg, oer, t;
-  loop variant i9y - oer;
-*/
-while (oer<i9y) {
-      yg = (yg+1)%7;
-      oer += 1;
-      t += yg;
-  }</code>
------ Candidate 3/5 raw response end -----
-2026-03-08 11:33:19,926 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-08 11:33:19,941 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:34:35,812 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>The loop updates three state variables: yg, oer, and t, while i9y remains constant. From the transition:
-- oer increments by 1 each iteration, so oer equals the iteration count k (0-based).
-- yg advances by one modulo 7, so yg = k mod 7, which also implies yg == oer % 7 (strong relational invariant).
-- t increases by the new yg value, so t tracks a cumulative sum of yg values from 1 to oer (mod 7 behavior).
-
-Using these observations, we can define inductive invariants:
-- 0 <= oer <= i9y: oer starts at 0 and increases until it reaches i9y, preserving a bounded range.
-- yg == oer % 7: preserved by the update yg' = (yg+1) % 7 and oer' = oer + 1.
-- 0 <= t - 4 and t - 4 <= 6*oer: t starts at 4 and increases by at most 6 each iteration, giving a tight bound on the accumulated increase.
-- loop variant i9y - oer: decreases by 1 each iteration, ensuring termination.
-
-The loop assigns yg, oer, t. The invariants rely only on available variables and describe the state evolution without modifying the function structure. These invariants are strong and inductive, aiding Frama-C/WP verification. </reasoning>
 <code>int main1(){
-  int i9y, yg, oer, t;
+  int fy, p7, j, h, os;
 
-  i9y=11;
-  yg=0;
-  oer=0;
-  t=1*4;
+  fy=0;
+  p7=0;
+  j=(1%28)+10;
+  h=6;
+  os=-5;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 0 <= oer <= i9y;
-    loop invariant yg == oer % 7;
-    loop invariant 0 <= t - 4;
-    loop invariant t - 4 <= 6*oer;
-    loop assigns yg, oer, t;
-    loop variant i9y - oer;
+    loop invariant os <= 0;
+    loop invariant p7 >= 0;
+    loop invariant fy == 0;
+    loop invariant h >= 0;
+    loop assigns j, p7, h, os;
   */
-  while (oer<i9y) {
-      yg = (yg+1)%7;
-      oer += 1;
-      t += yg;
+  while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+  /*@
+    loop invariant os <= -5;
+    loop invariant fy == 0;
+    loop assigns os;
+  */
+  while (os>=2) {
+      os -= 2;
   }
 
 }</code>
------ Candidate 4/5 raw response end -----
-2026-03-08 11:34:35,812 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-08 11:34:35,827 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:35:31,976 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop. The loop updates follow a simple, regular pattern:
+----- Candidate 1/5 raw response end -----
+2026-03-11 04:10:18,964 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 04:10:18,979 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:12:20,595 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>
+For the two loops in main1, I aimed to produce inductive, verification-friendly invariants that are aligned with the observed state transitions and that do not rely on rewriting the code. The available variables per loop constrain what we can refer to inside the invariants.
 
-- oer' = oer + 1
-- yg' = (yg + 1) mod 7
-- t'  = t + yg'
+Key observations from Loop 0 (j > p7):
+- Updates within the loop are: j := j - p7; p7 := p7 + 1; h := (h + fy) * 3; os := os / 3; fy remains unchanged.
+- A robust relational property that is preserved by the one-step transition is that h becomes a multiple of 3 after the first iteration and remains so thereafter, since h' = 3*(h+fy) always yields a multiple of 3. So h % 3 == 0 is a valid invariant (independent of fy, because 3*(h+fy) is divisible by 3 regardless of fy).
+- fy starts at 0 and is never modified, so fy == 0 is an invariant.
+- os is divided by 3 every iteration; with the initial os = -5, os/3 remains <= 0, and the operation preserves os <= 0.
+- A simple progress measure suitable as a loop variant is (j - p7), which starts non-negative due to the loop guard j > p7 and decreases as iterations proceed.
 
-Key observations to derive strong invariants:
-- The pair (oer, yg) always satisfies yg == oer mod 7, since starting values are (0,0) and each iteration preserves this relation: if yg == oer mod 7, then after updates yg' = (yg + 1) mod 7 and oer' = oer + 1, so yg' == oer' mod 7.
-- After k iterations, t has accumulated the sum of the sequence (1,2,3,4,5,6,0,1,2,...) for k terms. This sum can be expressed in closed form as:
-  t = 4 + 21*(oer/7) + ((oer%7) * ((oer%7) + 1)) / 2
-  where initial t = 4 and the per-iteration increments are (k+1) mod 7.
-- The loop is controlled by oer < i9y and i9y is initialized to 11 and never changes. Therefore:
-  0 <= oer <= i9y at all times (and in particular, oer is non-negative and never exceeds i9y).
+Loop 1 (os >= 2):
+- Only os is updated (os -= 2). fy remains 0 throughout.
+- A straightforward invariant is fy == 0 and os <= 0 remains true before and after iterations, given the guard os >= 2 ensures we are in the loop only when os is non-negative and large enough; the update os := os - 2 preserves os <= 0 after the first −2 step when starting from a non-positive value (in the given context, the loop is effectively not entered, but the invariant remains valid if entered).
+- A natural loop variant is os, which decreases by 2 on each iteration and remains non-negative whenever the loop body executes (due to the guard os >= 2).
 
-Using these observations, we construct inductive invariants:
-- 0 <= oer
-- oer <= i9y
-- yg == oer % 7
-- t == 4 + 21*(oer/7) + ((oer%7) * ((oer%7) + 1)) / 2
-
-Additionally, we specify:
-- loop assigns yg, oer, t
-- loop variant i9y - oer to help the verifier prove termination.
-
-These invariants are strong (not tautological) and are preserved by each loop iteration, providing a solid basis for Frama-C/WP verification. They rely only on available variables (i9y, oer, t, yg) and standard arithmetic.
-
+These invariants are strong, inductive, and directly reflect the loop updates (especially the h % 3 == 0 relation) without changing the program logic. They also include complete loop assigns and a reasonable loop variant to show progress.
 </reasoning>
 <code>int main1(){
-  int i9y, yg, oer, t;
+  int fy, p7, j, h, os;
 
-  i9y=11;
-  yg=0;
-  oer=0;
-  t=1*4;
+  fy=0;
+  p7=0;
+  j=(1%28)+10;
+  h=6;
+  os=-5;
 
   /*@
-    loop invariant 0 <= oer;
-    loop invariant oer <= i9y;
-    loop invariant yg == oer % 7;
-    loop invariant t == 4 + 21*(oer/7) + ((oer%7) * ((oer%7) + 1)) / 2;
-    loop assigns yg, oer, t;
-    loop variant i9y - oer;
+    loop invariant fy == 0;
+    loop invariant (j - p7) >= 0;
+    loop invariant p7 >= 0;
+    loop invariant os <= 0;
+    loop invariant h % 3 == 0;
+    loop assigns j, p7, h, os;
+    loop variant (j - p7);
   */
-  while (oer<i9y) {
-      yg = (yg+1)%7;
-      oer += 1;
-      t += yg;
+  while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+  /*@
+    loop invariant fy == 0;
+    loop invariant os <= 0;
+    loop assigns os;
+    loop variant os;
+  */
+  while (os>=2) {
+      os -= 2;
+  }
+
+}</code>
+----- Candidate 2/5 raw response end -----
+2026-03-11 04:12:20,595 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 04:12:20,608 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:13:52,537 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>For the first loop, the updates are:
+- j := j - p7
+- p7 := p7 + 1
+- h := (h + fy) * 3
+- os := os / 3
+- fy unchanged
+
+A strong inductive invariant that captures the relation between j and p7 is:
+- j == 11 - p7*(p7 - 1)/2
+This holds initially (p7 = 0, j = 11) and is preserved by every iteration because if j = 11 - p7*(p7 - 1)/2 at the start of an iteration, after performing the updates the new j and p7 satisfy:
+  j' = j - p7 and p7' = p7 + 1, which implies
+  j' = 11 - p7'*(p7' - 1)/2.
+This provides a core conservation/relational equality explaining the loop updates.
+
+We also include a simple, maintained property fy == 0 since fy is never modified in the loop.
+
+To help termination, we add a loop variant (j - p7). At each iteration, j - p7 decreases (as shown above) and is positive due to the loop guard j > p7; thus the loop must terminate.
+
+We list all modified variables in the loop assigns: j, p7, h, os.
+
+For the second loop, updates are:
+- os := os - 2
+The updates preserve parity of os (os remains odd if it starts odd), so an invariant that holds across iterations is os % 2 != 0. Since only os is modified in this loop, we also declare loop assigns os. fy remains 0 throughout; we can optionally state fy == 0 as an invariant as well to be explicit about its unchanged status.
+
+The invariants are designed to be inductive, non-tautological, and verification-friendly for Frama-C/WP, and do not modify the original code beyond annotations. </reasoning>
+<code>/*@
+  loop invariant j == 11 - p7*(p7 - 1)/2;
+  loop invariant fy == 0;
+  loop variant (j - p7);
+  loop assigns j, p7, h, os;
+*/
+while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+/*@
+  loop invariant (os % 2 != 0);
+  loop invariant fy == 0;
+  loop assigns os;
+*/
+while (os>=2) {
+      os -= 2;
+  }</code>
+----- Candidate 3/5 raw response end -----
+2026-03-11 04:13:52,537 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 04:13:52,553 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:15:41,972 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+For the first loop (updating j, p7, h, os), I chose invariants that are preserved by the given state-transition:
+- h is always a multiple of 3, since h becomes (h + fy) * 3 each iteration. With initial h = 6, h % 3 == 0 holds invariantly.
+- os remains non-positive, because os is replaced by os / 3 each iteration. If os <= 0, then os / 3 <= 0 in C integer division.
+- j and p7 stay non-negative across the loop, given the initial values (j starts at 11, p7 starts at 0) and the updates (j decreases by p7, p7 increases by 1).
+- A natural loop-variant that strictly decreases and stays non-negative at loop entries is (j - p7). Before the first iteration, j > p7; after each iteration, the value (j - p7) decreases by at least (p7 + 1) and remains non-negative at the start of each iteration, ensuring termination reasoning is sound.
+
+For the second loop (os decreases by 2 while os >= 2):
+- The loop body reduces os by 2, so a simple invariant that os <= -1 at loop-entry tends to be preserved in this particular path (the loop entry state has os = -5/3 = -1). Since the loop does not execute in the provided context (os < 2 at entry), this invariant is trivially inductive for the actual path, and os remains <= -1 if it were to execute.
+
+The annotations are chosen to be inductive and verification-friendly, using only the given available variables and without altering the function’s behavior. The loop assigns precisely the variables that are modified inside the respective loops.
+</reasoning>
+<code>
+int main1(){
+  int fy, p7, j, h, os;
+
+  fy=0;
+  p7=0;
+  j=(1%28)+10;
+  h=6;
+  os=-5;
+
+  /*@
+    loop invariant ( (h % 3) == 0 );
+    loop invariant ( os <= 0 );
+    loop invariant ( j >= 0 );
+    loop invariant ( p7 >= 0 );
+    loop variant ( j - p7 );
+    loop assigns j, p7, h, os;
+  */
+  while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+  /*@
+    loop invariant ( os <= -1 );
+    loop assigns os;
+  */
+  while (os>=2) {
+      os -= 2;
+  }
+
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-03-11 04:15:41,972 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 04:15:41,992 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:19:34,112 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+Goal: produce inductive, verification-friendly ACSL loop annotations for two loops in main1 that are consistent with the provided transition semantics and available variables.
+
+Key observations from the loop 0 (the first loop):
+- Updates: j = j - p7; p7 += 1; h = h + fy; h = h * 3; os = os / 3.
+- fy does not change inside the loop, so fy remains constant throughout.
+- os is updated by division by 3, starting from -5; with integer division towards zero in C, this keeps os non-positive after each iteration.
+- p7 only increases, starting from 0, hence p7 >= 0 is preserved.
+- A strong, useful invariant is that fy remains 0 (since it's never modified), i.e., fy == 0.
+- Since p7 only increases and j decreases (but not below the guard), a safe invariant about p7 and j is that the loop advances toward termination; a practical progress measure is the difference j - p7, which strictly decreases on every iteration and remains positive while the loop condition j > p7 holds. Thus, (j - p7) is a suitable loop variant.
+- We avoid invariants that require referring to prior iterations (no \old on locals), and we keep invariants simple yet inductive.
+
+Loop 1 (the second loop) updates only os by subtraction of 2, under guard os >= 2. Observations:
+- os only decreases; with the initial state given in the context (os == -1), the loop may not execute, but any inductive invariant must hold whenever the loop is entered (guard true). The natural, strong invariant here is os <= 0 (preserved because 0 and negative values stay non-positive under division or subtraction when the loop would run), together with fy == 0 (as before). A simple, exact loop variant is os, which decreases by 2 each iteration and is non-negative at loop entry whenever the loop runs.
+- The loop assigns for the second loop are just os.
+
+In summary, suitable invariants and assigns that are inductive and verification-friendly, and comply with the rules, are:
+- Loop 0:
+  - fy == 0
+  - p7 >= 0
+  - os <= 0
+  - assigns: j, p7, h, os
+  - variant: (j - p7)
+
+- Loop 1:
+  - os <= 0
+  - fy == 0
+  - assigns: os
+  - variant: os
+
+These choices are strong (not tautological), explain the key state updates, and provide explicit progress measures for termination without modifying the program logic.
+</reasoning>
+<code>int main1(){
+  int fy, p7, j, h, os;
+
+  fy=0;
+  p7=0;
+  j=(1%28)+10;
+  h=6;
+  os=-5;
+
+  /*@
+    loop invariant fy == 0;
+    loop invariant p7 >= 0;
+    loop invariant os <= 0;
+    loop assigns j, p7, h, os;
+    loop variant (j - p7);
+  */
+  while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+  /*@
+    loop invariant os <= 0;
+    loop invariant fy == 0;
+    loop assigns os;
+    loop variant os;
+  */
+  while (os>=2) {
+      os -= 2;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-08 11:35:31,976 - INFO - 
+2026-03-11 04:19:34,113 - INFO - 
 ----- Candidate 1/5 full code begin -----
 int main1(){
-  int i9y, yg, oer, t;
+  int fy, p7, j, h, os;
 
-  i9y=11;
-  yg=0;
-  oer=0;
-  t=1*4;
+  fy=0;
+  p7=0;
+  j=(1%28)+10;
+  h=6;
+  os=-5;
 
   /*@
-    loop invariant 0 <= oer && oer <= i9y;
-    loop invariant 0 <= yg && yg < 7;
-    loop invariant yg == (oer % 7);
-    loop invariant ((t - 4 - (oer*(oer+1))/2) % 7) == 0;
-    loop assigns yg, oer, t;
-    loop variant (i9y - oer);
+    loop invariant os <= 0;
+    loop invariant p7 >= 0;
+    loop invariant fy == 0;
+    loop invariant h >= 0;
+    loop assigns j, p7, h, os;
   */
-  while (oer<i9y) {
-        yg = (yg+1)%7;
-        oer += 1;
-        t += yg;
+  while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+  /*@
+    loop invariant os <= -5;
+    loop invariant fy == 0;
+    loop assigns os;
+  */
+  while (os>=2) {
+      os -= 2;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-08 11:35:31,976 - INFO - 
+2026-03-11 04:19:34,113 - INFO - 
 ----- Candidate 2/5 full code begin -----
 int main1(){
-  int i9y, yg, oer, t;
+  int fy, p7, j, h, os;
 
-  i9y=11;
-  yg=0;
-  oer=0;
-  t=1*4;
+  fy=0;
+  p7=0;
+  j=(1%28)+10;
+  h=6;
+  os=-5;
 
   /*@
-    loop invariant 0 <= oer && oer <= i9y;
-    loop invariant 0 <= yg && yg < 7;
-    loop invariant yg == (oer % 7);
-    loop invariant t == (4 + 21*(oer / 7) + (yg*(yg+1))/2);
-    loop assigns oer, yg, t;
-    loop variant (i9y - oer);
+    loop invariant fy == 0;
+    loop invariant (j - p7) >= 0;
+    loop invariant p7 >= 0;
+    loop invariant os <= 0;
+    loop invariant h % 3 == 0;
+    loop assigns j, p7, h, os;
+    loop variant (j - p7);
   */
-  while (oer<i9y) {
-        yg = (yg+1)%7;
-        oer += 1;
-        t += yg;
+  while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+  /*@
+    loop invariant fy == 0;
+    loop invariant os <= 0;
+    loop assigns os;
+    loop variant os;
+  */
+  while (os>=2) {
+      os -= 2;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-08 11:35:31,976 - INFO - 
+2026-03-11 04:19:34,113 - INFO - 
 ----- Candidate 3/5 full code begin -----
 /*@
-  loop invariant i9y == 11;
-  loop invariant yg == oer % 7;
-  loop invariant 0 <= oer && oer <= i9y;
-  loop invariant t >= 4;
-  loop assigns yg, oer, t;
-  loop variant i9y - oer;
+  loop invariant j == 11 - p7*(p7 - 1)/2;
+  loop invariant fy == 0;
+  loop variant (j - p7);
+  loop assigns j, p7, h, os;
 */
-while (oer<i9y) {
-      yg = (yg+1)%7;
-      oer += 1;
-      t += yg;
+while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+/*@
+  loop invariant (os % 2 != 0);
+  loop invariant fy == 0;
+  loop assigns os;
+*/
+while (os>=2) {
+      os -= 2;
   }
 ----- Candidate 3/5 full code end -----
-2026-03-08 11:35:31,976 - INFO - 
+2026-03-11 04:19:34,113 - INFO - 
 ----- Candidate 4/5 full code begin -----
 int main1(){
-  int i9y, yg, oer, t;
+  int fy, p7, j, h, os;
 
-  i9y=11;
-  yg=0;
-  oer=0;
-  t=1*4;
+  fy=0;
+  p7=0;
+  j=(1%28)+10;
+  h=6;
+  os=-5;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 0 <= oer <= i9y;
-    loop invariant yg == oer % 7;
-    loop invariant 0 <= t - 4;
-    loop invariant t - 4 <= 6*oer;
-    loop assigns yg, oer, t;
-    loop variant i9y - oer;
+    loop invariant ( (h % 3) == 0 );
+    loop invariant ( os <= 0 );
+    loop invariant ( j >= 0 );
+    loop invariant ( p7 >= 0 );
+    loop variant ( j - p7 );
+    loop assigns j, p7, h, os;
   */
-  while (oer<i9y) {
-      yg = (yg+1)%7;
-      oer += 1;
-      t += yg;
+  while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+  /*@
+    loop invariant ( os <= -1 );
+    loop assigns os;
+  */
+  while (os>=2) {
+      os -= 2;
   }
 
 }
 ----- Candidate 4/5 full code end -----
-2026-03-08 11:35:31,976 - INFO - 
+2026-03-11 04:19:34,113 - INFO - 
 ----- Candidate 5/5 full code begin -----
 int main1(){
-  int i9y, yg, oer, t;
+  int fy, p7, j, h, os;
 
-  i9y=11;
-  yg=0;
-  oer=0;
-  t=1*4;
+  fy=0;
+  p7=0;
+  j=(1%28)+10;
+  h=6;
+  os=-5;
 
   /*@
-    loop invariant 0 <= oer;
-    loop invariant oer <= i9y;
-    loop invariant yg == oer % 7;
-    loop invariant t == 4 + 21*(oer/7) + ((oer%7) * ((oer%7) + 1)) / 2;
-    loop assigns yg, oer, t;
-    loop variant i9y - oer;
+    loop invariant fy == 0;
+    loop invariant p7 >= 0;
+    loop invariant os <= 0;
+    loop assigns j, p7, h, os;
+    loop variant (j - p7);
   */
-  while (oer<i9y) {
-      yg = (yg+1)%7;
-      oer += 1;
-      t += yg;
+  while (j>p7) {
+      j = j - p7;
+      p7 += 1;
+      h = h + fy;
+      h = h*3;
+      os = os/3;
+  }
+
+  /*@
+    loop invariant os <= 0;
+    loop invariant fy == 0;
+    loop assigns os;
+    loop variant os;
+  */
+  while (os>=2) {
+      os -= 2;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-08 11:35:31,976 - INFO - Successfully generated 5/5 candidates
-2026-03-08 11:35:31,977 - INFO - Checking 14 invariants for conflicts...
-2026-03-08 11:35:31,979 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-08 11:35:31,979 - INFO -   1: int main1(){
-2026-03-08 11:35:31,979 - INFO -   2:   int i9y, yg, oer, t;
-2026-03-08 11:35:31,979 - INFO -   3: 
-2026-03-08 11:35:31,979 - INFO -   4:   i9y=11;
-2026-03-08 11:35:31,979 - INFO -   5:   yg=0;
-2026-03-08 11:35:31,979 - INFO -   6:   oer=0;
-2026-03-08 11:35:31,979 - INFO -   7:   t=1*4;
-2026-03-08 11:35:31,979 - INFO -   8: 
-2026-03-08 11:35:31,979 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-08 11:35:31,979 - INFO -   10: /*@
-2026-03-08 11:35:31,979 - INFO - DEBUG: Total lines: 34
-2026-03-08 11:35:47,921 - INFO - syntax Correct
-2026-03-08 11:36:19,577 - INFO - Validate:
-2026-03-08 11:36:19,577 - INFO - [True, True, True, True, False, True, True, True, True, True, True, True, True, True]
-2026-03-08 11:36:19,577 - INFO - 
-2026-03-08 11:36:19,578 - INFO - Verify:
-2026-03-08 11:36:19,578 - INFO - []
-2026-03-08 11:36:19,578 - INFO - 
-2026-03-08 11:36:19,578 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-08 11:36:19,578 - INFO -   Before: 14 invariants
-2026-03-08 11:36:19,578 - INFO -   After: 13 invariants
-2026-03-08 11:36:19,578 - INFO -   Remaining invariants:
-2026-03-08 11:36:19,578 - INFO -     [1] 0 <= oer && oer <= i9y
-2026-03-08 11:36:19,578 - INFO -     [2] 0 <= yg && yg < 7
-2026-03-08 11:36:19,578 - INFO -     [3] yg == (oer % 7)
-2026-03-08 11:36:19,578 - INFO -     [4] ((t - 4 - (oer*(oer+1))/2) % 7) == 0
-2026-03-08 11:36:19,578 - INFO -     [5] i9y == 11
-2026-03-08 11:36:19,578 - INFO -     [6] yg == oer % 7
-2026-03-08 11:36:19,578 - INFO -     [7] t >= 4
-2026-03-08 11:36:19,578 - INFO -     [8] 0 <= oer <= i9y
-2026-03-08 11:36:19,578 - INFO -     [9] 0 <= t - 4
-2026-03-08 11:36:19,578 - INFO -     [10] t - 4 <= 6*oer
-2026-03-08 11:36:19,578 - INFO -     [11] 0 <= oer
-2026-03-08 11:36:19,578 - INFO -     [12] oer <= i9y
-2026-03-08 11:36:19,578 - INFO -     [13] t == 4 + 21*(oer/7) + ((oer%7) * ((oer%7) + 1)) / 2
-2026-03-08 11:36:33,141 - INFO - syntax Correct
-2026-03-08 11:37:04,412 - INFO - Validate:
-2026-03-08 11:37:04,412 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-08 11:37:04,412 - INFO - 
-2026-03-08 11:37:04,412 - INFO - Verify:
-2026-03-08 11:37:04,412 - INFO - []
-2026-03-08 11:37:04,412 - INFO - 
-2026-03-08 11:37:04,412 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-08 11:37:18,267 - INFO - syntax Correct
-2026-03-08 11:37:49,593 - INFO - Validate:
-2026-03-08 11:37:49,593 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-08 11:37:49,593 - INFO - 
-2026-03-08 11:37:49,593 - INFO - Verify:
-2026-03-08 11:37:49,593 - INFO - []
-2026-03-08 11:37:49,593 - INFO - 
-2026-03-08 11:38:56,759 - INFO - Deduplicated 13 loop invariants in final code
-2026-03-08 11:39:07,456 - INFO - syntax Correct
-2026-03-08 11:39:38,253 - INFO - Validate:
-2026-03-08 11:39:38,254 - INFO - [True, True, True, True]
-2026-03-08 11:39:38,254 - INFO - 
-2026-03-08 11:39:38,254 - INFO - Verify:
-2026-03-08 11:39:38,254 - INFO - []
-2026-03-08 11:39:38,254 - INFO - 
-2026-03-08 11:39:38,254 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-08 11:39:38,254 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_69/1.c
-2026-03-08 11:39:38,254 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_69/1_invariants.txt
-2026-03-08 11:39:38,254 - INFO - 
+2026-03-11 04:19:34,113 - INFO - Successfully generated 5/5 candidates
+2026-03-11 04:19:34,113 - INFO - Checking 11 invariants for conflicts...
+2026-03-11 04:19:34,114 - INFO - Checking 5 invariants for conflicts...
+2026-03-11 04:19:34,115 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 04:19:34,115 - INFO -   1: int main1(){
+2026-03-11 04:19:34,115 - INFO -   2:   int fy, p7, j, h, os;
+2026-03-11 04:19:34,115 - INFO -   3: 
+2026-03-11 04:19:34,115 - INFO -   4:   fy=0;
+2026-03-11 04:19:34,115 - INFO -   5:   p7=0;
+2026-03-11 04:19:34,115 - INFO -   6:   j=(1%28)+10;
+2026-03-11 04:19:34,115 - INFO -   7:   h=6;
+2026-03-11 04:19:34,115 - INFO -   8:   os=-5;
+2026-03-11 04:19:34,115 - INFO -   9: 
+2026-03-11 04:19:34,115 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-11 04:19:34,115 - INFO - DEBUG: Total lines: 47
+2026-03-11 04:19:34,304 - INFO - syntax Correct
+2026-03-11 04:20:05,017 - INFO - Validate:
+2026-03-11 04:20:05,017 - INFO - [True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:20:05,018 - INFO - 
+2026-03-11 04:20:05,018 - INFO - Verify:
+2026-03-11 04:20:05,018 - INFO - []
+2026-03-11 04:20:05,018 - INFO - 
+2026-03-11 04:20:05,018 - INFO - Houdini iteration 1: Removed 1 failed invariants
+2026-03-11 04:20:05,018 - INFO -   Before: 16 invariants
+2026-03-11 04:20:05,018 - INFO -   After: 15 invariants
+2026-03-11 04:20:05,018 - INFO -   Remaining invariants:
+2026-03-11 04:20:05,018 - INFO -     [1] os <= 0
+2026-03-11 04:20:05,018 - INFO -     [2] p7 >= 0
+2026-03-11 04:20:05,018 - INFO -     [3] fy == 0
+2026-03-11 04:20:05,018 - INFO -     [4] h >= 0
+2026-03-11 04:20:05,018 - INFO -     [5] h % 3 == 0
+2026-03-11 04:20:05,018 - INFO -     [6] j == 11 - p7*(p7 - 1)/2
+2026-03-11 04:20:05,018 - INFO -     [7] ( (h % 3) == 0 )
+2026-03-11 04:20:05,018 - INFO -     [8] ( os <= 0 )
+2026-03-11 04:20:05,018 - INFO -     [9] ( j >= 0 )
+2026-03-11 04:20:05,018 - INFO -     [10] ( p7 >= 0 )
+2026-03-11 04:20:05,018 - INFO -     [11] os <= -5
+2026-03-11 04:20:05,018 - INFO -     [12] fy == 0
+2026-03-11 04:20:05,018 - INFO -     [13] os <= 0
+2026-03-11 04:20:05,018 - INFO -     [14] (os % 2 != 0)
+2026-03-11 04:20:05,018 - INFO -     [15] ( os <= -1 )
+2026-03-11 04:20:05,208 - INFO - syntax Correct
+2026-03-11 04:20:36,325 - INFO - Validate:
+2026-03-11 04:20:36,325 - INFO - [True, True, True, True, True, True, True, True, True, True, False, True, True, False, True]
+2026-03-11 04:20:36,325 - INFO - 
+2026-03-11 04:20:36,325 - INFO - Verify:
+2026-03-11 04:20:36,325 - INFO - []
+2026-03-11 04:20:36,325 - INFO - 
+2026-03-11 04:20:36,325 - INFO - Houdini iteration 2: Removed 2 failed invariants
+2026-03-11 04:20:36,325 - INFO -   Before: 15 invariants
+2026-03-11 04:20:36,325 - INFO -   After: 13 invariants
+2026-03-11 04:20:36,325 - INFO -   Remaining invariants:
+2026-03-11 04:20:36,325 - INFO -     [1] os <= 0
+2026-03-11 04:20:36,325 - INFO -     [2] p7 >= 0
+2026-03-11 04:20:36,325 - INFO -     [3] fy == 0
+2026-03-11 04:20:36,325 - INFO -     [4] h >= 0
+2026-03-11 04:20:36,325 - INFO -     [5] h % 3 == 0
+2026-03-11 04:20:36,325 - INFO -     [6] j == 11 - p7*(p7 - 1)/2
+2026-03-11 04:20:36,325 - INFO -     [7] ( (h % 3) == 0 )
+2026-03-11 04:20:36,325 - INFO -     [8] ( os <= 0 )
+2026-03-11 04:20:36,325 - INFO -     [9] ( j >= 0 )
+2026-03-11 04:20:36,325 - INFO -     [10] ( p7 >= 0 )
+2026-03-11 04:20:36,325 - INFO -     [11] fy == 0
+2026-03-11 04:20:36,325 - INFO -     [12] os <= 0
+2026-03-11 04:20:36,325 - INFO -     [13] ( os <= -1 )
+2026-03-11 04:20:36,524 - INFO - syntax Correct
+2026-03-11 04:21:07,565 - INFO - Validate:
+2026-03-11 04:21:07,565 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, False]
+2026-03-11 04:21:07,565 - INFO - 
+2026-03-11 04:21:07,566 - INFO - Verify:
+2026-03-11 04:21:07,566 - INFO - []
+2026-03-11 04:21:07,566 - INFO - 
+2026-03-11 04:21:07,566 - INFO - Houdini iteration 3: Removed 1 failed invariants
+2026-03-11 04:21:07,566 - INFO -   Before: 13 invariants
+2026-03-11 04:21:07,566 - INFO -   After: 12 invariants
+2026-03-11 04:21:07,566 - INFO -   Remaining invariants:
+2026-03-11 04:21:07,566 - INFO -     [1] os <= 0
+2026-03-11 04:21:07,566 - INFO -     [2] p7 >= 0
+2026-03-11 04:21:07,566 - INFO -     [3] fy == 0
+2026-03-11 04:21:07,566 - INFO -     [4] h >= 0
+2026-03-11 04:21:07,566 - INFO -     [5] h % 3 == 0
+2026-03-11 04:21:07,566 - INFO -     [6] j == 11 - p7*(p7 - 1)/2
+2026-03-11 04:21:07,566 - INFO -     [7] ( (h % 3) == 0 )
+2026-03-11 04:21:07,566 - INFO -     [8] ( os <= 0 )
+2026-03-11 04:21:07,566 - INFO -     [9] ( j >= 0 )
+2026-03-11 04:21:07,566 - INFO -     [10] ( p7 >= 0 )
+2026-03-11 04:21:07,566 - INFO -     [11] fy == 0
+2026-03-11 04:21:07,566 - INFO -     [12] os <= 0
+2026-03-11 04:21:07,763 - INFO - syntax Correct
+2026-03-11 04:21:38,685 - INFO - Validate:
+2026-03-11 04:21:38,685 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:21:38,685 - INFO - 
+2026-03-11 04:21:38,685 - INFO - Verify:
+2026-03-11 04:21:38,685 - INFO - []
+2026-03-11 04:21:38,685 - INFO - 
+2026-03-11 04:21:38,685 - INFO - Houdini iteration 4: All invariants are valid
+2026-03-11 04:21:38,878 - INFO - syntax Correct
+2026-03-11 04:22:09,846 - INFO - Validate:
+2026-03-11 04:22:09,846 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:22:09,846 - INFO - 
+2026-03-11 04:22:09,846 - INFO - Verify:
+2026-03-11 04:22:09,846 - INFO - []
+2026-03-11 04:22:09,846 - INFO - 
+2026-03-11 04:22:49,934 - INFO - Deduplicated 3 loop invariants in final code
+2026-03-11 04:22:50,127 - INFO - syntax Correct
+2026-03-11 04:23:20,992 - INFO - Validate:
+2026-03-11 04:23:20,992 - INFO - [True, True, True, True, True, True, True, True, True]
+2026-03-11 04:23:20,992 - INFO - 
+2026-03-11 04:23:20,992 - INFO - Verify:
+2026-03-11 04:23:20,992 - INFO - []
+2026-03-11 04:23:20,992 - INFO - 
+2026-03-11 04:23:20,992 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 04:23:20,992 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_69/1.c
+2026-03-11 04:23:20,992 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_69/1_invariants.txt
+2026-03-11 04:23:20,992 - INFO - 
 ============================================================
-2026-03-08 11:39:38,254 - INFO - Final first_pass results:
-2026-03-08 11:39:38,254 - INFO -   syntax=1
-2026-03-08 11:39:38,254 - INFO -   valid=1
-2026-03-08 11:39:38,254 - INFO -   satisfy=None
-2026-03-08 11:39:38,254 - INFO - ============================================================
-2026-03-08 11:39:38,254 - INFO - 
+2026-03-11 04:23:20,992 - INFO - Final first_pass results:
+2026-03-11 04:23:20,992 - INFO -   syntax=1
+2026-03-11 04:23:20,992 - INFO -   valid=1
+2026-03-11 04:23:20,992 - INFO -   satisfy=None
+2026-03-11 04:23:20,992 - INFO - ============================================================
+2026-03-11 04:23:20,993 - INFO - 
 ============================================================
-2026-03-08 11:39:38,254 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-08 11:39:38,254 - INFO -   Total API calls: 2
-2026-03-08 11:39:38,254 - INFO -   Total prompt tokens (input): 2,262
-2026-03-08 11:39:38,254 - INFO -   Total completion tokens (output): 11,015
-2026-03-08 11:39:38,254 - INFO -   Total tokens: 13,277
-2026-03-08 11:39:38,254 - INFO -   Average per call:
-2026-03-08 11:39:38,254 - INFO -     Prompt: 1131.0 tokens
-2026-03-08 11:39:38,254 - INFO -     Completion: 5507.5 tokens
-2026-03-08 11:39:38,254 - INFO -     Total: 6638.5 tokens
-2026-03-08 11:39:38,254 - INFO - ============================================================
-2026-03-08 11:39:38,255 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_69/1.c
-2026-03-08 11:39:38,255 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_69/1_invariants.txt
-2026-03-08 11:40:09,137 - INFO - LLM quality-gate raw response: {
+2026-03-11 04:23:20,993 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 04:23:20,993 - INFO -   Total API calls: 11
+2026-03-11 04:23:20,993 - INFO -   Total prompt tokens (input): 14,961
+2026-03-11 04:23:20,993 - INFO -   Total completion tokens (output): 124,310
+2026-03-11 04:23:20,993 - INFO -   Total tokens: 139,271
+2026-03-11 04:23:20,993 - INFO -   Average per call:
+2026-03-11 04:23:20,993 - INFO -     Prompt: 1360.1 tokens
+2026-03-11 04:23:20,993 - INFO -     Completion: 11300.9 tokens
+2026-03-11 04:23:20,993 - INFO -     Total: 12661.0 tokens
+2026-03-11 04:23:20,993 - INFO - ============================================================
+2026-03-11 04:23:20,994 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_69/1.c
+2026-03-11 04:23:20,994 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_69/1_invariants.txt
+2026-03-11 04:24:18,192 - INFO - LLM quality-gate raw response: {
   "ok": true,
   "reason": "pass"
 }
-2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
-2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
-2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
-2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
-2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
-2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
-2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
-2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
-2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
-2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
-2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
-2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
-2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
-2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
-2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
-2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
-2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
-2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
-2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
+2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
+2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
+2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
+2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
+2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
+2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
+2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
+2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

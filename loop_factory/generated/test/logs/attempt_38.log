@@ -1,462 +1,738 @@
-2026-03-08 11:16:06,364 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-08 11:16:06,377 - INFO - Found 1 loops
-2026-03-08 11:16:06,378 - INFO - 
+2026-03-11 03:37:59,837 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 03:37:59,861 - INFO - Found 2 loops
+2026-03-11 03:37:59,862 - INFO - 
 ============================================================
-2026-03-08 11:16:06,378 - INFO - Main generation pass 1/1
-2026-03-08 11:16:06,378 - INFO - ============================================================
-2026-03-08 11:16:06,378 - INFO - Loaded single prompt template: simple
-2026-03-08 11:16:06,378 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-08 11:16:06,378 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-08 11:16:06,394 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:17:00,006 - INFO - 
+2026-03-11 03:37:59,862 - INFO - Main generation pass 1/1
+2026-03-11 03:37:59,862 - INFO - ============================================================
+2026-03-11 03:37:59,862 - INFO - Loaded single prompt template: simple
+2026-03-11 03:37:59,862 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 03:37:59,862 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 03:37:59,878 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 03:39:34,046 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We need an inductive invariant that captures the exact state transition of the loop.
+<reasoning>
+I will craft inductive loop invariants that reflect the known state updates and preserve useful relations across iterations, without modifying the program logic.
 
-Observed update:
-- g is updated: g' = g - 1
-- cl is updated: cl' = cl + 2*g  (since cl increases by 1, then by (g-1) twice, then by 1; net +2*g)
+Loop 0 (the loop with rg, and updates to t3e, vx, ic, c):
+- Core conservation: t3e, ic and vx are all incremented by the same amount per iteration (v*v), starting from 0. Therefore, t3e == ic == vx is an invariant that holds before the first iteration and is preserved by every iteration.
+- iws is initialized to v*2 and never changes in this loop, hence iws == 2*v remains invariant.
+- Non-negativity progress bounds: rg >= 0, t3e >= 0, ic >= 0, vx >= 0, c >= 0 hold throughout (rg is decremented but the guard ensures the loop body executes only while rg > 0; t3e, ic, vx accumulate non-negatively because v*v >= 0; c accumulates t3e%4, which is non-negative).
+- Loop assigns: the variables actually modified inside the loop are rg, t3e, vx, ic, c.
 
-A strong conserved quantity across iterations is:
-C = cl + g*(g + 1)
+Loop 1 (the loop with ic, c, v, iws, t3e; v is updated inside the loop):
+- Basic non-negativity progress bounds: t3e >= 0, ic >= 0, c >= 0 hold across iterations (t3e increases by 1 each iteration; ic decreases by the current c, and c increases by 1; but at the start of every iteration ic > c, ensuring ic remains non-negative and c stays non-negative through the transitions that actually occur).
+- f9fc stays equal to 1 throughout (constant).
+- Loop assigns: ic, v, iws, c, t3e are modified in this loop (as per the code).
 
-Compute after one iteration:
-C' = cl' + g'(g' + 1) = (cl + 2*g) + (g - 1)*g = cl + 2*g + g^2 - g = cl + g^2 + g = cl + g*(g + 1) = C
-
-Thus C is invariant across loop iterations. Since q remains constant inside the loop and initially cl = 0, g = q, we have
-C = q*(q + 1) initially, hence invariantly
-cl + g*(g + 1) == q*(q + 1)
-
-This provides a strong, exact relation between cl and g that is preserved by every iteration.
-
-For progress (termination) we can use a loop variant that strictly decreases every iteration. Since g is decremented by 1 each iteration and the loop guard requires g > 0, the natural choice is:
-loop variant g
-
-Loop assigns are the variables actually modified inside the loop: cl and g.
-
-Therefore, the following annotations are suitable:
-- loop invariant: cl + g*(g+1) == q*(q+1)
-- loop assigns: cl, g
-- loop variant: g
-
-These are inductive, precise, and verification-friendly for Frama-C/WP.
-
+These invariants are inductive, do not rely on disallowed constructs, and respect the available variables. They also avoid using \at on non-parameters, and they do not alter the given code beyond adding loop annotations.
 </reasoning>
-<code>int main1(){
-  int q, cl, g;
+<code>/*@
+  loop invariant t3e == ic && ic == vx;
+  loop invariant iws == 2*v;
+  loop invariant rg >= 0;
+  loop invariant t3e >= 0;
+  loop invariant ic >= 0;
+  loop invariant vx >= 0;
+  loop invariant c >= 0;
+  loop assigns rg, t3e, vx, ic, c;
+*/
+while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
+  }
 
-  q=1;
-  cl=0;
-  g=q;
-
-  /*@
-    loop invariant cl + g*(g+1) == q*(q+1);
-    loop assigns cl, g;
-    loop variant g;
-  */
-  while (cl<q&&g>0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
+/*@
+  loop invariant t3e >= 0;
+  loop invariant ic >= 0;
+  loop invariant c >= 0;
+  loop invariant f9fc == 1;
+  loop assigns ic, v, iws, c, t3e;
+*/
+while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
   }
 
 }</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-08 11:17:00,006 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-08 11:17:00,022 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:18:52,803 - INFO - 
+2026-03-11 03:39:34,046 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 03:39:34,061 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 03:41:25,527 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>We analyze the loop to derive an inductive, verification-friendly invariant.
+<reasoning>
+For the first loop:
+- Observing the updates: t3e, ic, and vx are all incremented by the same amount v*v each iteration, starting from 0. Therefore t3e == ic and vx == ic hold invariantly across the loop.
+- c is updated by (t3e % 4) each iteration, which is a non-negative value, and c starts at 0; hence c >= 0 is invariant.
+- f9fc is set to 1 before the loop and is never modified inside this loop, so f9fc == 1 is a sound invariant.
+- The loop assigns the variables that are updated inside the loop: rg, t3e, vx, ic, c.
+- A straightforward loop variant is rg since rg is decremented by 1 each iteration and the loop continues while rg > 0; this provides a well-founded measure for termination.
 
-Key observations:
-- The only loop variables modified are g and cl; q remains constant (q is set once and never changed in the loop).
-- The transition from one iteration to the next (with g_before = g, cl_before = cl) is:
-  - g' = g - 1
-  - cl' = cl + 1 + g' + g' + 1 = cl + 2*g
-  Hence cl' = cl + 2*g and g' = g - 1.
+For the second loop:
+- The loop body updates: ic = ic - c, v = v + 1, iws = iws + (ic % 9), c = c + 1, t3e = t3e + f9fc. With f9fc fixed at 1, t3e increases by 1 each iteration.
+- A robust, simple non-trivial invariant to keep across iterations is that v never decreases; since v is incremented, we can state v >= \at(v, Pre). This uses the function-parameter-Pre relation allowed by ACSL.
+- Other safe invariants: t3e >= 0, iws >= 0, c >= 0 (these variables stay non-negative given their updates).
+- The loop assigns precisely the variables ic, iws, c, t3e, v, so the loop assigns clause should list those.
+- A natural loop variant for the second loop is ic - c. Before each iteration, the guard ic > c ensures ic - c > 0, and after the iteration ic' - c' decreases strictly (since ic' = ic - c and c' = c + 1), ensuring termination.
 
-From these updates, the following relation is preserved across iterations:
-- Let F(cl, g) = cl + g^2 + g. Then after an iteration:
-  F(cl', g') = cl' + g'^2 + g' = (cl + 2*g) + (g - 1)^2 + (g - 1)
-            = cl + g^2 + g = F(cl, g).
-Thus F is invariant through loop steps. At loop entry, before the first iteration, we have cl = 0 and g = q, so F = q^2 + q. Therefore a strong invariant is:
-- cl + g*g + g == q*q + q
+The invariants are inductive, do not rely on non-parameter locals' Pre values, and respect the restrictions about using \at(param, Pre) only for parameters.
+</reasoning>
+<code>int main1(int v){
+  int iws, f9fc, t3e, ic, vx, rg, c;
 
-We also provide tight bounds to aid verification:
-- 0 <= g (since the loop guard requires g > 0 to enter, and g only decreases by 1 per iteration; after the iteration g may reach 0, but not negative within the loop invariant scope).
-- 0 <= cl (cl starts at 0 and only increases).
-
-Assignments:
-- The loop mutates cl and g, so loop assigns cl, g.
-
-Progress measure:
-- loop variant g is appropriate because g strictly decreases by 1 each iteration and remains non-negative due to the guard, ensuring termination.
-
-These invariants are strong, inductive, and directly reflect the loop's arithmetic state transitions without changing the code or using disallowed constructs.</reasoning>
-<code>int main1(){
-  int q, cl, g;
-
-  q=1;
-  cl=0;
-  g=q;
+  iws=v*2;
+  f9fc=1;
+  t3e=0;
+  ic=0;
+  vx=0;
+  rg=(v%18)+5;
+  c=0;
 
   /*@
-    loop invariant cl + g*g + g == q*q + q;
-    loop invariant 0 <= g;
-    loop invariant 0 <= cl;
-    loop assigns cl, g;
-    loop variant g;
+    loop invariant t3e == ic;
+    loop invariant vx == ic;
+    loop invariant c >= 0;
+    loop invariant f9fc == 1;
+    loop assigns rg, t3e, vx, ic, c;
+    loop variant rg;
   */
-while (cl&lt;q&&g&gt;0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
+  while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
+  }
+
+  /*@
+    loop invariant v >= \at(v, Pre);
+    loop invariant t3e >= 0;
+    loop invariant iws >= 0;
+    loop invariant c >= 0;
+    loop assigns ic, iws, c, t3e, v;
+    loop variant ic - c;
+  */
+  while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
   }
 
 }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-08 11:18:52,804 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-08 11:18:52,817 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:20:40,731 - INFO - 
+2026-03-11 03:41:25,528 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 03:41:25,542 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 03:45:05,345 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>Given the loop initializes q=1, cl=0, g=q, we have at loop entry: q=1, g=1, cl=0. The loop condition is cl<q && g>0, which is true initially. Inside the loop, g is decremented by 1, and cl is updated in three steps that collectively amount to cl increasing by 2*g_old (where g_old is g at the start of the iteration). Since g_old starts at 1 and is decreased by 1 each iteration, there can be at most one iteration (after which g becomes 0 and the guard g>0 fails). Therefore a strong invariant that captures the relation between cl and g in this reachable state is the linear equation cl + 2*g == 2*q (equivalently cl == 2*(q - g)). This relation holds initially (0 + 2*1 == 2*1) and, given the actual single iteration, remains valid at loop-entry before the next (non-existent) iteration. In addition, we include modest progress bounds (0 <= g <= q, 0 <= cl) and note that q remains constant (q == 1) throughout the loop. We specify:
-- core invariant: cl + 2*g == 2*q
-- additional invariants for clarity and verification friendliness: q == 1, 0 <= g <= q, 0 <= cl
-- loop assigns: cl, g
-- loop variant: g
+<reasoning>For the first loop, I chose inductive invariants that express core conservation between t3e, ic, and vx, since all three are incremented by the same amount (v*v) each iteration. Specifically:
+- t3e == ic captures the exact state update relationship, and is preserved because both t3e and ic are increased by v*v each iteration.
+- vx == ic captures the shared increment pattern (vx and ic both increase by v*v), preserved in the same way.
+- rg >= 0 and c >= 0 are safety bounds that hold initially and are preserved since rg only decreases and c only increases.
+The loop assigns include all modified local state: rg, t3e, vx, ic, c. I also added a loop variant on rg, since rg strictly decreases by 1 each iteration, guaranteeing termination.
 
-These choices aim to be inductive and verify-friendly for Frama-C WP, while staying within the given loop context and avoiding any changes to code semantics. </reasoning>
-<code>int main1(){
-  int q, cl, g;
+For the second loop, after the first loop finishes we have t3e and ic related by t3e == ic, and further updates occur by:
+- ic := ic - c
+- v := v + 1
+- iws := iws + (ic % 9)
+- c := c + 1
+- t3e := t3e + f9fc
+A robust, inductive invariant is:
+- t3e - ic >= 0, which holds initially (0) and is preserved because after each iteration t3e increments by 1 while ic decreases by at least 1 (since ic > c implies ic - c > 0, then ic' = ic - c and c' = c + 1, so the gap t3e - ic increases or stays non-negative).
+- ic >= 0 and c >= 0 stay non-negative throughout, which keeps iws updates well-defined with ic > c.
+- ic - c >= 0 is also a natural non-negative, decreasing measure that helps bound the number of iterations; I chose it as the loop variant, which decreases each iteration (ic' - c' = (ic - c) - (c + 1)).
+The loop assigns for the second loop include all modified locals: ic, v, iws, c, t3e. This combination gives a verification-friendly, inductive set of invariants without introducing unrelated properties.
 
-  q=1;
-  cl=0;
-  g=q;
+No changes are made to the original code structure beyond adding the invariants and loop-variants. The used variables conform to the available variable lists for each loop. </reasoning>
+<code>int main1(int v){
+  int iws, f9fc, t3e, ic, vx, rg, c;
+
+  iws=v*2;
+  f9fc=1;
+  t3e=0;
+  ic=0;
+  vx=0;
+  rg=(v%18)+5;
+  c=0;
 
   /*@
-    loop invariant q == 1;
-    loop invariant cl + 2*g == 2*q;
-    loop invariant 0 <= g <= q;
-    loop invariant 0 <= cl;
-    loop assigns cl, g;
-    loop variant g;
+    loop invariant t3e == ic;
+    loop invariant vx == ic;
+    loop invariant rg >= 0;
+    loop invariant c >= 0;
+    loop assigns rg, t3e, vx, ic, c;
+    loop variant rg;
   */
-  while (cl&lt;q&&g&gt;0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
+  while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
+  }
+
+  /*@
+    loop invariant t3e - ic >= 0;
+    loop invariant ic - c >= 0;
+    loop invariant ic >= 0;
+    loop invariant c >= 0;
+    loop assigns ic, v, iws, c, t3e;
+    loop variant ic - c;
+  */
+  while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
   }
 
 }</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-08 11:20:40,731 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-08 11:20:40,745 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:21:47,545 - INFO - 
+2026-03-11 03:45:05,345 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 03:45:05,358 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 03:49:05,140 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>
-The loop updates follow a clean relational invariant. Let q be the initial and constant value of q inside the function, and let g decrease by 1 each iteration while cl increases. Observing the exact update pattern, one can derive a precise closed-form relation between cl, q, and g that is preserved by every iteration:
+<reasoning>For the first loop (rg > 0):
+- Each iteration updates: rg = rg - 1; t3e = t3e + v*v; vx = vx + v*v; ic = ic + v*v; c = c + (t3e % 4).
+- Therefore, after any number of iterations k, t3e, ic, and vx all increase by k*(v*v) and stay in lockstep. They start at 0, so we can observe the exact relational invariants:
+  - t3e == ic
+  - ic == vx
+  - t3e == vx
+- These relations are preserved by the transition: if t3e, ic, vx are all equal before an iteration, after updating by the same amount (v*v) they remain equal.
+- The loop counter rg is strictly decreasing by 1 per iteration, and rg is non-negative before the loop body (rg > 0 by guard), so rg is a natural progress measure. We also add basic non-negativity invariants for other variables (c, iws, t3e, ic, vx) to help the verifier reason about bounds.
+- The loop assigns must include all modified locals: rg, t3e, vx, ic, c.
 
-- Before a given iteration: cl = (q - g) * (q + g + 1)
-- After the iteration: g becomes g - 1; cl increases by 2*g (with g being the value after the decrement in the loop body). This preserves the same relation with the new g.
+For the second loop (the inner while-like loop with an internal break):
+- The updates are: ic = ic - c; v++ ; iws = iws + (ic%9); c = c + 1; t3e += f9fc (i.e., t3e++ since f9fc == 1).
+- A clean, inductive invariant that ties the loop state to the current values is:
+  - c == v - \at(v, Pre)
+  This expresses that the number of iterations performed so far equals the current v minus its initial value, which matches the observed progress: v increments by 1 each iteration and c increments by 1 each iteration. The invariant holds at loop entry (c=0, v=\at(v,Pre)) and is preserved by the body.
+- We also add basic non-negativity invariants for t3e, ic, iws, and v, and v’s non-decrease with respect to its initial value.
+- We list the loop assigns: ic, iws, c, t3e, v.
 
-Thus, the invariant cl == (q - g) * (q + g + 1) holds before each iteration and is preserved by the loop body. This provides a strong, exact conservation law that explains how cl and g evolve together.
+These invariants are inductive, avoid rewriting the code, and stay within the allowed variable set. They also provide a strong, explainable state-update law and minimal progress bounds to aid WP verification. </reasoning>
+<code>int main1(int v){
+  int iws, f9fc, t3e, ic, vx, rg, c;
 
-Additionally, minimal progress bounds are included:
-- 0 <= g to ensure the loop progresses towards termination (given the loop guard g > 0).
-- 0 <= cl is implied by the invariant once g <= q (which holds since g starts at q and only decreases).
-
-We also include a precise loop assigns for the modified variables (g, cl) and a loop variant based on g to aid termination reasoning.
-
-Overall invariant set:
-- core relation: cl == (q - g) * (q + g + 1)
-- progress/bounds: 0 <= g, 0 <= cl
-- assigns: g, cl
-- variant: g
-</reasoning>
-<code>int main1(){
-  int q, cl, g;
-
-  q=1;
-  cl=0;
-  g=q;
+  iws=v*2;
+  f9fc=1;
+  t3e=0;
+  ic=0;
+  vx=0;
+  rg=(v%18)+5;
+  c=0;
 
   /*@
-    loop invariant cl == (q - g) * (q + g + 1);
-    loop invariant 0 <= g;
-    loop invariant 0 <= cl;
-    loop assigns g, cl;
-    loop variant g;
+    loop invariant t3e == ic;
+    loop invariant ic == vx;
+    loop invariant t3e == vx;
+    loop invariant rg &gt;= 0;
+    loop invariant c &gt;= 0;
+    loop invariant iws &gt;= 0;
+    loop variant rg;
+    loop assigns rg, t3e, vx, ic, c;
   */
-  while (cl&lt;q && g&gt;0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
+  while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
+  }
+
+  /*@
+    loop invariant c == v - \at(v, Pre);
+    loop invariant t3e &gt;= 0;
+    loop invariant ic &gt;= 0;
+    loop invariant iws &gt;= 0;
+    loop invariant v &gt;= \at(v, Pre);
+    loop assigns ic, iws, c, t3e, v;
+  */
+  while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
   }
 
 }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-08 11:21:47,546 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-08 11:21:47,558 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:22:25,670 - INFO - 
+2026-03-11 03:49:05,141 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 03:49:05,154 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 03:51:15,002 - INFO - 
 ----- Candidate 5/5 raw response begin -----
-<reasoning>We need inductive loop invariants that explain the updates inside the loop and are verification-friendly for Frama-C/WP.
+<reasoning>The loop annotations below are chosen to be inductive and verification-friendly for Frama-C/WP.
 
-Observations from the loop body:
-- g is decremented by 1 each iteration: g' = g - 1.
-- cl is updated by a sequence: cl = cl + 1; cl = cl + g + g; cl = cl + 1.
-  Since g on the right-hand side of cl = cl + g + g uses the updated g (g' = g - 1), the net effect on cl is:
-  cl' = cl + 1 + (g - 1) + (g - 1) + 1 = cl + 2*g.
-- q is unchanged.
+Loop 0:
+- Observed state updates: t3e, ic, and vx are each increased by v*v on every iteration; hence they stay in lockstep. This yields strong invariants:
+  - t3e == ic and ic == vx (all three always equal after each iteration).
+- All three of those variables start at 0, so their non-negativity is preserved: t3e >= 0 and c >= 0.
+- The decrementing loop counter rg starts at (\at(v, Pre) % 18) + 5 and is decreased by 1 each iteration, so 0 <= rg <= ((\at(v, Pre) % 18) + 5).
+- The loop assigns are exactly the modified variables: rg, t3e, vx, ic, c.
+- A minimal loop variant is rg to ensure termination.
 
-Therefore, the state transition per iteration is:
-- cl' = cl + 2*g
-- g'  = g - 1
-- q'  = q
+Loop 1:
+- Here v increments by 1 each iteration and t3e increments by f9fc (which is 1). A robust invariant is that v never decreases and t3e never becomes negative.
+- ic is decreased by c and c is increased by 1 each iteration. Thus ic - c decreases by 1 per iteration. Since the loop body is only executed when ic > c (the break condition is checked at the top of the loop body), the invariant ic - c >= 0 holds and ic - c serves as a natural loop variant to prove termination.
+- We also keep non-negativity for iws and a lower bound for v via the initial value: v >= \at(v, Pre).
+- The loop assigns are ic, v, iws, c, t3e.
 
-A conserved quantity can be derived that remains unchanged by this transition:
-- F = cl + g + g^2
-  F' = cl' + g' + g'^2 = (cl + 2*g) + (g - 1) + (g - 1)^2
-     = cl + 2*g + g - 1 + g^2 - 2*g + 1
-     = cl + g^2 + g
-     = F
-
-Thus F is invariant across iterations. Given the initial values cl = 0, g = 1 (and q = 1), we have F = 0 + 1 + 1^2 = 2. Hence a strong invariant is:
-- cl + g + g^2 == 2
-
-Additionally, simple bounds that are preserved:
-- cl >= 0
-- g >= 0
-
-These invariants are inductive: if they hold before an iteration, they hold after (due to the derived state update). A loop variant can be chosen as g, since g decreases by 1 each iteration and the loop guard ensures g > 0, guaranteeing termination.
-
-Summary of invariants to add:
-- loop invariant cl >= 0;
-- loop invariant g >= 0;
-- loop invariant cl + g + g*g == 2;
-- loop assigns cl, g;
-- loop variant g;
-
-These are strong, exact, and align with the allowed ACSL constructs. They do not modify code and do not reference non-parameters via Pre/unknowns. The invariant uses only available variables (cl, g, q).
+These invariants are inductive given the code in the function and use only variables from the available set and the function parameter v (via \at(v, Pre) where appropriate). They do not modify the program logic, only annotate it for verification.
 
 </reasoning>
-<code>/*@
-  loop invariant cl &gt;= 0;
-  loop invariant g &gt;= 0;
-  loop invariant cl + g + g*g == 2;
-  loop assigns cl, g;
-  loop variant g;
-*/
-while (cl&lt;q && g&gt;0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
-  }</code>
------ Candidate 5/5 raw response end -----
-2026-03-08 11:22:25,670 - INFO - 
------ Candidate 1/5 full code begin -----
-int main1(){
-  int q, cl, g;
+<code>int main1(int v){
+  int iws, f9fc, t3e, ic, vx, rg, c;
 
-  q=1;
-  cl=0;
-  g=q;
+  iws=v*2;
+  f9fc=1;
+  t3e=0;
+  ic=0;
+  vx=0;
+  rg=(v%18)+5;
+  c=0;
 
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant cl + g*(g+1) == q*(q+1);
-    loop assigns cl, g;
-    loop variant g;
+    loop invariant t3e == ic;
+    loop invariant ic == vx;
+    loop invariant t3e >= 0;
+    loop invariant c >= 0;
+    loop invariant 0 <= rg <= ((\at(v, Pre) % 18) + 5);
+    loop assigns rg, t3e, vx, ic, c;
+    loop variant rg;
   */
-  while (cl<q&&g>0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
+  while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant ic - c >= 0;
+    loop invariant t3e >= 0;
+    loop invariant v >= \at(v, Pre);
+    loop invariant iws >= 0;
+    loop assigns ic, v, iws, c, t3e;
+    loop variant ic - c;
+  */
+  while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
+  }
+
+}</code>
+----- Candidate 5/5 raw response end -----
+2026-03-11 03:51:15,002 - INFO - 
+----- Candidate 1/5 full code begin -----
+/*@
+  loop invariant t3e == ic && ic == vx;
+  loop invariant iws == 2*v;
+  loop invariant rg >= 0;
+  loop invariant t3e >= 0;
+  loop invariant ic >= 0;
+  loop invariant vx >= 0;
+  loop invariant c >= 0;
+  loop assigns rg, t3e, vx, ic, c;
+*/
+while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
+  }
+
+/*@
+  loop invariant t3e >= 0;
+  loop invariant ic >= 0;
+  loop invariant c >= 0;
+  loop invariant f9fc == 1;
+  loop assigns ic, v, iws, c, t3e;
+*/
+while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-08 11:22:25,670 - INFO - 
+2026-03-11 03:51:15,002 - INFO - 
 ----- Candidate 2/5 full code begin -----
-int main1(){
-  int q, cl, g;
+int main1(int v){
+  int iws, f9fc, t3e, ic, vx, rg, c;
 
-  q=1;
-  cl=0;
-  g=q;
+  iws=v*2;
+  f9fc=1;
+  t3e=0;
+  ic=0;
+  vx=0;
+  rg=(v%18)+5;
+  c=0;
 
   /*@
-    loop invariant cl + g*g + g == q*q + q;
-    loop invariant 0 <= g;
-    loop invariant 0 <= cl;
-    loop assigns cl, g;
-    loop variant g;
+    loop invariant t3e == ic;
+    loop invariant vx == ic;
+    loop invariant c >= 0;
+    loop invariant f9fc == 1;
+    loop assigns rg, t3e, vx, ic, c;
+    loop variant rg;
   */
-while (cl&lt;q&&g&gt;0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
+  while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
+  }
+
+  /*@
+    loop invariant v >= \at(v, Pre);
+    loop invariant t3e >= 0;
+    loop invariant iws >= 0;
+    loop invariant c >= 0;
+    loop assigns ic, iws, c, t3e, v;
+    loop variant ic - c;
+  */
+  while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-08 11:22:25,670 - INFO - 
+2026-03-11 03:51:15,002 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(){
-  int q, cl, g;
+int main1(int v){
+  int iws, f9fc, t3e, ic, vx, rg, c;
 
-  q=1;
-  cl=0;
-  g=q;
+  iws=v*2;
+  f9fc=1;
+  t3e=0;
+  ic=0;
+  vx=0;
+  rg=(v%18)+5;
+  c=0;
 
   /*@
-    loop invariant q == 1;
-    loop invariant cl + 2*g == 2*q;
-    loop invariant 0 <= g <= q;
-    loop invariant 0 <= cl;
-    loop assigns cl, g;
-    loop variant g;
+    loop invariant t3e == ic;
+    loop invariant vx == ic;
+    loop invariant rg >= 0;
+    loop invariant c >= 0;
+    loop assigns rg, t3e, vx, ic, c;
+    loop variant rg;
   */
-  while (cl&lt;q&&g&gt;0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
+  while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
+  }
+
+  /*@
+    loop invariant t3e - ic >= 0;
+    loop invariant ic - c >= 0;
+    loop invariant ic >= 0;
+    loop invariant c >= 0;
+    loop assigns ic, v, iws, c, t3e;
+    loop variant ic - c;
+  */
+  while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-08 11:22:25,670 - INFO - 
+2026-03-11 03:51:15,002 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(){
-  int q, cl, g;
+int main1(int v){
+  int iws, f9fc, t3e, ic, vx, rg, c;
 
-  q=1;
-  cl=0;
-  g=q;
+  iws=v*2;
+  f9fc=1;
+  t3e=0;
+  ic=0;
+  vx=0;
+  rg=(v%18)+5;
+  c=0;
 
   /*@
-    loop invariant cl == (q - g) * (q + g + 1);
-    loop invariant 0 <= g;
-    loop invariant 0 <= cl;
-    loop assigns g, cl;
-    loop variant g;
+    loop invariant t3e == ic;
+    loop invariant ic == vx;
+    loop invariant t3e == vx;
+    loop invariant rg &gt;= 0;
+    loop invariant c &gt;= 0;
+    loop invariant iws &gt;= 0;
+    loop variant rg;
+    loop assigns rg, t3e, vx, ic, c;
   */
-  while (cl&lt;q && g&gt;0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
+  while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
+  }
+
+  /*@
+    loop invariant c == v - \at(v, Pre);
+    loop invariant t3e &gt;= 0;
+    loop invariant ic &gt;= 0;
+    loop invariant iws &gt;= 0;
+    loop invariant v &gt;= \at(v, Pre);
+    loop assigns ic, iws, c, t3e, v;
+  */
+  while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
   }
 
 }
 ----- Candidate 4/5 full code end -----
-2026-03-08 11:22:25,670 - INFO - 
+2026-03-11 03:51:15,002 - INFO - 
 ----- Candidate 5/5 full code begin -----
-/*@
-  loop invariant cl &gt;= 0;
-  loop invariant g &gt;= 0;
-  loop invariant cl + g + g*g == 2;
-  loop assigns cl, g;
-  loop variant g;
-*/
-while (cl&lt;q && g&gt;0) {
-      g -= 1;
-      cl = cl + 1;
-      cl = cl+g+g;
-      cl = cl + 1;
+int main1(int v){
+  int iws, f9fc, t3e, ic, vx, rg, c;
+
+  iws=v*2;
+  f9fc=1;
+  t3e=0;
+  ic=0;
+  vx=0;
+  rg=(v%18)+5;
+  c=0;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant t3e == ic;
+    loop invariant ic == vx;
+    loop invariant t3e >= 0;
+    loop invariant c >= 0;
+    loop invariant 0 <= rg <= ((\at(v, Pre) % 18) + 5);
+    loop assigns rg, t3e, vx, ic, c;
+    loop variant rg;
+  */
+  while (rg>0) {
+      rg -= 1;
+      t3e = t3e+v*v;
+      vx = vx+v*v;
+      ic = ic+v*v;
+      c = c+(t3e%4);
   }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant ic - c >= 0;
+    loop invariant t3e >= 0;
+    loop invariant v >= \at(v, Pre);
+    loop invariant iws >= 0;
+    loop assigns ic, v, iws, c, t3e;
+    loop variant ic - c;
+  */
+  while (1) {
+      if (!(ic>c)) {
+          break;
+      }
+      ic = ic - c;
+      v++;
+      iws = iws+(ic%9);
+      c = c + 1;
+      t3e += f9fc;
+  }
+
+}
 ----- Candidate 5/5 full code end -----
-2026-03-08 11:22:25,670 - INFO - Successfully generated 5/5 candidates
-2026-03-08 11:22:25,670 - INFO - Checking 9 invariants for conflicts...
-2026-03-08 11:22:25,672 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-08 11:22:25,672 - INFO -   1: int main1(){
-2026-03-08 11:22:25,672 - INFO -   2:   int q, cl, g;
-2026-03-08 11:22:25,672 - INFO -   3: 
-2026-03-08 11:22:25,672 - INFO -   4:   q=1;
-2026-03-08 11:22:25,672 - INFO -   5:   cl=0;
-2026-03-08 11:22:25,672 - INFO -   6:   g=q;
-2026-03-08 11:22:25,672 - INFO -   7: 
-2026-03-08 11:22:25,672 - INFO -   8:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-08 11:22:25,672 - INFO -   9: /*@
-2026-03-08 11:22:25,672 - INFO -   10:   loop invariant cl + g*(g+1) == q*(q+1);
-2026-03-08 11:22:25,672 - INFO - DEBUG: Total lines: 29
-2026-03-08 11:22:36,727 - INFO - syntax Correct
-2026-03-08 11:23:07,717 - INFO - Validate:
-2026-03-08 11:23:07,717 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-08 11:23:07,717 - INFO - 
-2026-03-08 11:23:07,717 - INFO - Verify:
-2026-03-08 11:23:07,717 - INFO - []
-2026-03-08 11:23:07,717 - INFO - 
-2026-03-08 11:23:07,717 - INFO - Houdini iteration 1: All invariants are valid
-2026-03-08 11:23:18,809 - INFO - syntax Correct
-2026-03-08 11:23:49,801 - INFO - Validate:
-2026-03-08 11:23:49,801 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-08 11:23:49,801 - INFO - 
-2026-03-08 11:23:49,801 - INFO - Verify:
-2026-03-08 11:23:49,801 - INFO - []
-2026-03-08 11:23:49,801 - INFO - 
-2026-03-08 11:25:41,327 - INFO - Deduplicated 6 loop invariants in final code
-2026-03-08 11:25:52,026 - INFO - syntax Correct
-2026-03-08 11:26:22,736 - INFO - Validate:
-2026-03-08 11:26:22,736 - INFO - [True, True, True]
-2026-03-08 11:26:22,736 - INFO - 
-2026-03-08 11:26:22,736 - INFO - Verify:
-2026-03-08 11:26:22,736 - INFO - []
-2026-03-08 11:26:22,736 - INFO - 
-2026-03-08 11:26:22,736 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-08 11:26:22,737 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_38/1.c
-2026-03-08 11:26:22,737 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_38/1_invariants.txt
-2026-03-08 11:26:22,737 - INFO - 
+2026-03-11 03:51:15,002 - INFO - Successfully generated 5/5 candidates
+2026-03-11 03:51:15,003 - INFO - Checking 12 invariants for conflicts...
+2026-03-11 03:51:15,004 - INFO - Checking 9 invariants for conflicts...
+2026-03-11 03:51:15,006 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 03:51:15,006 - INFO -   1: int main1(int v){
+2026-03-11 03:51:15,006 - INFO -   2:   int iws, f9fc, t3e, ic, vx, rg, c;
+2026-03-11 03:51:15,006 - INFO -   3: 
+2026-03-11 03:51:15,006 - INFO -   4:   iws=v*2;
+2026-03-11 03:51:15,006 - INFO -   5:   f9fc=1;
+2026-03-11 03:51:15,006 - INFO -   6:   t3e=0;
+2026-03-11 03:51:15,006 - INFO -   7:   ic=0;
+2026-03-11 03:51:15,006 - INFO -   8:   vx=0;
+2026-03-11 03:51:15,006 - INFO -   9:   rg=(v%18)+5;
+2026-03-11 03:51:15,006 - INFO -   10:   c=0;
+2026-03-11 03:51:15,006 - INFO - DEBUG: Total lines: 61
+2026-03-11 03:51:15,226 - INFO - syntax Correct
+2026-03-11 03:52:16,986 - INFO - Validate:
+2026-03-11 03:52:16,986 - INFO - [True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, False, False]
+2026-03-11 03:52:16,986 - INFO - 
+2026-03-11 03:52:16,986 - INFO - Verify:
+2026-03-11 03:52:16,986 - INFO - []
+2026-03-11 03:52:16,986 - INFO - 
+2026-03-11 03:52:16,986 - INFO - Houdini iteration 1: Removed 4 failed invariants
+2026-03-11 03:52:16,986 - INFO -   Before: 21 invariants
+2026-03-11 03:52:16,986 - INFO -   After: 17 invariants
+2026-03-11 03:52:16,986 - INFO -   Remaining invariants:
+2026-03-11 03:52:16,986 - INFO -     [1] t3e == ic && ic == vx
+2026-03-11 03:52:16,986 - INFO -     [2] iws == 2*v
+2026-03-11 03:52:16,986 - INFO -     [3] t3e >= 0
+2026-03-11 03:52:16,986 - INFO -     [4] ic >= 0
+2026-03-11 03:52:16,987 - INFO -     [5] vx >= 0
+2026-03-11 03:52:16,987 - INFO -     [6] c >= 0
+2026-03-11 03:52:16,987 - INFO -     [7] t3e == ic
+2026-03-11 03:52:16,987 - INFO -     [8] vx == ic
+2026-03-11 03:52:16,987 - INFO -     [9] ic == vx
+2026-03-11 03:52:16,987 - INFO -     [10] t3e == vx
+2026-03-11 03:52:16,987 - INFO -     [11] 0 <= rg <= ((\at(v, Pre) % 18) + 5)
+2026-03-11 03:52:16,987 - INFO -     [12] t3e >= 0
+2026-03-11 03:52:16,987 - INFO -     [13] ic >= 0
+2026-03-11 03:52:16,987 - INFO -     [14] c >= 0
+2026-03-11 03:52:16,987 - INFO -     [15] f9fc == 1
+2026-03-11 03:52:16,987 - INFO -     [16] v >= \at(v, Pre)
+2026-03-11 03:52:16,987 - INFO -     [17] t3e - ic >= 0
+2026-03-11 03:52:17,214 - INFO - syntax Correct
+2026-03-11 03:52:48,647 - INFO - Validate:
+2026-03-11 03:52:48,647 - INFO - [True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True]
+2026-03-11 03:52:48,647 - INFO - 
+2026-03-11 03:52:48,648 - INFO - Verify:
+2026-03-11 03:52:48,648 - INFO - []
+2026-03-11 03:52:48,648 - INFO - 
+2026-03-11 03:52:48,648 - INFO - Houdini iteration 2: Removed 1 failed invariants
+2026-03-11 03:52:48,648 - INFO -   Before: 17 invariants
+2026-03-11 03:52:48,648 - INFO -   After: 16 invariants
+2026-03-11 03:52:48,648 - INFO -   Remaining invariants:
+2026-03-11 03:52:48,648 - INFO -     [1] t3e == ic && ic == vx
+2026-03-11 03:52:48,648 - INFO -     [2] iws == 2*v
+2026-03-11 03:52:48,648 - INFO -     [3] t3e >= 0
+2026-03-11 03:52:48,648 - INFO -     [4] ic >= 0
+2026-03-11 03:52:48,648 - INFO -     [5] vx >= 0
+2026-03-11 03:52:48,648 - INFO -     [6] c >= 0
+2026-03-11 03:52:48,648 - INFO -     [7] t3e == ic
+2026-03-11 03:52:48,648 - INFO -     [8] vx == ic
+2026-03-11 03:52:48,648 - INFO -     [9] ic == vx
+2026-03-11 03:52:48,648 - INFO -     [10] t3e == vx
+2026-03-11 03:52:48,648 - INFO -     [11] t3e >= 0
+2026-03-11 03:52:48,648 - INFO -     [12] ic >= 0
+2026-03-11 03:52:48,648 - INFO -     [13] c >= 0
+2026-03-11 03:52:48,648 - INFO -     [14] f9fc == 1
+2026-03-11 03:52:48,648 - INFO -     [15] v >= \at(v, Pre)
+2026-03-11 03:52:48,648 - INFO -     [16] t3e - ic >= 0
+2026-03-11 03:52:48,891 - INFO - syntax Correct
+2026-03-11 03:53:20,291 - INFO - Validate:
+2026-03-11 03:53:20,291 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 03:53:20,291 - INFO - 
+2026-03-11 03:53:20,291 - INFO - Verify:
+2026-03-11 03:53:20,291 - INFO - []
+2026-03-11 03:53:20,291 - INFO - 
+2026-03-11 03:53:20,291 - INFO - Houdini iteration 3: All invariants are valid
+2026-03-11 03:53:20,519 - INFO - syntax Correct
+2026-03-11 03:53:51,901 - INFO - Validate:
+2026-03-11 03:53:51,901 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 03:53:51,901 - INFO - 
+2026-03-11 03:53:51,901 - INFO - Verify:
+2026-03-11 03:53:51,901 - INFO - []
+2026-03-11 03:53:51,901 - INFO - 
+2026-03-11 03:54:18,780 - INFO - Deduplicated 8 loop invariants in final code
+2026-03-11 03:54:18,996 - INFO - syntax Correct
+2026-03-11 03:54:50,057 - INFO - Validate:
+2026-03-11 03:54:50,057 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-11 03:54:50,057 - INFO - 
+2026-03-11 03:54:50,057 - INFO - Verify:
+2026-03-11 03:54:50,057 - INFO - []
+2026-03-11 03:54:50,057 - INFO - 
+2026-03-11 03:54:50,057 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 03:54:50,057 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_38/1.c
+2026-03-11 03:54:50,057 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_38/1_invariants.txt
+2026-03-11 03:54:50,057 - INFO - 
 ============================================================
-2026-03-08 11:26:22,737 - INFO - Final first_pass results:
-2026-03-08 11:26:22,737 - INFO -   syntax=1
-2026-03-08 11:26:22,737 - INFO -   valid=1
-2026-03-08 11:26:22,737 - INFO -   satisfy=None
-2026-03-08 11:26:22,737 - INFO - ============================================================
-2026-03-08 11:26:22,737 - INFO - 
+2026-03-11 03:54:50,057 - INFO - Final first_pass results:
+2026-03-11 03:54:50,057 - INFO -   syntax=1
+2026-03-11 03:54:50,057 - INFO -   valid=1
+2026-03-11 03:54:50,057 - INFO -   satisfy=None
+2026-03-11 03:54:50,057 - INFO - ============================================================
+2026-03-11 03:54:50,057 - INFO - 
 ============================================================
-2026-03-08 11:26:22,737 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-08 11:26:22,737 - INFO -   Total API calls: 7
-2026-03-08 11:26:22,737 - INFO -   Total prompt tokens (input): 7,269
-2026-03-08 11:26:22,737 - INFO -   Total completion tokens (output): 47,908
-2026-03-08 11:26:22,737 - INFO -   Total tokens: 55,177
-2026-03-08 11:26:22,737 - INFO -   Average per call:
-2026-03-08 11:26:22,737 - INFO -     Prompt: 1038.4 tokens
-2026-03-08 11:26:22,737 - INFO -     Completion: 6844.0 tokens
-2026-03-08 11:26:22,737 - INFO -     Total: 7882.4 tokens
-2026-03-08 11:26:22,737 - INFO - ============================================================
-2026-03-08 11:26:22,737 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_38/1.c
-2026-03-08 11:26:22,737 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_38/1_invariants.txt
-2026-03-08 11:26:57,515 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
-2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
-2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
-2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
-2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
-2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
-2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
-2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
-2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
-2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
-2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
-2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
-2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
-2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
-2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
-2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
-2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
-2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
-2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
-2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 03:54:50,058 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 03:54:50,058 - INFO -   Total API calls: 4
+2026-03-11 03:54:50,058 - INFO -   Total prompt tokens (input): 5,288
+2026-03-11 03:54:50,058 - INFO -   Total completion tokens (output): 49,219
+2026-03-11 03:54:50,058 - INFO -   Total tokens: 54,507
+2026-03-11 03:54:50,058 - INFO -   Average per call:
+2026-03-11 03:54:50,058 - INFO -     Prompt: 1322.0 tokens
+2026-03-11 03:54:50,058 - INFO -     Completion: 12304.8 tokens
+2026-03-11 03:54:50,058 - INFO -     Total: 13626.8 tokens
+2026-03-11 03:54:50,058 - INFO - ============================================================
+2026-03-11 03:54:50,058 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_38/1.c
+2026-03-11 03:54:50,058 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_38/1_invariants.txt
+2026-03-11 03:55:43,590 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "The first loop modifies rg but invariants do not capture a relationship or bound for rg, and there is no loop variant to prove termination of the first loop. The second loop also lacks an explicit termination variant. While the invariants express some conservation relations (t3e, ic, vx, iws, etc.), they are insufficient for WP verification due to missing termination measures and incomplete coverage of all modified variables (rg is not covered by invariants)."
+}
+2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
+2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
+2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
+2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
+2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
+2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
+2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
+2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
+2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

@@ -1,550 +1,533 @@
-2026-03-08 11:25:33,523 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-08 11:25:33,535 - INFO - Found 1 loops
-2026-03-08 11:25:33,537 - INFO - 
+2026-03-11 03:54:04,184 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 03:54:04,210 - INFO - Found 2 loops
+2026-03-11 03:54:04,212 - INFO - 
 ============================================================
-2026-03-08 11:25:33,537 - INFO - Main generation pass 1/1
-2026-03-08 11:25:33,537 - INFO - ============================================================
-2026-03-08 11:25:33,537 - INFO - Loaded single prompt template: simple
-2026-03-08 11:25:33,537 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-08 11:25:33,537 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-08 11:25:33,557 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:25:57,635 - INFO - 
+2026-03-11 03:54:04,212 - INFO - Main generation pass 1/1
+2026-03-11 03:54:04,212 - INFO - ============================================================
+2026-03-11 03:54:04,212 - INFO - Loaded single prompt template: simple
+2026-03-11 03:54:04,212 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 03:54:04,212 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 03:54:04,231 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 03:55:40,802 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>
-I inspected the loop and identified the exact state-transition relationships and monotonic progress:
+<reasoning>We need inductive, verification-friendly loop invariants for the two loops in main1. The goal is to express simple, strong invariants that are preserved by every iteration and are helpful for the WP prover. We rely on:
 
-- maf is initialized to 0 and incremented by 1 each iteration. Thus maf is a natural counter (maf >= 0).
-- ke is updated by ke += maf, so after t iterations ke = sum_{i=0}^{t-1} i = t*(t-1)/2. This equality is the main conservation law explaining ke updates and is inductive.
-- bh is increased by 3 each iteration, so bh = initial_x + 3*maf (initial bh == \at(x,Pre)). This explains bh updates exactly.
-- s is increased by so each iteration. so is initialized to 0 and never modified, so so == 0, and s = \at(s,Pre) + maf*so captures the relation (and implies s unchanged since so==0).
-- cr2 is computed once before the loop as cr2 = x - 5 and remains constant; stating cr2 == \at(x,Pre) - 5 is helpful for clarity.
+- Loop 0 (while (we9 > f)):
+  - emfo starts at 4 and increases by (we9 % 6) each iteration, hence emfo >= 4 throughout.
+  - x starts at 12 and increases by 2 each iteration, hence x >= 12.
+  - u and f both strictly increase each iteration (u += 1; f += 1), so u and f stay nonnegative (given initial nonnegativity) and u is nondecreasing. Using u >= \at(u, Pre) captures that u never drops below its initial value.
+  - we9 is updated to we9 - f each iteration, and since f is nonnegative and the guard guarantees we9 > f, we9 stays nonnegative at loop-entry. The invariant we9 >= 0 is thus preserved at the start of each iteration.
 
-For termination/variant I use (cr2 - maf). To be sound, the variant must be strictly positive when the loop guard holds; thus I add the implication (maf < cr2) ==> (cr2 - maf > 0). I do not force cr2 - maf >= 0 unconditionally because cr2 may be negative (in which case the loop won't execute), so an unconditional non-negativity would fail at loop entry for some inputs.
+- Loop 1 (while (h > we9)):
+  - emfo also increases by 1 each iteration (emfo = emfo + 1); with initial emfo >= 4, we have emfo >= 4 throughout.
+  - we9 is incremented by 1 each iteration, so we9 >= 0 is preserved.
+  - u is increased by f each iteration; since f does not change in this loop, u stays above its initial value: u >= \at(u, Pre).
+  - t is incremented each iteration, so t >= \at(t, Pre).
 
-The loop assigns clause lists exactly the variables written in the loop body: ke, s, maf, bh.
+These invariants are simple, non-tautological, and suitable for Frama-C WP. We avoid modifying any unknown() calls, and we keep the code otherwise unchanged. The loop assigns clauses list exactly the variables that are updated inside each loop, ensuring a precise contract.
 
-All invariants are inductive: they hold initially and are preserved by the body:
-- For ke: ke + maf_new = previous ke + old_maf + ... algebraically yields the stated formula with maf increased by 1.
-- For bh and s similarly, and so and cr2 remain unchanged.
-
-I kept the annotations minimal, precise, and directly tied to the updates in the loop body.
 </reasoning>
-<code>
-int main1(int s,int x){
-  int cr2, so, maf, ke, bh;
+<code>int main1(int t,int u){
+  int h, f, we9, x, emfo;
 
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
+  h=0;
+  f=0;
+  we9=(t%28)+10;
+  x=12;
+  emfo=4;
 
   /*@
-    loop invariant cr2 == \at(x, Pre) - 5;
-    loop invariant maf >= 0;
-    loop invariant so == 0;
-    loop invariant ke == maf*(maf-1)/2;
-    loop invariant bh == \at(x, Pre) + 3*maf;
-    loop invariant s == \at(s, Pre) + maf*so;
-    loop invariant (maf < cr2) ==> (cr2 - maf > 0);
-    loop assigns ke, s, maf, bh;
-    loop variant (cr2 - maf);
+    loop invariant emfo >= 4;
+    loop invariant x >= 12;
+    loop invariant u >= \at(u, Pre);
+    loop invariant we9 >= 0;
+    loop invariant f >= 0;
+    loop assigns we9, x, u, f, emfo;
   */
-  while (1) {
-        if (!(maf<cr2)) {
-            break;
-        }
-        ke += maf;
-        s += so;
-        maf += 1;
-        bh = bh + 3;
-    }
+  while (we9>f) {
+      we9 -= f;
+      x = (2)+(x);
+      u = u + 1;
+      f = f + 1;
+      emfo = emfo+(we9%6);
+  }
+
+  /*@
+    loop invariant emfo >= 4;
+    loop invariant we9 >= 0;
+    loop invariant u >= \at(u, Pre);
+    loop invariant t >= \at(t, Pre);
+    loop assigns h, u, we9, emfo, t;
+  */
+  while (h>we9) {
+      h = h - we9;
+      u += f;
+      we9++;
+      emfo = (1)+(emfo);
+      t += 1;
+  }
+
+}</code>
+----- Candidate 1/5 raw response end -----
+2026-03-11 03:55:40,803 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 03:55:40,817 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 03:57:36,063 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<EMPTY_RESPONSE>
+----- Candidate 2/5 raw response end -----
+2026-03-11 03:57:36,063 - WARNING -   Failed to extract code from candidate 2
+2026-03-11 03:57:36,063 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 03:57:36,075 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 03:59:26,715 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+Loop 0 (the first while we9 > f):
+- We want inductive invariants that are preserved by each iteration and give a simple, strong relation between observed state and initial state.
+- Safe, non-dangerous invariants that hold throughout the loop:
+  - 0 <= f and 0 <= we9: both stay non-negative; f starts at 0 and only increments; we9 starts positive and is decreased by a non-negative amount.
+  - x >= 12: x starts at 12 and is incremented by 2 each iteration, so it never goes below 12.
+  - u >= \at(u, Pre): u starts at the initial value and is incremented by 1 each iteration, so it never drops below its initial value.
+  - emfo >= 4: emfo starts at 4 and is incremented by non-negative values, so it never goes below 4.
+- Loop variant (progress measure): we9 - f strictly decreases each iteration and remains non-negative while the loop guard holds (we9 > f). A simple arithmetic check shows:
+  V_next = (we9 - f) - (f + 1) = we9 - 2f - 1 <= (we9 - f) - 1 = V - 1, so V decreases by at least 1 when the loop continues. This provides termination evidence under the guard.
+- We do not restate the guard as an invariant (the guard is not treated as an invariant). The chosen invariants are strictly inductive and helpful for WP.
+
+Loop 1 (the second while h > we9):
+- We want invariants that are preserved by each iteration and relate to the initial state.
+- Safe, non-dangerous invariants that hold throughout the loop:
+  - h >= 0 and we9 >= 0: h starts non-negative and only decreases; we9 starts non-negative and only increases.
+  - emfo >= 4: emfo starts at 4 and increases by 1 each iteration, so it stays >= 4.
+  - t >= \at(t, Pre) and u >= \at(u, Pre): t and u are non-decreasing in this loop (t increments by 1, u increments by f which is non-negative).
+- Loop variant (progress measure): h strictly decreases in every iteration because h' = h - we9 with we9 >= 1 (as the loop guard demands h > we9). Hence h' < h, and the loop must terminate.
+- The assigned variables for the second loop are h, u, we9, emfo, t.
+
+These choices provide inductive, verification-friendly invariants that are as strong as possible without introducing unrelated facts, while keeping the code unchanged except for the annotations.
+</reasoning>
+<code>/*@ 
+  loop invariant 0 &lt;= f;
+  loop invariant 0 &lt;= we9;
+  loop invariant x - 12 &gt;= 0;
+  loop invariant u &gt;= \at(u, Pre);
+  loop invariant emfo &gt;= 4;
+  loop variant we9 - f;
+  loop assigns we9, x, u, f, emfo;
+*/
+while (we9>f) {
+      we9 -= f;
+      x = (2)+(x);
+      u = u + 1;
+      f = f + 1;
+      emfo = emfo+(we9%6);
+  }
+
+/*@ 
+  loop invariant 0 &lt;= h;
+  loop invariant 0 &lt;= we9;
+  loop invariant emfo &gt;= 4;
+  loop invariant t &gt;= \at(t, Pre);
+  loop invariant u &gt;= \at(u, Pre);
+  loop assigns h, u, we9, emfo, t;
+  loop variant h;
+*/
+while (h>we9) {
+      h = h - we9;
+      u += f;
+      we9++;
+      emfo = (1)+(emfo);
+      t += 1;
+  }</code>
+----- Candidate 3/5 raw response end -----
+2026-03-11 03:59:26,715 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 03:59:26,728 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:04:42,140 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+Loop 0 (the while (we9>f) loop) updates we9, f, u, x, emfo in a regular, linear fashion. We can capture a core conservation law between we9 and f that holds across iterations: since we9 decreases by the old f value and f increases by 1 each iteration, we have a closed-form invariant we9 + f*(f-1)/2 == initial_we9, where initial_we9 equals (t%28)+10, i.e., the initial value of we9. Using (\at(t, Pre) % 28) + 10 for the initial we9 value is allowed (t is a function parameter). From there we can also express simple linear invariants for the other variables that are preserved by the updates:
+- u increases by 1 each iteration, and f increases by 1, so u = u_initial + f, i.e., u == \at(u, Pre) + f.
+- x increases by 2 each iteration, while f increases by 1, so x - 2*f remains equal to its initial value 12, i.e., x == 12 + 2*f.
+We also add basic non-negativity/progress bounds to help verification:
+- 0 <= f (f starts at 0 and only increases).
+- 0 < we9 (before each iteration, we9 > f implies we9 is positive; this is preserved by the loop body).
+
+These invariants are inductive: they hold before the first iteration, are preserved by each iteration when we9>f is true, and together with the loop guard help reason about termination.
+
+Loop 1 (the while (h>we9) loop) has a more delicate relation because h and we9 change in lockstep but with different increments, and t is incremented as well. Observing the transition:
+- emfo is incremented by 1 each iteration.
+- t is incremented by 1 each iteration.
+Thus emfo - t remains constant across all iterations of loop 1. The initial value of this constant can be expressed using the pre-state at function entry: emfo_entry = 4 + we9_initial % 6 where we9_initial = (\at(t, Pre) % 28) + 10, so emfo_entry - t_entry equals 4 + (((\at(t, Pre)%28) + 10) % 6) - \at(t, Pre). Since both emfo and t are increased by 1 each iteration, emfo - t stays equal to this constant throughout loop 1. We express this as a loop invariant.
+
+Additionally, since we9 is increased by 1 each iteration, we have 0 <= we9 preserved, which is helpful as a minimal progress bound. We also specify the loop assigns to reflect all variables modified in loop 1: h, we9, u, emfo, t.
+
+These invariants are inductive and align with the provided loop transitions while staying within the allowed variable usage and respecting the constraints on Pre values for parameters.
+</reasoning>
+<code>/*@
+  loop invariant we9 + f*(f-1)/2 == ((\at(t, Pre) % 28) + 10);
+  loop invariant u == \at(u, Pre) + f;
+  loop invariant x == 12 + 2*f;
+  loop invariant 0 <= f;
+  loop invariant 0 < we9;
+  loop assigns we9, x, u, f, emfo;
+*/
+while (we9>f) {
+      we9 -= f;
+      x = (2)+(x);
+      u = u + 1;
+      f = f + 1;
+      emfo = emfo+(we9%6);
+  }
+
+/*@
+  loop invariant (emfo - t) == (4 + (((\at(t, Pre) % 28) + 10) % 6)) - (\at(t, Pre));
+  loop invariant we9 >= 0;
+  loop assigns h, we9, u, emfo, t;
+*/
+while (h>we9) {
+      h = h - we9;
+      u += f;
+      we9++;
+      emfo = (1)+(emfo);
+      t += 1;
+  }</code>
+----- Candidate 4/5 raw response end -----
+2026-03-11 04:04:42,140 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 04:04:42,158 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:08:26,477 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+Loop 0 (while (we9 > f)):
+- Observed updates: we9' = we9 - f, f' = f + 1, x' = x + 2, u' = u + 1, emfo' = emfo + (we9 % 6). h and t stay unchanged.
+- Strong inductive invariant: x == 12 + 2*f. This captures the exact linear coupling between x and f: every iteration increases x by 2 and f by 1, so the relation x == 12 + 2*f is preserved across all iterations (and holds initially since x=12, f=0).
+- A simple non-decreasing invariant: 0 <= f. Since f starts at 0 and is incremented every iteration, this remains true.
+- These invariants are sufficient to describe the loop state without exposing internal values like we9 or emfo.
+- Loop assigns: all variables that can be changed in this loop: emfo, f, we9, x, u.
+
+Loop 1 (while (h > we9)):
+- Observed updates: we9' = we9 + 1, t' = t + 1, u' = u + f, emfo' = emfo + 1, h' = h - we9. f and x are not modified in this loop (f stays as the value it had entering the loop; x stays at its prior value, which is 12 + 2*f from the previous loop context, and will thus continue to satisfy x == 12 + 2*f if we keep that invariant from Loop 0).
+- We can rely on the invariant x == 12 + 2*f again (with the current f value, which remains constant during this loop).
+- Since t increments by 1 and u increments by f, the difference u - t remains constant if f equals 1 (which it does at the start of this loop, and it remains unchanged throughout since f is not modified here). A robust form that holds regardless of f is the invariant u - t == \at(u,Pre) - \at(t,Pre): the difference between the current u and t remains the same as at function entry, because u is increased by f each iteration and t is increased by 1 each iteration; in this loop f is constant, so the net change cancels out, preserving the initial difference.
+- Therefore, two inductive invariants are suitable for Loop 1:
+  - x == 12 + 2*f
+  - u - t == \at(u,Pre) - \at(t,Pre)
+- Loop assigns: h, u, we9, emfo, t.
+
+These invariants are inductive (preserved by each loop body under the loop guard), provide a core conservation/relational equality for the loop updates, and keep the verification-friendly shape without altering the program logic.
+</reasoning>
+<code>int main1(int t,int u){
+  int h, f, we9, x, emfo;
+
+  h=0;
+  f=0;
+  we9=(t%28)+10;
+  x=12;
+  emfo=4;
+
+  /*@
+    loop invariant x == 12 + 2*f;
+    loop invariant 0 <= f;
+    loop assigns emfo, f, we9, x, u;
+  */
+  while (we9>f) {
+      we9 -= f;
+      x = (2)+(x);
+      u = u + 1;
+      f = f + 1;
+      emfo = emfo+(we9%6);
+  }
+
+  /*@
+    loop invariant x == 12 + 2*f;
+    loop invariant u - t == \at(u,Pre) - \at(t,Pre);
+    loop assigns h, u, we9, emfo, t;
+  */
+  while (h>we9) {
+      h = h - we9;
+      u += f;
+      we9++;
+      emfo = (1)+(emfo);
+      t += 1;
+  }
 
 }
 </code>
------ Candidate 1/5 raw response end -----
-2026-03-08 11:25:57,635 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-08 11:25:57,651 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:27:06,467 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>The loop updates are simple and monotone:
-- maf increments by 1 each iteration (maf := maf + 1)
-- ke accumulates the previous maf (ke := ke + maf_old)
-- bh grows by 3 per iteration (bh := bh + 3)
-- s grows by so (s := s + so); since so is initialized to 0 and never changed, s remains constant at its initial value
-- cr2 and x are never modified after their initializations (cr2 = x - 5; x unchanged)
-
-From these updates, we can derive a clean, inductive invariant that captures the core state evolution:
-- ke tracks the sum of 0..maf-1, i.e., ke = maf*(maf-1)/2
-- bh tracks the initial x plus 3 per iteration, i.e., bh = x + 3*maf
-- s remains equal to its initial value, i.e., s = \at(s,Pre)
-- so remains 0, i.e., so = 0
-- cr2 remains constant as x - 5, i.e., cr2 = x - 5
-- maf is non-decreasing and starts at 0, so 0 <= maf
-
-These invariants are strong and directly reflect the state-transition law of the loop. They are satisfied by the initial state and preserved by every iteration. The loop assigns are exactly the variables modified inside the loop body: ke, s, maf, bh.
-
-I use two loop invariant lines (combined with conjunctions) as required by the formatting, plus the complete loop assigns.
-
-</reasoning>
-<code>int main1(int s,int x){
-  int cr2, so, maf, ke, bh;
-
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant ke == maf*(maf-1)/2 && bh == x + 3*maf && s == \at(s,Pre) && so == 0;
-    loop invariant cr2 == x - 5 && 0 <= maf;
-    loop assigns ke, s, maf, bh;
-  */
-while (1) {
-      if (!(maf<cr2)) {
-          break;
-      }
-      ke += maf;
-      s += so;
-      maf += 1;
-      bh = bh + 3;
-  }
-
-}</code>
------ Candidate 2/5 raw response end -----
-2026-03-08 11:27:06,467 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-08 11:27:06,480 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:28:06,816 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>We need inductive loop invariants that capture the state evolution of the loop and are verification-friendly for Frama-C/WP. The loop updates inside are:
-- ke += maf
-- s += so
-- maf += 1
-- bh += 3
-
-Observations:
-- cr2 is a constant within the loop (initialized to x-5 before the loop, and never modified in the body).
-- so is initialized to 0 and never modified inside the loop.
-- maf starts at 0 and increments by 1 each iteration while maf < cr2, so the number of iterations is exactly max(cr2, 0) when cr2 > 0; for cr2 <= 0 the loop is never entered.
-
-Core invariants (conservation/relational equalities) that hold across iterations:
-- bh == x + 3*maf
-  This expresses that bh starts at x and increases by 3 for every increment of maf, which is exactly what the body does.
-- ke == maf*(maf-1)/2
-  Since ke starts at 0 and each iteration adds the current maf, after k iterations ke equals 0+1+...+(k-1) = k*(k-1)/2, and maf equals k after k iterations; thus the invariant holds for all reachable states, including the zero-iteration case (maf=0, ke=0).
-- so == 0
-  so is initialized to 0 and never changed inside the loop, so this invariant remains true.
-
-Additional metadata:
-- loop assigns ke, s, maf, bh (these are the variables modified inside the loop body).
-- loop variant cr2 - maf serves as a termination measure: since maf increases by 1 each iteration and the loop continues while maf < cr2, cr2 - maf decreases by 1 each iteration and is non-negative during the loop.
-
-These invariants are chosen to be strong (not tautological) and to relate the key variables in a way that is preserved by the loop body and sufficient for WP to reason about termination and postconditions. They rely only on available variables (bh, cr2, ke, maf, s, so, x) and function parameters, complying with the constraints.
-
-</reasoning>
-<code>int main1(int s,int x){
-  int cr2, so, maf, ke, bh;
-
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
-
-  /*@
-     loop invariant bh == x + 3*maf;
-     loop invariant ke == maf*(maf-1)/2;
-     loop invariant so == 0;
-     loop assigns ke, s, maf, bh;
-     loop variant cr2 - maf;
-  */
-  while (1) {
-      if (!(maf<cr2)) {
-          break;
-      }
-      ke += maf;
-      s += so;
-      maf += 1;
-      bh = bh + 3;
-  }
-
-}</code>
------ Candidate 3/5 raw response end -----
-2026-03-08 11:28:06,816 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-08 11:28:06,829 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:30:04,630 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>
-We need inductive, verification-friendly loop invariants and precise assigns for the given loop. Observations:
-- cr2 is invariant throughout the loop: cr2 == x - 5.
-- maf increments by 1 each iteration, and the loop continues while maf < cr2.
-- ke accumulates the sum of previous maf values: ke after k iterations equals 0 + 1 + ... + (k-1) = k*(k-1)/2.
-- bh starts at x and increases by 3 each iteration: bh = x + 3*maf after maf iterations.
-- s is updated by so, but so is fixed at 0 before the loop, so s stays equal to its initial value; we can express this as s == \at(s, Pre).
-- We include a loop variant cr2 - maf, which decreases by 1 each iteration and is non-negative while the loop guard (maf < cr2) holds, ensuring termination.
-- Invariants are chosen to be strong and exact, avoiding tautologies, and only reference available variables (including using \at(s, Pre) for the initial s).
-
-Proposed invariants and assigns:
-- bh == x + 3*maf
-- ke == maf*(maf-1)/2
-- s == \at(s, Pre)
-- cr2 == x - 5
-- 0 <= maf <= cr2
-- loop assigns bh, ke, maf, s
-- loop variant cr2 - maf
-</reasoning>
-<code>int main1(int s,int x){
-  int cr2, so, maf, ke, bha;
-
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
-
-  /*@
-    loop invariant bh == x + 3*maf;
-    loop invariant ke == maf*(maf-1)/2;
-    loop invariant s == \at(s, Pre);
-    loop invariant cr2 == x - 5;
-    loop invariant 0 <= maf <= cr2;
-    loop assigns bh, ke, maf, s;
-    loop variant cr2 - maf;
-  */
-  while (1) {
-      if (!(maf<cr2)) {
-          break;
-      }
-      ke += maf;
-      s += so;
-      maf += 1;
-      bh = bh + 3;
-  }
-
-}</code>
------ Candidate 4/5 raw response end -----
-2026-03-08 11:30:04,631 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-08 11:30:04,648 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:31:24,348 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>We derive inductive invariants from the loop body and initial state.
-
-Key observations:
-- Initial state before loop: maf = 0, so = 0, ke = 0, bh = x, cr2 = x - 5, s = initial s.
-- Loop body updates:
-  - ke += maf
-  - s += so
-  - maf += 1
-  - bh += 3
-- Therefore, after k iterations (i.e., maf = k), the following hold:
-  - bh = initial_bh + 3*k = \at(x, Pre) + 3*maf
-  - ke = sum_{i=0}^{k-1} i = k*(k-1)/2 = maf*(maf-1)/2
-  - s = initial_s + k*so = \at(s, Pre) + maf*so
-- maf starts at 0 and increases by 1 each iteration, so maf >= 0 is preserved.
-- cr2 is a constant for the loop (cr2 == x - 5) and the loop guard uses maf < cr2. We avoid relying on cr2 in invariants to keep them robust across all possible x; the above relations already capture the essence of the state evolution.
-
-Thus good inductive invariants are:
-- bh == \at(x, Pre) + 3*maf
-- ke == maf*(maf-1)/2 && s == \at(s, Pre) + maf*so && maf >= 0
-
-These are preserved by each iteration and hold at loop entry. Loop assigns should list exactly the variables updated inside the loop: ke, s, maf, bh. No changes to the function parameters or other locals are introduced.
-
-Using these, the loop is verified inductively by Frama-C WP.
-</reasoning>
-<code>int main1(int s,int x){
-  int cr2, so, maf, ke, bh;
-
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
-
-  /*@
-    loop invariant bh == \at(x, Pre) + 3*maf;
-    loop invariant ke == maf*(maf-1)/2 && s == \at(s, Pre) + maf*so && maf >= 0;
-    loop assigns ke, s, maf, bh;
-  */
-  while (1) {
-      if (!(maf<cr2)) {
-          break;
-      }
-      ke += maf;
-      s += so;
-      maf += 1;
-      bh = bh + 3;
-  }
-
-}</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-08 11:31:24,348 - INFO - 
+2026-03-11 04:08:26,477 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int s,int x){
-  int cr2, so, maf, ke, bh;
+int main1(int t,int u){
+  int h, f, we9, x, emfo;
 
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
+  h=0;
+  f=0;
+  we9=(t%28)+10;
+  x=12;
+  emfo=4;
 
   /*@
-    loop invariant cr2 == \at(x, Pre) - 5;
-    loop invariant maf >= 0;
-    loop invariant so == 0;
-    loop invariant ke == maf*(maf-1)/2;
-    loop invariant bh == \at(x, Pre) + 3*maf;
-    loop invariant s == \at(s, Pre) + maf*so;
-    loop invariant (maf < cr2) ==> (cr2 - maf > 0);
-    loop assigns ke, s, maf, bh;
-    loop variant (cr2 - maf);
+    loop invariant emfo >= 4;
+    loop invariant x >= 12;
+    loop invariant u >= \at(u, Pre);
+    loop invariant we9 >= 0;
+    loop invariant f >= 0;
+    loop assigns we9, x, u, f, emfo;
   */
-  while (1) {
-        if (!(maf<cr2)) {
-            break;
-        }
-        ke += maf;
-        s += so;
-        maf += 1;
-        bh = bh + 3;
-    }
+  while (we9>f) {
+      we9 -= f;
+      x = (2)+(x);
+      u = u + 1;
+      f = f + 1;
+      emfo = emfo+(we9%6);
+  }
+
+  /*@
+    loop invariant emfo >= 4;
+    loop invariant we9 >= 0;
+    loop invariant u >= \at(u, Pre);
+    loop invariant t >= \at(t, Pre);
+    loop assigns h, u, we9, emfo, t;
+  */
+  while (h>we9) {
+      h = h - we9;
+      u += f;
+      we9++;
+      emfo = (1)+(emfo);
+      t += 1;
+  }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-08 11:31:24,348 - INFO - 
------ Candidate 2/5 full code begin -----
-int main1(int s,int x){
-  int cr2, so, maf, ke, bh;
-
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant ke == maf*(maf-1)/2 && bh == x + 3*maf && s == \at(s,Pre) && so == 0;
-    loop invariant cr2 == x - 5 && 0 <= maf;
-    loop assigns ke, s, maf, bh;
-  */
-while (1) {
-      if (!(maf<cr2)) {
-          break;
-      }
-      ke += maf;
-      s += so;
-      maf += 1;
-      bh = bh + 3;
-  }
-
-}
------ Candidate 2/5 full code end -----
-2026-03-08 11:31:24,348 - INFO - 
+2026-03-11 04:08:26,478 - WARNING - Candidate 2/5 full code: <None> (failed to extract)
+2026-03-11 04:08:26,478 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int s,int x){
-  int cr2, so, maf, ke, bh;
-
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
-
-  /*@
-     loop invariant bh == x + 3*maf;
-     loop invariant ke == maf*(maf-1)/2;
-     loop invariant so == 0;
-     loop assigns ke, s, maf, bh;
-     loop variant cr2 - maf;
-  */
-  while (1) {
-      if (!(maf<cr2)) {
-          break;
-      }
-      ke += maf;
-      s += so;
-      maf += 1;
-      bh = bh + 3;
+/*@ 
+  loop invariant 0 &lt;= f;
+  loop invariant 0 &lt;= we9;
+  loop invariant x - 12 &gt;= 0;
+  loop invariant u &gt;= \at(u, Pre);
+  loop invariant emfo &gt;= 4;
+  loop variant we9 - f;
+  loop assigns we9, x, u, f, emfo;
+*/
+while (we9>f) {
+      we9 -= f;
+      x = (2)+(x);
+      u = u + 1;
+      f = f + 1;
+      emfo = emfo+(we9%6);
   }
 
-}
+/*@ 
+  loop invariant 0 &lt;= h;
+  loop invariant 0 &lt;= we9;
+  loop invariant emfo &gt;= 4;
+  loop invariant t &gt;= \at(t, Pre);
+  loop invariant u &gt;= \at(u, Pre);
+  loop assigns h, u, we9, emfo, t;
+  loop variant h;
+*/
+while (h>we9) {
+      h = h - we9;
+      u += f;
+      we9++;
+      emfo = (1)+(emfo);
+      t += 1;
+  }
 ----- Candidate 3/5 full code end -----
-2026-03-08 11:31:24,348 - INFO - 
+2026-03-11 04:08:26,478 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(int s,int x){
-  int cr2, so, maf, ke, bha;
-
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
-
-  /*@
-    loop invariant bh == x + 3*maf;
-    loop invariant ke == maf*(maf-1)/2;
-    loop invariant s == \at(s, Pre);
-    loop invariant cr2 == x - 5;
-    loop invariant 0 <= maf <= cr2;
-    loop assigns bh, ke, maf, s;
-    loop variant cr2 - maf;
-  */
-  while (1) {
-      if (!(maf<cr2)) {
-          break;
-      }
-      ke += maf;
-      s += so;
-      maf += 1;
-      bh = bh + 3;
+/*@
+  loop invariant we9 + f*(f-1)/2 == ((\at(t, Pre) % 28) + 10);
+  loop invariant u == \at(u, Pre) + f;
+  loop invariant x == 12 + 2*f;
+  loop invariant 0 <= f;
+  loop invariant 0 < we9;
+  loop assigns we9, x, u, f, emfo;
+*/
+while (we9>f) {
+      we9 -= f;
+      x = (2)+(x);
+      u = u + 1;
+      f = f + 1;
+      emfo = emfo+(we9%6);
   }
 
-}
+/*@
+  loop invariant (emfo - t) == (4 + (((\at(t, Pre) % 28) + 10) % 6)) - (\at(t, Pre));
+  loop invariant we9 >= 0;
+  loop assigns h, we9, u, emfo, t;
+*/
+while (h>we9) {
+      h = h - we9;
+      u += f;
+      we9++;
+      emfo = (1)+(emfo);
+      t += 1;
+  }
 ----- Candidate 4/5 full code end -----
-2026-03-08 11:31:24,348 - INFO - 
+2026-03-11 04:08:26,478 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(int s,int x){
-  int cr2, so, maf, ke, bh;
+int main1(int t,int u){
+  int h, f, we9, x, emfo;
 
-  cr2=x-5;
-  so=0;
-  maf=0;
-  ke=0;
-  bh=x;
+  h=0;
+  f=0;
+  we9=(t%28)+10;
+  x=12;
+  emfo=4;
 
   /*@
-    loop invariant bh == \at(x, Pre) + 3*maf;
-    loop invariant ke == maf*(maf-1)/2 && s == \at(s, Pre) + maf*so && maf >= 0;
-    loop assigns ke, s, maf, bh;
+    loop invariant x == 12 + 2*f;
+    loop invariant 0 <= f;
+    loop assigns emfo, f, we9, x, u;
   */
-  while (1) {
-      if (!(maf<cr2)) {
-          break;
-      }
-      ke += maf;
-      s += so;
-      maf += 1;
-      bh = bh + 3;
+  while (we9>f) {
+      we9 -= f;
+      x = (2)+(x);
+      u = u + 1;
+      f = f + 1;
+      emfo = emfo+(we9%6);
+  }
+
+  /*@
+    loop invariant x == 12 + 2*f;
+    loop invariant u - t == \at(u,Pre) - \at(t,Pre);
+    loop assigns h, u, we9, emfo, t;
+  */
+  while (h>we9) {
+      h = h - we9;
+      u += f;
+      we9++;
+      emfo = (1)+(emfo);
+      t += 1;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-08 11:31:24,348 - INFO - Successfully generated 5/5 candidates
-2026-03-08 11:31:24,349 - INFO - Checking 14 invariants for conflicts...
-2026-03-08 11:31:24,352 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-08 11:31:24,353 - INFO -   1: int main1(int s,int x){
-2026-03-08 11:31:24,353 - INFO -   2:   int cr2, so, maf, ke, bh;
-2026-03-08 11:31:24,353 - INFO -   3: 
-2026-03-08 11:31:24,353 - INFO -   4:   cr2=x-5;
-2026-03-08 11:31:24,353 - INFO -   5:   so=0;
-2026-03-08 11:31:24,353 - INFO -   6:   maf=0;
-2026-03-08 11:31:24,353 - INFO -   7:   ke=0;
-2026-03-08 11:31:24,353 - INFO -   8:   bh=x;
-2026-03-08 11:31:24,353 - INFO -   9: 
-2026-03-08 11:31:24,353 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-08 11:31:24,353 - INFO - DEBUG: Total lines: 39
-2026-03-08 11:31:35,416 - INFO - syntax Correct
-2026-03-08 11:32:06,524 - INFO - Validate:
-2026-03-08 11:32:06,525 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, False, True]
-2026-03-08 11:32:06,525 - INFO - 
-2026-03-08 11:32:06,525 - INFO - Verify:
-2026-03-08 11:32:06,525 - INFO - []
-2026-03-08 11:32:06,525 - INFO - 
-2026-03-08 11:32:06,525 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-08 11:32:06,525 - INFO -   Before: 14 invariants
-2026-03-08 11:32:06,525 - INFO -   After: 13 invariants
-2026-03-08 11:32:06,525 - INFO -   Remaining invariants:
-2026-03-08 11:32:06,525 - INFO -     [1] cr2 == \at(x, Pre) - 5
-2026-03-08 11:32:06,525 - INFO -     [2] maf >= 0
-2026-03-08 11:32:06,525 - INFO -     [3] so == 0
-2026-03-08 11:32:06,525 - INFO -     [4] ke == maf*(maf-1)/2
-2026-03-08 11:32:06,525 - INFO -     [5] bh == \at(x, Pre) + 3*maf
-2026-03-08 11:32:06,525 - INFO -     [6] s == \at(s, Pre) + maf*so
-2026-03-08 11:32:06,525 - INFO -     [7] (maf < cr2) ==> (cr2 - maf > 0)
-2026-03-08 11:32:06,525 - INFO -     [8] ke == maf*(maf-1)/2 && bh == x + 3*maf && s == \at(s,Pre) && so == 0
-2026-03-08 11:32:06,525 - INFO -     [9] cr2 == x - 5 && 0 <= maf
-2026-03-08 11:32:06,525 - INFO -     [10] bh == x + 3*maf
-2026-03-08 11:32:06,525 - INFO -     [11] s == \at(s, Pre)
-2026-03-08 11:32:06,525 - INFO -     [12] cr2 == x - 5
-2026-03-08 11:32:06,525 - INFO -     [13] ke == maf*(maf-1)/2 && s == \at(s, Pre) + maf*so && maf >= 0
-2026-03-08 11:32:17,585 - INFO - syntax Correct
-2026-03-08 11:32:48,682 - INFO - Validate:
-2026-03-08 11:32:48,682 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-08 11:32:48,682 - INFO - 
-2026-03-08 11:32:48,682 - INFO - Verify:
-2026-03-08 11:32:48,682 - INFO - []
-2026-03-08 11:32:48,682 - INFO - 
-2026-03-08 11:32:48,682 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-08 11:32:59,727 - INFO - syntax Correct
-2026-03-08 11:33:30,861 - INFO - Validate:
-2026-03-08 11:33:30,861 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-08 11:33:30,861 - INFO - 
-2026-03-08 11:33:30,861 - INFO - Verify:
-2026-03-08 11:33:30,861 - INFO - []
-2026-03-08 11:33:30,861 - INFO - 
-2026-03-08 11:33:43,075 - INFO - Deduplicated 13 loop invariants in final code
-2026-03-08 11:33:54,016 - INFO - syntax Correct
-2026-03-08 11:34:25,037 - INFO - Validate:
-2026-03-08 11:34:25,037 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-08 11:34:25,037 - INFO - 
-2026-03-08 11:34:25,037 - INFO - Verify:
-2026-03-08 11:34:25,037 - INFO - []
-2026-03-08 11:34:25,037 - INFO - 
-2026-03-08 11:34:25,038 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-08 11:34:25,038 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_57/1.c
-2026-03-08 11:34:25,038 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_57/1_invariants.txt
-2026-03-08 11:34:25,038 - INFO - 
+2026-03-11 04:08:26,478 - INFO - Successfully generated 4/5 candidates
+2026-03-11 04:08:26,479 - INFO - Checking 10 invariants for conflicts...
+2026-03-11 04:08:26,479 - INFO - Checking 6 invariants for conflicts...
+2026-03-11 04:08:26,481 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 04:08:26,481 - INFO -   1: int main1(int t,int u){
+2026-03-11 04:08:26,481 - INFO -   2:   int h, f, we9, x, emfo;
+2026-03-11 04:08:26,481 - INFO -   3: 
+2026-03-11 04:08:26,481 - INFO -   4:   h=0;
+2026-03-11 04:08:26,481 - INFO -   5:   f=0;
+2026-03-11 04:08:26,481 - INFO -   6:   we9=(t%28)+10;
+2026-03-11 04:08:26,481 - INFO -   7:   x=12;
+2026-03-11 04:08:26,481 - INFO -   8:   emfo=4;
+2026-03-11 04:08:26,481 - INFO -   9: 
+2026-03-11 04:08:26,481 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-11 04:08:26,481 - INFO - DEBUG: Total lines: 51
+2026-03-11 04:08:26,689 - INFO - syntax Correct
+2026-03-11 04:08:58,127 - INFO - Validate:
+2026-03-11 04:08:58,127 - INFO - [True, True, True, False, True, True, True, True, True, False, True, True, True, True, False, False]
+2026-03-11 04:08:58,127 - INFO - 
+2026-03-11 04:08:58,127 - INFO - Verify:
+2026-03-11 04:08:58,127 - INFO - []
+2026-03-11 04:08:58,127 - INFO - 
+2026-03-11 04:08:58,127 - INFO - Houdini iteration 1: Removed 4 failed invariants
+2026-03-11 04:08:58,127 - INFO -   Before: 16 invariants
+2026-03-11 04:08:58,127 - INFO -   After: 12 invariants
+2026-03-11 04:08:58,127 - INFO -   Remaining invariants:
+2026-03-11 04:08:58,127 - INFO -     [1] emfo >= 4
+2026-03-11 04:08:58,127 - INFO -     [2] x >= 12
+2026-03-11 04:08:58,127 - INFO -     [3] u >= \at(u, Pre)
+2026-03-11 04:08:58,127 - INFO -     [4] f >= 0
+2026-03-11 04:08:58,127 - INFO -     [5] we9 + f*(f-1)/2 == ((\at(t, Pre) % 28) + 10)
+2026-03-11 04:08:58,127 - INFO -     [6] u == \at(u, Pre) + f
+2026-03-11 04:08:58,128 - INFO -     [7] x == 12 + 2*f
+2026-03-11 04:08:58,128 - INFO -     [8] 0 <= f
+2026-03-11 04:08:58,128 - INFO -     [9] emfo >= 4
+2026-03-11 04:08:58,128 - INFO -     [10] we9 >= 0
+2026-03-11 04:08:58,128 - INFO -     [11] u >= \at(u, Pre)
+2026-03-11 04:08:58,128 - INFO -     [12] t >= \at(t, Pre)
+2026-03-11 04:08:58,330 - INFO - syntax Correct
+2026-03-11 04:09:29,536 - INFO - Validate:
+2026-03-11 04:09:29,536 - INFO - [True, True, True, True, True, True, True, True, True, False, True, True]
+2026-03-11 04:09:29,536 - INFO - 
+2026-03-11 04:09:29,536 - INFO - Verify:
+2026-03-11 04:09:29,536 - INFO - []
+2026-03-11 04:09:29,536 - INFO - 
+2026-03-11 04:09:29,536 - INFO - Houdini iteration 2: Removed 1 failed invariants
+2026-03-11 04:09:29,536 - INFO -   Before: 12 invariants
+2026-03-11 04:09:29,536 - INFO -   After: 11 invariants
+2026-03-11 04:09:29,536 - INFO -   Remaining invariants:
+2026-03-11 04:09:29,536 - INFO -     [1] emfo >= 4
+2026-03-11 04:09:29,536 - INFO -     [2] x >= 12
+2026-03-11 04:09:29,536 - INFO -     [3] u >= \at(u, Pre)
+2026-03-11 04:09:29,536 - INFO -     [4] f >= 0
+2026-03-11 04:09:29,536 - INFO -     [5] we9 + f*(f-1)/2 == ((\at(t, Pre) % 28) + 10)
+2026-03-11 04:09:29,536 - INFO -     [6] u == \at(u, Pre) + f
+2026-03-11 04:09:29,536 - INFO -     [7] x == 12 + 2*f
+2026-03-11 04:09:29,536 - INFO -     [8] 0 <= f
+2026-03-11 04:09:29,536 - INFO -     [9] emfo >= 4
+2026-03-11 04:09:29,536 - INFO -     [10] u >= \at(u, Pre)
+2026-03-11 04:09:29,536 - INFO -     [11] t >= \at(t, Pre)
+2026-03-11 04:09:29,736 - INFO - syntax Correct
+2026-03-11 04:10:00,804 - INFO - Validate:
+2026-03-11 04:10:00,804 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:10:00,804 - INFO - 
+2026-03-11 04:10:00,804 - INFO - Verify:
+2026-03-11 04:10:00,804 - INFO - []
+2026-03-11 04:10:00,804 - INFO - 
+2026-03-11 04:10:00,804 - INFO - Houdini iteration 3: All invariants are valid
+2026-03-11 04:10:01,041 - INFO - syntax Correct
+2026-03-11 04:10:32,163 - INFO - Validate:
+2026-03-11 04:10:32,163 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:10:32,163 - INFO - 
+2026-03-11 04:10:32,163 - INFO - Verify:
+2026-03-11 04:10:32,163 - INFO - []
+2026-03-11 04:10:32,163 - INFO - 
+2026-03-11 04:11:10,068 - INFO - Deduplicated 3 loop invariants in final code
+2026-03-11 04:11:10,281 - INFO - syntax Correct
+2026-03-11 04:11:41,319 - INFO - Validate:
+2026-03-11 04:11:41,319 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-11 04:11:41,319 - INFO - 
+2026-03-11 04:11:41,319 - INFO - Verify:
+2026-03-11 04:11:41,319 - INFO - []
+2026-03-11 04:11:41,320 - INFO - 
+2026-03-11 04:11:41,320 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 04:11:41,320 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_57/1.c
+2026-03-11 04:11:41,320 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_57/1_invariants.txt
+2026-03-11 04:11:41,320 - INFO - 
 ============================================================
-2026-03-08 11:34:25,038 - INFO - Final first_pass results:
-2026-03-08 11:34:25,038 - INFO -   syntax=1
-2026-03-08 11:34:25,038 - INFO -   valid=1
-2026-03-08 11:34:25,038 - INFO -   satisfy=None
-2026-03-08 11:34:25,038 - INFO - ============================================================
-2026-03-08 11:34:25,038 - INFO - 
+2026-03-11 04:11:41,320 - INFO - Final first_pass results:
+2026-03-11 04:11:41,320 - INFO -   syntax=1
+2026-03-11 04:11:41,320 - INFO -   valid=1
+2026-03-11 04:11:41,320 - INFO -   satisfy=None
+2026-03-11 04:11:41,320 - INFO - ============================================================
+2026-03-11 04:11:41,320 - INFO - 
 ============================================================
-2026-03-08 11:34:25,038 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-08 11:34:25,038 - INFO -   Total API calls: 4
-2026-03-08 11:34:25,038 - INFO -   Total prompt tokens (input): 4,529
-2026-03-08 11:34:25,038 - INFO -   Total completion tokens (output): 25,855
-2026-03-08 11:34:25,038 - INFO -   Total tokens: 30,384
-2026-03-08 11:34:25,038 - INFO -   Average per call:
-2026-03-08 11:34:25,038 - INFO -     Prompt: 1132.2 tokens
-2026-03-08 11:34:25,039 - INFO -     Completion: 6463.8 tokens
-2026-03-08 11:34:25,039 - INFO -     Total: 7596.0 tokens
-2026-03-08 11:34:25,039 - INFO - ============================================================
-2026-03-08 11:34:25,039 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_57/1.c
-2026-03-08 11:34:25,039 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_57/1_invariants.txt
-2026-03-08 11:34:50,869 - INFO - LLM quality-gate raw response: {
+2026-03-11 04:11:41,320 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 04:11:41,320 - INFO -   Total API calls: 9
+2026-03-11 04:11:41,320 - INFO -   Total prompt tokens (input): 11,334
+2026-03-11 04:11:41,320 - INFO -   Total completion tokens (output): 77,817
+2026-03-11 04:11:41,320 - INFO -   Total tokens: 89,151
+2026-03-11 04:11:41,320 - INFO -   Average per call:
+2026-03-11 04:11:41,320 - INFO -     Prompt: 1259.3 tokens
+2026-03-11 04:11:41,320 - INFO -     Completion: 8646.3 tokens
+2026-03-11 04:11:41,320 - INFO -     Total: 9905.7 tokens
+2026-03-11 04:11:41,320 - INFO - ============================================================
+2026-03-11 04:11:41,320 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_57/1.c
+2026-03-11 04:11:41,321 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_57/1_invariants.txt
+2026-03-11 04:12:33,930 - INFO - LLM quality-gate raw response: {
   "ok": true,
   "reason": "pass"
 }
-2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
-2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
-2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
-2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
-2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
-2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
-2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
-2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
-2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
-2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
-2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
-2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
-2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
-2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
-2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
-2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
-2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
-2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
-2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
+2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
+2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
+2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
+2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
+2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
+2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
+2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
+2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

@@ -1,0 +1,21 @@
+int main1(int k,int p){
+  int h, g, s;
+
+  h=p-7;
+  g=0;
+  s=-3;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+
+while (g<h) {
+      if (g+6<=g+h) {
+          s = s+s;
+      }
+      g = g+1;
+  }
+/*@
+  assert !(g<h) &&
+         (h == \at(p, Pre) - 7);
+*/
+
+}

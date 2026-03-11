@@ -42,19 +42,16 @@ class SyntaxChecker:
         # 保存文件到 output 目录（无论成功或失败）
         self._save_verified_file(file_path)
 
-        # Generate WP verification command
+        # Parse-only syntax check. Full WP proving is done by OutputVerifier.
         wp_command = [
             "frama-c",
-            "-wp",
-            "-wp-print",
-            "-wp-timeout",
-            "10",
+            "-print",
             file_path
         ]
 
         try:
             # Use subprocess.run to execute command and capture output
-            result = subprocess.run(wp_command, capture_output=True, text=True)
+            result = subprocess.run(wp_command, capture_output=True, text=True, timeout=15)
             
             # Check both stdout and stderr for syntax errors
             output = result.stdout + result.stderr

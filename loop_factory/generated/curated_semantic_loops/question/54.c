@@ -1,0 +1,19 @@
+int main1(int b){
+  int p, z, v;
+
+  p=b;
+  z=p;
+  v=z;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+
+while (z>1) {
+      v = v-v;
+      z = z-2;
+  }
+/*@
+  assert !(z>1) &&
+         (b == \at(b, Pre));
+*/
+
+}

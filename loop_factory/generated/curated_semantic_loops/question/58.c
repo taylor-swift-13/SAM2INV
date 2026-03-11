@@ -1,0 +1,22 @@
+int main1(int m){
+  int p, i, v;
+
+  p=66;
+  i=p;
+  v=-3;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+
+while (i>2) {
+      v = v-v;
+      if (v<m+2) {
+          v = v+1;
+      }
+      i = i-3;
+  }
+/*@
+  assert !(i>2) &&
+         (i <= 66);
+*/
+
+}

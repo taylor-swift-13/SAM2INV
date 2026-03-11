@@ -1,15 +1,20 @@
-int main1(){
-  int l1jm, m, oh, ah;
+int main1(int u){
+  int ksc9, dz, jue8, p1j2;
 
-  l1jm=1;
-  m=2;
-  oh=0;
-  ah=m;
+  ksc9=u;
+  dz=3;
+  jue8=3;
+  p1j2=1;
 
-  while (oh<=l1jm-1) {
-      oh += 1;
-      ah = l1jm-oh;
-      ah = ah + 1;
+  while (dz<ksc9) {
+      if (jue8>=8) {
+          p1j2 = -1;
+      }
+      if (jue8<=3) {
+          p1j2 = 1;
+      }
+      dz = dz + 1;
+      jue8 = jue8 + p1j2;
   }
 
 }

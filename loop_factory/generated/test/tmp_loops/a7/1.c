@@ -1,17 +1,20 @@
-int main1(){
-  int psj, n0, bcp, hd;
+int main1(int g){
+  int f, w, zv, p1;
 
-  psj=(1%13)+17;
-  n0=psj;
-  bcp=-1;
-  hd=0;
+  f=g;
+  w=f;
+  zv=0;
+  p1=1;
 
-  while (bcp<psj) {
-      bcp = bcp + 1;
-      hd = psj-bcp;
-      if (psj<psj+3) {
-          hd += n0;
+  while (w<=f-1) {
+      if (!(zv<4)) {
+          p1 = -1;
       }
+      if (zv<=0) {
+          p1 = 1;
+      }
+      w += 1;
+      zv = zv + p1;
   }
 
 }

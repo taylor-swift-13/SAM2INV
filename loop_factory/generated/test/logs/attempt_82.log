@@ -1,474 +1,443 @@
-2026-03-08 11:37:01,973 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-08 11:37:01,991 - INFO - Found 1 loops
-2026-03-08 11:37:01,992 - INFO - 
+2026-03-11 04:14:14,045 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 04:14:14,063 - INFO - Found 2 loops
+2026-03-11 04:14:14,064 - INFO - 
 ============================================================
-2026-03-08 11:37:01,992 - INFO - Main generation pass 1/1
-2026-03-08 11:37:01,992 - INFO - ============================================================
-2026-03-08 11:37:01,992 - INFO - Loaded single prompt template: simple
-2026-03-08 11:37:01,992 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-08 11:37:01,992 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-08 11:37:02,010 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:38:30,335 - INFO - 
+2026-03-11 04:14:14,064 - INFO - Main generation pass 1/1
+2026-03-11 04:14:14,064 - INFO - ============================================================
+2026-03-11 04:14:14,064 - INFO - Loaded single prompt template: simple
+2026-03-11 04:14:14,064 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 04:14:14,064 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 04:14:14,081 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:15:46,128 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We need inductive loop invariants that explain the loop state evolution and support termination. Observations from the loop:
-- zi1 is the loop counter, starting at 0 and incrementing by 1 each iteration, and the loop runs while zi1 <= o-1, i.e., it performs o iterations.
-- w is updated as w = (w+1) % 8, so after i iterations w = i mod 8.
-- d is updated by d += zi1 after zi1 is incremented, so after i iterations d becomes d0 + sum_{k=1..i} k = d0 + i(i+1)/2, where d0 is the initial value of d (the function parameter at entry).
-- The initial value o is set to 2 * d0 (where d0 = \at(d,Pre)). Therefore o equals 2 * \at(d,Pre) and is constant during the loop.
-
-From these, we can express an exact invariant that tightly captures the arithmetic progression of d in terms of the loop counter zi1:
-  d == \at(d,Pre) + zi1*(zi1+1)/2
-
-We also capture the modular progression of w relative to zi1:
-  w == zi1 % 8
-
-Additionally, since o is derived from the initial d, we can relate o to \at(d,Pre):
-  o == 2 * \at(d,Pre)
-
-List of loop assigns is the set of variables modified inside the loop: d, w, zi1.
-A loop variant can be chosen to ensure termination reasoning; a natural choice is o - zi1, which starts at o and strictly decreases to 0 as zi1 increases to o.
-
-These invariants are inductive:
-- Initialization: at loop entry zi1 = 0, w = 0, and d = d0; the equalities hold with zi1 = 0 and w = 0.
-- Inductive step: given zi1 = i, w = i mod 8, d = d0 + i(i+1)/2, the body updates zi1 to i+1, w to (i+1) mod 8, and d to d0 + i(i+1)/2 + (i+1) = d0 + (i+1)(i+2)/2, which maintains the invariant for i+1. The o relation remains satisfied since o is constant and equal to 2*d0.
-
-Thus we provide two loop invariants (consolidating into two lines) plus the loop assigns and an optional loop variant. This yields a strong, verification-friendly specification for Frama-C/WP. </reasoning>
-<code>/*@
-  loop invariant d == \at(d,Pre) + zi1*(zi1+1)/2;
-  loop invariant o == 2 * \at(d,Pre) && w == zi1 % 8;
-  loop assigns d, w, zi1;
-  loop variant o - zi1;
-*/</code>
------ Candidate 1/5 raw response end -----
-2026-03-08 11:38:30,336 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-08 11:38:30,353 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:39:01,515 - INFO - 
------ Candidate 2/5 raw response begin -----
 <reasoning>
-I chose a small set of strong, directly inductive invariants that exactly capture the loop's state transition and provide the needed bounds for verification.
+For each loop I built invariants that (1) are inductive w.r.t. the concrete update rules, (2) expose the main conservation law resulting from the sequence of updates, (3) give simple progress bounds / non-negativity facts to help WP prove termination and proof obligations, and (4) provide exact assigns clauses.
 
-Core conservation / relational equality:
-- d accumulates the sum 1+2+...+zi1, so the exact invariant
-    d == \at(d, Pre) + (zi1*(zi1+1))/2
-  explains the update d += zi1 when zi1 is incremented. It holds initially (zi1==0) and is preserved by the transition.
+Loop 0 (while (vyr>ga4c)):
+- Core conservation laws:
+  - p accumulates the successive increment values 1..ga4c, hence p = initial_p + ga4c*(ga4c+1)/2. This is the closed-form of p := p + (new ga4c) each iteration (ga4c starts at 0 and increments by 1).
+  - vyr follows the complementary closed-form: initial_vyr - sum_{i=0..ga4c-1} i = initial_vyr - ga4c*(ga4c-1)/2. Since initial_vyr was set from the parameter (p%28)+10 before any modification of p, I express initial_vyr in terms of \at(p, Pre).
+  - gue changes by (u-mg) each iteration; because mg == u+7 (mg set once before the loop), gue = u + (u-mg)*ga4c = u - 7*ga4c. I keep u linked to the function parameter with u == \at(p,Pre).
+These equalities are inductive and explain the updates precisely.
+- I add simple bounds/invariants: ga4c >= 0 and u == \at(p,Pre) and mg == u+7. These are obvious from the initial assignments and preserved inside the loop.
+- Assigns: the loop modifies exactly (vyr, gue, ga4c, o, p).
+- Variant: I use the arithmetic quantity (initial_vyr - (ga4c*(ga4c+1))/2) which decreases by (ga4c+1) each iteration and stays non-negative while the loop runs. That is safe for WP and follows from the closed-form relations.
 
-State-keeping invariant:
-- o is initialized to 2 * initial d and never modified, so
-    o == 2 * \at(d, Pre)
-  captures that fact and is useful for any reasoning about o.
+Loop 1 (while (u>vyr)):
+- I computed a preserved polynomial conservation law by algebraic manipulation:
+  - E := 2*u + vyr*(vyr-1) is invariant under the body:
+    2*(u - vyr) + (vyr+1)*vyr = 2*u + vyr*(vyr-1)
+  So E stays equal to its value at loop entry. I therefore state the invariant equating E to its value at loop entry. I express the loop-entry value of vyr using the closed-form from loop 0 (which depends on \at(p,Pre) and ga4c). u at the start of this loop equals \at(p,Pre) (u was never changed in loop 0), so the right-hand side is fully expressible using \at(p,Pre) and ga4c.
+- I add progress / non-negativity facts: vyr >= 1 (vyr started as (p%28)+10 >= 10 and then only changes by +- integers; this helps to show u decreases) and u >= 0 (u decreases by positive vyr each iteration until the guard fails).
+- Assigns: the loop modifies exactly (u, p, vyr).
+- Variant: I use u as the variant because each iteration decreases u by at least vyr (>=1), so u strictly decreases and remains non-negative while the guard holds.
 
-Relational invariant for the modulo counter:
-- w increments modulo 8 each iteration, starting at 0; the exact relation
-    w == zi1 % 8
-  is inductive and stronger than mere bounds 0..7, and explains w's evolution.
-
-Progress / bounds:
-- zi1 is a non-negative loop counter, so 0 <= zi1 holds initially and is preserved.
-- The loop variant o - zi1 decreases by 1 on each iteration (when the guard holds). Note: the variant is required to be non-negative under the loop guard; the guard zi1 <= o-1 ensures o - zi1 >= 1 when an iteration runs.
-
-Loop assigns:
-- The loop modifies exactly d, w, and zi1; o is unchanged.
-
-These invariants are minimal, verification-friendly, inductive, and together they allow WP to prove the loop behavior and termination (via the variant).
+I avoided quantifiers and logic definitions; every expression uses only declared variables and \at(p,Pre) (allowed). Parentheses are added to keep arithmetic binding explicit. I kept the original C code unchanged and only added ACSL annotations.
 </reasoning>
 <code>
-int main1(int d){
-  int o, w, zi1;
+int main1(int p){
+  int u, mg, ga4c, vyr, o, gue;
 
-  o=d*2;
-  w=0;
-  zi1=0;
+  u=p;
+  mg=u+7;
+  ga4c=0;
+  vyr=(p%28)+10;
+  o=p;
+  gue=u;
 
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant d == (\at(d, Pre) + (zi1*(zi1+1))/2);
-    loop invariant o == (2 * \at(d, Pre));
-    loop invariant w == (zi1 % 8);
-    loop invariant 0 <= zi1;
-    loop assigns d, w, zi1;
-    loop variant (o - zi1);
+    loop invariant u == \at(p, Pre);
+    loop invariant mg == u + 7;
+    loop invariant ga4c >= 0;
+    loop invariant p == (\at(p, Pre) + (ga4c * (ga4c + 1)) / 2);
+    loop invariant vyr == (((\at(p, Pre) % 28) + 10) - (ga4c * (ga4c - 1)) / 2);
+    loop invariant gue == (u - 7 * ga4c);
+    loop assigns vyr, gue, ga4c, o, p;
+    loop variant (((\at(p, Pre) % 28) + 10) - (ga4c * (ga4c + 1)) / 2);
   */
-  while (zi1<=o-1) {
-        w = (w+1)%8;
-        zi1 = zi1 + 1;
-        d += zi1;
+while (vyr>ga4c) {
+      vyr = vyr - ga4c;
+      gue = gue+u-mg;
+      ga4c = ga4c + 1;
+      o = o*2;
+      p = (ga4c)+(p);
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant 2 * u + vyr * (vyr - 1)
+                   == (2 * \at(p, Pre)
+                       + ( ((\at(p, Pre) % 28) + 10) - (ga4c * (ga4c - 1)) / 2 )
+                         * ( ((\at(p, Pre) % 28) + 10) - (ga4c * (ga4c - 1)) / 2 - 1 )
+                      );
+    loop invariant vyr >= 1;
+    loop invariant u >= 0;
+    loop assigns u, p, vyr;
+    loop variant u;
+  */
+while (u>vyr) {
+      u = u - vyr;
+      p = p + o;
+      vyr += 1;
+      p = p*p;
   }
 
 }
 </code>
------ Candidate 2/5 raw response end -----
-2026-03-08 11:39:01,515 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-08 11:39:01,530 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:39:59,751 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop in main1. The loop updates are:
-- zi1 increments by 1 each iteration, starting from 0.
-- w becomes (w+1) mod 8, effectively w ≡ zi1 (mod 8) at all times after each iteration.
-- d increases by the new zi1 value (i.e., after increment), so after t iterations, d = d0 + sum_{i=1..t} i = d0 + t(t+1)/2, where d0 is the initial value of d at function entry, which is \at(d, Pre).
+----- Candidate 1/5 raw response end -----
+2026-03-11 04:15:46,129 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 04:15:46,143 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:17:36,831 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>The goal is to provide inductive, verification-friendly ACSL loop annotations for both loops in the function main1, without altering the code logic. Key ideas:
 
-We introduce invariants that capture:
-- The closed-form relation between d and zi1: d == \at(d, Pre) + zi1*(zi1+1)/2.
-- The relationship between w and zi1: w == zi1 % 8.
-- The initial relation for o: o == 2 * \at(d, Pre) (since o is assigned as o = d*2 at entry).
-- A safe bound on zi1: 0 <= zi1 (zi1 starts at 0 and only increases).
+- For the first loop (vyr > ga4c), we leverage the observed state-update relations:
+  - vyr_new = vyr_old - ga4c_old
+  - ga4c_new = ga4c_old + 1
+  - gue_new = gue_old + u - mg (and since mg = u + 7, gue_new = gue_old - 7)
+  - p_new = p_old + ga4c_new
+  - o_new = o_old * 2
 
-We also declare the loop assigns: d, w, zi1, since these are the variables updated within the loop. For termination, we provide a loop variant: o - zi1, which decreases by 1 each iteration while the loop guard holds (zi1 <= o-1).
+  From these, a strong invariant chain can be derived:
+  - gue == u - 7*ga4c (strong, preserved by gue += u - mg and mg = u + 7)
+  - p + vyr increases by ga4c as each iteration runs: p + vyr == initial_p + initial_vyr + ga4c
+    This can be expressed using the initial value of p via \at(p, Pre) and initial vyr := (p%28)+10, yielding:
+    p + vyr == \at(p, Pre) + ((\at(p, Pre) % 28) + 10) + ga4c
+  - ga4c is non-negative (0 <= ga4c) since it starts at 0 and increments by 1 per iteration
+  - loop variant: (vyr - ga4c) is a valid decreasing measure across iterations that continue (guard: vyr > ga4c). It is non-negative at loop entries and strictly decreases when the loop continues.
 
-These invariants are inductive: they hold initially (zi1 = 0), are preserved by the body updates, and together with the guard, they help verify termination and the required postconditions. We keep the original code unchanged otherwise and do not modify any unknown() calls. The function parameter d is allowed to be used with \at(d, Pre). The invariants use only available variables: d, o, w, zi1, and the function parameter d (via Pre).
+  Loop assigns must reflect all modified variables: p, ga4c, vyr, gue, o.
+
+- For the second loop (u > vyr), we can use a simple, robust invariant related to the loop guard and a natural variant:
+  - The loop guard guarantees u > vyr at entry; the natural candidate variant is (u - vyr), which strictly decreases every time the loop body is executed (due to u <- u - vyr and vyr <- vyr + 1). The variant remains non-negative at the start of any iteration when the guard holds. We also declare the loop assigns for variables modified in this loop: p, u, vyr.
+
+These invariants are inductive (preserved by each iteration) and verification-friendly for Frama-C/WP, while keeping the code unchanged apart from the annotations. They do not rely on unknown() or unknownN(), and they only reference allowed variables (including \at(p, Pre) for the initial parameter value).
 
 </reasoning>
-<code>int main1(int d){
-  int o, w, zi1;
+<code>int main1(int p){
+  int u, mg, ga4c, vyr, o, gue;
 
-  o=d*2;
-  w=0;
-  zi1=0;
+  u=p;
+  mg=u+7;
+  ga4c=0;
+  vyr=(p%28)+10;
+  o=p;
+  gue=u;
 
   /*@
-    loop invariant d == \at(d, Pre) + zi1*(zi1+1)/2;
-    loop invariant w == zi1 % 8;
-    loop invariant o == 2 * \at(d, Pre);
-    loop invariant 0 <= zi1;
-    loop assigns d, w, zi1;
-    loop variant o - zi1;
+    loop invariant p + vyr == \at(p, Pre) + ((\at(p, Pre) % 28) + 10) + ga4c && 0 <= ga4c;
+    loop invariant gue == u - 7*ga4c;
+    loop assigns p, ga4c, vyr, gue, o;
+    loop variant (vyr - ga4c);
   */
-  while (zi1<=o-1) {
-      w = (w+1)%8;
-      zi1 = zi1 + 1;
-      d += zi1;
+  while (vyr>ga4c) {
+      vyr = vyr - ga4c;
+      gue = gue+u-mg;
+      ga4c = ga4c + 1;
+      o = o*2;
+      p = (ga4c)+(p);
+  }
+
+  /*@
+    loop invariant 0 <= (u - vyr);
+    loop assigns p, u, vyr;
+    loop variant (u - vyr);
+  */
+  while (u>vyr) {
+      u = u - vyr;
+      p = p + o;
+      vyr += 1;
+      p = p*p;
   }
 
 }</code>
+----- Candidate 2/5 raw response end -----
+2026-03-11 04:17:36,831 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 04:17:36,845 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:19:55,611 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<EMPTY_RESPONSE>
 ----- Candidate 3/5 raw response end -----
-2026-03-08 11:39:59,752 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-08 11:39:59,765 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:41:50,698 - INFO - 
+2026-03-11 04:19:55,611 - WARNING -   Failed to extract code from candidate 3
+2026-03-11 04:19:55,611 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 04:19:55,627 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:22:00,730 - INFO - 
 ----- Candidate 4/5 raw response begin -----
 <reasoning>
-Chosen invariants express the exact loop state evolution and bounds, ensuring inductiveness and facilitating WP verification:
+For Loop 0 (the first while): There is a clear arithmetic progression on p and ga4c. Each iteration uses the new ga4c (ga4c') to update p, i.e., p := p + ga4c' with ga4c' = ga4c + 1. This yields a closed-form invariant relating p to the initial value of p (p0 = \at(p, Pre)) and the current ga4c:
+- p == p0 + ga4c*(ga4c+1)/2
+Similarly, vyr evolves as vyr := vyr - ga4c, with ga4c progressing 0,1,2,..., leading to vyr = vyr0 - ga4c*(ga4c-1)/2, where vyr0 = (p0 % 28) + 10. Expressing in terms of current variables:
+- vyr == ((p0 % 28) + 10) - ga4c*(ga4c-1)/2, which we realize as vyr == ((\at(p, Pre))%28) + 10 - ga4c*(ga4c-1)/2.
 
-- d == \at(d,Pre) + zi1*(zi1+1)/2
-  This is the core conservation/relational equality. Since zi1 increments by 1 every iteration and d accumulates that zi1, afterzi1 iterations we have d = initial_d + sum_{k=1..zi1} k = initial_d + zi1*(zi1+1)/2. This invariant is preserved by the transition: d' = d + (zi1+1) and zi1' = zi1 + 1, so d' = \at(d,Pre) + zi1'*(zi1'+1)/2.
+These two invariants are inductive: they hold initially (ga4c = 0) and are preserved by every iteration (ga4c increments by 1; p increments by the new ga4c; vyr decrements by the old ga4c). We also provide a precise loop variant to ensure termination: (vyr - ga4c) decreases every iteration and stays non-negative while the loop guard vyr > ga4c holds.
 
-- o == 2 * \at(d,Pre)
-  o is initialized to 2 * initial_d and never changes; this relational equality ties o to the initial parameter value. Since \at(d,Pre) is constant, this invariant is preserved throughout.
+Loop 0 assigns are the variables that change in this loop: p, ga4c, vyr, gue, o.
 
-- 0 <= zi1 <= o
-  zi1 starts at 0 and is incremented until the loop exits when zi1 becomes o. This bounds the loop counter.
+For Loop 1 (the second while): The loop updates u, p, and vyr. A robust inductive invariant is to relate p to the initial parameter p and guarantee non-decrease relative to the initial value: p never goes below the initial p0, i.e., p >= p0, which here is written as p >= \at(p, Pre). This invariant holds before the loop starts (entry after Loop 0) and is preserved by the loop body, since p is updated via p := p + o and then p := p*p, which keeps p non-decreasing from its non-negative step forward (and certainly never below p0). A natural and safe loop variant for termination is (u - vyr), which decreases strictly because u' = u - vyr and vyr' = vyr + 1, hence (u' - vyr') = (u - vyr) - vyr - 1 ≤ (u - vyr) - 1.
+Loop 1 assigns are u, p, vyr.
 
-- 0 <= w && w < 8
-  w is updated as w = (w+1) % 8, so it stays in the 0..7 range.
-
-- loop variant o - zi1
-  The loop guard zi1 <= o-1 and the increment of zi1 by 1 guarantee that (o - zi1) strictly decreases by 1 each iteration and remains non-negative, ensuring termination.
-
-- loop assigns d, w, zi1
-  Those are exactly the variables modified inside the loop.
-
-All invariants use only available variables and \at(d,Pre) for the initial value of d. No unrelated invariants are added, and the code itself remains unchanged except for the annotations above the loop.
+Using these invariants and assignments, Frama-C/WP can verify the loops inductively.
 </reasoning>
-<code>int main1(int d){
-  int o, w, zi1;
+<code>/*@
+  loop invariant p == \at(p, Pre) + ga4c*(ga4c+1)/2;
+  loop invariant vyr == ((\at(p, Pre))%28) + 10 - ga4c*(ga4c-1)/2;
+  loop assigns p, ga4c, vyr, gue, o;
+  loop variant vyr - ga4c;
+*/
+while (vyr>ga4c) {
+      vyr = vyr - ga4c;
+      gue = gue+u-mg;
+      ga4c = ga4c + 1;
+      o = o*2;
+      p = (ga4c)+(p);
+  }
 
-  o=d*2;
-  w=0;
-  zi1=0;
+/*@
+  loop invariant p >= \at(p, Pre);
+  loop assigns u, p, vyr;
+  loop variant (u - vyr);
+*/
+while (u>vyr) {
+      u = u - vyr;
+      p = p + o;
+      vyr += 1;
+      p = p*p;
+  }</code>
+----- Candidate 4/5 raw response end -----
+2026-03-11 04:22:00,730 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 04:22:00,745 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 04:24:22,140 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<EMPTY_RESPONSE>
+----- Candidate 5/5 raw response end -----
+2026-03-11 04:24:22,141 - WARNING -   Failed to extract code from candidate 5
+2026-03-11 04:24:22,141 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int p){
+  int u, mg, ga4c, vyr, o, gue;
+
+  u=p;
+  mg=u+7;
+  ga4c=0;
+  vyr=(p%28)+10;
+  o=p;
+  gue=u;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant o == 2 * \at(d,Pre);
-    loop invariant 0 <= zi1 <= o;
-    loop invariant 0 <= w && w < 8;
-    loop invariant d == \at(d,Pre) + zi1*(zi1+1)/2;
-    loop assigns d, w, zi1;
-    loop variant o - zi1;
+    loop invariant u == \at(p, Pre);
+    loop invariant mg == u + 7;
+    loop invariant ga4c >= 0;
+    loop invariant p == (\at(p, Pre) + (ga4c * (ga4c + 1)) / 2);
+    loop invariant vyr == (((\at(p, Pre) % 28) + 10) - (ga4c * (ga4c - 1)) / 2);
+    loop invariant gue == (u - 7 * ga4c);
+    loop assigns vyr, gue, ga4c, o, p;
+    loop variant (((\at(p, Pre) % 28) + 10) - (ga4c * (ga4c + 1)) / 2);
   */
-  while (zi1<=o-1) {
-      w = (w+1)%8;
-      zi1 = zi1 + 1;
-      d += zi1;
+while (vyr>ga4c) {
+      vyr = vyr - ga4c;
+      gue = gue+u-mg;
+      ga4c = ga4c + 1;
+      o = o*2;
+      p = (ga4c)+(p);
   }
 
-}</code>
------ Candidate 4/5 raw response end -----
-2026-03-08 11:41:50,699 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-08 11:41:50,713 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:43:28,224 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning> 
-I analyzed the loop state updates and derived strong, inductive invariants that (i) exactly capture the arithmetic progression of d as the loop counter zi1 advances, (ii) encode the modulo-8 progression of w, (iii) relate o to the initial value of d via the original assignment o = d*2 (with d referring to the initial function-parameter value), and (iv) provide a tight progress bound for termination. Specifically:
-
-- Let d0 denote the initial value of d at function entry, i.e. d0 = \at(d, Pre).
-- After k iterations, zi1 = k, w = k mod 8, and d = d0 + k(k+1)/2, due to d += zi1 being applied with zi1 = k at that step.
-- Therefore, the exact invariant d == \at(d,Pre) + zi1*(zi1+1)/2 holds for all loop iterations.
-- Since w is updated as w := (w + 1) % 8 each iteration, w == zi1 % 8 is preserved.
-- o was computed once before the loop as o = 2 * d0, so the invariant o == 2 * \at(d,Pre) captures that fixed relation to the initial value of d.
-- zi1 is bounded by the loop guard; zi1 <= o-1 holds inside the loop and zi1 <= o holds at or after exit, so zi1 <= o is a safe, useful bound.
-- For termination, o - zi1 decreases by 1 each iteration, so loop variant o - zi1 is appropriate.
-
-These invariants are strong (not tautological), inductive (preserved by each iteration), and leverage only allowed variables. They also keep the code unchanged aside from the added ACSL annotations and use only \at(d, Pre) for the initial value of the function parameter d, as required.
-
-</reasoning>
-<code>int main1(int d){
-  int o, w, zi1;
-
-  o=d*2;
-  w=0;
-  zi1=0;
-
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant w == zi1 % 8;
-    loop invariant d == \at(d, Pre) + zi1*(zi1+1)/2;
-    loop invariant o == 2 * \at(d, Pre);
-    loop invariant zi1 <= o;
-    loop assigns d, w, zi1;
-    loop variant o - zi1;
+    loop invariant 2 * u + vyr * (vyr - 1)
+                   == (2 * \at(p, Pre)
+                       + ( ((\at(p, Pre) % 28) + 10) - (ga4c * (ga4c - 1)) / 2 )
+                         * ( ((\at(p, Pre) % 28) + 10) - (ga4c * (ga4c - 1)) / 2 - 1 )
+                      );
+    loop invariant vyr >= 1;
+    loop invariant u >= 0;
+    loop assigns u, p, vyr;
+    loop variant u;
   */
-while (zi1<=o-1) {
-      w = (w+1)%8;
-      zi1 = zi1 + 1;
-      d += zi1;
+while (u>vyr) {
+      u = u - vyr;
+      p = p + o;
+      vyr += 1;
+      p = p*p;
   }
 
-}</code>
------ Candidate 5/5 raw response end -----
-2026-03-08 11:43:28,224 - INFO - 
------ Candidate 1/5 full code begin -----
-/*@
-  loop invariant d == \at(d,Pre) + zi1*(zi1+1)/2;
-  loop invariant o == 2 * \at(d,Pre) && w == zi1 % 8;
-  loop assigns d, w, zi1;
-  loop variant o - zi1;
-*/
+}
 ----- Candidate 1/5 full code end -----
-2026-03-08 11:43:28,224 - INFO - 
+2026-03-11 04:24:22,141 - INFO - 
 ----- Candidate 2/5 full code begin -----
-int main1(int d){
-  int o, w, zi1;
+int main1(int p){
+  int u, mg, ga4c, vyr, o, gue;
 
-  o=d*2;
-  w=0;
-  zi1=0;
+  u=p;
+  mg=u+7;
+  ga4c=0;
+  vyr=(p%28)+10;
+  o=p;
+  gue=u;
 
   /*@
-    loop invariant d == (\at(d, Pre) + (zi1*(zi1+1))/2);
-    loop invariant o == (2 * \at(d, Pre));
-    loop invariant w == (zi1 % 8);
-    loop invariant 0 <= zi1;
-    loop assigns d, w, zi1;
-    loop variant (o - zi1);
+    loop invariant p + vyr == \at(p, Pre) + ((\at(p, Pre) % 28) + 10) + ga4c && 0 <= ga4c;
+    loop invariant gue == u - 7*ga4c;
+    loop assigns p, ga4c, vyr, gue, o;
+    loop variant (vyr - ga4c);
   */
-  while (zi1<=o-1) {
-        w = (w+1)%8;
-        zi1 = zi1 + 1;
-        d += zi1;
+  while (vyr>ga4c) {
+      vyr = vyr - ga4c;
+      gue = gue+u-mg;
+      ga4c = ga4c + 1;
+      o = o*2;
+      p = (ga4c)+(p);
+  }
+
+  /*@
+    loop invariant 0 <= (u - vyr);
+    loop assigns p, u, vyr;
+    loop variant (u - vyr);
+  */
+  while (u>vyr) {
+      u = u - vyr;
+      p = p + o;
+      vyr += 1;
+      p = p*p;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-08 11:43:28,224 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(int d){
-  int o, w, zi1;
-
-  o=d*2;
-  w=0;
-  zi1=0;
-
-  /*@
-    loop invariant d == \at(d, Pre) + zi1*(zi1+1)/2;
-    loop invariant w == zi1 % 8;
-    loop invariant o == 2 * \at(d, Pre);
-    loop invariant 0 <= zi1;
-    loop assigns d, w, zi1;
-    loop variant o - zi1;
-  */
-  while (zi1<=o-1) {
-      w = (w+1)%8;
-      zi1 = zi1 + 1;
-      d += zi1;
-  }
-
-}
------ Candidate 3/5 full code end -----
-2026-03-08 11:43:28,224 - INFO - 
+2026-03-11 04:24:22,141 - WARNING - Candidate 3/5 full code: <None> (failed to extract)
+2026-03-11 04:24:22,141 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(int d){
-  int o, w, zi1;
-
-  o=d*2;
-  w=0;
-  zi1=0;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant o == 2 * \at(d,Pre);
-    loop invariant 0 <= zi1 <= o;
-    loop invariant 0 <= w && w < 8;
-    loop invariant d == \at(d,Pre) + zi1*(zi1+1)/2;
-    loop assigns d, w, zi1;
-    loop variant o - zi1;
-  */
-  while (zi1<=o-1) {
-      w = (w+1)%8;
-      zi1 = zi1 + 1;
-      d += zi1;
+/*@
+  loop invariant p == \at(p, Pre) + ga4c*(ga4c+1)/2;
+  loop invariant vyr == ((\at(p, Pre))%28) + 10 - ga4c*(ga4c-1)/2;
+  loop assigns p, ga4c, vyr, gue, o;
+  loop variant vyr - ga4c;
+*/
+while (vyr>ga4c) {
+      vyr = vyr - ga4c;
+      gue = gue+u-mg;
+      ga4c = ga4c + 1;
+      o = o*2;
+      p = (ga4c)+(p);
   }
 
-}
+/*@
+  loop invariant p >= \at(p, Pre);
+  loop assigns u, p, vyr;
+  loop variant (u - vyr);
+*/
+while (u>vyr) {
+      u = u - vyr;
+      p = p + o;
+      vyr += 1;
+      p = p*p;
+  }
 ----- Candidate 4/5 full code end -----
-2026-03-08 11:43:28,224 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int d){
-  int o, w, zi1;
-
-  o=d*2;
-  w=0;
-  zi1=0;
-
-  /*@
-    loop invariant w == zi1 % 8;
-    loop invariant d == \at(d, Pre) + zi1*(zi1+1)/2;
-    loop invariant o == 2 * \at(d, Pre);
-    loop invariant zi1 <= o;
-    loop assigns d, w, zi1;
-    loop variant o - zi1;
-  */
-while (zi1<=o-1) {
-      w = (w+1)%8;
-      zi1 = zi1 + 1;
-      d += zi1;
-  }
-
-}
------ Candidate 5/5 full code end -----
-2026-03-08 11:43:28,224 - INFO - Successfully generated 5/5 candidates
-2026-03-08 11:43:28,225 - INFO - Checking 10 invariants for conflicts...
-2026-03-08 11:43:28,227 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-08 11:43:28,227 - INFO -   1: int main1(int d){
-2026-03-08 11:43:28,227 - INFO -   2:   int o, w, zi1;
-2026-03-08 11:43:28,227 - INFO -   3: 
-2026-03-08 11:43:28,227 - INFO -   4:   o=d*2;
-2026-03-08 11:43:28,227 - INFO -   5:   w=0;
-2026-03-08 11:43:28,227 - INFO -   6:   zi1=0;
-2026-03-08 11:43:28,227 - INFO -   7: 
-2026-03-08 11:43:28,227 - INFO -   8:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-08 11:43:28,227 - INFO -   9: /*@
-2026-03-08 11:43:28,227 - INFO -   10:   loop invariant d == (\at(d, Pre) + (zi1*(zi1+1))/2);
-2026-03-08 11:43:28,227 - INFO - DEBUG: Total lines: 29
-2026-03-08 11:43:39,314 - INFO - syntax Correct
-2026-03-08 11:44:10,478 - INFO - Validate:
-2026-03-08 11:44:10,478 - INFO - [True, True, True, True, True, True, True, False, True, True]
-2026-03-08 11:44:10,478 - INFO - 
-2026-03-08 11:44:10,478 - INFO - Verify:
-2026-03-08 11:44:10,478 - INFO - []
-2026-03-08 11:44:10,478 - INFO - 
-2026-03-08 11:44:10,478 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-08 11:44:10,478 - INFO -   Before: 10 invariants
-2026-03-08 11:44:10,478 - INFO -   After: 9 invariants
-2026-03-08 11:44:10,478 - INFO -   Remaining invariants:
-2026-03-08 11:44:10,478 - INFO -     [1] d == (\at(d, Pre) + (zi1*(zi1+1))/2)
-2026-03-08 11:44:10,478 - INFO -     [2] o == (2 * \at(d, Pre))
-2026-03-08 11:44:10,478 - INFO -     [3] w == (zi1 % 8)
-2026-03-08 11:44:10,478 - INFO -     [4] 0 <= zi1
-2026-03-08 11:44:10,478 - INFO -     [5] d == \at(d, Pre) + zi1*(zi1+1)/2
-2026-03-08 11:44:10,478 - INFO -     [6] w == zi1 % 8
-2026-03-08 11:44:10,478 - INFO -     [7] o == 2 * \at(d, Pre)
-2026-03-08 11:44:10,479 - INFO -     [8] 0 <= w && w < 8
-2026-03-08 11:44:10,479 - INFO -     [9] zi1 <= o
-2026-03-08 11:44:21,500 - INFO - syntax Correct
-2026-03-08 11:44:52,558 - INFO - Validate:
-2026-03-08 11:44:52,558 - INFO - [True, True, True, True, True, True, True, True, False]
-2026-03-08 11:44:52,558 - INFO - 
-2026-03-08 11:44:52,558 - INFO - Verify:
-2026-03-08 11:44:52,558 - INFO - []
-2026-03-08 11:44:52,559 - INFO - 
-2026-03-08 11:44:52,559 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-08 11:44:52,559 - INFO -   Before: 9 invariants
-2026-03-08 11:44:52,559 - INFO -   After: 8 invariants
-2026-03-08 11:44:52,559 - INFO -   Remaining invariants:
-2026-03-08 11:44:52,559 - INFO -     [1] d == (\at(d, Pre) + (zi1*(zi1+1))/2)
-2026-03-08 11:44:52,559 - INFO -     [2] o == (2 * \at(d, Pre))
-2026-03-08 11:44:52,559 - INFO -     [3] w == (zi1 % 8)
-2026-03-08 11:44:52,559 - INFO -     [4] 0 <= zi1
-2026-03-08 11:44:52,559 - INFO -     [5] d == \at(d, Pre) + zi1*(zi1+1)/2
-2026-03-08 11:44:52,559 - INFO -     [6] w == zi1 % 8
-2026-03-08 11:44:52,559 - INFO -     [7] o == 2 * \at(d, Pre)
-2026-03-08 11:44:52,559 - INFO -     [8] 0 <= w && w < 8
-2026-03-08 11:45:03,583 - INFO - syntax Correct
-2026-03-08 11:45:34,515 - INFO - Validate:
-2026-03-08 11:45:34,515 - INFO - [True, True, True, True, True, True, True, True]
-2026-03-08 11:45:34,515 - INFO - 
-2026-03-08 11:45:34,515 - INFO - Verify:
-2026-03-08 11:45:34,515 - INFO - []
-2026-03-08 11:45:34,515 - INFO - 
-2026-03-08 11:45:34,515 - INFO - Houdini iteration 3: All invariants are valid
-2026-03-08 11:45:45,465 - INFO - syntax Correct
-2026-03-08 11:46:16,369 - INFO - Validate:
-2026-03-08 11:46:16,369 - INFO - [True, True, True, True, True, True, True, True]
-2026-03-08 11:46:16,369 - INFO - 
-2026-03-08 11:46:16,369 - INFO - Verify:
-2026-03-08 11:46:16,369 - INFO - []
-2026-03-08 11:46:16,369 - INFO - 
-2026-03-08 11:46:33,294 - INFO - Deduplicated 6 loop invariants in final code
-2026-03-08 11:46:44,122 - INFO - syntax Correct
-2026-03-08 11:47:14,929 - INFO - Validate:
-2026-03-08 11:47:14,929 - INFO - [True, True, True, True]
-2026-03-08 11:47:14,929 - INFO - 
-2026-03-08 11:47:14,929 - INFO - Verify:
-2026-03-08 11:47:14,929 - INFO - []
-2026-03-08 11:47:14,929 - INFO - 
-2026-03-08 11:47:14,929 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-08 11:47:14,929 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_82/1.c
-2026-03-08 11:47:14,929 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_82/1_invariants.txt
-2026-03-08 11:47:14,929 - INFO - 
+2026-03-11 04:24:22,141 - WARNING - Candidate 5/5 full code: <None> (failed to extract)
+2026-03-11 04:24:22,141 - INFO - Successfully generated 3/5 candidates
+2026-03-11 04:24:22,141 - INFO - Checking 10 invariants for conflicts...
+2026-03-11 04:24:22,144 - INFO - Checking 4 invariants for conflicts...
+2026-03-11 04:24:22,145 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 04:24:22,145 - INFO -   1: int main1(int p){
+2026-03-11 04:24:22,145 - INFO -   2:   int u, mg, ga4c, vyr, o, gue;
+2026-03-11 04:24:22,145 - INFO -   3: 
+2026-03-11 04:24:22,145 - INFO -   4:   u=p;
+2026-03-11 04:24:22,145 - INFO -   5:   mg=u+7;
+2026-03-11 04:24:22,145 - INFO -   6:   ga4c=0;
+2026-03-11 04:24:22,145 - INFO -   7:   vyr=(p%28)+10;
+2026-03-11 04:24:22,145 - INFO -   8:   o=p;
+2026-03-11 04:24:22,145 - INFO -   9:   gue=u;
+2026-03-11 04:24:22,145 - INFO -   10: 
+2026-03-11 04:24:22,145 - INFO - DEBUG: Total lines: 49
+2026-03-11 04:24:22,347 - INFO - syntax Correct
+2026-03-11 04:25:23,780 - INFO - Validate:
+2026-03-11 04:25:23,780 - INFO - [True, True, True, True, True, True, True, True, True, True, False, False, False, False]
+2026-03-11 04:25:23,780 - INFO - 
+2026-03-11 04:25:23,780 - INFO - Verify:
+2026-03-11 04:25:23,780 - INFO - []
+2026-03-11 04:25:23,780 - INFO - 
+2026-03-11 04:25:23,780 - INFO - Houdini iteration 1: Removed 4 failed invariants
+2026-03-11 04:25:23,780 - INFO -   Before: 14 invariants
+2026-03-11 04:25:23,780 - INFO -   After: 10 invariants
+2026-03-11 04:25:23,780 - INFO -   Remaining invariants:
+2026-03-11 04:25:23,780 - INFO -     [1] u == \at(p, Pre)
+2026-03-11 04:25:23,780 - INFO -     [2] mg == u + 7
+2026-03-11 04:25:23,780 - INFO -     [3] ga4c >= 0
+2026-03-11 04:25:23,780 - INFO -     [4] p == (\at(p, Pre) + (ga4c * (ga4c + 1)) / 2)
+2026-03-11 04:25:23,780 - INFO -     [5] vyr == (((\at(p, Pre) % 28) + 10) - (ga4c * (ga4c - 1)) / 2)
+2026-03-11 04:25:23,780 - INFO -     [6] gue == (u - 7 * ga4c)
+2026-03-11 04:25:23,780 - INFO -     [7] p + vyr == \at(p, Pre) + ((\at(p, Pre) % 28) + 10) + ga4c && 0 <= ga4c
+2026-03-11 04:25:23,780 - INFO -     [8] gue == u - 7*ga4c
+2026-03-11 04:25:23,780 - INFO -     [9] p == \at(p, Pre) + ga4c*(ga4c+1)/2
+2026-03-11 04:25:23,780 - INFO -     [10] vyr == ((\at(p, Pre))%28) + 10 - ga4c*(ga4c-1)/2
+2026-03-11 04:25:23,987 - INFO - syntax Correct
+2026-03-11 04:25:55,015 - INFO - Validate:
+2026-03-11 04:25:55,016 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:25:55,016 - INFO - 
+2026-03-11 04:25:55,016 - INFO - Verify:
+2026-03-11 04:25:55,016 - INFO - []
+2026-03-11 04:25:55,016 - INFO - 
+2026-03-11 04:25:55,016 - INFO - Houdini iteration 2: All invariants are valid
+2026-03-11 04:25:55,258 - INFO - syntax Correct
+2026-03-11 04:26:26,285 - INFO - Validate:
+2026-03-11 04:26:26,285 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-11 04:26:26,285 - INFO - 
+2026-03-11 04:26:26,285 - INFO - Verify:
+2026-03-11 04:26:26,285 - INFO - []
+2026-03-11 04:26:26,285 - INFO - 
+2026-03-11 04:26:40,437 - INFO - Deduplicated 6 loop invariants in final code
+2026-03-11 04:26:40,644 - INFO - syntax Correct
+2026-03-11 04:27:11,566 - INFO - Validate:
+2026-03-11 04:27:11,566 - INFO - [True, True, False, False, True, True]
+2026-03-11 04:27:11,566 - INFO - 
+2026-03-11 04:27:11,566 - INFO - Verify:
+2026-03-11 04:27:11,566 - INFO - []
+2026-03-11 04:27:11,566 - INFO - 
+2026-03-11 04:27:11,567 - WARNING - Dedup result failed verification, keeping original final code: syntax=True, valid=False, satisfy=False, has_assert=False
+2026-03-11 04:27:11,567 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 04:27:11,567 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_82/1.c
+2026-03-11 04:27:11,567 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_82/1_invariants.txt
+2026-03-11 04:27:11,567 - INFO - 
 ============================================================
-2026-03-08 11:47:14,929 - INFO - Final first_pass results:
-2026-03-08 11:47:14,929 - INFO -   syntax=1
-2026-03-08 11:47:14,929 - INFO -   valid=1
-2026-03-08 11:47:14,929 - INFO -   satisfy=None
-2026-03-08 11:47:14,929 - INFO - ============================================================
-2026-03-08 11:47:14,929 - INFO - 
+2026-03-11 04:27:11,567 - INFO - Final first_pass results:
+2026-03-11 04:27:11,567 - INFO -   syntax=1
+2026-03-11 04:27:11,567 - INFO -   valid=1
+2026-03-11 04:27:11,567 - INFO -   satisfy=None
+2026-03-11 04:27:11,567 - INFO - ============================================================
+2026-03-11 04:27:11,567 - INFO - 
 ============================================================
-2026-03-08 11:47:14,929 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-08 11:47:14,930 - INFO -   Total API calls: 29
-2026-03-08 11:47:14,930 - INFO -   Total prompt tokens (input): 31,025
-2026-03-08 11:47:14,930 - INFO -   Total completion tokens (output): 175,851
-2026-03-08 11:47:14,930 - INFO -   Total tokens: 206,876
-2026-03-08 11:47:14,930 - INFO -   Average per call:
-2026-03-08 11:47:14,930 - INFO -     Prompt: 1069.8 tokens
-2026-03-08 11:47:14,930 - INFO -     Completion: 6063.8 tokens
-2026-03-08 11:47:14,930 - INFO -     Total: 7133.7 tokens
-2026-03-08 11:47:14,930 - INFO - ============================================================
-2026-03-08 11:47:14,930 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_82/1.c
-2026-03-08 11:47:14,930 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_82/1_invariants.txt
-2026-03-08 11:47:45,284 - INFO - LLM quality-gate raw response: {
-  "ok": true,
-  "reason": "Non-trivial, inductive loop invariants: d tracks initial d plus triangular number by zi1, o tracks 2*initial_d, w tracks zi1 mod 8, zi1 lower-bounded. They cover all loop-modified variables (d, w, zi1, o) and reflect the exact update relations. A loop variant for termination is optional but not strictly required for invariants here."
+2026-03-11 04:27:11,567 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 04:27:11,567 - INFO -   Total API calls: 15
+2026-03-11 04:27:11,567 - INFO -   Total prompt tokens (input): 22,778
+2026-03-11 04:27:11,567 - INFO -   Total completion tokens (output): 172,988
+2026-03-11 04:27:11,567 - INFO -   Total tokens: 195,766
+2026-03-11 04:27:11,567 - INFO -   Average per call:
+2026-03-11 04:27:11,567 - INFO -     Prompt: 1518.5 tokens
+2026-03-11 04:27:11,567 - INFO -     Completion: 11532.5 tokens
+2026-03-11 04:27:11,567 - INFO -     Total: 13051.1 tokens
+2026-03-11 04:27:11,567 - INFO - ============================================================
+2026-03-11 04:27:11,567 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_82/1.c
+2026-03-11 04:27:11,568 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_82/1_invariants.txt
+2026-03-11 04:28:26,671 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "fail"
 }
-2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
-2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
-2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
-2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
-2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
-2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
-2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
-2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
-2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
-2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
-2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
-2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
-2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
-2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
-2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
-2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
-2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
-2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
-2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
+2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
+2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
+2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
+2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
+2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
+2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
+2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
+2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

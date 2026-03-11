@@ -1,344 +1,447 @@
-2026-03-09 12:53:25,968 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-09 12:53:26,083 - INFO - Found 1 loops
-2026-03-09 12:53:26,138 - INFO - 
+2026-03-11 16:24:17,749 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 16:24:17,804 - INFO - Found 1 loops
+2026-03-11 16:24:17,832 - INFO - 
 ============================================================
-2026-03-09 12:53:26,138 - INFO - Main generation pass 1/1
-2026-03-09 12:53:26,139 - INFO - ============================================================
-2026-03-09 12:53:26,139 - INFO - Loaded single prompt template: simple
-2026-03-09 12:53:26,140 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-09 12:53:26,148 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-09 12:53:26,174 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 12:55:24,266 - INFO - 
+2026-03-11 16:24:17,833 - INFO - Main generation pass 1/1
+2026-03-11 16:24:17,833 - INFO - ============================================================
+2026-03-11 16:24:17,834 - INFO - Loaded single prompt template: simple
+2026-03-11 16:24:17,835 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 16:24:17,836 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 16:24:19,315 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:27:44,832 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>The loop updates j by +1, and simultaneously increases gsl and zr by +4 each iteration. This leads to simple linear invariants that relate the loop state variables with the loop counter j:
+<reasoning>The loop updates follow a simple linear progression for two variables and a relational update for j.
 
-- gsl - 4*j remains constant across iterations (initially 6 - 4*(-4) = 22).
-- zr - 4*j remains constant across iterations (initially 2 - 4*(-4) = 18).
+Key conservation/relational facts:
+- Every iteration increments k1 and xf by 1, and neh by 1. Therefore their relationships are preserved:
+  - k1 == xf + 1 is invariant (initially 1 == 0 + 1, preserved since both sides increment by 1 each iteration).
+  - neh == xf is invariant (initially 0 == 0, preserved since both sides increment by 1 each iteration).
+- These invariants explain the state progression and are inductive because the updates maintain them.
+- A loop variant to show progress toward termination can be the decreasing expression cjd - k1, which starts non-negative (given k1 <= cjd while the loop guard is true) and decreases by 1 each iteration since k1 increases by 1.
 
-These invariants are preserved by every loop iteration since gsl and zr are incremented by exactly 4 when j is incremented by 1. They hold even before the first iteration (with initial values j=-4, gsl=6, zr=2). They are strong, exact relationships that do not introduce unrelated facts.
+Assigned variables inside the loop are exactly: j, k1, xf, neh. cjd is not modified.
 
-Additionally, a loop variant is provided to prove progress toward termination: ap - j decreases by 1 each iteration (since j increments by 1 and ap is constant within the loop). The combination of guard (j < ap) and a decreasing variant ensures termination reasoning in WP.
-
-The loop assigns precisely the variables that are modified inside the loop body: j, gsl, zr. ap is assigned before the loop and not changed inside, so it is not listed in loop assigns. The invariants only involve allowed variables from the loop state. No changes are made to the original code except adding annotations. </reasoning>
-<code>int main1(int h,int a){
-  int ap, j, zr, gsl;
-
-  ap=h;
-  j=-4;
-  zr=2;
-  gsl=6;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-  loop invariant gsl - 4*j == 22;
-  loop invariant zr - 4*j == 18;
-  loop assigns j, gsl, zr;
-  loop variant ap - j;
+With these invariants, the WP verifier can establish partial correctness given the loop exit condition and the overall function. The invariants are strong, inductive, and directly reflect the loop’s state evolution.</reasoning>
+<code>/*@
+  loop invariant k1 == xf + 1;
+  loop invariant neh == xf;
+  loop assigns j, k1, xf, neh;
+  loop variant cjd - k1;
 */
-for (; j&lt;ap; j++) {
-      gsl += 4;
-      zr += 4;
+while (1) {
+      if (!(j>0&&k1<=cjd)) {
+          break;
+      }
+      if (!(j<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
+  }</code>
+----- Candidate 1/5 raw response end -----
+2026-03-11 16:27:44,832 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 16:27:44,901 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:30:19,844 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>We need inductive loop invariants that reflect the loop's actual state updates and aid automatic verification with Frama-C/WP.
+
+Key observations:
+- Each iteration updates: k1 := k1 + 1; xf := xf + 1; neh := neh + 1; j is updated conditionally based on j and k1, but our invariants should not depend on the exact branch for these updates.
+- A strong relational invariant set that ties the arithmetic variables together is:
+  - k1 == xf + 1, which holds initially (k1=1, xf=0) and is preserved since both sides increment by 1 per iteration.
+  - neh == xf, which also holds initially and is preserved as both are incremented by 1 per iteration.
+- For termination progress, provide a loop variant that decreases every iteration while the loop guard is true. Since k1 increments by 1 each iteration and the loop continues only while k1 <= cjd, the expression cjd - k1 decreases by 1 each iteration, remaining non-negative while the loop can continue. So loop variant: cjd - k1.
+- Loop assigns must list all variables that the loop may modify: j, k1, xf, neh.
+
+Thus, the annotations below express these invariants, the loop variant, and the assigns. They are inductive and verification-friendly for WP. No code changes outside the annotations are made. </reasoning>
+<code>/*@
+  loop invariant k1 == xf + 1;
+  loop invariant neh == xf;
+  loop variant cjd - k1;
+  loop assigns j, k1, xf, neh;
+*/
+while (1) {
+      if (!(j>0&amp;&amp;k1&amp;<=cjd)) {
+          break;
+      }
+      if (!(j&amp;<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
+  }</code>
+----- Candidate 2/5 raw response end -----
+2026-03-11 16:30:19,844 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 16:30:19,904 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:32:48,113 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+We need inductive, verification-friendly ACSL annotations for the loop in main1. Key observations:
+
+- cjd is initialized to 1+6 and never modified; thus invariant cjd == 7 is valid.
+- In each iteration, xf and neh are both incremented by 1, starting from 0. Therefore xf == neh is an invariant.
+- k1 starts at 1 and is incremented by 1 every iteration, while xf also increments by 1 each iteration. Therefore k1 == xf + 1 is a natural, inductive relation that ties the loop counters together and is preserved by the updates (k1 := k1 + 1; xf := xf + 1).
+- This pair (k1 == xf + 1) serves as a core conservation/relational equality describing the loop state transition (how k1 tracks the number of iterations via xf).
+- A loop variant can aid termination reasoning. Since the loop continues while k1 <= cjd (and cjd is constant), the non-negative expression (cjd - k1) decreases by 1 on each iteration as k1 increments by 1, and is non-negative at loop entry. Hence loop variant: cjd - k1 is appropriate and well-founded.
+- The loop assigns are exactly the variables modified inside the loop: j, k1, xf, neh. cjd is not reassigned.
+- These invariants are strong, non-tautological, and align with the loop’s actual updates without altering the code or introducing parameters.
+
+</reasoning>
+<code>
+int main1(){
+  int cjd, neh, j, k1, xf;
+
+  cjd=1+6;
+  neh=0;
+  j=12;
+  k1=1;
+  xf=0;
+
+  /*@
+    loop invariant cjd == 7;
+    loop invariant k1 == xf + 1;
+    loop invariant xf == neh;
+    loop assigns j, k1, xf, neh;
+    loop variant cjd - k1;
+  */
+  while (1) {
+      if (!(j>0&&k1<=cjd)) {
+          break;
+      }
+      if (!(j<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
   }
 
 }
 </code>
------ Candidate 1/5 raw response end -----
-2026-03-09 12:55:24,266 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-09 12:55:24,281 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 12:56:18,593 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>The loop body updates gsl and zr by +4 each iteration while j is incremented by +1 (via the for-loop increment). A strong invariant that captures the exact relationship among these variables at the start of each iteration is:
-gsl == 4*j + 22
-This holds initially: with j = -4 and gsl = 6, we get 6 == 4*(-4) + 22. If the invariant holds at the start of an iteration, after executing the body we have:
-gsl' = gsl + 4 = 4*j + 26, and j' = j + 1, which implies gsl' = 4*j' + 22. Hence the invariant is preserved (inductive). This single core relational equality explains the loop updates and ties the two evolving variables gsl and j together; zr can be proven to increment in step with gsl, but since the request is to provide a strong core invariant, gsl == 4*j + 22 suffices as the key relational state. We also provide a loop variant to show progress: ap - j decreases by 1 each iteration and is non-negative while the loop executes.
-The loop assigns include the loop control variable j and the two updated locals gsl and zr.</reasoning>
-<code>/*@
-  loop invariant gsl == 4*j + 22;
-  loop assigns j, gsl, zr;
-  loop variant ap - j;
-*/
-for (; j&lt;ap; j++) {
-      gsl += 4;
-      zr += 4;
-  }</code>
------ Candidate 2/5 raw response end -----
-2026-03-09 12:56:18,595 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-09 12:56:18,609 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 12:59:07,626 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>Chosen invariants focus on a strong conservation relation and a simple lower bound to keep the loop verification friendly.
+----- Candidate 3/5 raw response end -----
+2026-03-11 16:32:48,113 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 16:32:48,170 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:35:23,170 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+We need inductive loop annotations for the given loop. The loop body updates j, k1, xf, neh each iteration (except when the break is taken). The guard for continuing the loop is j > 0 and k1 <= cjd. A strong, inductive invariant should capture the essential state progression and support termination reasoning without over-constraining on exit conditions.
 
-- Core conservation: gsl - zr == 4. Both gsl and zr start at 6 and 2 respectively and are each increased by 4 every iteration, so their difference stays exactly 4. This invariant is inductive and does not depend on ap or j, ensuring it holds even if the loop executes zero times.
+Chosen invariants and rationale:
+- k1 == xf + 1
+  - Both k1 and xf are incremented by exactly 1 in every loop iteration. This relation holds initially (k1=1, xf=0) and is preserved by the updates.
+- neh == xf
+  - neh is incremented by 1 exactly when xf is incremented by 1; they stay equal across iterations.
+- xf >= 0
+  - xf starts at 0 and only increases; keeps non-negativity.
+- k1 <= cjd + 1
+  - Since the loop only progresses while k1 <= cjd (due to the guard), k1 increases by 1 each time, so it remains <= cjd + 1 after the increment as well. This is non-strict and holds through the loop.
+- loop variant cjd - k1 + 1
+  - This decreases by 1 each iteration as k1 grows, ensuring termination whenever the loop guard is evaluated (the guard is true only while k1 <= cjd, which makes the variant non-negative and strictly decreasing per iteration).
 
-- Minimal progress bound: gsl >= 6. Since gsl starts at 6 and is only increased by 4 inside the loop, gsl never drops below 6. This provides a non-decreasing bound that is preserved by each iteration.
-
-- loop assigns: j, gsl, zr. The loop updates these three variables, so they must be listed in the assigns clause.
-
-Note: The explicit loop variant (for termination) can be added as a separate line (loop variant ap - j) to provide a formal decreasing measure if desired, but it is not strictly required for the inductive invariants chosen here. The provided invariants are sufficient to reason about the preserved relationships and bounds across iterations.
+These invariants are strong, inductive, and relate only to the required set of variables: cjd, j, k1, neh, xf. They also avoid introducing invariants that are not preserved by the loop body and respect the constraint to keep the original code unchanged otherwise.
 
 </reasoning>
-<code>int main1(int h,int a){
-  int ap, j, zr, gsl;
+<code>int main1(){
+  int cjd, neh, j, k1, xf;
 
-  ap=h;
-  j=-4;
-  zr=2;
-  gsl=6;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant gsl - zr == 4;
-    loop invariant gsl >= 6;
-    loop assigns j, gsl, zr;
-  */
-for (; j&lt;ap; j++) {
-      gsl += 4;
-      zr += 4;
-  }
-
-}</code>
------ Candidate 3/5 raw response end -----
-2026-03-09 12:59:07,626 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-09 12:59:07,642 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 13:01:12,135 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>We need a strong, inductive loop invariant that explains the state updates inside the loop without modifying the code. The loop body increases gsl and zr by 4 on each iteration and increments j by 1 (via the for header). A concise, exact relational invariant is gsl - zr == 4, which holds initially (gsl=6, zr=2). It is preserved by every iteration since (gsl+4) - (zr+4) = gsl - zr. This invariant is independent of ap/h and remains valid as long as the loop runs. The loop assigns are the variables that are modified by the loop: j, gsl, zr. For a termination measure (loop variant), since j increases by 1 each iteration and the loop continues while j < ap, a natural decreasing expression is ap - j, which is positive during the loop and decreases by 1 each iteration. These choices are inductive and verification-friendly for Frama-C/WP. </reasoning>
-<code>int main1(int h,int a){
-  int ap, j, zr, gsl;
-
-  ap=h;
-  j=-4;
-  zr=2;
-  gsl=6;
+  cjd=1+6;
+  neh=0;
+  j=12;
+  k1=1;
+  xf=0;
 
   /*@
-    loop invariant gsl - zr == 4;
-    loop assigns j, gsl, zr;
-    loop variant ap - j;
+    loop invariant k1 == xf + 1;
+    loop invariant neh == xf;
+    loop invariant xf >= 0;
+    loop invariant k1 <= cjd + 1;
+    loop variant cjd - k1 + 1;
+    loop assigns j, k1, xf, neh;
   */
-  for (; j<ap; j++) {
-      gsl += 4;
-      zr += 4;
+  while (1) {
+      if (!(j>0&&k1<=cjd)) {
+          break;
+      }
+      if (!(j<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
   }
 
 }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-09 13:01:12,136 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-09 13:01:12,150 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-09 13:02:00,848 - INFO - 
+2026-03-11 16:35:23,170 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 16:35:23,232 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 16:38:03,724 - INFO - 
 ----- Candidate 5/5 raw response begin -----
 <reasoning>
-I chose invariants that are exact, inductive, and relate the loop-modified variables precisely to the loop counter. The loop body increments gsl and zr by the same amount (4) each iteration, so their difference is conserved; I express that as gsl - zr == 4 (core conservation). Because gsl and zr start at concrete values (gsl = 6, zr = 2) and j starts at -4, we can write exact linear relations tying gsl and zr to j:
-  gsl == 6 + 4*(j + 4)
-  zr  == 2 + 4*(j + 4)
-These hold before the first iteration and are preserved: after adding 4 to gsl and zr and incrementing j, the formulas remain true. I also add monotonicity lower bounds gsl >= 6, zr >= 2 and j >= -4 to capture progress and prevent vacuousness. The parameter relation ap == \at(h, Pre) is included (ap was initialized from h and never modified), which is allowed because \at(...) is used only on a function parameter. The loop assigns clause exactly lists the variables modified in the loop: gsl, zr, j. I omitted an explicit variant to avoid introducing a non-negative termination expression that would require additional assumptions about ap vs j; the invariants already capture monotonic progress and exact state evolution.
+Goal: provide inductive, verification-friendly ACSL loop invariants for the given loop, focusing on a core conservation/relational equality, minimal progress bounds, and complete loop assigns. We avoid modifying the code except for annotations.
+
+Key observations about the loop:
+- State updates per iteration:
+  - If (j > k1) then j := 0; else j := j - k1.
+  - k1 := k1 + 1.
+  - xf := xf + 1.
+  - neh := neh + 1.
+- The loop condition (guard) is j > 0 && k1 <= cjd.
+- Initial state (before first iteration): cjd = 7, j = 12, k1 = 1, xf = 0, neh = 0.
+- Because in the first iteration, j > k1 (12 > 1) holds, we take the then-branch and set j := 0; then k1 becomes 2, xf and neh become 1. The next iteration’s guard fails (j > 0 is false), so the loop executes at most once on these initial values.
+
+Inductive invariants chosen:
+- xf == neh: both xf and neh are incremented by exactly 1 throughout every executed iteration, starting from 0. This equality is preserved by the body.
+- k1 == xf + 1: with the initial values (k1 = 1, xf = 0) this holds, and since k1 increments by 1 and xf by 1 each iteration, the relation remains invariant.
+- 0 <= xf <= cjd: xf grows by 1 each iteration and is bounded above by cjd due to the guard k1 <= cjd (and k1 = xf + 1). This provides a simple progress bound without constraining j directly.
+
+These invariants are strong enough to reason inductively about the loop state while keeping the focus on the essential state transitions (the “state transition law”). They are also verification-friendly for Frama-C/WP, and do not rely on the exact path of j beyond what the guard allows.
+
+Loop assigns:
+- The loop mutates j, k1, xf, neh.
+
+Putting it together, the annotations ensure the invariants hold at loop entry and are preserved by every iteration when the loop continues, while not over-constraining the loop state.
 </reasoning>
-<code>
-int main1(int h,int a){
-  int ap, j, zr, gsl;
-
-  ap=h;
-  j=-4;
-  zr=2;
-  gsl=6;
-
-  /*@
-    loop invariant gsl - zr == 4;
-    loop invariant gsl == 6 + 4*(j + 4);
-    loop invariant zr == 2 + 4*(j + 4);
-    loop invariant gsl >= 6;
-    loop invariant zr >= 2;
-    loop invariant j >= -4;
-    loop invariant ap == \at(h, Pre);
-    loop assigns gsl, zr, j;
-  */
-  for (; j<ap; j++) {
-        gsl += 4;
-        zr += 4;
-  }
-
-}
-</code>
------ Candidate 5/5 raw response end -----
-2026-03-09 13:02:00,848 - INFO - 
------ Candidate 1/5 full code begin -----
-int main1(int h,int a){
-  int ap, j, zr, gsl;
-
-  ap=h;
-  j=-4;
-  zr=2;
-  gsl=6;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-  loop invariant gsl - 4*j == 22;
-  loop invariant zr - 4*j == 18;
-  loop assigns j, gsl, zr;
-  loop variant ap - j;
+<code>/*@
+  loop invariant xf == neh;
+  loop invariant k1 == xf + 1;
+  loop invariant 0 &lt;= xf &lt;= cjd;
+  loop assigns j, k1, xf, neh;
 */
-for (; j&lt;ap; j++) {
-      gsl += 4;
-      zr += 4;
+while (1) {
+      if (!(j>0&&k1<=cjd)) {
+          break;
+      }
+      if (!(j<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
+  }</code>
+----- Candidate 5/5 raw response end -----
+2026-03-11 16:38:03,725 - INFO - 
+----- Candidate 1/5 full code begin -----
+/*@
+  loop invariant k1 == xf + 1;
+  loop invariant neh == xf;
+  loop assigns j, k1, xf, neh;
+  loop variant cjd - k1;
+*/
+while (1) {
+      if (!(j>0&&k1<=cjd)) {
+          break;
+      }
+      if (!(j<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
   }
-
-}
 ----- Candidate 1/5 full code end -----
-2026-03-09 13:02:00,848 - INFO - 
+2026-03-11 16:38:03,725 - INFO - 
 ----- Candidate 2/5 full code begin -----
 /*@
-  loop invariant gsl == 4*j + 22;
-  loop assigns j, gsl, zr;
-  loop variant ap - j;
+  loop invariant k1 == xf + 1;
+  loop invariant neh == xf;
+  loop variant cjd - k1;
+  loop assigns j, k1, xf, neh;
 */
-for (; j&lt;ap; j++) {
-      gsl += 4;
-      zr += 4;
+while (1) {
+      if (!(j>0&amp;&amp;k1&amp;<=cjd)) {
+          break;
+      }
+      if (!(j&amp;<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
   }
 ----- Candidate 2/5 full code end -----
-2026-03-09 13:02:00,848 - INFO - 
+2026-03-11 16:38:03,725 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int h,int a){
-  int ap, j, zr, gsl;
+int main1(){
+  int cjd, neh, j, k1, xf;
 
-  ap=h;
-  j=-4;
-  zr=2;
-  gsl=6;
+  cjd=1+6;
+  neh=0;
+  j=12;
+  k1=1;
+  xf=0;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant gsl - zr == 4;
-    loop invariant gsl >= 6;
-    loop assigns j, gsl, zr;
+    loop invariant cjd == 7;
+    loop invariant k1 == xf + 1;
+    loop invariant xf == neh;
+    loop assigns j, k1, xf, neh;
+    loop variant cjd - k1;
   */
-for (; j&lt;ap; j++) {
-      gsl += 4;
-      zr += 4;
+  while (1) {
+      if (!(j>0&&k1<=cjd)) {
+          break;
+      }
+      if (!(j<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-09 13:02:00,848 - INFO - 
+2026-03-11 16:38:03,725 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(int h,int a){
-  int ap, j, zr, gsl;
+int main1(){
+  int cjd, neh, j, k1, xf;
 
-  ap=h;
-  j=-4;
-  zr=2;
-  gsl=6;
+  cjd=1+6;
+  neh=0;
+  j=12;
+  k1=1;
+  xf=0;
 
   /*@
-    loop invariant gsl - zr == 4;
-    loop assigns j, gsl, zr;
-    loop variant ap - j;
+    loop invariant k1 == xf + 1;
+    loop invariant neh == xf;
+    loop invariant xf >= 0;
+    loop invariant k1 <= cjd + 1;
+    loop variant cjd - k1 + 1;
+    loop assigns j, k1, xf, neh;
   */
-  for (; j<ap; j++) {
-      gsl += 4;
-      zr += 4;
+  while (1) {
+      if (!(j>0&&k1<=cjd)) {
+          break;
+      }
+      if (!(j<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
   }
 
 }
 ----- Candidate 4/5 full code end -----
-2026-03-09 13:02:00,849 - INFO - 
+2026-03-11 16:38:03,725 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(int h,int a){
-  int ap, j, zr, gsl;
-
-  ap=h;
-  j=-4;
-  zr=2;
-  gsl=6;
-
-  /*@
-    loop invariant gsl - zr == 4;
-    loop invariant gsl == 6 + 4*(j + 4);
-    loop invariant zr == 2 + 4*(j + 4);
-    loop invariant gsl >= 6;
-    loop invariant zr >= 2;
-    loop invariant j >= -4;
-    loop invariant ap == \at(h, Pre);
-    loop assigns gsl, zr, j;
-  */
-  for (; j<ap; j++) {
-        gsl += 4;
-        zr += 4;
+/*@
+  loop invariant xf == neh;
+  loop invariant k1 == xf + 1;
+  loop invariant 0 &lt;= xf &lt;= cjd;
+  loop assigns j, k1, xf, neh;
+*/
+while (1) {
+      if (!(j>0&&k1<=cjd)) {
+          break;
+      }
+      if (!(j<=k1)) {
+          j = 0;
+      }
+      else {
+          j -= k1;
+      }
+      k1 = k1 + 1;
+      xf = xf + 1;
+      neh = neh + 1;
   }
-
-}
 ----- Candidate 5/5 full code end -----
-2026-03-09 13:02:00,849 - INFO - Successfully generated 5/5 candidates
-2026-03-09 13:02:00,849 - INFO - Checking 10 invariants for conflicts...
-2026-03-09 13:02:00,849 - INFO -   Conflict detected:
-2026-03-09 13:02:00,849 - INFO -     [1] gsl - 4*j == 22
-2026-03-09 13:02:00,849 - INFO -     [2] zr - 4*j == 18
-2026-03-09 13:02:00,850 - INFO -   Conflict detected:
-2026-03-09 13:02:00,850 - INFO -     [3] gsl == 4*j + 22
-2026-03-09 13:02:00,850 - INFO -     [6] gsl == 6 + 4*(j + 4)
-2026-03-09 13:02:00,850 - INFO -   Conflict detected:
-2026-03-09 13:02:00,850 - INFO -     [4] gsl - zr == 4
-2026-03-09 13:02:00,850 - INFO -     [7] zr == 2 + 4*(j + 4)
-2026-03-09 13:02:00,852 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-09 13:02:00,852 - INFO -   1: int main1(int h,int a){
-2026-03-09 13:02:00,852 - INFO -   2:   int ap, j, zr, gsl;
-2026-03-09 13:02:00,852 - INFO -   3: 
-2026-03-09 13:02:00,852 - INFO -   4:   ap=h;
-2026-03-09 13:02:00,852 - INFO -   5:   j=-4;
-2026-03-09 13:02:00,852 - INFO -   6:   zr=2;
-2026-03-09 13:02:00,852 - INFO -   7:   gsl=6;
-2026-03-09 13:02:00,852 - INFO -   8: 
-2026-03-09 13:02:00,852 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-09 13:02:00,852 - INFO -   10: /*@
-2026-03-09 13:02:00,852 - INFO - DEBUG: Total lines: 26
-2026-03-09 13:02:11,861 - INFO - syntax Correct
-2026-03-09 13:02:42,737 - INFO - Validate:
-2026-03-09 13:02:42,737 - INFO - [True, True, True, True, True, True, True]
-2026-03-09 13:02:42,737 - INFO - 
-2026-03-09 13:02:42,737 - INFO - Verify:
-2026-03-09 13:02:42,737 - INFO - []
-2026-03-09 13:02:42,737 - INFO - 
-2026-03-09 13:02:42,737 - INFO - Houdini iteration 1: All invariants are valid
-2026-03-09 13:02:53,596 - INFO - syntax Correct
-2026-03-09 13:03:24,475 - INFO - Validate:
-2026-03-09 13:03:24,476 - INFO - [True, True, True, True, True, True, True]
-2026-03-09 13:03:24,476 - INFO - 
-2026-03-09 13:03:24,476 - INFO - Verify:
-2026-03-09 13:03:24,476 - INFO - []
-2026-03-09 13:03:24,476 - INFO - 
-2026-03-09 13:04:18,888 - INFO - Deduplicated 3 loop invariants in final code
-2026-03-09 13:04:29,658 - INFO - syntax Correct
-2026-03-09 13:05:00,483 - INFO - Validate:
-2026-03-09 13:05:00,483 - INFO - [True, True, True, True]
-2026-03-09 13:05:00,483 - INFO - 
-2026-03-09 13:05:00,483 - INFO - Verify:
-2026-03-09 13:05:00,483 - INFO - []
-2026-03-09 13:05:00,484 - INFO - 
-2026-03-09 13:05:00,484 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-09 13:05:00,484 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_15/1.c
-2026-03-09 13:05:00,484 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_15/1_invariants.txt
-2026-03-09 13:05:00,484 - INFO - 
+2026-03-11 16:38:03,725 - INFO - Successfully generated 5/5 candidates
+2026-03-11 16:38:03,726 - INFO - Checking 6 invariants for conflicts...
+2026-03-11 16:38:03,729 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 16:38:03,729 - INFO -   1: int main1(){
+2026-03-11 16:38:03,729 - INFO -   2:   int cjd, neh, j, k1, xf;
+2026-03-11 16:38:03,729 - INFO -   3: 
+2026-03-11 16:38:03,729 - INFO -   4:   cjd=1+6;
+2026-03-11 16:38:03,729 - INFO -   5:   neh=0;
+2026-03-11 16:38:03,729 - INFO -   6:   j=12;
+2026-03-11 16:38:03,729 - INFO -   7:   k1=1;
+2026-03-11 16:38:03,729 - INFO -   8:   xf=0;
+2026-03-11 16:38:03,729 - INFO -   9: 
+2026-03-11 16:38:03,729 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-11 16:38:03,729 - INFO - DEBUG: Total lines: 36
+2026-03-11 16:38:03,993 - INFO - syntax Correct
+2026-03-11 16:38:34,883 - INFO - Validate:
+2026-03-11 16:38:34,883 - INFO - [True, True, True, True, True, True]
+2026-03-11 16:38:34,883 - INFO - 
+2026-03-11 16:38:34,884 - INFO - Verify:
+2026-03-11 16:38:34,884 - INFO - []
+2026-03-11 16:38:34,884 - INFO - 
+2026-03-11 16:38:34,884 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-11 16:38:35,129 - INFO - syntax Correct
+2026-03-11 16:39:06,022 - INFO - Validate:
+2026-03-11 16:39:06,022 - INFO - [True, True, True, True, True, True]
+2026-03-11 16:39:06,022 - INFO - 
+2026-03-11 16:39:06,022 - INFO - Verify:
+2026-03-11 16:39:06,022 - INFO - []
+2026-03-11 16:39:06,022 - INFO - 
+2026-03-11 16:39:33,973 - INFO - Deduplicated 1 loop invariants in final code
+2026-03-11 16:39:34,188 - INFO - syntax Correct
+2026-03-11 16:40:04,969 - INFO - Validate:
+2026-03-11 16:40:04,969 - INFO - [True, True, True, True, True]
+2026-03-11 16:40:04,969 - INFO - 
+2026-03-11 16:40:04,969 - INFO - Verify:
+2026-03-11 16:40:04,969 - INFO - []
+2026-03-11 16:40:04,969 - INFO - 
+2026-03-11 16:40:04,969 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 16:40:04,969 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_15/1.c
+2026-03-11 16:40:04,970 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_15/1_invariants.txt
+2026-03-11 16:40:04,970 - INFO - 
 ============================================================
-2026-03-09 13:05:00,484 - INFO - Final first_pass results:
-2026-03-09 13:05:00,484 - INFO -   syntax=1
-2026-03-09 13:05:00,484 - INFO -   valid=1
-2026-03-09 13:05:00,484 - INFO -   satisfy=None
-2026-03-09 13:05:00,484 - INFO - ============================================================
-2026-03-09 13:05:00,484 - INFO - 
+2026-03-11 16:40:04,970 - INFO - Final first_pass results:
+2026-03-11 16:40:04,970 - INFO -   syntax=1
+2026-03-11 16:40:04,970 - INFO -   valid=1
+2026-03-11 16:40:04,970 - INFO -   satisfy=None
+2026-03-11 16:40:04,970 - INFO - ============================================================
+2026-03-11 16:40:04,970 - INFO - 
 ============================================================
-2026-03-09 13:05:00,484 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-09 13:05:00,484 - INFO -   Total API calls: 2
-2026-03-09 13:05:00,484 - INFO -   Total prompt tokens (input): 1,786
-2026-03-09 13:05:00,484 - INFO -   Total completion tokens (output): 3,822
-2026-03-09 13:05:00,484 - INFO -   Total tokens: 5,608
-2026-03-09 13:05:00,484 - INFO -   Average per call:
-2026-03-09 13:05:00,484 - INFO -     Prompt: 893.0 tokens
-2026-03-09 13:05:00,484 - INFO -     Completion: 1911.0 tokens
-2026-03-09 13:05:00,484 - INFO -     Total: 2804.0 tokens
-2026-03-09 13:05:00,485 - INFO - ============================================================
-2026-03-09 13:05:00,485 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_15/1.c
-2026-03-09 13:05:00,485 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_4036838_1773032005_15/1_invariants.txt
-2026-03-09 13:05:53,189 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 16:40:04,970 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 16:40:04,970 - INFO -   Total API calls: 32
+2026-03-11 16:40:04,970 - INFO -   Total prompt tokens (input): 31,899
+2026-03-11 16:40:04,970 - INFO -   Total completion tokens (output): 162,224
+2026-03-11 16:40:04,970 - INFO -   Total tokens: 194,123
+2026-03-11 16:40:04,970 - INFO -   Average per call:
+2026-03-11 16:40:04,970 - INFO -     Prompt: 996.8 tokens
+2026-03-11 16:40:04,970 - INFO -     Completion: 5069.5 tokens
+2026-03-11 16:40:04,970 - INFO -     Total: 6066.3 tokens
+2026-03-11 16:40:04,970 - INFO - ============================================================
+2026-03-11 16:40:04,970 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_15/1.c
+2026-03-11 16:40:04,970 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_15/1_invariants.txt
+2026-03-11 16:40:35,096 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

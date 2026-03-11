@@ -1,516 +1,578 @@
-2026-03-08 11:31:42,498 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-08 11:31:42,510 - INFO - Found 1 loops
-2026-03-08 11:31:42,511 - INFO - 
+2026-03-11 01:34:12,347 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-11 01:34:12,371 - INFO - Found 2 loops
+2026-03-11 01:34:12,374 - INFO - 
 ============================================================
-2026-03-08 11:31:42,511 - INFO - Main generation pass 1/1
-2026-03-08 11:31:42,511 - INFO - ============================================================
-2026-03-08 11:31:42,511 - INFO - Loaded single prompt template: simple
-2026-03-08 11:31:42,511 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-08 11:31:42,511 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-08 11:31:42,527 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:33:50,390 - INFO - 
+2026-03-11 01:34:12,374 - INFO - Main generation pass 1/1
+2026-03-11 01:34:12,374 - INFO - ============================================================
+2026-03-11 01:34:12,374 - INFO - Loaded single prompt template: simple
+2026-03-11 01:34:12,374 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-11 01:34:12,374 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-11 01:34:12,388 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 01:36:17,595 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants for the given loop in main1. Observing the loop updates:
-- xzu increments by 1 each iteration and the loop runs as long as xzu <= z-1, with z = l + 22.
-- s accumulates xzu each iteration, starting from initial s0 = \at(s,Pre).
-- thr starts from l and increases by 3 each iteration, yielding thr = l + 3*xzu.
-- pl starts at 0 and cycles as pl = xzu mod 7.
-Thus, after k iterations (k = number of iterations already performed, i.e., current xzu), we have:
-- s = s0 + k*(k+1)/2
-- thr = l + 3*k
-- pl = k mod 7
-Additionally, xzu is nonnegative (0 ≤ xzu) and the loop variant (used for termination) can be z - xzu, which decreases by 1 each iteration while the guard is true, since xzu ≤ z-1 => z - xzu ≥ 1.
+<reasoning>For Loop 0:
+- The loop updates two counters, yae and rc, by +1 each iteration, while the loop guard is yae < ek. A strong, inductive relation that naturally captures this joint progress is yae == rc. It holds initially (0 == 0) and is preserved by the body since both yae and rc are incremented by 1 each iteration. This provides a core conservation/relational equality explaining the loop updates.
+- A simple, useful progress bound is yae <= ek (and consequently rc <= ek). This bound is preserved as yae increases strictly by 1 per iteration and the loop exits when yae reaches ek.
 
-We express these as loop invariants:
-- s == \at(s, Pre) + xzu*(xzu+1)/2
-- thr == l + 3*xzu
-- pl == xzu % 7
-- 0 <= xzu
+For Loop 1:
+- mb0 is non-negative and monotone non-decreasing (it starts non-negative in the given context and is incremented by 1 each iteration). A basic progress/shape invariant mb0 >= 0 is safe and inductive.
+- vj starts at 3 and only increases by ek*mb0, so it remains non-negative and, in particular, vj >= 3 throughout. This gives a simple progress/shape invariant for the arithmetic involved.
+- Since j is updated by adding the new vj each iteration, j is non-decreasing as long as vj is non-negative; we include a permissive invariant that keeps mb0, vj, and j within safe bounds, here captured by mb0 >= 0 and vj >= 3. (A more precise invariant relating j to the initial value of j would rely on \at(j, Pre), but we keep the invariants tight and verification-friendly.)
 
-We also provide a loop variant: z - xzu, ensuring termination reasoning. The loop assigns are the variables modified inside the loop: s, thr, pl, xzu. All invariants rely only on available variables (l, s, thr, xzu, z) and function parameter initial value via \at(s,Pre). This set is inductive and verification-friendly for Frama-C/WP. Now the complete annotated code is provided below. </reasoning>
-<code>int main1(int s,int l){
-  int z, pl, xzu, thr;
+These choices provide inductive invariants that are strong enough to guide WP verification without over-constraining the initial state. The loop assigns are the variables actually updated inside each loop: Loop 0 updates mb0, rc, yae; Loop 1 updates vj, j, mb0. The invariants are kept concise and directly reflect the key state-transition structure (core equality in Loop 0; simple monotonicity bounds in Loop 1). </reasoning>
 
-  z=l+22;
-  pl=0;
-  xzu=0;
-  thr=l;
+<code>int main1(int m,int j){
+  int ek, vj, yae, mb0, rc;
+
+  ek=21;
+  vj=3;
+  yae=0;
+  mb0=j;
+  rc=0;
+
+  /* Loop 0 invariants
+     - yae == rc: both counters advance in lockstep (core conservation equality)
+     - yae <= ek: progress bound (yae never exceeds loop bound ek)
+     Loop assigns mb0, rc, yae;
+  */
+  /*@
+    loop invariant yae == rc;
+    loop invariant yae <= ek;
+    loop assigns mb0, rc, yae;
+  */
+  while (yae<ek) {
+      if (rc<ek) {
+          mb0 = yae;
+      }
+      rc = rc + 1;
+      yae++;
+  }
+
+  /* Loop 1 invariants
+     - mb0 >= 0: non-negative loop counter (progress bound)
+     - vj >= 3: vj maintains non-negativity and initial positivity
+     Loop assigns vj, j, mb0;
+  */
+  /*@
+    loop invariant mb0 >= 0;
+    loop invariant vj >= 3;
+    loop assigns vj, j, mb0;
+  */
+  while (mb0-1>=0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
+  }
+
+} </code>
+----- Candidate 1/5 raw response end -----
+2026-03-11 01:36:17,596 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-11 01:36:17,609 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 01:40:47,843 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>Loop 0 (first while): We can observe a simple, inductive relation between rc and yae: both start at 0 and are incremented by 1 each iteration, so rc == yae holds at the loop head and remains true throughout. The assignment mb0 = yae happens exactly when rc < ek, which is equivalent to yae < ek, so mb0 takes the value of yae for yae in 0..ek-1. This yields a strong, inductive relation: for yae > 0, mb0 equals yae - 1 (since mb0 is set to the previous yae value before yae is incremented). We therefore propose invariants that capture these facts plus simple bounds on yae, rc, and mb0. We also declare the loop assigns rc, yae, mb0. Finally, ek - yae can be used as a loop variant to show termination since yae increases by 1 each iteration and yae < ek must hold for the loop to continue.
+
+Loop 1 (second while): This loop updates mb0 by +1 each iteration and updates vj by ek * mb0, then updates j by vj. A safe, verification-friendly approach is to state basic non-negativity and monotonicity properties that are preserved by the updates: mb0 remains >= 0 and vj remains >= 0 (ek is non-negative and mb0 is non-negative throughout the loop). We also keep the loop assigns clause precise: this loop only modifies vj, j, mb0. These invariants are inductive given the loop body, and do not rely on non-parameter locals or initial values not accessible via the given variables. No loop variant is added for this loop to avoid asserting termination where the termination condition may depend on unbounded growth of mb0.
+
+Overall, the chosen invariants are strong, inductive, and directly reflect the loop updates and key counters, while keeping the code unchanged except for the inserted ACSL annotations. </reasoning>
+<code>int main1(int m,int j){
+  int ek, vj, yae, mb0, rc;
+
+  ek=21;
+  vj=3;
+  yae=0;
+  mb0=j;
+  rc=0;
 
   /*@
-     loop invariant s == \at(s, Pre) + xzu*(xzu+1)/2;
-     loop invariant thr == l + 3*xzu;
-     loop invariant pl == xzu % 7;
-     loop invariant 0 <= xzu;
-     loop variant z - xzu;
-     loop assigns s, thr, pl, xzu;
-  @*/
-  while (1) {
-      if (!(xzu<=z-1)) {
-          break;
+    loop invariant rc == yae;
+    loop invariant 0 <= yae <= ek;
+    loop invariant 0 <= rc <= ek;
+    loop invariant mb0 <= ek - 1;
+    loop invariant (yae > 0) ==> (mb0 == yae - 1);
+    loop assigns rc, yae, mb0;
+    loop variant ek - yae;
+  */
+  while (yae<ek) {
+      if (rc<ek) {
+          mb0 = yae;
       }
-      thr = thr + 3;
-      pl = (pl+1)%7;
-      xzu += 1;
-      s = s + xzu;
+      rc = rc + 1;
+      yae++;
+  }
+
+  /*@
+    loop invariant mb0 >= 0;
+    loop invariant vj >= 0;
+    loop invariant ek >= 0;
+    loop assigns vj, j, mb0;
+  */
+  while (mb0-1>=0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
   }
 
 }</code>
------ Candidate 1/5 raw response end -----
-2026-03-08 11:33:50,390 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-08 11:33:50,408 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:34:31,043 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>
-I derived invariants that are inductive, precise about how the loop updates state, and useful for verification:
-
-- Core relational equality for s: each iteration increments xzu by 1 and then adds the new xzu to s. Starting from xzu==0, s accumulates 1+2+...+xzu = xzu*(xzu+1)/2. So:
-    s == \at(s, Pre) + (xzu*(xzu+1))/2
-  This exactly captures s's evolution and is preserved by the body.
-
-- Conservation for thr and pl:
-    thr increases by 3 each iteration starting from l, hence thr == \at(l, Pre) + 3*xzu.
-    pl advances by +1 modulo 7 each iteration starting from 0, hence pl == xzu % 7 and 0 <= pl <= 6.
-  These explain the modular and arithmetic updates.
-
-- Relationship for z:
-    z is set once before the loop to l+22 and l is a parameter, so z == \at(l, Pre) + 22 is an invariant.
-
-- Progress bounds:
-    xzu is a non-negative counter (xzu >= 0). We cannot assume z >= 0 in general, so to make an inductive upper bound that holds initially we use the guarded form (z < 0) || xzu <= z. When z < 0 the loop cannot run (since xzu >= 0), so this disjunction holds initially and is preserved when the guard allows iterations. This gives the necessary progress information without making an invalid assumption.
-
-- Loop assigns:
-    The loop only modifies thr, pl, xzu, and s; the assigns clause lists exactly these variables.
-
-- Variant:
-    (z - xzu) is strictly decreased by 1 each iteration for iterations where the guard holds (since guard implies xzu <= z-1, so z-xzu >= 1). This establishes termination when the loop executes.
-
-All invariants use only available variables and \at(...) only on parameters (\at(s, Pre) and \at(l, Pre)), as required. They are strong (exact equalities) and inductive with respect to the loop body.
-</reasoning>
-<code>
-int main1(int s,int l){
-  int z, pl, xzu, thr;
-
-  z=l+22;
-  pl=0;
-  xzu=0;
-  thr=l;
-
-  /*@
-    loop invariant s == \at(s, Pre) + (xzu*(xzu+1))/2;
-    loop invariant thr == \at(l, Pre) + 3*xzu;
-    loop invariant pl == xzu % 7;
-    loop invariant 0 <= pl && pl <= 6;
-    loop invariant 0 <= xzu && (z < 0 || xzu <= z);
-    loop invariant z == \at(l, Pre) + 22;
-    loop assigns thr, pl, xzu, s;
-    loop variant (z - xzu);
-  */
-while (1) {
-      if (!(xzu<=z-1)) {
-          break;
-      }
-      thr = thr + 3;
-      pl = (pl+1)%7;
-      xzu += 1;
-      s = s + xzu;
-  }
-
-}
-</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-08 11:34:31,044 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-08 11:34:31,062 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:34:52,279 - INFO - 
+2026-03-11 01:40:47,844 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-11 01:40:47,856 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 01:43:58,814 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>
-I chose invariants that are inductive, explain the per-iteration state transition, give progress bounds, and are easy for WP to discharge:
+<reasoning>For the first loop (while yae < ek):
+- A core conservation/relational update is rc == yae. Because both rc and yae start at 0 and are incremented by exactly 1 each iteration, this equality is preserved across iterations.
+- A minimal progress bound is 0 <= yae <= ek, since yae starts at 0 and is incremented until the loop guard yae < ek becomes false (i.e., yae reaches ek).
+- Loop assigns must reflect the updated state within the loop: mb0, rc, yae are potentially modified. We express that explicitly.
+- A loop variant ek - yae is provided to help Frama-C WP reason about termination (decreases by 1 each iteration under yae < ek).
 
-- Core conservation/relational equalities:
-  - thr == l + 3*xzu. thr is initialized to l and increased by 3 each iteration, so thr is exactly l + 3*xzu.
-  - pl == xzu % 7. pl starts at 0 and is incremented modulo 7 once per iteration; because pl is updated before xzu is incremented, the invariant still holds at loop head (and is preserved by the body).
-  - (s - \at(s, Pre)) == (xzu*(xzu+1))/2. The update s = s + xzu after xzu++ makes s accumulate 1+2+...+xzu. Using \at(s, Pre) (allowed because s is a parameter) captures the initial value.
+For the second loop (while mb0-1 >= 0):
+- A straightforward inductive invariant is mb0 >= 0 (mb0 starts non-negative and is incremented in the loop).
+- Another inductive invariant is vj >= 3 (vj starts at 3 and is increased by ek*mb0, which is non-negative for mb0 >= 0, so vj does not decrease below its initial value).
+- Loop assigns are vj, j, mb0 since those are the variables updated inside the loop.
+- The second loop, as written, does not come with a natural, guaranteed termination measure for all possible initial states; hence no loop_variant is specified for safety. The provided invariant set is chosen to be inductive and verification-friendly given the provided loop body. </reasoning>
+<code>int main1(int m,int j){
+  int ek, vj, yae, mb0, rc;
 
-- Progress / bounds:
-  - 0 <= xzu <= z: xzu starts at 0, increases by 1 each iteration, and the loop stops when xzu > z-1; this non-strict bound (xzu <= z) is stable and helps WP prove termination and preservation.
-  - Variant z - xzu: decreases by 1 each loop iteration while non-negative at loop entry.
-
-- Assigns:
-  - The loop modifies exactly thr, pl, xzu, s; no other variables are written.
-
-All invariants are inductive: they hold initially (checked from the assignments before the loop) and are preserved by the body (each equality follows the body updates). The variant is non-negative at loop head when the body executes and strictly decreases each iteration, supporting termination proofs for WP.
-</reasoning>
-<code>
-int main1(int s,int l){
-  int z, pl, xzu, thr;
-
-  z=l+22;
-  pl=0;
-  xzu=0;
-  thr=l;
+  ek=21;
+  vj=3;
+  yae=0;
+  mb0=j;
+  rc=0;
 
   /*@
-    loop invariant 0 <= xzu && xzu <= z;
-    loop invariant thr == l + 3*xzu;
-    loop invariant pl == xzu % 7;
-    loop invariant (s - \at(s, Pre)) == ((xzu*(xzu+1))/2);
-    loop assigns thr, pl, xzu, s;
-    loop variant (z - xzu);
+    loop invariant rc == yae;
+    loop invariant 0 <= yae && yae <= ek;
+    loop assigns mb0, rc, yae;
+    loop variant ek - yae;
   */
-  while (1) {
-      if (!(xzu<=z-1)) {
-          break;
+  while (yae&lt;ek) {
+      if (rc&lt;ek) {
+          mb0 = yae;
       }
-      thr = thr + 3;
-      pl = (pl+1)%7;
-      xzu += 1;
-      s = s + xzu;
+      rc = rc + 1;
+      yae++;
   }
 
-}
-</code>
+  /*@
+    loop invariant mb0 &gt;= 0;
+    loop invariant vj &gt;= 3;
+    loop assigns vj, j, mb0;
+  */
+  while (mb0-1&ge;0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
+  }
+
+}</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-08 11:34:52,280 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-08 11:34:52,298 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:36:36,995 - INFO - 
+2026-03-11 01:43:58,814 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-11 01:43:58,829 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 01:46:00,814 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>The loop updates several state variables: xzu increases by 1 each iteration, thr increases by 3, pl increments modulo 7, and s accumulates the new xzu value. A natural loop invariant set that is both inductive and verification-friendly is to express these update relationships as equalities tying current values to the iteration count n = xzu.
+<reasoning>
+First loop:
+- Use rc == yae as a core conserved relation. Both rc and yae start at 0 and are incremented by 1 in each loop iteration, so rc == yae holds before every iteration and is preserved.
+- Add bounds 0 <= yae <= ek to capture progress toward the loop exit (yae starts at 0 and is incremented until it reaches ek).
+- The loop updates mb0, rc, yae; hence loop assigns mb0, rc, yae.
+- Include a loop variant ek - yae to assist termination reasoning.
 
-- Core conservation/relational equality: thr == l + 3 * xzu
-  This matches the initial thr = l and the per-iteration +3 update.
+Second loop:
+- The loop has a predictable, closed-form evolution for vj in terms of mb0 and ek. Using the exact update pattern, we can derive an invariant:
+  vj == 3 + ek * ((mb0 - (ek - 1)) * (mb0 + (ek - 1) - 1) / 2)
+  which holds initially (mb0 == ek - 1, vj == 3) and is preserved by each iteration (the derivation can be verified by induction from the update rules).
+- Also, since mb0 starts at ek - 1 and increments each iteration, a simple invariant mb0 >= (ek - 1) holds.
+- The loop assigns vj, j, mb0.
 
-- Additional inductive relations that help WP:
-  - pl == xzu % 7 (pl cycles with period 7 as xzu increments)
-  - s == \at(s,Pre) + xzu*(xzu+1)/2 (s starts at its initial value and adds 1,2,...,n)
-  - z == l + 22 (constant relation from initial assignment z = l+22)
-  - 0 <= xzu (xzu never decreases)
-
-- Termination aid (loop variant): loop variant z - xzu
-  Since the loop runs only while xzu <= z-1, z - xzu decreases by 1 each iteration and stays non-negative at start of each iteration.
-
-- Loop assigns: thr, pl, xzu, s
-
-These invariants are all expressed using only available variables (l, pl, s, thr, xzu, z) and the function parameter s with its Pre value where needed. They are strong and non-tautological, and they support proving the loop exits with the intended invariant relationships preserved.
-
+These invariants are inductive, non-tautological, and aligned with the loop updates, and they use only allowed variables. They avoid relying on at-Pre for local variables and keep the function unchanged otherwise.
 </reasoning>
-<code>int main1(int s,int l){
-  int z, pl, xzu, thr;
+<code>/*@
+  loop invariant rc == yae;
+  loop invariant 0 &lt;= yae &amp;&amp; yae &amp;&amp; yae &lt;= ek;
+  loop assigns mb0, rc, yae;
+  loop variant ek - yae;
+*/
+while (yae&lt;ek) {
+      if (rc&lt;ek) {
+          mb0 = yae;
+      }
+      rc = rc + 1;
+      yae++;
+  }
 
-  z=l+22;
-  pl=0;
-  xzu=0;
-  thr=l;
+/*@ 
+  loop invariant vj == 3 + ek * ((mb0 - (ek - 1)) * (mb0 + (ek - 1) - 1) / 2);
+  loop invariant mb0 &gt;= (ek - 1);
+  loop assigns vj, j, mb0;
+*/
+while (mb0-1&gt;=0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
+  }</code>
+----- Candidate 4/5 raw response end -----
+2026-03-11 01:46:00,814 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-11 01:46:00,826 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-11 01:47:30,953 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>For Loop 0 I use a simple, inductive invariant that captures the core state update observed in the loop: rc increments exactly as yae, and both stay within the natural progress bounds up to ek. This gives a strong, inductive relation that is preserved by each iteration and helps reason about loop termination. I also include a bound on rc to tighten the range.
+
+- Core conservation/relational equality: rc == yae
+- Progress bounds: 0 <= yae <= ek and 0 <= rc <= ek
+- Loop assigns for this loop: mb0, rc, yae
+
+For Loop 1 I provide invariants that capture non-negativity and monotonicity of the arithmetic progression:
+
+- mb0 is non-negative: 0 <= mb0
+- vj is non-decreasing and at least its initial value (3): 3 <= vj
+- Loop assigns for this loop: vj, j, mb0
+
+These invariants are inductive (hold initially and preserved by each iteration) and verification-friendly for Frama-C/WP, while keeping the code unchanged and within the allowed variable set. They avoid tautologies and do not rely on non-parameter local Pre-views. </reasoning>
+<code>int main1(int m,int j){
+  int ek, vj, yae, mb0, rc;
+
+  ek=21;
+  vj=3;
+  yae=0;
+  mb0=j;
+  rc=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant z == l + 22;
-    loop invariant thr == l + 3 * xzu;
-    loop invariant pl == xzu % 7;
-    loop invariant s == \at(s,Pre) + xzu * (xzu + 1) / 2;
-    loop invariant 0 &lt;= xzu;
-    loop assigns thr, pl, xzu, s;
-    loop variant z - xzu;
-  @*/
-  while (1) {
-      if (!(xzu<=z-1)) {
-          break;
+    loop invariant rc == yae && (0 <= yae && yae <= ek);
+    loop invariant 0 <= rc && rc <= ek;
+    loop assigns mb0, rc, yae;
+  */
+  while (yae&lt;ek) {
+      if (rc&lt;ek) {
+          mb0 = yae;
       }
-      thr = thr + 3;
-      pl = (pl+1)%7;
-      xzu += 1;
-      s = s + xzu;
+      rc = rc + 1;
+      yae++;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant 0 <= mb0;
+    loop invariant 3 <= vj;
+    loop assigns vj, j, mb0;
+  */
+  while (mb0-1&gt;=0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
   }
 
 }</code>
------ Candidate 4/5 raw response end -----
-2026-03-08 11:36:36,995 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-08 11:36:37,009 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-08 11:37:16,384 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>To create inductive, verification-friendly loop invariants for the given loop, I derived the exact state-update relationships that hold across iterations and used only the available variables.
-
-Key observations:
-- z is initialized to l + 22 before the loop and never updated inside the loop, so z == l + 22 is an invariant.
-- thr starts at l and increases by 3 every iteration, hence thr == l + 3*xzu.
-- pl starts at 0 and cycles with (pl+1) % 7 each iteration, hence pl == xzu % 7 (since xzu increments by 1 each iteration from 0).
-- s accumulates s by xzu each iteration; with initial s as \at(s,Pre), after xzu iterations we have s == \at(s,Pre) + xzu*(xzu+1)/2.
-- The loop stops when xzu > z-1; the natural loop variant is z - xzu, which decreases by 1 each iteration and is positive whenever the loop executes.
-
-These invariants are preserved by each loop body execution, and together they provide a strong, exact, and independent description of the loop state. The loop assigns are s, thr, pl, and xzu. The variant z - xzu ensures progress toward termination. The invariants reference only allowed variables, including \at(s,Pre) for the initial s value, and do not rely on unknown constructs.
-
-</reasoning>
-<code>/*@
-  loop invariant z == l + 22;
-  loop invariant thr == l + 3*xzu;
-  loop invariant pl == xzu % 7;
-  loop invariant s == \at(s,Pre) + xzu*(xzu+1)/2;
-  loop assigns s, thr, pl, xzu;
-  loop variant z - xzu;
-*/
-while (1) {
-      if (!(xzu <= z - 1)) {
-          break;
-      }
-      thr = thr + 3;
-      pl = (pl + 1) % 7;
-      xzu += 1;
-      s = s + xzu;
-  }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-08 11:37:16,385 - INFO - 
+2026-03-11 01:47:30,953 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int s,int l){
-  int z, pl, xzu, thr;
+int main1(int m,int j){
+  int ek, vj, yae, mb0, rc;
 
-  z=l+22;
-  pl=0;
-  xzu=0;
-  thr=l;
+  ek=21;
+  vj=3;
+  yae=0;
+  mb0=j;
+  rc=0;
 
+  /* Loop 0 invariants
+     - yae == rc: both counters advance in lockstep (core conservation equality)
+     - yae <= ek: progress bound (yae never exceeds loop bound ek)
+     Loop assigns mb0, rc, yae;
+  */
   /*@
-     loop invariant s == \at(s, Pre) + xzu*(xzu+1)/2;
-     loop invariant thr == l + 3*xzu;
-     loop invariant pl == xzu % 7;
-     loop invariant 0 <= xzu;
-     loop variant z - xzu;
-     loop assigns s, thr, pl, xzu;
-  @*/
-  while (1) {
-      if (!(xzu<=z-1)) {
-          break;
+    loop invariant yae == rc;
+    loop invariant yae <= ek;
+    loop assigns mb0, rc, yae;
+  */
+  while (yae<ek) {
+      if (rc<ek) {
+          mb0 = yae;
       }
-      thr = thr + 3;
-      pl = (pl+1)%7;
-      xzu += 1;
-      s = s + xzu;
+      rc = rc + 1;
+      yae++;
+  }
+
+  /* Loop 1 invariants
+     - mb0 >= 0: non-negative loop counter (progress bound)
+     - vj >= 3: vj maintains non-negativity and initial positivity
+     Loop assigns vj, j, mb0;
+  */
+  /*@
+    loop invariant mb0 >= 0;
+    loop invariant vj >= 3;
+    loop assigns vj, j, mb0;
+  */
+  while (mb0-1>=0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-08 11:37:16,386 - INFO - 
+2026-03-11 01:47:30,953 - INFO - 
 ----- Candidate 2/5 full code begin -----
-int main1(int s,int l){
-  int z, pl, xzu, thr;
+int main1(int m,int j){
+  int ek, vj, yae, mb0, rc;
 
-  z=l+22;
-  pl=0;
-  xzu=0;
-  thr=l;
+  ek=21;
+  vj=3;
+  yae=0;
+  mb0=j;
+  rc=0;
 
   /*@
-    loop invariant s == \at(s, Pre) + (xzu*(xzu+1))/2;
-    loop invariant thr == \at(l, Pre) + 3*xzu;
-    loop invariant pl == xzu % 7;
-    loop invariant 0 <= pl && pl <= 6;
-    loop invariant 0 <= xzu && (z < 0 || xzu <= z);
-    loop invariant z == \at(l, Pre) + 22;
-    loop assigns thr, pl, xzu, s;
-    loop variant (z - xzu);
+    loop invariant rc == yae;
+    loop invariant 0 <= yae <= ek;
+    loop invariant 0 <= rc <= ek;
+    loop invariant mb0 <= ek - 1;
+    loop invariant (yae > 0) ==> (mb0 == yae - 1);
+    loop assigns rc, yae, mb0;
+    loop variant ek - yae;
   */
-while (1) {
-      if (!(xzu<=z-1)) {
-          break;
+  while (yae<ek) {
+      if (rc<ek) {
+          mb0 = yae;
       }
-      thr = thr + 3;
-      pl = (pl+1)%7;
-      xzu += 1;
-      s = s + xzu;
+      rc = rc + 1;
+      yae++;
+  }
+
+  /*@
+    loop invariant mb0 >= 0;
+    loop invariant vj >= 0;
+    loop invariant ek >= 0;
+    loop assigns vj, j, mb0;
+  */
+  while (mb0-1>=0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-08 11:37:16,386 - INFO - 
+2026-03-11 01:47:30,953 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int s,int l){
-  int z, pl, xzu, thr;
+int main1(int m,int j){
+  int ek, vj, yae, mb0, rc;
 
-  z=l+22;
-  pl=0;
-  xzu=0;
-  thr=l;
+  ek=21;
+  vj=3;
+  yae=0;
+  mb0=j;
+  rc=0;
 
   /*@
-    loop invariant 0 <= xzu && xzu <= z;
-    loop invariant thr == l + 3*xzu;
-    loop invariant pl == xzu % 7;
-    loop invariant (s - \at(s, Pre)) == ((xzu*(xzu+1))/2);
-    loop assigns thr, pl, xzu, s;
-    loop variant (z - xzu);
+    loop invariant rc == yae;
+    loop invariant 0 <= yae && yae <= ek;
+    loop assigns mb0, rc, yae;
+    loop variant ek - yae;
   */
-  while (1) {
-      if (!(xzu<=z-1)) {
-          break;
+  while (yae&lt;ek) {
+      if (rc&lt;ek) {
+          mb0 = yae;
       }
-      thr = thr + 3;
-      pl = (pl+1)%7;
-      xzu += 1;
-      s = s + xzu;
+      rc = rc + 1;
+      yae++;
+  }
+
+  /*@
+    loop invariant mb0 &gt;= 0;
+    loop invariant vj &gt;= 3;
+    loop assigns vj, j, mb0;
+  */
+  while (mb0-1&ge;0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-08 11:37:16,386 - INFO - 
+2026-03-11 01:47:30,953 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(int s,int l){
-  int z, pl, xzu, thr;
+/*@
+  loop invariant rc == yae;
+  loop invariant 0 &lt;= yae &amp;&amp; yae &amp;&amp; yae &lt;= ek;
+  loop assigns mb0, rc, yae;
+  loop variant ek - yae;
+*/
+while (yae&lt;ek) {
+      if (rc&lt;ek) {
+          mb0 = yae;
+      }
+      rc = rc + 1;
+      yae++;
+  }
 
-  z=l+22;
-  pl=0;
-  xzu=0;
-  thr=l;
+/*@ 
+  loop invariant vj == 3 + ek * ((mb0 - (ek - 1)) * (mb0 + (ek - 1) - 1) / 2);
+  loop invariant mb0 &gt;= (ek - 1);
+  loop assigns vj, j, mb0;
+*/
+while (mb0-1&gt;=0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
+  }
+----- Candidate 4/5 full code end -----
+2026-03-11 01:47:30,953 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int m,int j){
+  int ek, vj, yae, mb0, rc;
+
+  ek=21;
+  vj=3;
+  yae=0;
+  mb0=j;
+  rc=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant z == l + 22;
-    loop invariant thr == l + 3 * xzu;
-    loop invariant pl == xzu % 7;
-    loop invariant s == \at(s,Pre) + xzu * (xzu + 1) / 2;
-    loop invariant 0 &lt;= xzu;
-    loop assigns thr, pl, xzu, s;
-    loop variant z - xzu;
-  @*/
-  while (1) {
-      if (!(xzu<=z-1)) {
-          break;
+    loop invariant rc == yae && (0 <= yae && yae <= ek);
+    loop invariant 0 <= rc && rc <= ek;
+    loop assigns mb0, rc, yae;
+  */
+  while (yae&lt;ek) {
+      if (rc&lt;ek) {
+          mb0 = yae;
       }
-      thr = thr + 3;
-      pl = (pl+1)%7;
-      xzu += 1;
-      s = s + xzu;
+      rc = rc + 1;
+      yae++;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant 0 <= mb0;
+    loop invariant 3 <= vj;
+    loop assigns vj, j, mb0;
+  */
+  while (mb0-1&gt;=0) {
+      vj = vj+ek*mb0;
+      j += vj;
+      mb0 = mb0 + 1;
   }
 
 }
------ Candidate 4/5 full code end -----
-2026-03-08 11:37:16,386 - INFO - 
------ Candidate 5/5 full code begin -----
-/*@
-  loop invariant z == l + 22;
-  loop invariant thr == l + 3*xzu;
-  loop invariant pl == xzu % 7;
-  loop invariant s == \at(s,Pre) + xzu*(xzu+1)/2;
-  loop assigns s, thr, pl, xzu;
-  loop variant z - xzu;
-*/
-while (1) {
-      if (!(xzu <= z - 1)) {
-          break;
-      }
-      thr = thr + 3;
-      pl = (pl + 1) % 7;
-      xzu += 1;
-      s = s + xzu;
-  }
 ----- Candidate 5/5 full code end -----
-2026-03-08 11:37:16,386 - INFO - Successfully generated 5/5 candidates
-2026-03-08 11:37:16,387 - INFO - Checking 12 invariants for conflicts...
-2026-03-08 11:37:16,390 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-08 11:37:16,390 - INFO -   1: int main1(int s,int l){
-2026-03-08 11:37:16,390 - INFO -   2:   int z, pl, xzu, thr;
-2026-03-08 11:37:16,390 - INFO -   3: 
-2026-03-08 11:37:16,390 - INFO -   4:   z=l+22;
-2026-03-08 11:37:16,390 - INFO -   5:   pl=0;
-2026-03-08 11:37:16,390 - INFO -   6:   xzu=0;
-2026-03-08 11:37:16,390 - INFO -   7:   thr=l;
-2026-03-08 11:37:16,391 - INFO -   8: 
-2026-03-08 11:37:16,391 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-08 11:37:16,391 - INFO -   10: /*@
-2026-03-08 11:37:16,391 - INFO - DEBUG: Total lines: 36
-2026-03-08 11:37:27,527 - INFO - syntax Correct
-2026-03-08 11:37:58,740 - INFO - Validate:
-2026-03-08 11:37:58,740 - INFO - [True, True, True, True, True, True, True, True, True, False, True, True]
-2026-03-08 11:37:58,740 - INFO - 
-2026-03-08 11:37:58,740 - INFO - Verify:
-2026-03-08 11:37:58,740 - INFO - []
-2026-03-08 11:37:58,740 - INFO - 
-2026-03-08 11:37:58,740 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-08 11:37:58,741 - INFO -   Before: 12 invariants
-2026-03-08 11:37:58,741 - INFO -   After: 11 invariants
-2026-03-08 11:37:58,741 - INFO -   Remaining invariants:
-2026-03-08 11:37:58,741 - INFO -     [1] s == \at(s, Pre) + xzu*(xzu+1)/2
-2026-03-08 11:37:58,741 - INFO -     [2] thr == l + 3*xzu
-2026-03-08 11:37:58,741 - INFO -     [3] pl == xzu % 7
-2026-03-08 11:37:58,741 - INFO -     [4] 0 <= xzu
-2026-03-08 11:37:58,741 - INFO -     [5] s == \at(s, Pre) + (xzu*(xzu+1))/2
-2026-03-08 11:37:58,741 - INFO -     [6] thr == \at(l, Pre) + 3*xzu
-2026-03-08 11:37:58,741 - INFO -     [7] 0 <= pl && pl <= 6
-2026-03-08 11:37:58,741 - INFO -     [8] 0 <= xzu && (z < 0 || xzu <= z)
-2026-03-08 11:37:58,741 - INFO -     [9] z == \at(l, Pre) + 22
-2026-03-08 11:37:58,741 - INFO -     [10] (s - \at(s, Pre)) == ((xzu*(xzu+1))/2)
-2026-03-08 11:37:58,741 - INFO -     [11] z == l + 22
-2026-03-08 11:38:09,786 - INFO - syntax Correct
-2026-03-08 11:38:40,908 - INFO - Validate:
-2026-03-08 11:38:40,908 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-08 11:38:40,909 - INFO - 
-2026-03-08 11:38:40,909 - INFO - Verify:
-2026-03-08 11:38:40,909 - INFO - []
-2026-03-08 11:38:40,909 - INFO - 
-2026-03-08 11:38:40,909 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-08 11:38:51,940 - INFO - syntax Correct
-2026-03-08 11:39:23,032 - INFO - Validate:
-2026-03-08 11:39:23,032 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-08 11:39:23,032 - INFO - 
-2026-03-08 11:39:23,032 - INFO - Verify:
-2026-03-08 11:39:23,032 - INFO - []
-2026-03-08 11:39:23,032 - INFO - 
-2026-03-08 11:40:07,211 - INFO - Deduplicated 7 loop invariants in final code
-2026-03-08 11:40:18,089 - INFO - syntax Correct
-2026-03-08 11:40:48,978 - INFO - Validate:
-2026-03-08 11:40:48,978 - INFO - [True, True, True, True, True, True]
-2026-03-08 11:40:48,978 - INFO - 
-2026-03-08 11:40:48,978 - INFO - Verify:
-2026-03-08 11:40:48,978 - INFO - []
-2026-03-08 11:40:48,978 - INFO - 
-2026-03-08 11:40:48,979 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-08 11:40:48,979 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_70/1.c
-2026-03-08 11:40:48,979 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_70/1_invariants.txt
-2026-03-08 11:40:48,979 - INFO - 
+2026-03-11 01:47:30,953 - INFO - Successfully generated 5/5 candidates
+2026-03-11 01:47:30,954 - INFO - Checking 10 invariants for conflicts...
+2026-03-11 01:47:30,955 - INFO - Checking 7 invariants for conflicts...
+2026-03-11 01:47:30,957 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-11 01:47:30,957 - INFO -   1: int main1(int m,int j){
+2026-03-11 01:47:30,957 - INFO -   2:   int ek, vj, yae, mb0, rc;
+2026-03-11 01:47:30,957 - INFO -   3: 
+2026-03-11 01:47:30,957 - INFO -   4:   ek=21;
+2026-03-11 01:47:30,957 - INFO -   5:   vj=3;
+2026-03-11 01:47:30,957 - INFO -   6:   yae=0;
+2026-03-11 01:47:30,957 - INFO -   7:   mb0=j;
+2026-03-11 01:47:30,957 - INFO -   8:   rc=0;
+2026-03-11 01:47:30,957 - INFO -   9: 
+2026-03-11 01:47:30,957 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-11 01:47:30,957 - INFO - DEBUG: Total lines: 50
+2026-03-11 01:47:31,158 - INFO - syntax Correct
+2026-03-11 01:48:01,921 - INFO - Validate:
+2026-03-11 01:48:01,922 - INFO - [True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 01:48:01,922 - INFO - 
+2026-03-11 01:48:01,922 - INFO - Verify:
+2026-03-11 01:48:01,922 - INFO - []
+2026-03-11 01:48:01,922 - INFO - 
+2026-03-11 01:48:01,922 - INFO - Houdini iteration 1: Removed 1 failed invariants
+2026-03-11 01:48:01,922 - INFO -   Before: 17 invariants
+2026-03-11 01:48:01,922 - INFO -   After: 16 invariants
+2026-03-11 01:48:01,922 - INFO -   Remaining invariants:
+2026-03-11 01:48:01,922 - INFO -     [1] yae == rc
+2026-03-11 01:48:01,922 - INFO -     [2] yae <= ek
+2026-03-11 01:48:01,922 - INFO -     [3] rc == yae
+2026-03-11 01:48:01,922 - INFO -     [4] 0 <= yae <= ek
+2026-03-11 01:48:01,922 - INFO -     [5] 0 <= rc <= ek
+2026-03-11 01:48:01,922 - INFO -     [6] (yae > 0) ==> (mb0 == yae - 1)
+2026-03-11 01:48:01,922 - INFO -     [7] 0 <= yae && yae <= ek
+2026-03-11 01:48:01,922 - INFO -     [8] rc == yae && (0 <= yae && yae <= ek)
+2026-03-11 01:48:01,922 - INFO -     [9] 0 <= rc && rc <= ek
+2026-03-11 01:48:01,922 - INFO -     [10] mb0 >= 0
+2026-03-11 01:48:01,922 - INFO -     [11] vj >= 3
+2026-03-11 01:48:01,922 - INFO -     [12] vj >= 0
+2026-03-11 01:48:01,922 - INFO -     [13] ek >= 0
+2026-03-11 01:48:01,922 - INFO -     [14] vj == 3 + ek * ((mb0 - (ek - 1)) * (mb0 + (ek - 1) - 1) / 2)
+2026-03-11 01:48:01,922 - INFO -     [15] 0 <= mb0
+2026-03-11 01:48:01,922 - INFO -     [16] 3 <= vj
+2026-03-11 01:48:02,146 - INFO - syntax Correct
+2026-03-11 01:48:03,371 - INFO - Validate:
+2026-03-11 01:48:03,372 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 01:48:03,372 - INFO - 
+2026-03-11 01:48:03,372 - INFO - Verify:
+2026-03-11 01:48:03,372 - INFO - []
+2026-03-11 01:48:03,372 - INFO - 
+2026-03-11 01:48:03,372 - INFO - Houdini iteration 2: All invariants are valid
+2026-03-11 01:48:03,594 - INFO - syntax Correct
+2026-03-11 01:48:04,817 - INFO - Validate:
+2026-03-11 01:48:04,817 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-11 01:48:04,817 - INFO - 
+2026-03-11 01:48:04,817 - INFO - Verify:
+2026-03-11 01:48:04,817 - INFO - []
+2026-03-11 01:48:04,817 - INFO - 
+2026-03-11 01:49:57,830 - INFO - Deduplicated 14 loop invariants in final code
+2026-03-11 01:49:58,015 - INFO - syntax Correct
+2026-03-11 01:49:58,967 - INFO - Validate:
+2026-03-11 01:49:58,967 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-11 01:49:58,967 - INFO - 
+2026-03-11 01:49:58,968 - INFO - Verify:
+2026-03-11 01:49:58,968 - INFO - []
+2026-03-11 01:49:58,968 - INFO - 
+2026-03-11 01:49:58,968 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-11 01:49:58,968 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_501790_1773159979_70/1.c
+2026-03-11 01:49:58,968 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_501790_1773159979_70/1_invariants.txt
+2026-03-11 01:49:58,968 - INFO - 
 ============================================================
-2026-03-08 11:40:48,979 - INFO - Final first_pass results:
-2026-03-08 11:40:48,979 - INFO -   syntax=1
-2026-03-08 11:40:48,979 - INFO -   valid=1
-2026-03-08 11:40:48,979 - INFO -   satisfy=None
-2026-03-08 11:40:48,979 - INFO - ============================================================
-2026-03-08 11:40:48,979 - INFO - 
+2026-03-11 01:49:58,968 - INFO - Final first_pass results:
+2026-03-11 01:49:58,968 - INFO -   syntax=1
+2026-03-11 01:49:58,968 - INFO -   valid=1
+2026-03-11 01:49:58,968 - INFO -   satisfy=None
+2026-03-11 01:49:58,968 - INFO - ============================================================
+2026-03-11 01:49:58,968 - INFO - 
 ============================================================
-2026-03-08 11:40:48,979 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-08 11:40:48,979 - INFO -   Total API calls: 9
-2026-03-08 11:40:48,979 - INFO -   Total prompt tokens (input): 9,877
-2026-03-08 11:40:48,979 - INFO -   Total completion tokens (output): 49,568
-2026-03-08 11:40:48,979 - INFO -   Total tokens: 59,445
-2026-03-08 11:40:48,979 - INFO -   Average per call:
-2026-03-08 11:40:48,979 - INFO -     Prompt: 1097.4 tokens
-2026-03-08 11:40:48,979 - INFO -     Completion: 5507.6 tokens
-2026-03-08 11:40:48,979 - INFO -     Total: 6605.0 tokens
-2026-03-08 11:40:48,979 - INFO - ============================================================
-2026-03-08 11:40:48,979 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_70/1.c
-2026-03-08 11:40:48,980 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3737318_1772939027_70/1_invariants.txt
-2026-03-08 11:41:21,630 - INFO - LLM quality-gate raw response: {
+2026-03-11 01:49:58,968 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-11 01:49:58,968 - INFO -   Total API calls: 10
+2026-03-11 01:49:58,968 - INFO -   Total prompt tokens (input): 11,051
+2026-03-11 01:49:58,968 - INFO -   Total completion tokens (output): 70,264
+2026-03-11 01:49:58,968 - INFO -   Total tokens: 81,315
+2026-03-11 01:49:58,968 - INFO -   Average per call:
+2026-03-11 01:49:58,968 - INFO -     Prompt: 1105.1 tokens
+2026-03-11 01:49:58,968 - INFO -     Completion: 7026.4 tokens
+2026-03-11 01:49:58,968 - INFO -     Total: 8131.5 tokens
+2026-03-11 01:49:58,968 - INFO - ============================================================
+2026-03-11 01:49:58,968 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_501790_1773159979_70/1.c
+2026-03-11 01:49:58,968 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_501790_1773159979_70/1_invariants.txt
+2026-03-11 01:51:25,668 - INFO - LLM quality-gate raw response: {
   "ok": true,
   "reason": "pass"
 }
-2026-03-08 11:57:26 - INFO - COT Phase#1: generating reverse-COTs for 95 code pieces (dedup inside)...
-2026-03-08 12:36:08 - INFO - COT Phase#1: 95/95 unique COTs generated successfully.
-2026-03-08 12:36:08 - INFO - COT Phase#2: generating rejected reverse-COTs for 399 unique dpo_aug.rejected code pieces...
-2026-03-08 15:07:23 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces...
-2026-03-08 15:07:50 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-08 15:07:50 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
-2026-03-08 15:07:50 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
-2026-03-08 15:07:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 15:23:23 - INFO - COT Phase#1: generating reverse-COTs for 104 code pieces (dedup inside)...
-2026-03-08 16:06:19 - INFO - COT Phase#1: 104/104 unique COTs generated successfully.
-2026-03-08 16:06:19 - INFO - COT Phase#2: generating rejected reverse-COTs for 442 unique dpo_aug.rejected code pieces...
-2026-03-08 19:24:45 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-08 19:41:34 - INFO - COT Phase#1: generating reverse-COTs for 110 code pieces (dedup inside)...
-2026-03-08 20:30:21 - INFO - COT Phase#1: 110/110 unique COTs generated successfully.
-2026-03-08 20:30:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 464 unique dpo_aug.rejected code pieces...
-2026-03-08 23:59:21 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 00:15:22 - INFO - COT Phase#1: generating reverse-COTs for 115 code pieces (dedup inside)...
-2026-03-09 01:10:40 - INFO - COT Phase#1: 115/115 unique COTs generated successfully.
-2026-03-09 01:10:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 491 unique dpo_aug.rejected code pieces...
-2026-03-09 04:28:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 04:47:23 - INFO - COT Phase#1: generating reverse-COTs for 127 code pieces (dedup inside)...
-2026-03-09 05:40:09 - INFO - COT Phase#1: 127/127 unique COTs generated successfully.
-2026-03-09 05:40:09 - INFO - COT Phase#2: generating rejected reverse-COTs for 538 unique dpo_aug.rejected code pieces...
-2026-03-09 09:19:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-09 13:18:48 - INFO - COT Phase#1: generating reverse-COTs for 142 code pieces (dedup inside)...
-2026-03-09 14:30:17 - INFO - COT Phase#1: 142/142 unique COTs generated successfully.
-2026-03-09 14:30:17 - INFO - COT Phase#2: generating rejected reverse-COTs for 600 unique dpo_aug.rejected code pieces...
+2026-03-11 02:09:23 - INFO - COT Phase#1: generating reverse-COTs for 14 code pieces (existing=236, dedup inside)...
+2026-03-11 02:20:37 - INFO - COT Phase#1: 14/14 unique COTs generated successfully.
+2026-03-11 02:20:38 - INFO - COT Phase#2: generating rejected reverse-COTs for 73 unique dpo_aug.rejected code pieces (existing=1076)...
+2026-03-11 03:18:41 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces (existing=1204)...
+2026-03-11 03:19:18 - WARNING - COT Phase: dropped 6 distill records missing valid <reasoning>/<code>.
+2026-03-11 03:19:18 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
+2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
+2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
+2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
+2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
+2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
+2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
+2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
+2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
+2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
+2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
+2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
+2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
+2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...

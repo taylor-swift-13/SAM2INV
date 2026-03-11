@@ -1,0 +1,23 @@
+int main1(int n,int q){
+  int r, f, v;
+
+  r=q+19;
+  f=0;
+  v=5;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+
+while (f+3<=r) {
+      v = v-v;
+      v = v+f;
+      if (f+4<=v+r) {
+          v = v+1;
+      }
+      f = f+3;
+  }
+/*@
+  assert !(f+3<=r) &&
+         (r == \at(q, Pre) + 19);
+*/
+
+}
