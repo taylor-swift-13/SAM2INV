@@ -105,6 +105,12 @@ CORE_NATIVE_EXTENSION_STYLE: Dict[str, str] = {
     "ramped_transfer_conservation": "linear",
     "alternating_swap_transfer": "state",
     "scheduled_queue_occupancy": "state",
+    "nested_triangular_accumulate": "linear",
+    "nested_triangular_balance": "linear",
+    "nested_grid_rowcol_sum": "linear",
+    "nested_grid_checkerboard": "branch",
+    "nested_block_drain": "linear",
+    "nested_block_staircase": "linear",
     "x1_geometric_growth_bound": "multiplicative",
     "x17_harmonic_step_reduction": "branch",
     "x19_rolling_sum_window": "state",
@@ -213,6 +219,9 @@ SEMANTIC_TEMPLATES: Dict[str, Dict] = {
     "X22_ramped_transfer_conservation": {"family": "linear", "cores": ["ramped_transfer_conservation"]},
     "X23_alternating_swap_transfer": {"family": "linear", "cores": ["alternating_swap_transfer"]},
     "X24_scheduled_queue_occupancy": {"family": "linear", "cores": ["scheduled_queue_occupancy"]},
+    "X25_nested_triangular_patterns": {"family": "linear", "cores": ["nested_triangular_accumulate", "nested_triangular_balance"]},
+    "X26_nested_grid_patterns": {"family": "linear", "cores": ["nested_grid_rowcol_sum", "nested_grid_checkerboard"]},
+    "X27_nested_block_patterns": {"family": "linear", "cores": ["nested_block_drain", "nested_block_staircase"]},
     "X1_geometric_growth_bound":  {"family": "linear", "cores": ["x1_geometric_growth_bound"]},
     "X7_carry_propagation_accumulator": {"family": "nla", "cores": ["x7_carry_propagation_accumulator"]},
 }
@@ -1678,6 +1687,7 @@ class ProbabilisticLoopFactory:
         b = state_vars[1] if len(state_vars) > 1 else state_vars[0]
         c = state_vars[2] if len(state_vars) > 2 else state_vars[0]
         d = state_vars[3] if len(state_vars) > 3 else state_vars[0]
+        e = state_vars[4] if len(state_vars) > 4 else state_vars[0]
 
         # Determine which semantic template to apply.
         # Enters if: (a) force_core specified by multi-loop pairing, or (b) passes probabilistic gate.
@@ -1785,6 +1795,12 @@ class ProbabilisticLoopFactory:
                 allow("ramped_transfer_conservation", lin_w + 1.0, 1, 4, 4)      # capped transfer with ramped step
                 allow("alternating_swap_transfer", lin_w + cond_w + 0.7, 1, 4, 3) # toggle-based two-way transfer
                 allow("scheduled_queue_occupancy", lin_w + cond_w + 0.8, 2, 5, 5) # periodic push/pop occupancy tracking
+                allow("nested_triangular_accumulate", lin_w + 1.1, 0, 2, 4)        # nested while: reset+inner accumulate
+                allow("nested_triangular_balance", lin_w + 1.0, 0, 2, 4)           # nested while: dual accumulator balance
+                allow("nested_grid_rowcol_sum", lin_w + 1.1, 0, 2, 4)              # nested while: row/col traversal
+                allow("nested_grid_checkerboard", lin_w + cond_w + 0.8, 1, 2, 4)   # nested while + parity branch
+                allow("nested_block_drain", lin_w + cond_w + 0.9, 0, 2, 4)         # nested while: bounded drain per outer block
+                allow("nested_block_staircase", lin_w + 1.0, 0, 2, 4)              # nested while: staircase inner work
                 allow("x1_geometric_growth_bound", lin_w + 0.9, 0, 2, 2)          # doubling growth until bound exceeded
                 allow("x17_harmonic_step_reduction", lin_w + cond_w + 0.7, 1, 4, 3) # denominator-ladder reduction pattern
                 allow("x19_rolling_sum_window", lin_w + cond_w + 0.8, 1, 5, 4)    # rolling add/remove window sum
@@ -3031,6 +3047,174 @@ class ProbabilisticLoopFactory:
                 body.append(Assign(ctr, f"{ctr}+1"))
                 used_if += 3
                 used_assign += 6
+                core_applied = True
+            elif chosen == "nested_triangular_accumulate":
+                # Outer progress + nested inner accumulation.
+                # Modes:
+                # - unit_ramp: sum += 1..bound
+                # - weighted_ramp: sum += (j + outer parity)
+                # - quadratic_ramp: sum += (2*j + 1)
+                # - outer_weighted: bound and increment depend on outer counter
+                mode = self.rng.choice(["unit_ramp", "weighted_ramp", "quadratic_ramp", "outer_weighted"])
+                append_step = False
+                guard = f"{ctr}<{lim}"
+                set_init(ctr, "0")
+                set_init(a, "0")
+                set_init(c, "0")
+                alpha = self.rng.randint(1, 3)
+                body.append(Assign(d, f"({ctr}%4)+1"))
+                body.append(Assign(b, "0"))
+                if mode == "unit_ramp":
+                    inner_body = [Assign(a, f"{a}+{b}+1"), Assign(b, f"{b}+1")]
+                    inner_cond = f"{b}<{d}"
+                elif mode == "weighted_ramp":
+                    inner_body = [Assign(a, f"{a}+{b}+({ctr}%2)"), Assign(b, f"{b}+1")]
+                    inner_cond = f"{b}<{d}"
+                elif mode == "quadratic_ramp":
+                    inner_body = [Assign(a, f"{a}+2*{b}+1"), Assign(b, f"{b}+1")]
+                    inner_cond = f"{b}<{d}"
+                else:
+                    body[-1] = Assign(d, f"({ctr}%3)+{alpha}")
+                    inner_body = [Assign(a, f"{a}+{alpha}*{ctr}+{b}"), Assign(b, f"{b}+1")]
+                    inner_cond = f"{b}<({ctr}+{alpha})"
+                body.append(WhileLoop(cond=inner_cond, body=inner_body))
+                body.append(Assign(c, f"{c}+{ctr}+1"))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_assign += 4
+                core_applied = True
+            elif chosen == "nested_triangular_balance":
+                # Nested loop with dual accumulators and inner reset.
+                # Modes:
+                # - add_sub
+                # - dual_add
+                # - paired_shift
+                # - budget_shave
+                mode = self.rng.choice(["add_sub", "dual_add", "paired_shift", "budget_shave"])
+                append_step = False
+                guard = f"{ctr}<{lim}"
+                set_init(ctr, "0")
+                set_init(a, "0")
+                set_init(c, f"({src}%9)+6")
+                body.append(Assign(d, f"({ctr}%3)+2"))
+                body.append(Assign(b, "0"))
+                if mode == "add_sub":
+                    inner_body = [Assign(a, f"{a}+1"), Assign(c, f"{c}-{b}"), Assign(b, f"{b}+1")]
+                    inner_cond = f"{b}<{d}"
+                elif mode == "dual_add":
+                    inner_body = [Assign(a, f"{a}+{b}+1"), Assign(c, f"{c}+1"), Assign(b, f"{b}+1")]
+                    inner_cond = f"{b}<{d}"
+                elif mode == "paired_shift":
+                    inner_body = [Assign(a, f"{a}+{b}"), Assign(c, f"{c}-1"), Assign(b, f"{b}+1")]
+                    inner_cond = f"{b}<{d}"
+                else:
+                    step = self.rng.randint(1, 2)
+                    set_init(c, f"({lim})*({lim})+({src}%5)")
+                    inner_body = [Assign(c, f"{c}-{step}"), Assign(a, f"{a}+{ctr}+1"), Assign(b, f"{b}+1")]
+                    inner_cond = f"{b}<({ctr}%4+2)"
+                    body.append(Assign(c, f"{c}+({ctr}%2)"))
+                body.append(WhileLoop(cond=inner_cond, body=inner_body))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_assign += 4
+                core_applied = True
+            elif chosen == "nested_grid_rowcol_sum":
+                # 2D traversal style nested loop.
+                # Modes: row_plus_col / row_scaled / col_biased
+                mode = self.rng.choice(["row_plus_col", "row_scaled", "col_biased"])
+                append_step = False
+                guard = f"{ctr}<{lim}"
+                set_init(ctr, "0")
+                set_init(a, "0")
+                body.append(Assign(d, f"({e}%3)+2"))
+                body.append(Assign(b, "0"))
+                if mode == "row_plus_col":
+                    inner_body = [Assign(a, f"{a}+{ctr}+{b}"), Assign(b, f"{b}+1")]
+                elif mode == "row_scaled":
+                    inner_body = [Assign(a, f"{a}+2*{ctr}+{b}"), Assign(b, f"{b}+1")]
+                else:
+                    inner_body = [Assign(a, f"{a}+{ctr}+2*{b}"), Assign(b, f"{b}+1")]
+                body.append(WhileLoop(cond=f"{b}<{d}", body=inner_body))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_assign += 3
+                core_applied = True
+            elif chosen == "nested_grid_checkerboard":
+                # Nested traversal with parity branch.
+                # Modes: toggle_pm1 / toggle_pm2 / toggle_pm3
+                mode = self.rng.choice(["toggle_pm1", "toggle_pm2", "toggle_pm3"])
+                append_step = False
+                guard = f"{ctr}<{lim}"
+                set_init(ctr, "0")
+                set_init(a, "0")
+                body.append(Assign(d, f"({c}%4)+2"))
+                body.append(Assign(b, "0"))
+                delta = "1" if mode == "toggle_pm1" else ("2" if mode == "toggle_pm2" else "3")
+                inner_body = [
+                    IfElse(
+                        cond=f"({ctr}+{b})%2==0",
+                        then_body=[Assign(a, f"{a}+{delta}")],
+                        else_body=[Assign(a, f"{a}-{delta}")],
+                    ),
+                    Assign(b, f"{b}+1"),
+                ]
+                body.append(WhileLoop(cond=f"{b}<{d}", body=inner_body))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_if += 1
+                used_assign += 3
+                core_applied = True
+            elif chosen == "nested_block_drain":
+                # Outer block budget + inner drain.
+                # Modes: unit_drain / fast_drain / gentle_drain / budget_trace
+                mode = self.rng.choice(["unit_drain", "fast_drain", "gentle_drain", "budget_trace"])
+                append_step = False
+                guard = f"{ctr}<{lim}"
+                set_init(ctr, "0")
+                set_init(a, f"({src}%20)+10")
+                set_init(c, "0")
+                if mode == "budget_trace":
+                    set_init(c, f"{lim}*{lim}+({src}%7)")
+                    body.append(Assign(d, f"({ctr}%4)+1"))
+                    body.append(
+                        WhileLoop(
+                            cond=f"{d}>0&&{c}>0&&{a}>0",
+                            body=[Assign(a, f"{a}-1"), Assign(c, f"{c}-1"), Assign(d, f"{d}-1")],
+                        )
+                    )
+                    used_assign += 5
+                else:
+                    body.append(Assign(d, f"({ctr}%3)+2"))
+                    inner_step = "1" if mode in {"unit_drain", "gentle_drain"} else "2"
+                    body.append(
+                        WhileLoop(
+                            cond=f"{d}>0&&{a}>0",
+                            body=[Assign(a, f"{a}-{inner_step}"), Assign(d, f"{d}-1")],
+                        )
+                    )
+                if mode == "gentle_drain":
+                    body.append(Assign(a, f"{a}+({ctr}%2)"))
+                body.append(Assign(c, f"{c}+1"))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                if mode != "budget_trace":
+                    used_assign += 5 if mode == "gentle_drain" else 4
+                core_applied = True
+            elif chosen == "nested_block_staircase":
+                # Inner workload grows with outer index.
+                # Modes: stair_add1 / stair_add2 / stair_mix
+                mode = self.rng.choice(["stair_add1", "stair_add2", "stair_mix"])
+                append_step = False
+                guard = f"{ctr}<{lim}"
+                set_init(ctr, "0")
+                set_init(a, "0")
+                set_init(c, "0")
+                body.append(Assign(d, f"{ctr}+1"))
+                body.append(Assign(b, "0"))
+                if mode == "stair_mix":
+                    inner = [Assign(a, f"{a}+{b}+1"), Assign(b, f"{b}+1")]
+                else:
+                    inc = "1" if mode == "stair_add1" else "2"
+                    inner = [Assign(a, f"{a}+{inc}"), Assign(b, f"{b}+1")]
+                body.append(WhileLoop(cond=f"{b}<{d}", body=inner))
+                body.append(Assign(c, f"{c}+{d}"))
+                body.append(Assign(ctr, f"{ctr}+1"))
+                used_assign += 5
                 core_applied = True
             elif chosen == "x1_geometric_growth_bound":
                 # Geometric growth against a linear bound.
