@@ -5,7 +5,6 @@ int main1(int p,int q){
   f=0;
   n=p;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (f<i) {
       n = n*2;

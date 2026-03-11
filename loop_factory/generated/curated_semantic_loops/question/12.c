@@ -4,7 +4,6 @@ int main1(){
   fs=0;
   v68=2;
   ij=1;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 for (; fs<hj; fs++) {
       if (!(v68<12)) {

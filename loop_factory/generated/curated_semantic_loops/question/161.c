@@ -6,7 +6,6 @@ int main1(int k,int p){
   a=0;
   u=l;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (c+1<=l) {
       u = l-a;

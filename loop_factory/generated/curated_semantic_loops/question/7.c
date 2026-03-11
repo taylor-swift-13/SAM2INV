@@ -3,7 +3,6 @@ int main1(){
   c=(1%20)+5;
   re8s=(1%20)+5;
   dy=(1%20)+5;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (c>=1) {
       if (re8s>0) {

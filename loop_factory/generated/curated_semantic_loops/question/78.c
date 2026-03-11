@@ -5,7 +5,6 @@ int main1(int k,int m){
   u=0;
   v=k;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (u<t) {
       v = v*v;

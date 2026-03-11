@@ -6,7 +6,6 @@ int main1(){
   nh=0;
   vo=se5;
   f=h4d;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (nh<=se5-1) {
       khd += 1;
@@ -14,7 +13,6 @@ while (nh<=se5-1) {
       f += h4d;
       vo = vo+(khd%9);
   }
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (se5*2<=vo) {
       f += h4d;

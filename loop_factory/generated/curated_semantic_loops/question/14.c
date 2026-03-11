@@ -4,7 +4,6 @@ int main1(int f){
   zq=0;
   y7=2;
   q5o=1;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (zq<=f3v-1) {
       if (y7>=9) {

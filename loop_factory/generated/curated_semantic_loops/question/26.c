@@ -4,12 +4,10 @@ int main1(){
   bazd=2;
   z=1;
   w=0;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (bazd<xo4) {
       bazd = bazd + 1;
   }
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (1) {
       w += 1;

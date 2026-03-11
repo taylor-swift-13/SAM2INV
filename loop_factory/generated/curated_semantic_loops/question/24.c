@@ -5,7 +5,6 @@ int main1(int p,int q){
   b=0;
   v=-1;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (b<=i-1) {
       v = v*v+v;
@@ -15,13 +14,11 @@ while (b<=i-1) {
       b = b+1;
   }
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (v+1<=i) {
       v = v+1;
   }
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (v-1>=0) {
       v = v-1;

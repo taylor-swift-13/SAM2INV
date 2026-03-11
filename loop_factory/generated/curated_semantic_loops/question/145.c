@@ -8,7 +8,6 @@ int main1(int k,int n){
   x=k;
   v=w;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (w<r) {
       v = b+y+x;

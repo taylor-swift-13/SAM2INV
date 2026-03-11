@@ -5,7 +5,6 @@ int main1(int a,int b){
   u=0;
   t=3;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (u<=e-1) {
       t = t+2;

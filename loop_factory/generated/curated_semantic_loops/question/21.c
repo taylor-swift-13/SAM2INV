@@ -5,7 +5,6 @@ int main1(int b,int m){
   s=0;
   k=-6;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (s<l) {
       k = k-k;
@@ -13,13 +12,11 @@ while (s<l) {
       s = s+1;
   }
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (s>=3) {
       s = s-3;
   }
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (s<=k-1) {
       s = s+1;

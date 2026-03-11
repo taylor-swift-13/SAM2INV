@@ -6,7 +6,6 @@ int main1(int b){
   g=0;
   jb9j=0;
   i0bs=0;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (e5<pj) {
       if (e5%11==0) {

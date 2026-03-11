@@ -6,7 +6,6 @@ int main1(){
   b=0;
   z=j;
   a0u=0;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (b<j) {
       yl3++;
@@ -14,7 +13,6 @@ while (b<j) {
       z += wt9n;
       a0u = a0u+(yl3%9);
   }
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (1) {
       if (!(z<=wt9n-1)) {

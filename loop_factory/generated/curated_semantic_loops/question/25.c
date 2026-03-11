@@ -5,14 +5,12 @@ int main1(int m){
   hts=1;
   qb=5;
   xq2=p9w;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (hts<=et) {
       qb = qb+hts*hts;
       hts += 1;
       m = m + hts;
   }
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (xq2<et) {
       p9w = et-xq2;

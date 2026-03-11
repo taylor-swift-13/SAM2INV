@@ -6,7 +6,6 @@ int main1(int k,int n){
   e=k;
   l=k;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (g<=b-1) {
       l = l+l;

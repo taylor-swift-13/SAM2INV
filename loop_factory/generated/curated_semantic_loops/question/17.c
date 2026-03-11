@@ -8,7 +8,6 @@ int main1(int a,int b,int q){
   g=0;
   l=q;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (1) {
       if (v>=r) {

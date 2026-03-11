@@ -6,7 +6,6 @@ int main1(int b,int k){
   x=0;
   r=u;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (u<=y-2) {
       if (x+3<=y) {

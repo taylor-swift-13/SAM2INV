@@ -7,7 +7,6 @@ int main1(int b,int m){
   d=b;
   w=-2;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (p<k) {
       if (p<k) {

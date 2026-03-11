@@ -9,7 +9,6 @@ int main1(int a,int b,int n,int q){
   v=m;
   z=a;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (m<f) {
       p = p*2;

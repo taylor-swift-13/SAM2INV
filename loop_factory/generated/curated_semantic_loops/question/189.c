@@ -5,7 +5,6 @@ int main1(int a,int q){
   h=0;
   f=n;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (h<n) {
       f = q%3;

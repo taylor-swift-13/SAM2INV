@@ -3,7 +3,6 @@ int main1(){
   n5=(1%20)+5;
   vsl8=(1%20)+5;
   qbv8=(1%20)+5;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (n5>=1) {
       if (vsl8>0) {

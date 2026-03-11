@@ -4,7 +4,6 @@ int main1(int x,int n){
   kdsi=0;
   d4j=1;
   qij=1;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (kdsi<w98) {
       if (!(d4j<6)) {

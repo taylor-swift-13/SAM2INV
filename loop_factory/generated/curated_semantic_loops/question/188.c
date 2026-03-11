@@ -6,7 +6,6 @@ int main1(int b,int k){
   c=-17823;
   n=2;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (c<=-3) {
       c = c+n-1;

@@ -6,7 +6,6 @@ int main1(int p){
   r=l;
   b=l;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (r<l) {
       if (r<l) {

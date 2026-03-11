@@ -6,7 +6,6 @@ int main1(int a,int n){
   w=-2;
   x=2;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (v>=1) {
       w = w*4;

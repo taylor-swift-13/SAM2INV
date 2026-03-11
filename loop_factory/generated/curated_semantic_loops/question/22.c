@@ -4,14 +4,12 @@ int main1(int w){
   vv5z=0;
   y6g=0;
   pv=-4;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (y6g<gu) {
       pv = gu-y6g;
       y6g += 1;
       w += y6g;
   }
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (1) {
       vv5z = vv5z + 1;

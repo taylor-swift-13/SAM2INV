@@ -6,7 +6,6 @@ int main1(int n){
   z=8;
   s=r;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (q-1>=0) {
       q = q-1;

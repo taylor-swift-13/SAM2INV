@@ -6,7 +6,6 @@ int main1(int k,int n){
   x=r;
   v=r;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (c+1<=r) {
       x = x*x+x;

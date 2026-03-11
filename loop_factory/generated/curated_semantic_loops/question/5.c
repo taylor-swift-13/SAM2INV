@@ -7,7 +7,6 @@ int main1(int u){
   r8ph=0;
   gt=0;
   l=iod;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (l5<iod) {
       if (!(!(l5%9==0))) {

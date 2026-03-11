@@ -8,7 +8,6 @@ int main1(int k,int p){
   w=k;
   x=2;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (o<h) {
       s = s+w;

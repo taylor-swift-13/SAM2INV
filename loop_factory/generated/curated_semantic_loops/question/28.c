@@ -5,14 +5,12 @@ int main1(int t,int d){
   sw=0;
   m=0;
   mrq=0;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (sw<vw) {
       m += sw;
       d = d + u;
       sw = sw + 1;
   }
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (1) {
       u = u + 1;

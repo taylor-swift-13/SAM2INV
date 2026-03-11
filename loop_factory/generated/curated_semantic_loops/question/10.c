@@ -4,7 +4,6 @@ int main1(){
   uq=0;
   xd=z;
   h=-3;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (uq+1<=z) {
       if (!(!(xd+1<=z))) {

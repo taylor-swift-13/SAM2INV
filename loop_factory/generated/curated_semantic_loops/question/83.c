@@ -5,7 +5,6 @@ int main1(int k,int q){
   j=0;
   t=h;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (j<=h-1) {
       t = t*2;

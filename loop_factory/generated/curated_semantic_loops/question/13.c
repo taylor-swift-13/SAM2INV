@@ -4,7 +4,6 @@ int main1(){
   n80=3;
   p=1;
   vj=1;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (n80<p6l) {
       if (!(p<11)) {

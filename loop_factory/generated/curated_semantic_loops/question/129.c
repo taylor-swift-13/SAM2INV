@@ -6,7 +6,6 @@ int main1(int a,int n){
   v=u;
   q=a;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (v<w) {
       if (v<w) {

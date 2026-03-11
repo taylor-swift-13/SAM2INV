@@ -6,7 +6,6 @@ int main1(int w,int g){
   g0z=0;
   svlb=0;
   o=0;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (omy4<ew) {
       if (!(!(omy4%8==0))) {

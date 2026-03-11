@@ -6,7 +6,6 @@ int main1(){
   vb=0;
   jme=0;
   uto=0;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (uj<tz) {
       if (!(!(uj%8==0))) {

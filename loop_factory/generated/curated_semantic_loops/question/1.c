@@ -3,7 +3,6 @@ int main1(){
   kka=(1%20)+5;
   p=(1%20)+5;
   ym4=(1%20)+5;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (kka>=1) {
       if (p>0) {

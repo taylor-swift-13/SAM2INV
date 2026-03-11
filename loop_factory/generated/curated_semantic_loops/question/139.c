@@ -6,7 +6,6 @@ int main1(int b,int m){
   y=-2;
   o=t;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (y!=0&&o!=0) {
       if (y>o) {

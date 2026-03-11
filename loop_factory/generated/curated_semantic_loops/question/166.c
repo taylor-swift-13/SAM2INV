@@ -6,7 +6,6 @@ int main1(int b,int k){
   e=0;
   v=n;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (e<n) {
       if (e>=n/2) {

@@ -5,7 +5,6 @@ int main1(int b,int m){
   t=z+6;
   v=4;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (t-z>0) {
       v = v*v;

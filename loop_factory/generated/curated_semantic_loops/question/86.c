@@ -5,7 +5,6 @@ int main1(int a,int b){
   i=p+4;
   e=-5;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (i>=p+1) {
       e = e*2;

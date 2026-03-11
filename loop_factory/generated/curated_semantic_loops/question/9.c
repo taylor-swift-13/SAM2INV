@@ -4,7 +4,6 @@ int main1(){
   gw=-1;
   s2g=0;
   j2a=1;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (gw<w5m) {
       if (!(s2g<8)) {

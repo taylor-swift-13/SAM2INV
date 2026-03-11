@@ -7,7 +7,6 @@ int main1(int b,int k){
   q=4;
   v=-4;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (j<=y-5) {
       n = n+1;

@@ -5,7 +5,6 @@ int main1(int b,int n){
   z=r;
   u=r;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (z>3) {
       if (z+5<=u+r) {

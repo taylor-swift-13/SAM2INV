@@ -5,7 +5,6 @@ int main1(int k,int q){
   v=0;
   t=k;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (v<j) {
       t = t+v;

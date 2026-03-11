@@ -5,7 +5,6 @@ int main1(int n,int p){
   u=x;
   w=p;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (u>0) {
       w = w+3;

@@ -5,7 +5,6 @@ int main1(int b,int n){
   h=z;
   d=-6;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (h-2>=0) {
       d = d+4;

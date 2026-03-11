@@ -3,7 +3,6 @@ int main1(int o,int u){
   ipsj=(o%20)+5;
   cxn7=(o%20)+5;
   cd=(o%20)+5;
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (ipsj>0) {
       if (cxn7>0) {

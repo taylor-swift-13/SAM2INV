@@ -8,7 +8,6 @@ int main1(int a,int b,int k){
   z=1;
   u=1;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
 
 while (v<x) {
       v = v+3;
