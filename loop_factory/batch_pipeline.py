@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import atexit
 import copy
-import itertools
 import concurrent.futures
 import os
 import hashlib
@@ -431,82 +430,6 @@ def strip_blank_lines(text: str) -> str:
 # variants at each round instead of returning the final pruned code.
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _aug_single_bad_rejects(code: str, validate_result: List[bool], pruner: HoudiniPruner) -> List[str]:
-    """Generate rejected variants by freely combining failing invariants with all valid ones.
-
-    Iterates over subsets of failing invariants (size 1, 2, …) in order and stops once
-    2 * K distinct variants have been collected, where K = number of failing invariants.
-    The full failing set (= code itself) is already in DPO; subsets that reproduce it
-    are filtered out by `variant != code`.
-    """
-    failed_indices = [i for i, ok in enumerate(validate_result) if not ok]
-    if not failed_indices:
-        return []
-    limit = 2 * len(failed_indices)
-    out: List[str] = []
-    for size in range(1, len(failed_indices) + 1):
-        for combo in itertools.combinations(failed_indices, size):
-            if len(out) >= limit:
-                return out
-            keep_flags = list(validate_result)
-            for idx in combo:
-                keep_flags[idx] = True
-            variant = pruner.hudini_annotations(keep_flags, code, validate_result_by_line=None).strip()
-            if variant and variant != code:
-                out.append(variant)
-    return out
-
-
-def _aug_houdini_rejects(
-    rejected_code: str,
-    verifier: OutputVerifier,
-    pruner: HoudiniPruner,
-    tmp_c_path: Path,
-    patience: int = 2,
-) -> List[str]:
-    """Run Houdini rounds on a rejected code and return fine-grained rejected variants.
-
-    Mirrors HoudiniPruner.hudini(): uses verifier.validate_result directly (positional),
-    validate_result_by_line=None, and _extract_invariants_from_code to detect empty pruning.
-    Stops when all invariants become valid or the annotation is pruned empty (natural
-    convergence). `patience` is a safety guard: if the pruner makes no progress for that
-    many consecutive rounds (should not occur in theory), abort to prevent infinite loops.
-    """
-    current = (rejected_code or "").strip()
-    if not current:
-        return []
-    new_rejects: List[str] = []
-    seen: Set[str] = set()
-    no_progress = 0
-    while True:
-        tmp_c_path.write_text(current, encoding="utf-8")
-        verifier.run(str(tmp_c_path))
-        if not verifier.syntax_correct:
-            break
-        validate_result = list(getattr(verifier, "validate_result", []) or [])
-        # Mirrors hudini(): if not validate_result → break; if all valid → break
-        if not validate_result or all(validate_result):
-            break
-        for rej in _aug_single_bad_rejects(current, validate_result, pruner):
-            if rej not in seen:
-                seen.add(rej)
-                new_rejects.append(rej)
-        prev_code = current
-        current = pruner.hudini_annotations(validate_result, current, validate_result_by_line=None).strip()
-        # All invariants pruned away (mirrors hudini()'s after_invariants == 0 check)
-        if not pruner._extract_invariants_from_code(current):
-            break
-        # No-progress guard (mirrors hudini()'s defensive break; patience allows for
-        # transient Houdini bugs before giving up)
-        if current == prev_code:
-            no_progress += 1
-            if no_progress >= patience:
-                break
-        else:
-            no_progress = 0
-    return new_rejects
-
-
 def _extract_invariant_spans(code: str) -> List[Tuple[int, int]]:
     inv_pat = re.compile(r"^[ \t]*loop\s+invariant\s+[^;]+;\s*\n?", flags=re.MULTILINE)
     return [(m.start(), m.end()) for m in inv_pat.finditer(code or "")]
@@ -552,18 +475,6 @@ def _sample_subset_code(
     return subset, k, n
 
 
-def _aug_weak_chosen_subset_reject(chosen_code: str, rng: random.Random, max_tries: int = 16) -> Optional[str]:
-    """Aug B: sample a small proper subset from chosen as a weaker rejected target."""
-    src = (chosen_code or "").strip()
-    if not src:
-        return None
-    for _ in range(max_tries):
-        subset, _k, _n = _sample_subset_code(src, rng, force_proper_subset=True)
-        if subset and subset != src:
-            return subset
-    return None
-
-
 def _aug_error_subset_reject(rejected_code: str, rng: random.Random, max_tries: int = 16) -> Optional[str]:
     """Aug C: sample a random proper subset from an error candidate."""
     src = (rejected_code or "").strip()
@@ -574,6 +485,109 @@ def _aug_error_subset_reject(rejected_code: str, rng: random.Random, max_tries: 
         if subset and subset != src:
             return subset
     return None
+
+
+def _aug_mixed_invariant_reject(
+    chosen_code: str,
+    bad_invariants: List[str],
+    rng: random.Random,
+    num_samples: int = 1,
+) -> List[str]:
+    """Unified DPO augmentation: randomly sample invariants from good+bad pool.
+
+    good ∈ [0, m-2], bad ∈ [0, n], total k ∈ [1, k_max] where
+    k_max ~ randint(max(m-2,1), m+2).  Result must differ from chosen.
+    """
+    src = (chosen_code or "").strip()
+    if not src:
+        return []
+
+    # Extract invariant text and spans from chosen
+    spans = _extract_invariant_spans(src)
+    m = len(spans)
+    if m <= 0:
+        return []
+
+    # Extract the text of each good invariant (normalized)
+    inv_pat = re.compile(r'loop\s+invariant\s+([^;]+);')
+    good_texts: List[str] = []
+    for s_start, s_end in spans:
+        match = inv_pat.search(src[s_start:s_end])
+        if match:
+            good_texts.append(re.sub(r'\s+', ' ', match.group(1).strip()))
+
+    # Filter bad_invariants: remove those already in chosen (by normalized text)
+    good_norm_set = set(good_texts)
+    filtered_bad = [b for b in bad_invariants if re.sub(r'\s+', ' ', b.strip()) not in good_norm_set]
+    n = len(filtered_bad)
+
+    # Need at least one degree of freedom
+    if n == 0 and m <= 1:
+        return []
+
+    # Determine indentation from existing invariants
+    first_span_text = src[spans[0][0]:spans[0][1]]
+    indent_match = re.match(r'^([ \t]*)', first_span_text)
+    indent = indent_match.group(1) if indent_match else '      '
+
+    # good ∈ [0, m-2], bad ∈ [0, n], total ≥ 1, total ≤ k_max, result ≠ chosen
+    good_hi = max(m - 2, 0)
+    if good_hi == 0 and n == 0:
+        return []
+
+    results: List[str] = []
+    seen: set = set()
+    for _ in range(num_samples * 4):
+        if len(results) >= num_samples:
+            break
+
+        num_good = rng.randint(0, good_hi)
+        num_bad = rng.randint(0, n)
+        k = num_good + num_bad
+
+        k_max = rng.randint(max(m - 2, 1), m + 2)
+        if k < 1 or k > k_max:
+            continue
+
+        # Sample
+        if num_good > 0:
+            keep_indices = set(rng.sample(range(m), num_good))
+        else:
+            keep_indices = set()
+        subset_code = _build_subset_invariant_code(src, keep_indices)
+
+        if num_bad > 0:
+            sampled_bad = rng.sample(filtered_bad, num_bad)
+            inv_spans_in_subset = _extract_invariant_spans(subset_code)
+            if inv_spans_in_subset:
+                # Insert after the last remaining invariant line
+                insert_pos = inv_spans_in_subset[-1][1]
+            else:
+                # No invariant lines left; insert before loop assigns or */ closing
+                assigns_match = re.search(r'^[ \t]*loop\s+assigns\b', subset_code, re.MULTILINE)
+                if assigns_match:
+                    insert_pos = assigns_match.start()
+                else:
+                    # Find */ that closes an ACSL block before a loop keyword
+                    close_match = re.search(r'\*/\s*(?:while|for)\s*\(', subset_code)
+                    if close_match:
+                        insert_pos = close_match.start()
+                    else:
+                        lm = re.search(r'\b(?:while|for)\s*\(', subset_code)
+                        if not lm:
+                            continue
+                        insert_pos = lm.start()
+            bad_lines = ''.join(f'{indent}loop invariant {b.strip()};\n' for b in sampled_bad)
+            variant = (subset_code[:insert_pos] + bad_lines + subset_code[insert_pos:]).strip()
+        else:
+            variant = subset_code.strip()
+
+        if variant == src or variant in seen:
+            continue
+        seen.add(variant)
+        results.append(variant)
+
+    return results
 
 
 def _extract_first_json_object(text: str) -> Optional[Dict]:
@@ -1058,19 +1072,6 @@ def main() -> None:
     reject_log: List[Dict] = []
     workers = max(1, args.workers)
     run_tag = f"{os.getpid()}_{int(time.time())}"
-    # Houdini DPO augmentation resources (main-thread only, single temp file)
-    use_houdini_aug = bool(_lf_cfg("houdini_dpo_augment", False))
-    houdini_aug_patience = int(HOUDINI_CFG.get("patience", 2))
-    _aug_verifier: Optional[OutputVerifier] = None
-    _aug_pruner: Optional[HoudiniPruner] = None
-    _aug_tmp_c: Optional[Path] = None
-    if use_houdini_aug:
-        _aug_log = logging.getLogger("houdini_aug")
-        _aug_verifier = OutputVerifier(logger=_aug_log, output=False)
-        _aug_pruner = HoudiniPruner(logger=_aug_log)
-        _aug_tmp_dir = work_root / "tmp_houdini_aug"
-        _aug_tmp_dir.mkdir(parents=True, exist_ok=True)
-        _aug_tmp_c = _aug_tmp_dir / "tmp.c"
     cleanup_transient_artifacts()
     atexit.register(lambda: cleanup_transient_artifacts(run_tag))
 
@@ -1255,46 +1256,39 @@ def main() -> None:
                             }
                             dpo_teacher_jsonl_file.write(json.dumps(dpo_item, ensure_ascii=False) + "\n")
                             dpo_teacher_written += 1
-                            # Houdini augmentation: "all valid + 1 bad" variants of this rejected
-                            if use_houdini_aug and _aug_verifier and _aug_pruner and _aug_tmp_c:
-                                for aug_code in _aug_houdini_rejects(
-                                    (rej.get("code", "") or "").strip(), _aug_verifier, _aug_pruner,
-                                    _aug_tmp_c, houdini_aug_patience,
-                                ):
-                                    aug_code = aug_code.strip()
-                                    if aug_code and aug_code != chosen_code and aug_code not in seen_rejected:
-                                        seen_rejected.add(aug_code)
-                                        dpo_aug_jsonl_file.write(json.dumps({
-                                            "instruction": result["system_prompt"],
-                                            "input": prompt_text,
-                                            "chosen": chosen_code,
-                                            "rejected": aug_code,
-                                        }, ensure_ascii=False) + "\n")
-                                        dpo_aug_written += 1
                             # Augmentation C: random subset from error candidate.
                             aug_c = _aug_error_subset_reject((rej.get("code", "") or "").strip(), aug_rng)
                             if aug_c:
                                 aug_c = aug_c.strip()
                                 if aug_c and aug_c != chosen_code and aug_c not in seen_rejected:
-                                    seen_rejected.add(aug_c)
-                                    dpo_aug_jsonl_file.write(json.dumps({
-                                        "instruction": result["system_prompt"],
-                                        "input": prompt_text,
-                                        "chosen": chosen_code,
-                                        "rejected": aug_c,
-                                    }, ensure_ascii=False) + "\n")
-                                    dpo_aug_written += 1
-                    # Augmentation B: weak proper subset from chosen only.
-                    aug_b = _aug_weak_chosen_subset_reject(chosen_code, aug_rng)
-                    if aug_b:
-                        aug_b = aug_b.strip()
-                        if aug_b and aug_b != chosen_code and aug_b not in seen_rejected:
-                            seen_rejected.add(aug_b)
+                                    # Normalized check: ensure subset is meaningfully different from chosen
+                                    aug_c_invs = set(re.sub(r'\s+', '', inv) for inv in re.findall(r'loop\s+invariant\s+([^;]+);', aug_c))
+                                    chosen_invs = set(re.sub(r'\s+', '', inv) for inv in re.findall(r'loop\s+invariant\s+([^;]+);', chosen_code))
+                                    if aug_c_invs != chosen_invs:
+                                        seen_rejected.add(aug_c)
+                                        dpo_aug_jsonl_file.write(json.dumps({
+                                            "instruction": result["system_prompt"],
+                                            "input": prompt_text,
+                                            "chosen": chosen_code,
+                                            "rejected": aug_c,
+                                        }, ensure_ascii=False) + "\n")
+                                        dpo_aug_written += 1
+                    # Unified mixed-invariant augmentation (replaces Aug A + Aug B)
+                    bad_invs: List[str] = []
+                    for _loop_idx, loop_rec in sorted(loop_dpo_records.items()):
+                        bad_invs.extend(loop_rec.get("bad_invariants", []))
+                    aug_num_samples = max(min(2 * len(bad_invs), 8), 2)
+                    for aug_code in _aug_mixed_invariant_reject(
+                        chosen_code, bad_invs, aug_rng,
+                        num_samples=aug_num_samples,
+                    ):
+                        if aug_code and aug_code != chosen_code and aug_code not in seen_rejected:
+                            seen_rejected.add(aug_code)
                             dpo_aug_jsonl_file.write(json.dumps({
                                 "instruction": result["system_prompt"],
                                 "input": prompt_text,
                                 "chosen": chosen_code,
-                                "rejected": aug_b,
+                                "rejected": aug_code,
                             }, ensure_ascii=False) + "\n")
                             dpo_aug_written += 1
                     if dpo_teacher_written or dpo_aug_written:

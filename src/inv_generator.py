@@ -750,7 +750,7 @@ class InvariantGenerator:
     def _normalize_inv_text(inv: str) -> str:
         return re.sub(r"\s+", " ", (inv or "").strip())
 
-    def _save_loop_dpo_record(self, loop_idx: int, chosen_code: Optional[str], candidates: List[Dict]) -> None:
+    def _save_loop_dpo_record(self, loop_idx: int, chosen_code: Optional[str], candidates: List[Dict], bad_invariants: Optional[Set[str]] = None) -> None:
         """Save loop-level DPO artifacts: chosen final code + rejected original candidates."""
         if not self.collect_dpo:
             return
@@ -777,6 +777,7 @@ class InvariantGenerator:
             "loop_idx": loop_idx,
             "chosen_code": chosen_code or "",
             "rejected_items": rejected_items,
+            "bad_invariants": list(bad_invariants or set()),
         }
 
     def _generate_with_llm_self_check(self, original_code: str, record, loop_idx: int, max_self_iterations: int = 5) -> Optional[str]:
@@ -878,6 +879,8 @@ class InvariantGenerator:
             for i, inv in enumerate(invariants, 1):
                 self.logger.info(f"  [{i}] {inv}")
         
+        bad_invariant_pool: Set[str] = set()
+
         # 6. Apply syntax filter first (if enabled)
         syntax_filter_enabled = SYNTAX_FILTER_CONFIG.get('enabled', True)
         syntax_filter_verbose = SYNTAX_FILTER_CONFIG.get('verbose', True)
@@ -927,6 +930,11 @@ class InvariantGenerator:
                     _mark_candidate_reject(candidate, "syntax_gate")
                 candidate['syntax_filtered_invariants'] = safe_invariants
                 candidate['syntax_rejected'] = filter_result.rejected
+                # Collect bad invariants from syntax gate
+                for inv_text, _violations in filter_result.rejected:
+                    bad_invariant_pool.add(inv_text)
+                for inv_text in removed_pow_like:
+                    bad_invariant_pool.add(inv_text)
                 if filter_result.rejected:
                     _mark_candidate_reject(candidate, "syntax_gate")
                 
@@ -970,6 +978,7 @@ class InvariantGenerator:
                 kept_norm = {self._normalize_inv_text(x) for x in filtered_invs}
                 for inv in candidate['syntax_filtered_invariants']:
                     if self._normalize_inv_text(inv) not in kept_norm:
+                        bad_invariant_pool.add(inv)
                         _mark_candidate_reject(candidate, "sampling_gate")
                 
                 self.logger.info(f"\nCandidate {candidate['index']}: {len(filtered_invs)}/{len(candidate['syntax_filtered_invariants'])} invariants passed sampling filter (pass rate: {candidate['pass_rate']:.1%})")
@@ -1155,7 +1164,19 @@ class InvariantGenerator:
             else:
                 self.logger.info(f"Loop {loop_idx} - Houdini disabled, skipping pruning")
                 pruned_code, houdini_valid = current_code, True
-            
+
+            # Collect bad invariants at Houdini gate
+            if pruned_code:
+                _final_invs_after_houdini = self._extract_invariants_from_code(pruned_code)
+                _final_norm = {self._normalize_inv_text(x) for x in _final_invs_after_houdini}
+                for inv in current_invariants:
+                    if self._normalize_inv_text(inv) not in _final_norm:
+                        bad_invariant_pool.add(inv)
+            else:
+                # Houdini removed everything — all current_invariants are bad
+                for inv in current_invariants:
+                    bad_invariant_pool.add(inv)
+
             if pruned_code and houdini_valid:
                 # Houdini 阶段只保证 invariant establish/preserve；这里继续检查 assertion satisfy
                 syntax = getattr(self.verifier, "syntax_correct", False) or self.verifier.syntax_error == 'syntax Correct'
@@ -1170,7 +1191,7 @@ class InvariantGenerator:
                     )
                     if strengthened_code is None:
                         self.logger.warning(f"Loop {loop_idx} - Strengthening failed to satisfy assertions")
-                        self._save_loop_dpo_record(loop_idx, "", all_candidates)
+                        self._save_loop_dpo_record(loop_idx, "", all_candidates, bad_invariant_pool)
                         return None
                     final_code = strengthened_code
 
@@ -1182,7 +1203,7 @@ class InvariantGenerator:
                     for i, inv in enumerate(final_invariants, 1):
                         self.logger.info(f"  [{i}] {inv}")
 
-                self._save_loop_dpo_record(loop_idx, final_code, all_candidates)
+                self._save_loop_dpo_record(loop_idx, final_code, all_candidates, bad_invariant_pool)
                 self.logger.info(f"\nOK Successfully generated invariant for loop {loop_idx}")
                 return final_code
             elif pruned_code:
@@ -1199,10 +1220,10 @@ class InvariantGenerator:
                     pruned_code, temp_file, record, loop_idx, max_iterations=MAX_STRENGTHEN_ITERATIONS
                 )
                 if strengthened_code is not None:
-                    self._save_loop_dpo_record(loop_idx, strengthened_code, all_candidates)
+                    self._save_loop_dpo_record(loop_idx, strengthened_code, all_candidates, bad_invariant_pool)
                     return strengthened_code
                 self.logger.warning(f"\nX Failed to generate invariant for loop {loop_idx} (Houdini validation incomplete + strengthening failed)")
-                self._save_loop_dpo_record(loop_idx, "", all_candidates)
+                self._save_loop_dpo_record(loop_idx, "", all_candidates, bad_invariant_pool)
                 self._print_full_loop_on_error(pruned_code, record, loop_idx, "Houdini Validation Failed")
                 return None
             else:
@@ -1212,10 +1233,10 @@ class InvariantGenerator:
                     current_code, temp_file, record, loop_idx, max_iterations=MAX_STRENGTHEN_ITERATIONS
                 )
                 if strengthened_code is not None:
-                    self._save_loop_dpo_record(loop_idx, strengthened_code, all_candidates)
+                    self._save_loop_dpo_record(loop_idx, strengthened_code, all_candidates, bad_invariant_pool)
                     return strengthened_code
                 self.logger.warning(f"\nX Failed to generate invariant for loop {loop_idx} (Houdini removed all invariants + strengthening failed)")
-                self._save_loop_dpo_record(loop_idx, "", all_candidates)
+                self._save_loop_dpo_record(loop_idx, "", all_candidates, bad_invariant_pool)
                 self._print_full_loop_on_error(current_code if 'current_code' in locals() else "", record, loop_idx, "Houdini Removed All Invariants")
                 return None
                 
@@ -3121,6 +3142,7 @@ class InvariantGenerator:
         first_pass_metrics = {"syntax": None, "valid": None, "satisfy": None}
         final_code: Optional[str] = None
         candidate_meta: List[Dict] = []
+        bad_invariant_pool_per_loop: List[Set[str]] = [set() for _ in range(loop_n)]
         syntax = False
         valid = False
         satisfy = False
@@ -3151,6 +3173,7 @@ class InvariantGenerator:
             combined_per_loop: List[List[str]] = [[] for _ in range(loop_n)]
             assigns_per_loop: List[str] = ["" for _ in range(loop_n)]
             seen_per_loop: List[set] = [set() for _ in range(loop_n)]
+            bad_invariant_pool_per_loop: List[Set[str]] = [set() for _ in range(loop_n)]
             pass_candidate_meta: List[Dict] = []
 
             for cand in candidate_outputs:
@@ -3176,6 +3199,8 @@ class InvariantGenerator:
                         syntax_kept = list(fr.valid or [])
                         if fr.rejected:
                             _mark_reject(meta, "syntax_gate")
+                            for inv_text, _violations in fr.rejected:
+                                bad_invariant_pool_per_loop[i].add(inv_text)
                     else:
                         syntax_kept = invs
 
@@ -3184,6 +3209,7 @@ class InvariantGenerator:
                     for inv in syntax_kept:
                         if '^' in inv or '\\pow' in inv:
                             _mark_reject(meta, "syntax_gate")
+                            bad_invariant_pool_per_loop[i].add(inv)
                             continue
                         inv2 = re.sub(r'\\at\((\w+),\s*Pre\)', lambda m: m.group(0) if m.group(1) in function_params else m.group(1), inv)
                         if inv2 != inv:
@@ -3195,6 +3221,7 @@ class InvariantGenerator:
                         kept_norm = {self._normalize_inv_text(x) for x in sampled_kept}
                         for inv in safe_kept:
                             if self._normalize_inv_text(inv) not in kept_norm:
+                                bad_invariant_pool_per_loop[i].add(inv)
                                 _mark_reject(meta, "sampling_gate")
                         safe_kept = sampled_kept
 
@@ -3255,6 +3282,11 @@ class InvariantGenerator:
                 if i < len(final_parsed) and isinstance(final_parsed[i], dict):
                     invs = list(final_parsed[i].get("invariants", []) or [])
                 final_norm_per_loop.append({re.sub(r'\s+', '', x) for x in invs})
+            # Collect bad invariants at Houdini gate (per-loop)
+            for i in range(loop_n):
+                for inv in combined_per_loop[i]:
+                    if re.sub(r'\s+', '', inv) not in final_norm_per_loop[i]:
+                        bad_invariant_pool_per_loop[i].add(inv)
             for meta in pass_candidate_meta:
                 contrib = meta.get("contrib", []) or []
                 for i in range(min(loop_n, len(contrib))):
@@ -3357,6 +3389,7 @@ class InvariantGenerator:
                     "pre_dedup_code": self.pre_dedup_final_code,
                     "dedup_removed": self.dedup_removed,
                     "rejected_items": rejected_items,
+                    "bad_invariants": list(set().union(*bad_invariant_pool_per_loop)),
                 }
             }
         else:
