@@ -431,7 +431,7 @@ def strip_blank_lines(text: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _extract_invariant_spans(code: str) -> List[Tuple[int, int]]:
-    inv_pat = re.compile(r"^[ \t]*loop\s+invariant\s+[^;]+;\s*\n?", flags=re.MULTILINE)
+    inv_pat = re.compile(r"^[ \t]*loop\s+invariant\s+[^;]+;[ \t]*\n?", flags=re.MULTILINE)
     return [(m.start(), m.end()) for m in inv_pat.finditer(code or "")]
 
 
