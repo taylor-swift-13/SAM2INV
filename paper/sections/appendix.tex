@@ -1,15 +1,15 @@
 %% ============================================================
-\appendix
+%% Appendix (included after \appendix in main.tex)
 %% ============================================================
 
 %% ============================================================
-\section{\textsc{LoopFactory}: Full DSL Description}
+\section{\lf{}: Full DSL Description}
 \label{app:loop-factory}
 %% ============================================================
 
 \subsection{DSL Grammar}
 
-A \textsc{LoopFactory} program consists of an initialisation block
+A \lf{} program consists of an initialisation block
 followed by one or more loops:
 \[
 \textbf{Prog} \;::=\; \textbf{Init} \;;\; \textbf{Loop}^+
@@ -46,21 +46,15 @@ drawing state variables from the shared pool within budget $m$.
 Structural complexity is governed by fuel parameters
 (Table~\ref{tab:fuel-app}), each sampled uniformly from a
 configurable $[\mathit{min}, \mathit{max}]$ range.
-By adjusting these bounds the generator produces programs ranging
-from trivial single-variable counters to multi-loop programs with
-rich arithmetic dependencies---without modifying the generator or
-template library.
-This makes \textsc{LoopFactory} suitable both for training-data
-generation and as a controlled benchmark tool for evaluating how
-invariant-generation difficulty scales with program complexity.
 
 \begin{table}[htb]
 \caption{Fuel parameters controlling per-program complexity.}
 \label{tab:fuel-app}
-\centering\small
+\centering
+\small
 \begin{tabular}{@{}lll@{}}
 \toprule
-Parameter & Controls & Default range \\
+\textbf{Parameter} & \textbf{Controls} & \textbf{Default range} \\
 \midrule
 $m$              & Total state variables          & $\le 6$ \\
 $[p_{\min},p_{\max}]$ & Immutable parameters      & $[1,2]$ \\
@@ -72,329 +66,273 @@ $D_{\max}$       & Maximum nesting depth          & $1$     \\
 \end{tabular}
 \end{table}
 
-\subsection{Semantic Core Templates}
+\subsection{Semantic Injection}
 
-Uniform grammar sampling overwhelmingly produces divergent or
-semantically vacuous programs.
-Each \emph{semantic core template} suppresses both failure modes by
-fixing three aspects of the loop:
-\begin{itemize}
-\item \textbf{Counter and guard}: the progression mode (increment,
-  decrement, doubling, \ldots) is matched to the guard, guaranteeing
-  termination.
-\item \textbf{Core variable updates}: a fixed set of assignments
-  maintains the semantic invariant; these variables are
-  write-protected during subsequent sampling steps.
-\item \textbf{Invariant-consistent initialisation}: initial values
-  are set so the invariant holds from the first iteration.
-\end{itemize}
-With probability $\pi_{\mathrm{core}} = 0.88$ a loop is seeded by
-a template; the remaining $12\%$ are assembled freely.
-After the template installs its skeleton, an extension phase fills
-the remaining assignment budget with freely sampled expressions over
-non-core variables.
+Purely random loop bodies rarely exhibit the algebraic structure
+found in real verification benchmarks.
+\lf{} addresses this through \emph{semantic injection}: with
+probability $\pi_{\mathrm{core}}$ (default $0.88$), the generator
+seeds each loop with a \emph{semantic core}---a template that
+fixes a counter--guard pair (guaranteeing termination), one or more
+core variable updates maintaining a known invariant, and matching
+initialisations.
+Core variables are \emph{write-protected} during the subsequent
+extension phase, which fills remaining budgets with freely sampled
+expressions over non-core variables, ensuring the injected invariant
+is preserved regardless of surrounding code.
+The remaining $1{-}\pi_{\mathrm{core}}$ of loops are assembled
+freely.
 
-\subsection{Semantic Families}
+The cores span eight semantic families
+(Table~\ref{tab:sem-families}).
 
-The 60 templates span eight families, each with a distinct
-proof-obligation shape:
-
-\begin{itemize}\setlength{\itemsep}{2pt}
-\item \emph{Linear conservation} ($a + b = N$): variables exchange
-  a fixed quantity each iteration; their linear combination is constant.
-\item \emph{Monotone accumulation} ($s \mathrel{+}= f(k)$): a running
-  sum grows monotonically; the invariant relates it to the counter
-  via a closed form (e.g.\ $2s = k(k-1)$, $s = k^2$).
-\item \emph{Proportional stride} ($j = c \cdot i$): two counters
-  advance at a fixed ratio, requiring a proportionality invariant.
-\item \emph{Modular counting} ($c \equiv t \pmod{T}$): a variable
-  cycles through a residue class; the invariant involves modular
-  arithmetic.
-\item \emph{State-machine transitions}: discrete phase variables drive
-  piecewise updates; the invariant is a disjunction over reachable
-  phase combinations.
-\item \emph{Division algorithm / GCD} ($a = q \cdot d + r$,
-  $0 \le r < d$): Euclidean reduction or quotient--remainder
-  decomposition.
-\item \emph{Multiplicative redistribution}
-  ($z + x \cdot y = a_0 b_0$; or $z \le 2^k$):
-  a product is re-expressed across variables as they are scaled.
-\item \emph{Polynomial recurrence}: coupled variables satisfy a
-  quadratic or higher-degree relation maintained by finite-difference
-  updates (e.g.\ $z \cdot w \ge p^2$).
-\end{itemize}
+\begin{table}[htb]
+\caption{Semantic families of core templates.}
+\label{tab:sem-families}
+\centering
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Family} & \textbf{Representative invariant} \\
+\midrule
+Linear conservation     & $a + b = N$ \\
+Monotone accumulation   & $s = \sum_{j=0}^{k-1} f(j)$ \\
+Proportional stride     & $j = c \cdot i$ \\
+Modular counting        & $c \equiv t \pmod{T}$ \\
+State-machine transition & $\mathit{state} \in \{s_1, \ldots, s_k\}$ \\
+Division / GCD          & $a = q \cdot d + r$ \\
+Multiplicative redistribution & $z + xy = a_0 b_0$ \\
+Polynomial recurrence   & $zw \ge p^2$ \\
+\bottomrule
+\end{tabular}
+\end{table}
 
 \subsection{Corpus}
 
-Using \textsc{LoopFactory} we synthesise 2{,}000 numeric loop
-programs spanning all eight semantic families.
-Of these, 1{,}900 serve as the training corpus annotated by the
-\textsc{SAM2INV} pipeline; the remaining 100 are held out as a
-synthetic test set for evaluating invariant-generation success in
-this controlled loop space.
+Using \lf{} we synthesise 2{,}000 programs spanning
+all eight families: 1{,}900 for training and 100 held out as a
+synthetic test set.
 
 %% ============================================================
-\section{Detailed Invariant Generation Algorithm}
+\section{Detailed Per-Loop Algorithm}
 \label{app:algorithm}
 %% ============================================================
 
 \subsection{Data Structures}
 
-The pipeline maintains the following state for each outer loop index $i$:
+For each loop index $i$ the pipeline maintains:
+$\mathbf{record}_i$ (loop guard, assignments, initial values,
+invariable parameters);
+$\mathcal{T}_i$ (execution trace set);
+$C_i$ (live candidate pool);
+$C^*_i$ (certified output).
 
-\begin{itemize}
-\item $\mathbf{record}_i$: the structured descriptor extracted from
-  static analysis, containing the loop guard, assignments (transition
-  relation), initial variable values, invariable (unmodified) parameters,
-  and function parameter names.
-\item $\mathcal{T}_i$: the execution trace set, a list of
-  variable-state snapshots collected by the smart sampler.
-\item $C_i$: the live candidate pool (a set of ACSL expression strings).
-\item $C^*_i$: the certified invariant set (output).
-\end{itemize}
+\subsection{Houdini Pruning}
 
-\subsection{Houdini Pruning Algorithm}
-
-\begin{figure}[htb]
-\centering
-\fbox{\parbox{0.92\columnwidth}{\small
-\textbf{Algorithm: Houdini Pruning}\\[2pt]
-\textbf{Input:} Candidate set $C$, verifier $\mathcal{V}$\\
-\textbf{Output:} Maximal inductive subset $C^* \subseteq C$\\[2pt]
-1: $C^* \leftarrow C$\\
-2: \textbf{repeat}\\
-3: \quad $R \leftarrow \mathcal{V}(C^*)$ \hfill\textit{// verify each invariant}\\
-4: \quad $F \leftarrow \{c \in C^* \mid R(c) = \textit{fail}\}$\\
-5: \quad $C^* \leftarrow C^* \setminus F$\\
-6: \textbf{until} $F = \emptyset$ \textbf{or} $C^* = \emptyset$\\
-7: \textbf{return} $C^*$
-}}
-\caption{Houdini-style pruning algorithm used in Stage~3 of the filter pipeline.}
-\label{alg:houdini}
-\end{figure}
+\begin{algorithm}[htb]
+\caption{Houdini Pruning (Stage~$F_4$)}\label{alg:houdini}
+\rule{\linewidth}{0.4pt}
+\begin{algorithmic}
+\alginput{Candidate set $C$, verifier $\mathcal{V}$}
+\algoutput{Maximal inductive subset $C^* \subseteq C$}
+\algblank
+\algline $C^* \leftarrow C$\\
+\algline \kw{repeat}\\
+\algline \algind $R \leftarrow \{c \in C^* \mid \mathcal{V}(c) = \mathit{fail}\}$\\
+\algline \algind $C^* \leftarrow C^* \setminus R$\\
+\algline \kw{until} $R = \emptyset$ \kw{or} $C^* = \emptyset$\\
+\algline \kw{return} $C^*$
+\end{algorithmic}
+\rule{\linewidth}{0.4pt}
+\end{algorithm}
 
 \subsection{Complete Per-Loop Algorithm}
 
-\begin{figure}[htb]
-\centering
-\fbox{\parbox{0.92\columnwidth}{\small
-\textbf{Algorithm: InvariantGenerator per loop $i$}\\[2pt]
-\textbf{Input:} Source code $P$, record $\mathbf{r}$, traces $\mathcal{T}$,
-               LLM $\mathcal{M}$, verifier $\mathcal{V}$\\
-\textbf{Output:} Annotated code $P^*$ or $\bot$\\[2pt]
-\textit{Phase 1 — Generation:}\\
-1: $P_{\text{tmpl}} \leftarrow \texttt{InsertTemplate}(P, i)$
-   \hfill\textit{// PLACE\_HOLDER annotations}\\
-2: $(\sigma, \ell) \leftarrow \texttt{PreparePrompt}(\mathbf{r}, \mathcal{T})$
-   \hfill\textit{// (system, user) prompts}\\
-3: \textbf{for} $j = 1,\ldots,N$ \textbf{in parallel} \textbf{do}\\
-4: \quad $R_j \leftarrow \mathcal{M}(P_{\text{tmpl}}, \sigma, \ell,\;\tau_j)$
-   \hfill\textit{// diverse temperature}\\
-5: \quad $C_j \leftarrow \texttt{ExtractInvariants}(R_j)$\\
-6: \textbf{end for}\\
-7: $C \leftarrow \bigcup_j C_j$ \hfill\textit{// union of all candidates}\\[4pt]
-\textit{Phase 2a — Heuristic ACSL Syntax Gate:}\\
-8: $C \leftarrow \{c \in C \mid \texttt{SyntaxFilter}(c,\mathbf{r})= \text{pass}\}$\\[4pt]
-\textit{Phase 2b — Execution-Trace Semantic Gate:}\\
-9: $C \leftarrow \{c \in C \mid \forall \mathbf{s} \in \mathcal{T}:\;
-   \texttt{eval}(c, \mathbf{s}) = \text{true}\}$\\[4pt]
-\textit{Phase 2c — Conflict Detection:}\\
-10: $C \leftarrow \texttt{RemoveConflicts}(C)$\\[4pt]
-\textit{Phase 2d — Merge:}\\
-11: $C_{\text{merged}} \leftarrow \texttt{Dedup}(C)$
-    \hfill\textit{// whitespace-normalised}\\[4pt]
-\textit{Phase 3 — Houdini Formal Pruning:}\\
-12: $C^* \leftarrow \texttt{Houdini}(C_{\text{merged}}, \mathcal{V})$
-    \hfill\textit{// see Algorithm~\ref{alg:houdini}}\\
-13: \textbf{if} $C^* = \emptyset$ \textbf{then return} $\bot$\\[4pt]
-\textit{Phase 4 — Postcondition Check \& Optional Repair:}\\
-14: \textbf{if} $\mathcal{V}$ reports \texttt{assert} satisfied \textbf{then}\\
-15: \quad \textbf{return} $\texttt{Annotate}(P, C^*)$\\
-16: \textbf{else} run $\le K$ repair iterations (feed error to $\mathcal{M}$)\\
-17: \textbf{return} $\texttt{Annotate}(P, C^*)$ or $\bot$
-}}
-\caption{Full per-loop invariant generation algorithm.}
-\label{alg:full}
-\end{figure}
+\begin{algorithm}[htb]
+\caption{InvariantGenerator per loop $i$}\label{alg:full}
+\rule{\linewidth}{0.4pt}
+\begin{algorithmic}
+\alginput{$P$, record $\mathbf{r}$, traces $\mathcal{T}$, LLM $\mathcal{M}$, verifier $\mathcal{V}$}
+\algoutput{Annotated code $P^*$ or $\bot$}
+\algblank
+\algline \textit{Phase I --- Generation:}\\
+\algline $P_{\text{tmpl}} \leftarrow \texttt{InsertTemplate}(P, i)$\\
+\algline $(\sigma, \ell) \leftarrow \texttt{PreparePrompt}(\mathbf{r}, \mathcal{T})$\\
+\algline \kw{for} $j = 1,\ldots,N$ \kw{in parallel do}\\
+\algline \algind $(\rho_j, I_j) \leftarrow \mathcal{M}(P_{\text{tmpl}}, \sigma, \ell, t_j)$\\
+\algline $C_{\mathrm{pool}} \leftarrow \bigcup_j \mathrm{conjuncts}(I_j) \;/\;{\sim_{\mathrm{ws}}}$\\
+\algblank
+\algline \textit{Phase II --- Multi-Stage Filtering:}\\
+\algline $C_1 \leftarrow \{c \in C_{\mathrm{pool}} \mid \mathrm{SynValid}(c)\}$ \cmnt{$F_1$}\\
+\algline $C_2 \leftarrow \{c \in C_1 \mid \forall\sigma\in\mathcal{T}:\,\sigma \models c\}$ \cmnt{$F_2$}\\
+\algline $C_3 \leftarrow \mathrm{SemDedup}(C_2)$ \cmnt{$F_3$}\\
+\algline $C_4 \leftarrow \texttt{Houdini}(C_3, \mathcal{V})$ \cmnt{$F_4$}\\
+\algline $C^* \leftarrow \mathrm{TrivFilter}(C_4)$ \cmnt{$F_5$}\\
+\algline \kw{if} $C^* = \emptyset$ \kw{then return} $\bot$\\
+\algblank
+\algline \textit{Phase III --- Verification \& Repair:}\\
+\algline \kw{if} $\mathcal{V}$ confirms postcondition \kw{then}\\
+\algline \algind \kw{return} $\texttt{Annotate}(P, C^*)$\\
+\algline \kw{else} run $\le K$ repair iterations\\
+\algline \kw{return} $\texttt{Annotate}(P, C^*)$ or $\bot$
+\end{algorithmic}
+\rule{\linewidth}{0.4pt}
+\end{algorithm}
 
 \subsection{Role of Static Analysis}
 
-Before Phase~1, the sampler's \texttt{LoopAnalysis} module performs a
-\emph{lightweight static pre-pass} on the input C file to populate
-$\mathbf{record}_i$.
-This is \emph{not} symbolic execution in the strict sense; it is a
-source-level analysis that:
-\begin{enumerate}
-\item Identifies the loop guard (transition relation) by reading
-  the \texttt{condition} field recorded in the JSON analysis file
-  produced by the Frama-C preprocessing step.
-\item Extracts the set of variables that are never assigned inside
-  the loop body (\emph{unchanged variables}), which become candidates
-  for $\texttt{\textbackslash at}(v, \text{Pre})$ invariants.
-\item Infers conservative integer bounds $[\ell_v, u_v]$ for each
-  parameter via \texttt{LoopBoundAnalyzer}, which are used to
-  constrain the smart sampler's input domain.
-\item Builds the \textbf{record} structure that encodes loop content,
-  transition expression, pre-condition, and the names of function
-  parameters (needed to gate $\texttt{\textbackslash at}$ usage in the
-  syntax filter).
-\end{enumerate}
-The Frama-C/WP oracle is \emph{only} invoked during the Houdini
-pruning stage (Phase~3) and never during candidate generation or
-lightweight filtering.
+Before Phase~I, \texttt{LoopAnalysis} performs a lightweight static
+pre-pass to populate $\mathbf{record}_i$: loop guard extraction,
+unchanged-variable identification (for \lstinline|\at| invariants),
+conservative integer bound inference, and record assembly.
+Frama-C/WP is invoked \emph{only} during Houdini pruning ($F_4$).
 
 \subsection{Non-Attributability of the Certified Output}
 \label{app:nonattrib}
 
-We formalise the key structural property stated informally in
-Section~\ref{sec:generation}.
-
 \begin{definition}[Attribution]
-Given $N$ candidate sets $C_1,\ldots,C_N$ and a certified output
-$C^*$, we say $C^*$ is \emph{attributable to call $j$} if
-$C^* \subseteq C_j$.
+$C^*$ is \emph{attributable to call $j$} if $C^* \subseteq C_j$.
 \end{definition}
 
-\begin{proposition}[Non-attributability is typical]
-\label{prop:nonattrib}
-Suppose the correct annotation for a loop requires a conjunction of
-$m \ge 2$ invariant clauses $c_1,\ldots,c_m$.
-If each clause $c_i$ is discovered independently by each of the
-$N$ calls with probability $q \in (0,1)$, then the probability that
-\emph{all} clauses appear in any single call $C_j$ is $q^m$,
-while the probability that all clauses appear in the union
-$C_{\text{pool}} = \bigcup_j C_j$ is $1 - (1-q)^{mN}$.
-For $q = 0.6$, $m = 4$, $N = 5$: single-call coverage $= 0.6^4 \approx 0.13$;
-union coverage $= 1 - 0.4^{20} \approx 1.00$.
+\begin{proposition}[Non-attributability]\label{prop:nonattrib}
+If the correct annotation requires $m \ge 2$ conjuncts, each
+discovered independently with probability $q$ per call, then
+single-call coverage is $q^m$ while union coverage is
+$1 - (1{-}q)^{mN}$.
+For $q{=}0.6$, $m{=}4$, $N{=}5$: single $\approx 0.13$;
+union $\approx 1.00$.
 \end{proposition}
 
-\begin{proof}
-Follows directly from independence and the complement rule for
-union of events.
-\end{proof}
-
-Proposition~\ref{prop:nonattrib} shows that the gap between
-single-call and union coverage grows exponentially with the number
-of required conjuncts $m$.
-In practice, real loop invariants for arithmetic programs require
-$m \in [2, 6]$ conjuncts (boundary invariants, postcondition
-conjuncts, auxiliary equalities), making single-call attribution
-unlikely in typical cases.
-
-\begin{corollary}
-Under the conditions of Proposition~\ref{prop:nonattrib} with
-$m \ge 2$ and $q < 1$, the expected fraction of per-call outputs
-$C_j$ for which $C^* \subseteq C_j$ is $q^m < 1$.
-Assigning a positive reward to calls satisfying $C^* \subseteq C_j$
-and a negative reward to others would on average penalise
-$(1 - q^m) > 0$ fraction of calls that may have contributed
-essential clauses to the union.
-\end{corollary}
-
-This corollary shows that any \emph{per-call} binary scoring scheme
---- including GRPO --- systematically mislabels calls that contribute
-essential clauses to the final answer, degrading the training signal
-for exactly the behaviours (diverse conjunct coverage) that make the
-union effective.
+Any per-call binary scoring (including GRPO) systematically
+mislabels calls contributing essential conjuncts to the union.
 
 %% ============================================================
-\section{DPO Data Construction: Formal Specification}
+\section{DPO Data Construction}
 \label{app:dpo}
 %% ============================================================
 
-\subsection{Chosen Response Construction}
+\subsection{Chosen and Rejected Responses}
 
-Given a program $P$ and the certified invariant set $C^*$ for loop
-$i$, the chosen annotated program is:
-\[
-P^+ = \texttt{Annotate}(P,\; i,\; C^*)
-\]
-where \texttt{Annotate} inserts the ACSL block
-\begin{center}
-\texttt{/*@ loop invariant $c_1$; \ldots loop invariant $c_k$;\\
-\phantom{/*@} loop assigns \textit{vars}; */}
-\end{center}
-immediately before the \texttt{while} statement of loop $i$.
-The $\texttt{loop assigns}$ clause is derived from the set of
-variables assigned anywhere in the loop body.
-$P^+$ is guaranteed to satisfy Frama-C/WP because it survived
-Stage~3 (Houdini pruning); no additional verification is needed
-for the training record.
+The chosen annotated program is
+$P^+ = \texttt{Annotate}(P, i, C^*)$.
+For each rejected conjunct $r \in C_{\mathrm{pool}} \setminus C^*$:
+$P^-_r = \texttt{Annotate}(P, i, \{r\})$,
+labelled by rejection stage $k(r) \in \{1,\dots,5\}$.
+The full DPO record is
+$\mathcal{D}(P, i, r) = (P,\; P^+,\; P^-_r,\; k(r))$.
 
-\subsection{Rejected Response Construction and Stage Labelling}
+\subsection{Off-Policy Augmentation}
+\label{app:dpo-aug}
 
-For each $r \in C_{\text{pool}} \setminus C^*$, we construct:
-\[
-P^-_r = \texttt{Annotate}(P,\; i,\; \{r\})
-\]
-and record the stage $k(r) \in \{1, 2, 3\}$ at which $r$ was
-eliminated:
-\begin{itemize}
-\item $k(r) = 1$: $r$ failed the ACSL syntax gate
-  (Appendix~\ref{app:syntax-gate}).
-\item $k(r) = 2$: $r$ passed syntax but was falsified by some
-  trace state $\mathbf{s} \in \mathcal{T}$, i.e.\
-  $\texttt{eval}(r, \mathbf{s}) = \text{false}$.
-\item $k(r) = 3$: $r$ passed syntax and trace filters but was
-  removed by Houdini because Frama-C/WP could not verify
-  its establishment or preservation condition.
+The pipeline applies two complementary off-policy augmentation
+strategies to enrich the DPO training signal.
+Both operate purely on the artefacts already produced by the
+filtering pipeline, requiring no additional LLM or verifier calls.
+
+\paragraph{Negative pool collection.}
+During filtering, every conjunct eliminated at \emph{any} stage is
+added to a per-program negative pool~$B$:
+\begin{itemize}[leftmargin=1.5em,itemsep=1pt]
+\item \textbf{Syntax gate} ($F_1$): conjuncts violating ACSL syntax
+  rules or containing forbidden operators (\texttt{\^{}},
+  \texttt{\textbackslash pow}).
+\item \textbf{Trace gate} ($F_2$): conjuncts passing syntax but
+  falsified by at least one execution trace.
+\item \textbf{Houdini gate} ($F_4$): conjuncts removed during
+  iterative formal pruning (present before Houdini but absent after).
 \end{itemize}
-The full DPO training record for program $P$, loop $i$, and
-rejected expression $r$ is the tuple:
-\[
-\mathcal{D}(P, i, r) = \bigl(P,\; P^+,\; P^-_r,\; k(r)\bigr).
-\]
+Conjuncts already in the chosen set~$C^*$ are excluded from~$B$
+(by normalised text comparison).
 
-\subsection{Stage-Stratified Loss Weighting}
+\paragraph{Augmentation algorithm.}
+Algorithm~\ref{alg:aug-mixed} combines both strategies into a
+unified procedure.
+Let $m = |C^*|$ and $n = |B|$.
 
-Standard DPO minimises the loss:
-\[
-\mathcal{L}_{\text{DPO}} =
-  -\mathbb{E}\!\left[\log \sigma\!\left(
-    \beta \log \frac{\pi_\theta(P^+ \mid P)}{\pi_{\text{ref}}(P^+ \mid P)}
-    - \beta \log \frac{\pi_\theta(P^-_r \mid P)}{\pi_{\text{ref}}(P^-_r \mid P)}
-  \right)\right].
-\]
-We extend this with stage-dependent weights $w_k$:
+\begin{algorithm}[htb]
+\caption{Off-policy DPO augmentation}\label{alg:aug-mixed}
+\rule{\linewidth}{0.4pt}
+\begin{algorithmic}
+\alginput{Chosen code $P^+$ with $m$ conjuncts $C^*$,
+  negative pool $B$ ($n{=}|B|$),
+  rejected candidates $\{R_j\}$ from filtering}
+\algoutput{Set of rejected variants $\{P^-_i\}$}
+\algblank
+\algline \textit{Strategy 1 --- Conjunct recombination:}\\
+\algline \kw{repeat} until enough samples collected:\\
+\algline \algind Sample $g \sim \mathrm{Uniform}(0,\;\max(m{-}2,\,0))$
+  \cmnt{good count}\\
+\algline \algind Sample $b \sim \mathrm{Uniform}(0,\;n)$
+  \cmnt{bad count}\\
+\algline \algind Sample $k_{\max} \sim \mathrm{Uniform}(\max(m{-}2,\,1),\;m{+}2)$
+  \cmnt{total cap}\\
+\algline \algind \kw{if} $g + b < 1$ \kw{or} $g + b > k_{\max}$
+  \kw{then} reject and resample\\
+\algline \algind Draw $g$ conjuncts uniformly from $C^*$
+  $\;\to G_{\mathrm{sub}}$\\
+\algline \algind Draw $b$ conjuncts uniformly from $B$
+  $\;\to B_{\mathrm{sub}}$\\
+\algline \algind $P^- \leftarrow \texttt{Annotate}(P,\;
+  G_{\mathrm{sub}} \cup B_{\mathrm{sub}})$\\
+\algline \algind \kw{if} $P^- \ne P^+$ \kw{then} emit $P^-$\\
+\algblank
+\algline \textit{Strategy 2 --- Error-candidate subset:}\\
+\algline \kw{for each} rejected candidate $R_j$ \kw{do}\\
+\algline \algind Let $\ell = |\mathrm{conjuncts}(R_j)|$\\
+\algline \algind Sample $k \sim \mathrm{Uniform}(1,\;\max(\ell{-}2,\,1))$\\
+\algline \algind Draw $k$ conjuncts uniformly from $R_j$
+  $\;\to S$\\
+\algline \algind $P^- \leftarrow \texttt{Annotate}(P,\; S)$\\
+\algline \algind \kw{if} $\mathrm{conjuncts}(P^-) \ne C^*$
+  \kw{then} emit $P^-$
+\end{algorithmic}
+\rule{\linewidth}{0.4pt}
+\end{algorithm}
+
+Key properties:
+\begin{itemize}[leftmargin=1.5em,itemsep=1pt]
+\item \textbf{Strategy~1} (conjunct recombination):
+  since $g \le m{-}2$, the good subset alone is always a
+  strict subset of~$C^*$, so the variant cannot equal the chosen
+  annotation even when $b = 0$.
+  The randomised cap $k_{\max}$ keeps the total annotation
+  size close to~$m$, preventing degenerate extremes.
+\item \textbf{Strategy~2} (error-candidate subset):
+  each rejected candidate $R_j$ is a full annotated program that
+  failed at some filtering stage.
+  A random proper subset of its conjuncts produces a new
+  rejected variant, with a normalised check ensuring the conjunct
+  set differs from~$C^*$.
+\item Both strategies are zero-cost: they recombine existing
+  artefacts without additional model inference or formal
+  verification.
+\end{itemize}
+
+\subsection{Stage-Stratified Loss}
+
+We extend DPO with stage-dependent weights $w_k$:
 \[
 \mathcal{L}_{\text{S-DPO}} =
   -\mathbb{E}\!\left[w_{k(r)} \cdot \log \sigma\!\left(
-    \beta \log \frac{\pi_\theta(P^+ \mid P)}{\pi_{\text{ref}}(P^+ \mid P)}
-    - \beta \log \frac{\pi_\theta(P^-_r \mid P)}{\pi_{\text{ref}}(P^-_r \mid P)}
-  \right)\right].
+    \beta \log \frac{\pi_\theta(P^+ \mid P)}
+                    {\pi_{\text{ref}}(P^+ \mid P)}
+    - \beta \log \frac{\pi_\theta(P^-_r \mid P)}
+                      {\pi_{\text{ref}}(P^-_r \mid P)}
+  \right)\right]
 \]
-The rationale for $w_1 \le w_2 \le w_3$ is that Stage-3 rejections
-are the hardest preference distinctions: the rejected expression is
-consistent with all observed program states and was eliminated only
-by a formal inductiveness check, making the margin between $P^+$ and
-$P^-_r$ the smallest and the training signal the most informative.
-Concretely, we use $w_1 = 0.5,\; w_2 = 1.0,\; w_3 = 2.0$ as
-default weights, reflecting the increasing difficulty of the
-corresponding rejection judgements.
-
-\subsection{SFT Records}
-
-Alongside DPO pairs, each successful pipeline run produces an SFT
-record $(P,\; P^+)$.
-SFT pre-training warms up the model towards the format and style
-of ACSL annotations before DPO alignment, following the standard
-two-phase fine-tuning recipe~\cite{ouyang2022training}.
-Because $P^+$ is formally verified, SFT on these records teaches
-the model what a \emph{correct and informative} annotation looks
-like, providing a positive learning signal that complements the
-contrastive DPO signal.
+with default weights $w_1{=}0.5$, $w_2{=}1.0$, $w_3{=}1.5$,
+$w_4{=}2.0$, $w_5{=}2.5$, reflecting that later-stage rejections
+are harder and more informative contrasts.
 
 %% ============================================================
-\section{Prompts Used in Each Stage}
+\section{Prompts}
 \label{app:prompts}
 %% ============================================================
 
 \subsection{System Prompt}
 
-The system prompt is loaded verbatim from \texttt{prompts/system\_prompt.txt}
-and prepended to every LLM call. Its full content is reproduced below.
-
-\begin{lstlisting}[style=coqstyle, basicstyle=\ttfamily\scriptsize]
+\begin{promptbox}[System Prompt]
+\begin{lstlisting}[style=promptstyle]
 You are a formal verification expert specializing in loop
 invariant synthesis for Frama-C with the WP plugin.
 
@@ -431,41 +369,87 @@ Arithmetic: +, -, *, /, %
 Return ONLY the annotated C function. Do not include
 explanations.
 \end{lstlisting}
+\end{promptbox}
 
-\subsection{User Prompt (Loop Context Block)}
+\subsection{Loop Context Structure}
 
-The user prompt is assembled by \texttt{PromptFormatter} and passed
-as the second message in the conversation.
-It consists of two parts.
+The user prompt assembles four components into a structured loop
+context block.
+Table~\ref{tab:loop-context-fields} summarises each field and its
+source.
 
-\paragraph{Part 1 — Loop context.}
-\begin{lstlisting}[style=coqstyle, basicstyle=\ttfamily\scriptsize]
+\begin{table}[htb]
+\caption{Fields of the loop context prompt and their construction.}
+\label{tab:loop-context-fields}
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Field} & \textbf{Content} & \textbf{Source} \\
+\midrule
+Pre-Condition        & ACSL state at loop entry   & Symbolic execution \\
+Transition Relation  & One-step $v \mapsto e'$    & Symbolic execution \\
+Loop Snippet         & Raw C code of loop body    & Static analysis \\
+Execution Traces     & Temporally labelled states & Dynamic sampling \\
+Variable List        & $V_{\mathrm{mod}} \cup \mathcal{P}$ & Static analysis \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The overall prompt layout is shown below:
+
+\begin{promptbox}[Loop Context Layout]
+\begin{lstlisting}[style=promptstyle]
 ### Loop Context: ###
-
 1. Loop Context
-  A. Pre-Condition (Before Loop Entry): `<precondition>`
+  A. Pre-Condition: <ACSL state expression>
+  B. Loop Transition Relation: <one-step summary>
+  C. Loop Snippet:
+     ```c
+     <loop code>
+     ```
+
+2. Execution Traces
+  [TRACE 1]
+    [state] (BEFORE loop starts) ->
+    [state] (BEFORE iteration 1 body executes) ->
+    [state] (AFTER loop terminates)
+  ...
+
+### AVAILABLE VARIABLES AND PARAMETERS
+**Available Variables:** v1, v2, ...
+**Function Parameters:**
+  - p1 (or \at(p1, Pre) for initial value)
+\end{lstlisting}
+\end{promptbox}
+
+\subsection{User Prompt}
+
+The user prompt contains two parts: a loop context block and
+execution traces with temporal labels.
+
+\begin{promptbox}[User Prompt Template]
+\begin{lstlisting}[style=promptstyle]
+### Loop Context: ###
+1. Loop Context
+  A. Pre-Condition: `<precondition>`
   B. Loop Transition Relation: `<transition_expr>`
   C. Loop Snippet:
 ```c
 <loop_code>
 ```
-
 2. Execution Traces
-   Each trace shows the full sequence of conditional
-   evaluations, step by step.
-
    WARNING: CRITICAL TEMPORAL SEMANTICS:
    - Each state is labeled as
-     'BEFORE loop body execution' or 'AFTER loop terminates'
-   - Loop invariants must hold at the START of each iteration
-     (BEFORE body executes)
-   ...
+     'BEFORE loop body execution'
+     or 'AFTER loop terminates'
+   - Loop invariants must hold at the START of each
+     iteration (BEFORE body executes)
 \end{lstlisting}
+\end{promptbox}
 
-\paragraph{Part 2 — Execution traces.}
-For each sampled input group (up to $G{=}5$), the formatter emits
-a trace block:
-\begin{lstlisting}[style=coqstyle, basicstyle=\ttfamily\scriptsize]
+\begin{promptbox}[Trace Example]
+\begin{lstlisting}[style=promptstyle]
 [TRACE 1]
     [ n==0 && x==0 && y==1 && z==6 ]
         (BEFORE loop starts) ->
@@ -474,207 +458,79 @@ a trace block:
     [ n==2 && x==8 && y==25 && z==18 ]
         (AFTER loop terminates)
 \end{lstlisting}
+\end{promptbox}
 
-The temporal labels (\texttt{BEFORE iteration $k$ body executes})
-are essential: they tell the LLM that an invariant must hold at loop
-entry of each iteration, not at loop exit, which is a common source
-of error in naive prompting.
-Initial values use $\texttt{\textbackslash at}(v, \text{Pre})$ notation
-so the model can directly reference them in \texttt{loop invariant} lines.
-
-\paragraph{Diversity via temperature.}
-Each of the $N$ parallel LLM calls uses an independently sampled
-temperature $\tau_j$.
-In the default configuration, the primary call uses $\tau_1 = 1.0$ and
-subsequent calls are drawn uniformly from $\{0.8, 1.0, 1.1, 1.2\}$,
-ensuring that the candidate pool covers both conservative and more
-exploratory invariant conjectures.
+Temperature diversity: the primary call uses $t_1{=}1.0$; subsequent
+calls draw uniformly from $\{0.8, 1.0, 1.1, 1.2\}$.
 
 %% ============================================================
-\section{Heuristic ACSL Syntax Gate: Implementation Details}
+\section{ACSL Syntax Gate Rules}
 \label{app:syntax-gate}
 %% ============================================================
 
-The syntax gate (Stage~1, Section~\ref{sec:filtering}) runs before
-any program execution or Frama-C invocation.
-It is implemented in \texttt{unified\_filter.py} as a rule-based
-checker that operates directly on ACSL expression strings.
+Each conjunct is checked against these ordered rules (any failure
+causes rejection):
 
-\subsection{Rejection Rules}
-
-Each candidate invariant expression is checked against
-the following ordered rules (any single failure causes rejection):
-
-\begin{enumerate}
-
-\item \textbf{Trivial/placeholder tokens.}
-  Expressions equal to \texttt{true}, \texttt{false}, \texttt{...},
-  or containing only punctuation are rejected immediately.
-
-\item \textbf{Non-printable or non-ASCII characters.}
-  Frama-C requires printable ASCII (U+0020--U+007E).
-  Characters such as the Unicode inequality signs \textsf{$\leq$}, \textsf{$\geq$},
-  \textsf{$\neq$}, or control characters (e.g.\ BEL, U+0007 occasionally
-  emitted by LLMs) cause rejection.
-  The error message instructs the model to use \texttt{<=}, \texttt{!=}.
-
-\item \textbf{Nested \texttt{loop invariant} keyword.}
-  When a LLM fills in a \texttt{PLACE\_HOLDER} slot with a complete
-  \texttt{loop invariant expr;} line instead of a bare expression,
-  Frama-C cannot parse the annotation and enters a pathological parsing
-  state.
-  A regex check (\texttt{/\textbackslash bloop\textbackslash sinvariant\textbackslash b/i})
-  catches and rejects these.
-
-\item \textbf{Bracket balance.}
-  Unmatched parentheses, square brackets, or braces are rejected,
-  with the position of the first mismatch reported in the error message.
-
-\item \textbf{Forbidden quantifiers.}
-  Presence of \texttt{\textbackslash forall} or \texttt{\textbackslash exists}
-  triggers rejection; Frama-C/WP does not support quantifiers in
-  loop invariant annotations.
-
-\item \textbf{Forbidden ACSL definitions.}
-  The keywords \texttt{predicate}, \texttt{inductive}, \texttt{logic},
-  \texttt{axiomatic}, \texttt{lemma} may not appear in invariant expressions.
-
-\item \textbf{Forbidden ACSL math operators.}
+\begin{enumerate}[leftmargin=1.5em,itemsep=1pt]
+\item \textbf{Trivial/placeholder tokens:}
+  \texttt{true}, \texttt{false}, \texttt{...}, punctuation-only.
+\item \textbf{Non-ASCII characters:}
+  Unicode inequality signs, control characters.
+\item \textbf{Nested \texttt{loop invariant} keyword:}
+  LLM emits full annotation line instead of bare expression.
+\item \textbf{Bracket balance:}
+  Unmatched parentheses, brackets, or braces.
+\item \textbf{Forbidden quantifiers:}
+  \texttt{\textbackslash forall}, \texttt{\textbackslash exists}.
+\item \textbf{Forbidden ACSL definitions:}
+  \texttt{predicate}, \texttt{inductive}, \texttt{logic},
+  \texttt{axiomatic}, \texttt{lemma}.
+\item \textbf{Forbidden math operators:}
   \texttt{\textbackslash product}, \texttt{\textbackslash sum},
-  \texttt{\textbackslash min}, \texttt{\textbackslash max} are rejected
-  (not supported by the WP plugin for loop invariants).
-
-\item \textbf{Ternary operator.}
-  The \texttt{?\ :} construct is not valid ACSL.
-
-\item \textbf{Undefined variable names.}
-  Each identifier in the expression is compared against
-  $\mathit{known\_vars}$, the union of local variables, parameters,
-  and ACSL built-ins extracted from $\mathbf{record}$.
-  Unknown identifiers are rejected with a diagnostic listing the
-  candidates.
-
-\item \textbf{\texttt{\textbackslash at} scope check.}
-  Expressions of the form $\texttt{\textbackslash at}(v, \text{Pre})$
-  are permitted only when $v \in \mathcal{P}$ (function parameters).
-  Usage on local variables is rejected, since local variables have no
-  pre-state binding in Frama-C/WP.
-
-\item \textbf{Exponentiation (\texttt{\^{}} or \texttt{\textbackslash pow}).}
-  A final safety sweep removes any surviving candidates containing
-  these tokens, which represent bitwise XOR or undefined ACSL
-  functions respectively.
-
+  \texttt{\textbackslash min}, \texttt{\textbackslash max}.
+\item \textbf{Ternary operator:}
+  \texttt{?\ :} is not valid ACSL.
+\item \textbf{Undefined variable names:}
+  Checked against known variables from $\mathbf{record}$.
+\item \textbf{\texttt{\textbackslash at} scope:}
+  Only permitted on function parameters $\mathcal{P}$.
+\item \textbf{Exponentiation:}
+  \texttt{\^{}} or \texttt{\textbackslash pow} rejected.
 \end{enumerate}
 
-\subsection{Post-Merge Sanitisation}
-
-After the union of $N$ candidate pools is formed (Algorithm~\ref{alg:full},
-line~11), an additional normalisation pass is applied:
-\begin{itemize}
-\item \texttt{\textbackslash at}($v$, Pre) for local variable $v$ is
-  rewritten to plain $v$ (conservative safe fallback).
-\item Any invariant re-introducing \texttt{\^{}} or \texttt{\textbackslash pow}
-  is silently dropped.
-\end{itemize}
-This sanitisation step prevents the Houdini stage from encountering
-annotation parse errors that would stall the Frama-C subprocess.
+Post-merge sanitisation rewrites local-variable
+\texttt{\textbackslash at} to plain references and drops any
+surviving exponentiation tokens.
 
 %% ============================================================
-\section{Smart Dynamic Sampling: Implementation Details}
+\section{Dynamic Sampling Details}
 \label{app:sampling}
 %% ============================================================
 
-\subsection{Overview}
-
-The smart sampler (\texttt{smart\_sampler.py}) generates concrete
-integer inputs for the program's function parameters.
-Its design goal is to produce a small but informationally dense set
-of execution traces that expose the polynomial relationships maintained
-by the loop, while avoiding:
-\begin{itemize}
-\item All-zero inputs (which collapse polynomial terms and prevent
-  coefficient identification).
-\item Excessively large inputs (which cause integer overflow or
-  time-outs during dynamic execution).
-\end{itemize}
-
 \subsection{Tiered Value Generation}
 
-For each parameter $v$ with domain $[\ell_v, u_v]$ inferred by
-\texttt{LoopBoundAnalyzer}, the sampler constructs four tiers:
+For each parameter $v$ with domain $[\ell_v, u_v]$:
 \begin{align*}
 \mathcal{T}_0(v) &= \{0, 1, -1\} \cap [\ell_v, u_v]
-  && \text{(special corner values)} \\
+  && \text{(corners)} \\
 \mathcal{T}_1(v) &= \{2,\ldots,10\} \cap [\ell_v, u_v]
-  && \text{(small positive integers)} \\
-\mathcal{T}_{1'}(v) &= \{-2,\ldots,-10\} \cap [\ell_v, u_v]
-  && \text{(small negatives, if enabled)} \\
+  && \text{(small positives)} \\
 \mathcal{T}_2(v) &\subseteq \{11,\ldots,50\}
-  && \text{(5 randomly drawn medium values)} \\
+  && \text{(5 medium values)} \\
 \mathcal{T}_3(v) &\subseteq \{51,\ldots,100\}
-  && \text{(3 randomly drawn large values)}
+  && \text{(3 large values)}
 \end{align*}
 
 \subsection{Phased Cartesian Sampling}
 
-Inputs are generated in four phases.
-Each phase fills part of the quota of at most $S_{\max}$
-samples (default $S_{\max} = 20$).
-Already-seen input tuples are deduplicated via a hash set.
+Four phases fill a quota of $S_{\max}{=}20$ samples:
+(1)~corner-case tuples from $\prod_v \mathcal{T}_0(v)$;
+(2)~mixed tier 0+1 combinations ordered by total tier index;
+(3)~all tiers, prioritised similarly;
+(4)~biased random fill (80\% from $[0,20]$, 20\% from $[21,100]$).
 
-\begin{enumerate}
-\item \textbf{Phase~1 (corner cases).}
-  Generate all tuples in $\prod_v \mathcal{T}_0(v)$.
-  For $p$ parameters each with up to 3 special values, this produces
-  at most $3^p$ tuples (e.g.\ 9 for $p=2$).
-  These inputs are ideal for fitting degree-0 and degree-1
-  polynomial terms.
+\subsection{Trace Formatting}
 
-\item \textbf{Phase~2 (mixed tier 0+1).}
-  Enumerate combinations where each coordinate is drawn from
-  $\mathcal{T}_0(v) \cup \mathcal{T}_1(v)$.
-  Combinations are ordered by total tier index
-  $\sum_v \text{tier}(v_j)$, so simpler combinations are generated
-  first.
-
-\item \textbf{Phase~3 (all tiers).}
-  Extend to include $\mathcal{T}_2$ and $\mathcal{T}_3$,
-  again prioritised by total tier index.
-  This covers medium-range inputs needed to disambiguate
-  quadratic from linear relationships.
-
-\item \textbf{Phase~4 (biased random fill).}
-  If the quota is not yet reached, fill with random tuples
-  where each coordinate is drawn with probability 0.8 from
-  $[0, 20]$ and 0.2 from $[21, 100]$.
-  This phase ensures coverage of edge cases not reached
-  by the structured phases.
-\end{enumerate}
-
-\subsection{Trace Collection and Formatting}
-
-Each accepted input tuple is passed to
-\texttt{DynamicExecutorConfigurable}, which instruments the C source
-with \texttt{printf} statements recording all variable values at the
-top of each loop iteration.
-The collected trace for a single input is a sequence of
-variable-assignment strings (e.g.
-\texttt{(n == 2) * (x == 8) * (y == 25) * (z == 18)}).
-These are parsed and formatted by \texttt{PromptFormatter}
-into the temporal-labelled trace blocks shown in
-Appendix~\ref{app:prompts}.
-
-To prevent context-window overflow, the formatter applies two
-limits:
-\begin{itemize}
-\item At most $G = 5$ trace groups are included per LLM call.
-\item Within each group, at most $k_{\max} = 10$ iteration
-  snapshots are kept; if a loop runs for more than $k_{\max}$
-  iterations, the first $\lfloor k_{\max}/2 \rfloor$ and last
-  $\lceil k_{\max}/2 \rceil$ snapshots are retained, and the
-  truncation is noted explicitly in the prompt.
-\end{itemize}
-These limits ensure that the total prompt length stays within
-the LLM's context window even for programs with deeply nested
-loops or large parameter ranges.
+At most $G{=}5$ trace groups per call; within each, at most
+$k_{\max}{=}10$ iteration snapshots (first and last halves retained
+if truncated).

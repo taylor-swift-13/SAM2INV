@@ -2,120 +2,102 @@
 \section{System Overview}\label{sec:overview}
 %% ============================================================
 
-Figure~\ref{fig:pipeline} illustrates the end-to-end \textsc{SAM2INV} pipeline.
-The system takes as input a C function containing a \texttt{while} loop,
-a precondition (\texttt{requires}), and a postcondition (\texttt{assert}).
-It outputs the same function annotated with ACSL loop invariants and a
-\texttt{loop assigns} clause such that Frama-C/WP can fully verify the
-postcondition, together with SFT and DPO training records for offline
-policy fine-tuning.
+\sam{} is built around a single unified pipeline
+(Figure~\ref{fig:pipeline}) that serves \emph{both} training-data
+synthesis and test-time inference.
+Given a C function with a \texttt{while} loop, precondition, and
+postcondition, the pipeline outputs ACSL-annotated code verified by
+Frama-C/WP.
+During training data preparation it additionally produces SFT and DPO
+records; at inference time those stages are simply deactivated.
+Table~\ref{tab:mode-diff} summarises which components are active in
+each mode.
 
 \begin{figure}[t]
 \centering
-\fbox{\parbox{0.95\columnwidth}{%
-\small
-\begin{center}\textbf{\textsc{SAM2INV} Pipeline}\end{center}
-\vspace{-0.5em}
-\begin{enumerate}\setlength{\itemsep}{2pt}
-\item[\ding{182}] \textbf{Smart Sampling} --- Execute the program with tiered inputs;
-      collect execution traces recording variable values at every loop iteration.
-\item[\ding{183}] \textbf{Parallel LLM Generation} --- Issue $N$ parallel LLM calls
-      with diverse prompts and temperatures; parse and union all candidate invariants
-      into a single pool.
-\item[\ding{184}] \textbf{Stage~1 -- ACSL Syntax Filter} --- Reject candidates that
-      violate ACSL syntax rules (unsupported quantifiers, forbidden operators, etc.).
-\item[\ding{185}] \textbf{Stage~2 -- Execution-Trace Semantic Filter} --- Discard
-      candidates falsified by any observed loop state without invoking the verifier.
-\item[\ding{186}] \textbf{Stage~3 -- Houdini Formal Pruning} --- Iteratively remove
-      non-inductive invariants via Frama-C/WP; the surviving set is \emph{certified}.
-\item[\ding{187}] \textbf{Knowledge Distillation} --- Record verified candidates as
-      SFT chosen examples; pair rejected candidates with chosen as DPO preference pairs,
-      labelled by rejection stage. Output annotated C code (or report failure).
+\begin{stepbox}[\sam{} Pipeline]
+\begin{enumerate}[leftmargin=1.5em,itemsep=2pt,label={\small\ding{\numexpr181+\value{enumi}\relax}}]
+\item \textbf{Dynamic Sampling} --- Execute with tiered
+      inputs; collect per-iteration variable traces.
+\item \textbf{Parallel LLM Generation} --- $N$ calls with
+      diverse temperatures; decompose into conjuncts and union.
+\item \textbf{ACSL Syntax Filter} --- Reject
+      structurally invalid conjuncts.
+\item \textbf{Trace Semantic Filter} --- Discard
+      conjuncts falsified by observed states.
+\item \textbf{Semantic Deduplication} --- Collapse
+      logically equivalent conjuncts via auxiliary LLM.
+\item \textbf{Houdini Formal Pruning} --- Iteratively
+      remove non-inductive conjuncts via Frama-C/WP.
+\item \textbf{Trivial Invariant Filter} --- Exclude
+      formally correct but semantically vacuous invariants.
+\item \textbf{Reverse CoT \& Distillation} ---
+      Synthesise reasoning chains; construct chosen/rejected pairs;
+      augment and train via SFT\,+\,DPO.
 \end{enumerate}
-}}
-\caption{The \textsc{SAM2INV} sampling-and-filtering pipeline.
-Steps \ding{182}--\ding{183} form Phase~I (Sampling \& Generation);
-steps \ding{184}--\ding{186} form Phase~II (Three-Stage Filtering);
-step \ding{187} constitutes Phase~III (Certification \& Knowledge Distillation).
-Houdini pruning in step~\ding{186} is guaranteed to terminate.}
+\end{stepbox}
+\caption{\sam{} pipeline.
+\ding{182}--\ding{183}: generation;
+\ding{184}--\ding{188}: multi-stage filtering;
+\ding{189}: distillation.}
 \label{fig:pipeline}
 \end{figure}
 
-The pipeline operates in three broad phases.
-
-\paragraph{Phase~I: Sampling and Generation (Steps \ding{182}--\ding{183}).}
-The target program is compiled and executed under a set of carefully chosen inputs
-produced by the \emph{smart tiered sampler} (Section~\ref{sec:sampling}).
-Execution traces---recording variable values at every loop iteration---are collected and
-formatted into structured text that exposes the mathematical relationships maintained
-by the loop.
-Multiple LLM instances are then queried in parallel, each receiving a prompt assembled
-from the source code, execution traces, and a system prompt encoding ACSL rules and an
-assertion-driven synthesis strategy.
-Prompt diversity is achieved by varying the template and the sampling temperature.
-The union of all parsed responses forms the initial candidate pool.
-
-\paragraph{Phase~II: Three-Stage Filtering (Steps \ding{184}--\ding{186}).}
-The candidate pool is subjected to three progressively more expensive filters.
-The \emph{ACSL syntax filter} checks each candidate against a set of structural
-rules---no unsupported quantifiers, no forbidden operators, correct use of
-\lstinline|\at| expressions---and discards violators immediately.
-The \emph{execution-trace semantic filter} evaluates each surviving candidate against
-every recorded loop state; any candidate falsified by at least one observed state is
-discarded without invoking the verifier.
-Finally, \emph{Houdini formal pruning} passes the pre-screened set to Frama-C/WP,
-iteratively removing candidates whose verification conditions fail until the remaining
-set is fully inductive.
-Because at least one candidate is removed per Houdini iteration, termination is
-guaranteed (Theorem~\ref{thm:termination}).
-Every candidate that exits Phase~II is formally certified by Frama-C/WP.
-
-\paragraph{Phase~III: Certification and Knowledge Distillation (Step \ding{187}).}
-The certified invariant set is written back into the source file as the verified output.
-Simultaneously, the pipeline produces training data for offline knowledge distillation.
-Candidates accepted through all three filter stages are the \emph{chosen} response
-for supervised fine-tuning~(SFT).
-Candidates rejected at any stage are paired with the chosen annotation to form
-\emph{direct preference optimisation}~(DPO) preference pairs, labelled by rejection stage.
-This design moves GRPO-style exploration offline: the teacher model explores during
-pipeline execution; the formal verifier acts as the quality filter; and the student
-learns from the resulting structured preference data---with no online rollouts,
-no human annotation, and no trained reward model required.
-
-\paragraph{Running Example.}
-Consider the following program that computes the cube of~$n$:
-
-\begin{lstlisting}
-/*@ requires a>=n && n==0; */
-int main1(int a, int n){
-  int x, y, z;
-  x=0; y=1; z=6;
-  while(n <= a){
-    n=n+1; x=x+y; y=y+z; z=z+6;
-  }
-  /*@ assert (n==a+1) && (y==3*n*n+3*n+1)
-          && (x==n*n*n) && (z==6*n+6); */
-}
-\end{lstlisting}
-
-The smart sampler executes this program with $a \in \{0,1,\ldots,10\}$
-and collects traces such as:
-\[
+\begin{table}[t]
+\caption{Component activation under the two operating modes.
+The generation--filtering pipeline (\ding{182}--\ding{188}) is
+shared; distillation components (\ding{189}) are training-only.}
+\label{tab:mode-diff}
+\centering
 \small
-\begin{array}{cccc}
-\text{iter} & n & x & y \\
-\hline
-0 & 0 & 0 & 1 \\
-1 & 1 & 1 & 7 \\
-2 & 2 & 8 & 25 \\
-\end{array}
-\]
-The parallel LLM generation step produces a pool of candidate invariants.
-Ill-formed candidates (e.g., those using exponentiation \texttt{\^{}})
-are eliminated by the syntax filter; candidates that evaluate to \texttt{false}
-on any observed row are eliminated by the trace filter.
-Houdini pruning then confirms the four inductive invariants
-$x = n^3$, $y = 3n^2{+}3n{+}1$, $z = 6n{+}6$, and $n \le a{+}1$,
-and Frama-C/WP verifies the postcondition in a single pass.
-The verified invariants are stored as SFT data; every rejected candidate is
-paired with this verified set to form a DPO training record.
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Component} & \textbf{Training} & \textbf{Inference} \\
+\midrule
+Dynamic Sampling (\ding{182})          & \cmark & \cmark \\
+LLM caller (\ding{183})               & teacher $\mathcal{M}_T$, $N$ large & student $\mathcal{M}_S$, $N$ small \\
+Multi-stage filtering (\ding{184}--\ding{188}) & \cmark & \cmark \\
+\midrule
+\multicolumn{3}{@{}l}{\textit{Training-only (\ding{189}):}} \\
+\quad Reverse CoT synthesis            & \cmark & --- \\
+\quad DPO pair construction            & \cmark & --- \\
+\quad Data augmentation                & \cmark & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Phase~I: Generation (\ding{182}--\ding{183}).}
+The program is first executed under tiered inputs to collect
+execution traces $\mathcal{T}$.
+The value domain is partitioned into four tiers of increasing
+magnitude---corner values ($0, \pm1$), small positives ($2$--$5$),
+medium values ($6$--$50$), and large values ($51$--$500$)---and
+inputs are drawn in phases of increasing tier complexity to cover
+both boundary and interior behaviour.
+To fit LLM context limits, each trace retains the first and last $k$
+iterations (default $k{=}3$); traces are grouped into at most $G$
+groups (default $G{=}10$).
+A structured \emph{loop context} is then assembled from the traces,
+a static-analysis record (loop guard, variable scopes, pre-condition),
+and a symbolically derived transition relation
+(Section~\ref{sec:loop-context}).
+$N$ parallel LLM calls at diverse temperatures each return a CoT
+reasoning trace and candidate invariants; all invariant expressions
+are decomposed into conjuncts and unioned into a single pool
+$C_{\mathrm{pool}}$.
+During training, the teacher $\mathcal{M}_T$ is called with a large
+$N$ to maximise conjunct coverage; at inference, the student
+$\mathcal{M}_S$ is called with a smaller $N$.
+
+\paragraph{Phase~II: Multi-Stage Filtering (\ding{184}--\ding{188}).}
+Five filters of increasing cost refine the pool to a certified,
+non-trivial invariant set $C^*$ (Section~\ref{sec:filtering}).
+Every surviving conjunct is formally verified by Frama-C/WP.
+This phase is identical in both modes.
+
+\paragraph{Phase~III: Distillation (\ding{189}).}
+Active only during training.
+A reverse CoT model synthesises a reasoning chain for $C^*$.
+The result forms the \emph{chosen} sample; rejected candidates
+become DPO negatives (Section~\ref{sec:offline}).
+Tiered sampling details are in Appendix~\ref{app:sampling}.

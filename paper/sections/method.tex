@@ -2,164 +2,208 @@
 \section{Method}\label{sec:method}
 %% ============================================================
 
-We now describe each component of \textsc{SAM2INV} in detail,
-following the pipeline order introduced in Section~\ref{sec:overview}.
+%% ---- Notation ----
+\paragraph{Notation.}
+A program $P = (\phi_{\mathrm{pre}}, G, B, \phi_{\mathrm{post}})$
+has variables $V$, precondition $\phi_{\mathrm{pre}}$, guard $G$,
+body $B$, and postcondition $\phi_{\mathrm{post}}$.
+An execution trace $\tau = (\sigma_0, \dots, \sigma_T)$ records
+per-iteration states $\sigma_t : V \to \mathbb{Z}$.
+A candidate invariant $I = c_1 \wedge \cdots \wedge c_k$ is
+\emph{inductive} (written $\mathrm{Ind}(I,P)$) if
+$\phi_{\mathrm{pre}} \Rightarrow I$,\;
+$I \wedge G \wedge B \Rightarrow I'$,\; and
+$I \wedge \neg G \Rightarrow \phi_{\mathrm{post}}$.
 
 %% ------------------------------------------------------------
-\subsection{Smart Dynamic Sampling}\label{sec:sampling}
+\subsection{Loop Context Construction}\label{sec:loop-context}
 %% ------------------------------------------------------------
 
-The purpose of dynamic sampling is to collect execution traces that
-expose the mathematical relationships maintained by the loop.
-Naive random sampling often produces inputs that are either too
-simple (all zeros, which collapse polynomial terms) or too large
-(causing integer overflow or time-outs).
-We therefore adopt a \emph{tiered} sampling strategy: parameter
-values are partitioned into four tiers---special corner values
-$\{0,\pm1\}$, small positives, medium values, and large
-values---and input tuples are generated in phases of increasing
-tier complexity, with a biased random fill for any remaining quota.
-Each input is executed, and the variable state at every loop iteration
-is recorded.
-To keep prompts within LLM context limits, we retain only the first
-and last $k$ iterations per run (default $k{=}3$) and group traces
-into at most $G$ groups (default $G{=}10$).
-Full details of the tier definitions, phased Cartesian sampling
-algorithm, and trace formatting are given in
-Appendix~\ref{app:sampling}.
+Before calling the LLM, we assemble a structured \emph{loop context}
+that provides all information needed for invariant synthesis.
+A lightweight static pre-pass (\texttt{LoopAnalysis}) extracts a
+per-loop \emph{record} $\mathbf{r}_i$ containing:
+(i)~the loop guard and body code snippet,
+(ii)~the set of modified variables $V_{\mathrm{mod}}$ and unmodified
+     function parameters $\mathcal{P}$,
+(iii)~conservative integer bounds on each variable, and
+(iv)~the loop entry pre-condition $\phi_{\mathrm{pre}}$.
+
+A symbolic execution pass then enriches each record with a
+\emph{transition relation}: for each variable the pass computes the
+one-step mapping $v \mapsto e'(v, \mathcal{P})$ under the loop guard,
+distinguishing changed variables from unchanged ones.
+This gives the LLM a concise algebraic view of the loop body beyond
+raw source code.
+
+The final prompt concatenates four components:
+(i)~the ACSL pre-condition $\phi_{\mathrm{pre}}$,
+(ii)~the transition relation summary,
+(iii)~the loop code snippet, and
+(iv)~execution traces with temporal labels (\textsc{Before} iteration
+     / \textsc{After} termination) emphasising that invariants must
+     hold at the \emph{start} of every iteration.
+Available variables and function parameters (supporting
+\lstinline|\at(var, Pre)| references) are listed explicitly so that
+the LLM only uses well-scoped identifiers.
+The full prompt template is given in Appendix~\ref{app:prompts}.
 
 %% ------------------------------------------------------------
 \subsection{Parallel LLM Generation}\label{sec:generation}
 %% ------------------------------------------------------------
 
-Each LLM prompt is assembled from three components: a \emph{system
-prompt} encoding the task definition and allowed ACSL constructs, the
-\emph{source code} of the target function, and \emph{execution traces}
-formatted as structured variable--value tables.
-The system prompt encodes an \emph{assertion-driven} strategy:
-decompose each postcondition conjunct as an invariant candidate,
-weaken the loop guard to obtain a boundary invariant, and preserve
-unmodified function parameters via \lstinline|\at(v, Pre)|.
-Full prompts are reproduced in Appendix~\ref{app:prompts}.
+We issue $N$ parallel calls to the teacher $\mathcal{M}_T$ with
+temperatures drawn from $\{0.8, 1.0, 1.1, 1.2\}$.
+Each call $j$ returns $r_j = (\rho_j, I_j)$: a CoT reasoning trace
+$\rho_j$ and a candidate invariant $I_j$.
+Candidates are decomposed into conjuncts and unioned:
+\begin{equation}\label{eq:pool}
+C_{\mathrm{pool}} = \bigcup_{j=1}^{N}
+  \mathrm{conjuncts}(I_j)
+  \;\big/\; {\sim_{\mathrm{ws}}}
+\end{equation}
+where $\sim_{\mathrm{ws}}$ is whitespace-normalised string equality.
+The union exploits the conjunctive structure of invariants: distinct
+calls discover complementary conjuncts.
+Prompt design and temperature strategy are detailed in
+Appendix~\ref{app:prompts}.
 
-To maximise the probability of finding the complete invariant set, we
-issue $N$ parallel LLM calls (default $N{=}5$) with temperatures
-sampled from $\{0.8, 1.0, 1.1, 1.2\}$.
-Each call $j$ produces a candidate set $C_j$; these sets are
-\emph{unioned}, not voted upon:
+%% ------------------------------------------------------------
+\subsection{Multi-Stage Filtering}\label{sec:filtering}
+%% ------------------------------------------------------------
+
+The pool is refined through five stages of increasing cost:
 \[
-C_{\text{pool}} = \bigcup_{j=1}^{N} C_j \quad
-(\text{whitespace-normalised deduplication}).
+C_{\mathrm{pool}}
+\xrightarrow{F_1} C_1
+\xrightarrow{F_2} C_2
+\xrightarrow{F_3} C_3
+\xrightarrow{F_4} C_4
+\xrightarrow{F_5} C^*
 \]
-The union-then-filter design is motivated by a structural property
-of loop invariants: the correct annotation is a \emph{conjunction}
-of multiple clauses, and different clauses tend to be discovered by
-different calls.
-After filtering, the certified output $C^*$ is a post-hoc collective
-result, not a selection from any individual response---a
-\emph{non-attributability} property formalised in
-Appendix~\ref{app:nonattrib}.
 
-%% ------------------------------------------------------------
-\subsection{Three-Stage Filter Pipeline}\label{sec:filtering}
-%% ------------------------------------------------------------
+Algorithm~\ref{alg:pipeline} presents the complete procedure.
 
-The candidate pool is filtered through three progressively more
-expensive stages; the design principle is to discard as many incorrect
-candidates as cheaply as possible before invoking the next stage.
+\begin{algorithm}[t]
+\caption{\sam{} Pipeline}\label{alg:pipeline}
+\rule{\linewidth}{0.4pt}
+\begin{algorithmic}
+\alginput{Program $P$, teacher $\mathcal{M}_T$, verifier $\mathcal{V}$, quality judge $\mathcal{M}_Q$}
+\algoutput{Certified invariant $C^*$ or $\bot$; training records}
+\algblank
+\algline $\mathcal{T} \leftarrow \textsc{TieredSample}(P)$ \cmnt{Phase I}\\
+\algline \kw{for} $j = 1,\dots,N$ \kw{in parallel do}\\
+\algline \algind $(\rho_j, I_j) \leftarrow \mathcal{M}_T(P, \mathcal{T}, t_j)$\\
+\algline $C_{\mathrm{pool}} \leftarrow \bigcup_j \mathrm{conjuncts}(I_j) \;/\; {\sim_{\mathrm{ws}}}$\\
+\algblank
+\algline $C_1 \leftarrow \{c \in C_{\mathrm{pool}} \mid \mathrm{SynValid}(c)\}$ \cmnt{$F_1$: syntax}\\
+\algline $C_2 \leftarrow \{c \in C_1 \mid \forall\sigma\in\mathcal{T}:\,\sigma\models c\}$ \cmnt{$F_2$: trace}\\
+\algline $C_3 \leftarrow \mathrm{SemDedup}(C_2)$ \cmnt{$F_3$: dedup}\\
+\algblank
+\algline $S \leftarrow C_3$ \cmnt{$F_4$: Houdini}\\
+\algline \kw{repeat}\\
+\algline \algind $R \leftarrow \{c \in S \mid \mathcal{V}(P,\textstyle\bigwedge S, c) = \mathit{fail}\}$\\
+\algline \algind $S \leftarrow S \setminus R$\\
+\algline \kw{until} $R = \emptyset$ \kw{or} $S = \emptyset$\\
+\algline $C_4 \leftarrow S$\\
+\algblank
+\algline $C^* \leftarrow C_4$ \kw{if} $\mathcal{M}_Q(P,C_4) = \textsc{ok}$, else $\emptyset$ \cmnt{$F_5$: trivial}\\
+\algblank
+\algline $\rho^* \leftarrow \mathcal{M}_R(P, C^*)$ \cmnt{reverse CoT}\\
+\algline \kw{return} $C^*$,\; $y^+ = (\rho^*, C^*)$,\; $\{y^-\} = C_{\mathrm{pool}} \setminus C^*$
+\end{algorithmic}
+\rule{\linewidth}{0.4pt}
+\end{algorithm}
 
-\paragraph{Stage~1: ACSL Syntax Filter.}
-Each candidate is checked against structural ACSL rules---no
-unsupported quantifiers, no forbidden operators, correct use of
-\lstinline|\at| expressions, balanced brackets---and discarded
-immediately on any violation.
-This filter runs in microseconds per candidate.
-The full rule set is listed in Appendix~\ref{app:syntax-gate}.
+\paragraph{$F_1$: Syntax filter.}
+$C_1 = \{c \in C_{\mathrm{pool}} \mid \mathrm{SynValid}(c)\}$
+checks ACSL structural rules (Appendix~\ref{app:syntax-gate}).
+Cost: $O(|c|)$ per conjunct.
 
-\paragraph{Stage~2: Execution-Trace Semantic Filter.}
-Each surviving candidate is evaluated as a boolean expression over
-every recorded loop state.
-Any candidate falsified by at least one observed state is discarded
-without invoking Frama-C.
-This eliminates candidates with grossly incorrect arithmetic
-relationships cheaply, though it cannot guarantee inductiveness
-since the traces are finite.
+\paragraph{$F_2$: Trace semantic filter.}
+$C_2 = \{c \in C_1 \mid
+  \forall\tau\!\in\!\mathcal{T},\,
+  \forall\sigma\!\in\!\tau:\,\sigma \models c\}$.
+Sound (no true invariant removed) but incomplete.
 
-\paragraph{Stage~3: Houdini Formal Pruning.}
-The pre-screened candidates are submitted to Frama-C/WP.
-We apply the Houdini algorithm~\cite{flanagan2001houdini}:
-starting from the full candidate set, each iteration removes every
-candidate whose verification condition fails, repeating until no
-candidate is removed or the set is empty.
+\paragraph{$F_3$: Semantic deduplication.}
+An auxiliary LLM identifies equivalence classes under logical
+equivalence $\equiv_{\mathrm{sem}}$ and retains one representative
+per class:
+$C_3 = \{\mathrm{repr}([c]_{\equiv_{\mathrm{sem}}}) \mid c \in C_2\}$.
+
+\paragraph{$F_4$: Houdini pruning.}
+The Houdini algorithm~\citep{flanagan2001houdini} iteratively removes
+conjuncts whose verification conditions fail in Frama-C/WP until a
+fixed point $C_4$.
 
 \begin{theorem}[Termination]\label{thm:termination}
-Houdini pruning terminates in at most $|C|$ iterations,
-since each iteration removes at least one candidate.
+Houdini terminates in $\le |C_3|$ iterations, removing $\ge 1$
+conjunct per round.
 \end{theorem}
 
-The output $C^*$ is the maximal inductive subset of the pre-screened
-candidates.
-Every invariant in $C^*$ is formally certified by Frama-C/WP.
-If $C^*$ is non-empty but insufficient to prove the postcondition,
-the system may optionally enter a brief repair loop (at most
-$K{=}3$ iterations) feeding verification errors back to the LLM.
-The complete per-loop algorithm is given in
-Appendix~\ref{app:algorithm}.
+\paragraph{$F_5$: Trivial invariant filter.}
+A quality discriminator $\mathcal{M}_Q$ excludes invariants that are
+formally correct but semantically vacuous, preventing reward hacking.
 
-Both improvements---union assembly and lightweight pre-screening---are
-\emph{intrinsic to the pipeline itself}: they hold for any base LLM,
-before any fine-tuning.
-The offline knowledge distillation described next is a separate
-improvement layer built on top of this already-strong baseline.
+%% ------------------------------------------------------------
+\subsection{Reverse Chain-of-Thought}\label{sec:reverse-cot}
+%% ------------------------------------------------------------
+
+The certified $C^*$ is assembled from fragments of multiple teacher
+responses and differs from any single $I_j$.
+A reverse CoT model $\mathcal{M}_R$ synthesises a matching reasoning
+chain:
+$\rho^* = \mathcal{M}_R(P, C^*)$,
+ensuring every training sample is a complete $(\rho, I)$ pair.
 
 %% ------------------------------------------------------------
 \subsection{Offline Knowledge Distillation}\label{sec:offline}
 %% ------------------------------------------------------------
 
-\paragraph{Why not reinforcement learning.}
-Online RL with binary verifier feedback faces four structural
-obstacles in this domain:
-sparse reward (a weak model rarely produces a correct annotation
-within a practical rollout budget);
-reward hacking (trivial annotations such as
-\lstinline|loop invariant true;| formally pass weak postconditions);
-human-prior bias (a hand-crafted or trained reward model scales
-poorly);
-and non-attributability (the correct conjunction is assembled
-post-hoc from $N$ calls, so per-call binary scoring mislabels
-essential contributions;
-see Appendix~\ref{app:nonattrib}).
+For each program $P$ the pipeline yields:
+\begin{itemize}[leftmargin=1.5em,itemsep=1pt]
+\item \textbf{Chosen}: $y^+ = (\rho^*, C^*)$ --- certified invariant
+  with reverse CoT.
+\item \textbf{Rejected}: $\{y^-_s\}$ --- every candidate eliminated
+  at stage $s$.
+\end{itemize}
 
-\paragraph{Knowledge distillation via verifier feedback.}
-We instead adopt offline \emph{knowledge distillation} from a
-teacher model, but depart from standard distillation in a key
-respect: rather than imitating the teacher's raw outputs, we move
-GRPO-style exploration offline and embed the formal verifier's
-signal into data preparation.
-The teacher is a capable yet lightweight model---chosen so that the
-student--teacher gap remains bridgeable and per-program token cost
-stays tractable.
+\paragraph{Data augmentation.}
+(i)~\emph{Off-policy conjunct recombination}
+(Algorithm~\ref{alg:aug-mixed}): the pipeline collects a
+\emph{negative pool} $B$ of every conjunct rejected at any stage
+(syntax, trace, Houdini).
+Rejected variants are constructed by independently sampling a
+subset of correct conjuncts and a subset of incorrect ones,
+subject to the constraint that the result is not equivalent to
+the chosen annotation (Appendix~\ref{app:dpo-aug}).
+(ii)~\emph{On-policy negatives}: the student $\mathcal{M}_S$
+generates candidates through the same pipeline; failures serve as
+targeted rejected samples close to the student's current distribution.
 
-For each training program, the teacher generates $N$ candidate
-annotations at diverse temperatures; all outputs are pooled and
-passed through the three-stage filter.
-The surviving certified set $C^*$ is the \emph{chosen} response.
-Every candidate eliminated at stage $k \in \{1,2,3\}$ becomes a
-\emph{rejected} response paired with $C^*$ to form a DPO record,
-with stage-dependent loss weight ($w_1 \le w_2 \le w_3$) reflecting
-that later-stage rejections are harder and more informative contrasts.
-The SFT record is generated alongside each successful run.
-The preference labels are ground-truth correct by construction:
-no human annotation or trained reward model is needed.
-Formal definitions and the stage-stratified loss are given in
+\paragraph{Two-stage training.}
+\emph{SFT} minimises negative log-likelihood on chosen samples:
+\begin{equation}\label{eq:sft}
+\mathcal{L}_{\mathrm{SFT}} =
+  -\!\sum_{(P,y^+)}\!
+  \log \pi_\theta(y^+ \mid P).
+\end{equation}
+\emph{DPO}~\citep{rafailov2023direct} then refines preferences from
+the SFT checkpoint $\pi_{\mathrm{ref}}$:
+\begin{equation}\label{eq:dpo}
+\mathcal{L}_{\mathrm{DPO}} =
+  -\!\sum_{(P,y^+,y^-)}\!
+  \log\sigma\!\Bigl(
+    \beta\bigl[
+      \log\frac{\pi_\theta(y^+\!\mid\! P)}
+               {\pi_{\mathrm{ref}}(y^+\!\mid\! P)}
+      - \log\frac{\pi_\theta(y^-\!\mid\! P)}
+               {\pi_{\mathrm{ref}}(y^-\!\mid\! P)}
+    \bigr]
+  \Bigr).
+\end{equation}
+The pipeline certifies every output regardless of model quality: a
+weaker model yields a smaller $C^*$ but never an uncertified one.
+Stage-stratified DPO weighting and further details are in
 Appendix~\ref{app:dpo}.
-
-\paragraph{Two-stage fine-tuning.}
-The student is first trained with SFT on chosen examples, then
-aligned with DPO on preference pairs.
-This two-stage recipe transfers the teacher's exploration benefit
-to the student without online rollouts.
-The filter pipeline certifies every output regardless of model
-quality---a weaker model yields a smaller $C^*$ but never an
-uncertified one---so the system remains sound throughout the
-improvement cycle.
