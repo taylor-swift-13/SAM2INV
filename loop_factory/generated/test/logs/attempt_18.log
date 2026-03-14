@@ -1,441 +1,619 @@
-2026-03-11 16:24:17,720 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 16:24:17,752 - INFO - Found 1 loops
-2026-03-11 16:24:17,794 - INFO - 
+2026-03-14 20:23:33,963 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 20:23:33,995 - INFO - Found 2 loops
+2026-03-14 20:23:34,023 - INFO - 
 ============================================================
-2026-03-11 16:24:17,795 - INFO - Main generation pass 1/1
-2026-03-11 16:24:17,795 - INFO - ============================================================
-2026-03-11 16:24:17,795 - INFO - Loaded single prompt template: simple
-2026-03-11 16:24:17,795 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 16:24:17,798 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 16:24:19,203 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:27:52,939 - INFO - 
+2026-03-14 20:23:34,023 - INFO - Main generation pass 1/1
+2026-03-14 20:23:34,023 - INFO - ============================================================
+2026-03-14 20:23:34,023 - INFO - Loaded single prompt template: simple
+2026-03-14 20:23:34,023 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 20:23:34,023 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 20:23:35,856 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:24:46,071 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We analyze the loop state evolution to craft inductive invariants that are preserved across iterations and help verification in Frama-C/WP.
+<reasoning>
+I will add inductive loop invariants for both loops that capture the core state transition relations and provide strong, verification-friendly properties.
 
-Key observations:
-- c is never modified inside the loop; it is initialized as c = f + 3 before the loop. Therefore, c == f + 3 is a conserved relation.
-- Each loop iteration increases aj by 1 and increases a3 by 1, regardless of the path taken inside the loop body. This yields the exact relations:
-  - a3 == aj - 1
-  - ou == aj + 1 (since ou starts at 2 and is incremented by 1 every iteration, same number of iterations as aj has advanced from 1)
-- a3 is non-negative and monotonically increasing due to a3++ each iteration; the invariant a3 >= 0 is a straightforward bound.
-- A loop variant that proves termination can be c - aj, which decreases by 1 every iteration (since aj increments by 1) and is non-negative when the loop guard aj <= c holds.
+Loop 0 (fvsz < v6):
+- The updates are: fvsz += 1; lt += 1; kip2 += v6; kip2 += w4; with v6 and w4 remaining constant.
+- A compact invariant set that is preserved across iterations and helps verification:
+  - kip2 == 1 + (v6 + w4) * fvsz
+    This expresses kip2 grows linearly with fvsz, since each iteration adds (v6 + w4) to kip2.
+  - lt == 1 + fvsz
+    Since lt starts at 1 and is incremented once per iteration, it tracks fvsz.
+  - fvsz <= v6
+    The loop guard is fvsz < v6; this invariant is consistent with the possibility of entering the loop and the progress made within it.
+- Loop assigns: fvsz, kip2, lt.
+- Loop variant: v6 - fvsz, which decreases by 1 each iteration (since fvsz increases by 1) and ensures termination.
 
-We also provide the exact loop assigns corresponding to the variables that are modified inside the loop: kit, a3, aj, ou.
+Loop 1 (w4 < v6):
+- The updates are: w4 += 1; kip2 += 1; fvsz += y (y = 1 in the context).
+- A compact invariant set:
+  - kip2 - fvsz == 2
+    Given the pre-state in this context (kip2 = 3, fvsz = 1), each iteration keeps kip2 and fvsz in lockstep (both increase by 1), so their difference stays 2.
+  - w4 <= v6
+    With w4 increasing by 1, this invariant remains true as long as the loop guard is usable; it reflects a bound consistent with the loop condition.
+- Loop assigns: w4, kip2, fvsz.
+- Loop variant: v6 - w4, which decreases when the loop can execute (as w4 increases toward v6). In this specific context the loop does not execute, but the variant is structurally appropriate for termination reasoning if execution paths change.
 
-The chosen invariants are strong and directly reflect the loop's arithmetic progression, aiding modular verification without altering the original code.
+These invariants are inductive, use only allowed variables, and avoid tautologies. They support WP verification by expressing a clear relationship between the state variables and providing a decreasing measure to prove termination.
 </reasoning>
-<code>int main1(int f){
-  int c, ou, kit, aj, a3;
+<code>int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
 
-  c=f+3;
-  ou=2;
-  kit=39;
-  aj=1;
-  a3=0;
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-   loop invariant c == f + 3;
-   loop invariant a3 == aj - 1;
-   loop invariant ou == aj + 1;
-   loop invariant a3 >= 0;
-   loop variant c - aj;
-   loop assigns kit, a3, aj, ou;
- */
-for (; kit>0&&aj<=c; ou = ou + 1) {
-      if (!(kit<=aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
+  /*@
+    loop invariant kip2 == 1 + (v6 + w4) * fvsz;
+    loop invariant lt == 1 + fvsz;
+    loop invariant fvsz <= v6;
+    loop assigns fvsz, kip2, lt;
+    loop variant v6 - fvsz;
+  */
+  while (fvsz<v6) {
+      kip2 += v6;
+      lt += 1;
+      fvsz++;
+      kip2 = kip2 + w4;
+  }
+
+  /*@
+    loop invariant kip2 - fvsz == 2;
+    loop invariant w4 <= v6;
+    loop assigns w4, kip2, fvsz;
+    loop variant v6 - w4;
+  */
+  while (w4<v6) {
+      w4 = w4 + 1;
+      kip2 += 1;
+      fvsz = fvsz + y;
   }
 
 }</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-11 16:27:52,939 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 16:27:53,009 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:31:27,743 - INFO - 
+2026-03-14 20:24:46,072 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 20:24:46,134 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:26:00,963 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>Chosen invariants exploit the exact linear progress of the loop and the fact that c is constant after initialization.
+<reasoning>For each loop I designed inductive invariants that tightly reflect the loop updates and preserve the state properties across iterations, while keeping the code unchanged otherwise.
 
-- c == f + 3: c is assigned once from f+3 and never modified inside the loop; this invariant captures the unchanged relation between c and the parameter f.
-- a3 == aj - 1: Both a3 and aj are incremented by 1 on every iteration, so their difference remains constant; this invariant holds before the first iteration and is preserved each iteration.
-- ou == a3 + 2: ou starts at 2 and increases by 1 each iteration; since a3 increases by 1 per iteration, ou remains exactly a3 + 2 throughout the loop lifecycle.
-- loop assigns kit, a3, aj, ou: The loop body writes to these four variables; all other state is not written by the loop.
-- loop variant: c - aj: aj increases by 1 while c stays constant, so c - aj strictly decreases with each iteration and remains non-negative whenever the loop guard (aj <= c) holds. This provides a well-founded measure to prove termination.
+Loop 0 (fvsz < v6):
+- Observations: v6 and w4 are not modified in the loop, so v6 == 1 and w4 == 1 are preserved invariants.
+- Updates: fvsz increments by 1 each iteration; lt increments by 1; kip2 increases by v6 and then by w4, i.e., by v6 + w4 per iteration. With v6 = 1 and w4 = 1, kip2 increases by 2 per iteration and fvsz increases by 1 per iteration. A compact invariant that captures this linear relation is:
+  - kip2 == 1 + (v6 + w4) * fvsz
+  - lt == 1 + fvsz
+  - v6 == 1
+  - w4 == 1
+- We also provide a loop variant that decreases each iteration to aid termination:
+  - (v6 - fvsz) since fvsz starts at 0 and increases while v6 remains 1; when fvsz reaches v6, the loop exits.
 
-These invariants are inductive, non-tautological, and directly reflect the loop’s state-update pattern while using only allowed variables and the function parameter f. They do not rely on unknown() or unknownN() and fit Frama-C/WP expectations. </reasoning>
-<code>/*@
-  loop invariant c == f + 3;
-  loop invariant a3 == aj - 1;
-  loop invariant ou == a3 + 2;
-  loop assigns kit, a3, aj, ou;
-  loop variant c - aj;
-*/
-for (; kit>0&&aj<=c; ou = ou + 1) {
-      if (!(kit<=aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
-  }</code>
------ Candidate 2/5 raw response end -----
-2026-03-11 16:31:27,743 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 16:31:27,806 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:33:53,409 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>Proposed inductive invariants aim to be strong yet simple and directly reflect the loop's state updates:
+Loop 1 (w4 < v6):
+- Observations: v6 and y are not modified; y is 1 (as initialized), and v6 remains 1, so:
+  - v6 == 1
+  - y == 1
+- Updates: w4 increments by 1 each iteration; kip2 increments by 1; fvsz increments by y (i.e., by 1). A helpful invariant is that kip2 and fvsz track each other with a fixed offset:
+  - kip2 - fvsz == 2
+  - equivalently kip2 == fvsz + 2
+- Loop variant: (v6 - w4) decreases by 1 each iteration (since w4 increases by 1 and v6 is constant). This is non-negative whenever the loop condition holds (w4 < v6).
 
-- I1: aj == a3 + 1
-  Justification: initially aj=1, a3=0. Each iteration does a3++ and aj++, so this relation remains true.
+These invariants are strong, preserve correctly, and are inductive with respect to the given transition relations. They refer only to variables in the allowed set and do not rely on any at-Pre forms for non-parameters. They also use loop assigns exactly for the variables modified inside each loop: {kip2, lt, fvsz} for Loop 0 and {w4, kip2, fvsz} for Loop 1. </reasoning>
+<code>int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
 
-- I2: ou == a3 + 2
-  Justification: initially ou=2. Each iteration increments ou by 1 in lockstep with a3, so ou = 2 + a3 always holds.
-
-- I3: c == f + 3
-  Justification: c is assigned once before the loop as f+3 and never modified inside the loop.
-
-- I4: (a3 == 0) ==> (kit > aj)
-  Justification: at loop entry (a3==0) we have kit=39 and aj=1, so kit>aj holds. When the loop has run at least once, the antecedent is false and the invariant vacuously holds, providing a reasonable non-trivial relation anchored at initialization.
-
-- I5: loop assigns kit, a3, aj, ou
-  Specifies exactly the modified variables inside the loop.
-
-- I6: loop variant
-  loop variant c - aj
-  This decreases by 1 each iteration (since aj is incremented by 1) and is non-negative at each iteration entry due to the guard aj <= c.
-
-These invariants collectively explain the loop’s state evolution, are inductive, and maintain a tight relationship between the loop variables and parameters without altering the original code. They are verification-friendly because they only involve existing variables and establish a clear state-transition law for the loop. </reasoning>
-<code>int main1(int f){
-  int c, ou, kit, aj, a3;
-
-  c=f+3;
-  ou=2;
-  kit=39;
-  aj=1;
-  a3=0;
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
 
   /*@
-    loop invariant aj == a3 + 1;
-    loop invariant ou == a3 + 2;
-    loop invariant c == f + 3;
-    loop invariant (a3 == 0) ==> (kit > aj);
-    loop assigns kit, a3, aj, ou;
-    loop variant c - aj;
+    loop invariant v6 == 1;
+    loop invariant w4 == 1;
+    loop invariant lt == 1 + fvsz;
+    loop invariant kip2 == 1 + (v6 + w4) * fvsz;
+    loop assigns kip2, lt, fvsz;
+    loop variant (v6 - fvsz);
   */
-  for (; kit>0&&aj<=c; ou = ou + 1) {
-      if (!(kit<=aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
+  while (fvsz<v6) {
+      kip2 += v6;
+      lt += 1;
+      fvsz++;
+      kip2 = kip2 + w4;
+  }
+
+  /*@
+    loop invariant v6 == 1;
+    loop invariant y == 1;
+    loop invariant kip2 - fvsz == 2;
+    loop invariant kip2 == fvsz + 2;
+    loop assigns w4, kip2, fvsz;
+    loop variant (v6 - w4);
+  */
+  while (w4<v6) {
+      w4 = w4 + 1;
+      kip2 += 1;
+      fvsz = fvsz + y;
+  }
+
+}</code>
+----- Candidate 2/5 raw response end -----
+2026-03-14 20:26:00,964 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 20:26:01,024 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:27:55,080 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>For the two loops we need inductive invariants that express the state-update pattern and provide a minimal progress measure (loop variant) where appropriate. We must only use variables from the given "Available Variables" per loop, and the assigns list must exactly reflect the variables modified inside the loop.
+
+Loop 0 (fvsz < v6)
+- Observed updates per iteration (v6 and w4 are constant within this loop):
+  - fvsz := fvsz + 1
+  - lt    := lt + 1
+  - kip2  := kip2 + v6 + w4  (since the code does kip2 += v6; then kip2 = kip2 + w4; and w4 is constant)
+- With initial values (v6 = 1, w4 = 1, fvsz = 0, kip2 = 1, lt = 1), after k iterations:
+  - fvsz = k
+  - lt   = 1 + k
+  - kip2 = 1 + 2k
+- A strong invariant that captures the linear relation between kip2 and fvsz is kip2 = 2*fvsz + 1. Also, since lt tracks fvsz, we have lt = fvsz + 1.
+- A natural loop variant is a non-negative measure that decreases every iteration: since fvsz increases by 1 each iteration, use 2*(v6 - fvsz) as the variant (with v6 constant and the loop guard fvsz < v6 ensuring non-negativity and decrease).
+- Loop assigns for this loop are: kip2, lt, fvsz.
+
+Loop 1 (w4 < v6)
+- After the first loop, the second loop updates:
+  - w4 := w4 + 1
+  - kip2 := kip2 + 1
+  - fvsz := fvsz + y  (and y is constant equal to v6, but we only rely on available variables; for this loop y is in the available set)
+- Therefore, after k iterations (if any), we have:
+  - w4 = w4_0 + k
+  - kip2 = kip2_0 + k
+  - fvsz = fvsz_0 + k (since y == 1 here)
+- The difference kip2 - fvsz remains constant at 2, i.e., kip2 - fvsz == 2, which is a concise invariant tying kip2 and fvsz together.
+- Loop assigns for this loop are: w4, kip2, fvsz.
+- The loop may not execute at all (depending on initial values), so no loop variant is added for safety, but the two invariants above are strong and inductive when the loop body executes.
+
+These invariants are strong, inductive, and stay within the allowed variable sets for each loop. They explain the state updates, provide minimal progress, and give complete and exact loop assigns. They are designed to be verification-friendly for Frama-C/WP. </reasoning>
+<code>int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
+
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
+
+  /*@
+    loop invariant kip2 == 2 * fvsz + 1;
+    loop invariant lt == fvsz + 1;
+    loop assigns kip2, lt, fvsz;
+    loop variant 2 * (v6 - fvsz);
+  */
+  while (fvsz<v6) {
+      kip2 += v6;
+      lt += 1;
+      fvsz++;
+      kip2 = kip2 + w4;
+  }
+
+  /*@
+    loop invariant kip2 - fvsz == 2;
+    loop assigns w4, kip2, fvsz;
+  */
+  while (w4<v6) {
+      w4 = w4 + 1;
+      kip2 += 1;
+      fvsz = fvsz + y;
   }
 
 }</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 16:33:53,410 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 16:33:53,472 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:35:47,218 - INFO - 
+2026-03-14 20:27:55,081 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 20:27:55,153 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:29:13,406 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>The loop updates two core relational quantities in a simple, monotone manner:
-- a3 is incremented every iteration, and aj is also incremented every iteration. Starting from a3=0 and aj=1, this yields a3 = aj - 1 after each iteration, which is a sound inductive invariant that also holds before the first iteration.
-- ou is incremented every iteration and started at 2, so ou = a3 + 2 holds as well (since ou increases by 1 exactly when a3 increases by 1). This provides a second strong invariant that ties two state components together.
+<reasoning>
+I analyzed both loops and chose inductive invariants that are strong, informative, and maintainable for Frama-C/WP. The goals were:
 
-Both invariants are preserved by the loop body because both a3 and aj are incremented in lockstep, and ou is incremented concurrently with a3. They are simple, exact, and help reasoning about the loop state across iterations.
+- Provide a core conservation/relational equality that explains the loop updates (state transition law).
+- Include minimal progress bounds (loop variant) to aid termination proofs.
+- Give complete and exact loop assigns.
+- Keep invariants tight and relevant to the actual updates, avoiding tautologies.
 
-For a loop variant (progress measure) we can use c - aj. Since the loop continues only while aj <= c, c - aj is non-negative at loop entry and decreases by 1 each iteration (as aj increases by 1). This provides a minimal, safe termination measure.
+For Loop 0 (fvsz < v6):
+- The updates are:
+  - fvsz increases by 1 each iteration.
+  - lt increases by 1 each iteration.
+  - kip2 increases by v6 + w4 each iteration.
+- A robust invariant set that captures the update law:
+  - kip2 == 1 + fvsz*(v6 + w4)  (core conservation: kip2 depends linearly on fvsz)
+  - lt == 1 + fvsz             (progress bound on lt via fvsz)
+- A loop variant that decreases each iteration to help termination:
+  - loop variant v6 - fvsz (since fvsz increments by 1 and v6 is constant)
 
-The loop assigns are the variables modified inside the loop: ou (via the loop header), kit, a3, and aj. The variable c is not modified within the loop, and f is a parameter, not assigned inside the loop.
+For Loop 1 (w4 < v6):
+- The updates are:
+  - w4 increases by 1 each iteration.
+  - kip2 increases by 1 each iteration.
+  - fvsz increases by y (which is 1) each iteration.
+- Observed invariants that remain true across iterations (when they happen) and reflect the update law:
+  - fvsz == w4                   (since both start at 1 and both increment by 1 per iteration)
+  - kip2 == w4 + 2               (kip2 starts at 3 and tracks w4 with a constant offset 2)
+- A loop variant could be added as well, but given the guard w4 < v6 and the specific initial values (and that this loop is not entered with the current state), a variant is optional. I included a conventional invariant set and left the variant optional to avoid introducing fragile constraints in this specific context.
 
-Thus we provide:
-- loop invariant: a3 == aj - 1
-- loop invariant: ou == a3 + 2
-- loop assigns: ou, kit, a3, aj
-- loop variant: (c - aj)
+I kept the original code intact and only added ACSL loop annotations. The assigns clauses precisely enumerate the variables modified inside each loop. I avoided using any non-parameter at-pre references, in line with the constraints. The invariants are strong, non-tautological, and inductive, aiding Frama-C/WP in establishing correctness of the loops.
+</reasoning>
+<code>int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
 
-These are inductive and verification-friendly for Frama-C/WP. </reasoning>
-<code>int main1(int f){
-  int c, ou, kit, aj, a3;
-
-  c=f+3;
-  ou=2;
-  kit=39;
-  aj=1;
-  a3=0;
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
 
   /*@
-    loop invariant a3 == aj - 1;
-    loop invariant ou == a3 + 2;
-    loop assigns ou, kit, a3, aj;
-    loop variant (c - aj);
-  @*/
-  for (; kit>0&&aj<=c; ou = ou + 1) {
-      if (!(kit<=aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
+    loop invariant kip2 == 1 + fvsz*(v6 + w4);
+    loop invariant lt == 1 + fvsz;
+    loop assigns kip2, lt, fvsz;
+    loop variant v6 - fvsz;
+  */
+while (fvsz<v6) {
+      kip2 += v6;
+      lt += 1;
+      fvsz++;
+      kip2 = kip2 + w4;
   }
 
-}</code>
+  /*@
+    loop invariant fvsz == w4;
+    loop invariant kip2 == w4 + 2;
+    loop assigns w4, kip2, fvsz;
+    loop variant (v6 - w4);
+  */
+while (w4<v6) {
+      w4 = w4 + 1;
+      kip2 += 1;
+      fvsz = fvsz + y;
+  }
+
+}
 ----- Candidate 4/5 raw response end -----
-2026-03-11 16:35:47,218 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 16:35:47,289 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:37:13,682 - INFO - 
+2026-03-14 20:29:13,407 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 20:29:13,466 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:30:29,289 - INFO - 
 ----- Candidate 5/5 raw response begin -----
-<reasoning>We need inductive loop invariants that hold before the first iteration and are preserved by every iteration, while staying tightly connected to the actual state updates.
+<reasoning>
+Loop 0 reasoning:
+- v6 and w4 are never updated in the loop, so they act as constants during the loop body.
+- fvsz increases by 1 each iteration; lt increases by 1 each iteration; kip2 increases by v6 and then by w4, i.e., by (v6 + w4). With the initial values (v6 = 1, w4 = 1, fvsz = 0, lt = 1, kip2 = 1), we can derive robust, inductive relationships:
+  - fvsz <= v6 (termination bound; since the loop runs while fvsz < v6, this holds before and after each iteration).
+  - lt == fvsz + 1 (since both start with lt = 1 and fvsz = 0, and both increment by 1 per iteration).
+  - kip2 - fvsz*(v6 + w4) == 1 (the net kip2 increase per iteration is (v6 + w4), so this linear relation is preserved; initial value is kip2 − 0*(...) = 1).
+- Loop 0 assigns: kip2, lt, fvsz.
+- Loop variant: v6 - fvsz (non-negative and strictly decreases by 1 each iteration; with v6 = 1, this yields a single iteration).
 
-Key observations about the loop:
-- aj starts at 1 and is incremented by 1 each iteration.
-- a3 starts at 0 and is incremented by 1 each iteration.
-- ou starts at 2 and is incremented by 1 each iteration.
-- The relationship between these counters is linear and predictable: aj = a3 + 1 and ou = a3 + 2 after each completed iteration.
-- The loop body modifies kit (either sets it to 0 or reduces it by aj), but for this function the loop exits after the first iteration due to kit > aj in the initial state (39 > 1), so the above relationships will be preserved in all reachable states where the loop runs.
-- We can bound kit with the initial value (kit <= 39) because it only decreases or becomes 0; it never increases.
-- A loop variant to aid termination reasoning is c - aj, which decreases by 1 each iteration since aj increments by 1, and the loop guard ensures aj <= c at iteration start.
+Loop 1 reasoning:
+- In this loop, w4, kip2, and fvsz are updated; y is also present and equals 1 in the given context.
+- Updates per iteration: w4' = w4 + 1, kip2' = kip2 + 1, fvsz' = fvsz + y (and y = 1, so fvsz' = fvsz + 1). Hence kip2 − fvsz stays constant across iterations; with the given initial values (kip2 = 3, fvsz = 1), kip2 − fvsz = 2 throughout any reachable iteration.
+- Loop invariants:
+  - kip2 - fvsz == 2 (strong, exact relation derived from initial state and updates).
+  - w4 <= v6 (guard is w4 < v6; after an iteration, w4 becomes w4+1 and still respects the bound; holds before each iteration).
+  - v6 - w4 >= 0 (non-negativity of the remaining margin before an iteration; tight with the guard).
+- Loop 1 assigns: w4, kip2, fvsz.
+- Loop variant: v6 - w4 (non-negative and strictly decreases by 1 each iteration; with current values, there would be at most one iteration since w4 starts at 1 and v6 is 1).
+</reasoning>
+<code>
+int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
 
-Chosen invariants and variant:
-- aj == a3 + 1 (strong relational invariant that holds initially and is preserved)
-- ou == a3 + 2 (strong relational invariant that holds initially and is preserved)
-- kit <= 39 (non-increasing bound derived from initial value)
-- loop assigns kit, a3, aj, ou (explicitly stating modified variables)
-- loop variant c - aj (ensures progress toward termination)
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
 
-These invariants are tight, inductive, and verification-friendly for Frama-C WP. They do not rely on non-parameter internal Pre-state annotations and stay within the allowed variable set. They do not modify the original code beyond adding annotations. </reasoning>
-<code>/*@
-  loop invariant aj == a3 + 1;
-  loop invariant ou == a3 + 2;
-  loop invariant kit &lt;= 39;
-  loop assigns kit, a3, aj, ou;
-  loop variant c - aj;
-*/
-for (; kit&gt;0 && aj&lt;=c; ou = ou + 1) {
-      if (!(kit &lt;= aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
-  }</code>
+  /*@
+    loop invariant fvsz <= v6;
+    loop invariant lt == fvsz + 1;
+    loop invariant kip2 - fvsz*(v6 + w4) == 1;
+    loop assigns kip2, lt, fvsz;
+    loop variant v6 - fvsz;
+  @*/
+  while (fvsz<v6) {
+        kip2 += v6;
+        lt += 1;
+        fvsz++;
+        kip2 = kip2 + w4;
+  }
+
+  /*@
+    loop invariant kip2 - fvsz == 2;
+    loop invariant w4 <= v6;
+    loop invariant v6 - w4 >= 0;
+    loop assigns w4, kip2, fvsz;
+    loop variant v6 - w4;
+  @*/
+  while (w4<v6) {
+        w4 = w4 + 1;
+        kip2 += 1;
+        fvsz = fvsz + y;
+  }
+
+}
+</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 16:37:13,684 - INFO - 
+2026-03-14 20:30:29,289 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int f){
-  int c, ou, kit, aj, a3;
+int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
 
-  c=f+3;
-  ou=2;
-  kit=39;
-  aj=1;
-  a3=0;
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-   loop invariant c == f + 3;
-   loop invariant a3 == aj - 1;
-   loop invariant ou == aj + 1;
-   loop invariant a3 >= 0;
-   loop variant c - aj;
-   loop assigns kit, a3, aj, ou;
- */
-for (; kit>0&&aj<=c; ou = ou + 1) {
-      if (!(kit<=aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
+  /*@
+    loop invariant kip2 == 1 + (v6 + w4) * fvsz;
+    loop invariant lt == 1 + fvsz;
+    loop invariant fvsz <= v6;
+    loop assigns fvsz, kip2, lt;
+    loop variant v6 - fvsz;
+  */
+  while (fvsz<v6) {
+      kip2 += v6;
+      lt += 1;
+      fvsz++;
+      kip2 = kip2 + w4;
+  }
+
+  /*@
+    loop invariant kip2 - fvsz == 2;
+    loop invariant w4 <= v6;
+    loop assigns w4, kip2, fvsz;
+    loop variant v6 - w4;
+  */
+  while (w4<v6) {
+      w4 = w4 + 1;
+      kip2 += 1;
+      fvsz = fvsz + y;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-11 16:37:13,684 - INFO - 
+2026-03-14 20:30:29,289 - INFO - 
 ----- Candidate 2/5 full code begin -----
-/*@
-  loop invariant c == f + 3;
-  loop invariant a3 == aj - 1;
-  loop invariant ou == a3 + 2;
-  loop assigns kit, a3, aj, ou;
-  loop variant c - aj;
-*/
-for (; kit>0&&aj<=c; ou = ou + 1) {
-      if (!(kit<=aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
-  }
------ Candidate 2/5 full code end -----
-2026-03-11 16:37:13,684 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(int f){
-  int c, ou, kit, aj, a3;
+int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
 
-  c=f+3;
-  ou=2;
-  kit=39;
-  aj=1;
-  a3=0;
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
 
   /*@
-    loop invariant aj == a3 + 1;
-    loop invariant ou == a3 + 2;
-    loop invariant c == f + 3;
-    loop invariant (a3 == 0) ==> (kit > aj);
-    loop assigns kit, a3, aj, ou;
-    loop variant c - aj;
+    loop invariant v6 == 1;
+    loop invariant w4 == 1;
+    loop invariant lt == 1 + fvsz;
+    loop invariant kip2 == 1 + (v6 + w4) * fvsz;
+    loop assigns kip2, lt, fvsz;
+    loop variant (v6 - fvsz);
   */
-  for (; kit>0&&aj<=c; ou = ou + 1) {
-      if (!(kit<=aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
+  while (fvsz<v6) {
+      kip2 += v6;
+      lt += 1;
+      fvsz++;
+      kip2 = kip2 + w4;
+  }
+
+  /*@
+    loop invariant v6 == 1;
+    loop invariant y == 1;
+    loop invariant kip2 - fvsz == 2;
+    loop invariant kip2 == fvsz + 2;
+    loop assigns w4, kip2, fvsz;
+    loop variant (v6 - w4);
+  */
+  while (w4<v6) {
+      w4 = w4 + 1;
+      kip2 += 1;
+      fvsz = fvsz + y;
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-03-14 20:30:29,289 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
+
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
+
+  /*@
+    loop invariant kip2 == 2 * fvsz + 1;
+    loop invariant lt == fvsz + 1;
+    loop assigns kip2, lt, fvsz;
+    loop variant 2 * (v6 - fvsz);
+  */
+  while (fvsz<v6) {
+      kip2 += v6;
+      lt += 1;
+      fvsz++;
+      kip2 = kip2 + w4;
+  }
+
+  /*@
+    loop invariant kip2 - fvsz == 2;
+    loop assigns w4, kip2, fvsz;
+  */
+  while (w4<v6) {
+      w4 = w4 + 1;
+      kip2 += 1;
+      fvsz = fvsz + y;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-11 16:37:13,684 - INFO - 
+2026-03-14 20:30:29,289 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(int f){
-  int c, ou, kit, aj, a3;
+int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
 
-  c=f+3;
-  ou=2;
-  kit=39;
-  aj=1;
-  a3=0;
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
 
   /*@
-    loop invariant a3 == aj - 1;
-    loop invariant ou == a3 + 2;
-    loop assigns ou, kit, a3, aj;
-    loop variant (c - aj);
-  @*/
-  for (; kit>0&&aj<=c; ou = ou + 1) {
-      if (!(kit<=aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
+    loop invariant kip2 == 1 + fvsz*(v6 + w4);
+    loop invariant lt == 1 + fvsz;
+    loop assigns kip2, lt, fvsz;
+    loop variant v6 - fvsz;
+  */
+while (fvsz<v6) {
+      kip2 += v6;
+      lt += 1;
+      fvsz++;
+      kip2 = kip2 + w4;
+  }
+
+  /*@
+    loop invariant fvsz == w4;
+    loop invariant kip2 == w4 + 2;
+    loop assigns w4, kip2, fvsz;
+    loop variant (v6 - w4);
+  */
+while (w4<v6) {
+      w4 = w4 + 1;
+      kip2 += 1;
+      fvsz = fvsz + y;
   }
 
 }
 ----- Candidate 4/5 full code end -----
-2026-03-11 16:37:13,684 - INFO - 
+2026-03-14 20:30:29,289 - INFO - 
 ----- Candidate 5/5 full code begin -----
-/*@
-  loop invariant aj == a3 + 1;
-  loop invariant ou == a3 + 2;
-  loop invariant kit &lt;= 39;
-  loop assigns kit, a3, aj, ou;
-  loop variant c - aj;
-*/
-for (; kit&gt;0 && aj&lt;=c; ou = ou + 1) {
-      if (!(kit &lt;= aj)) {
-          kit = 0;
-      }
-      else {
-          kit = kit - aj;
-      }
-      a3++;
-      aj += 1;
+int main1(){
+  int v6, y, lt, fvsz, kip2, w4;
+
+  v6=1;
+  y=v6;
+  lt=1;
+  fvsz=0;
+  kip2=y;
+  w4=y;
+
+  /*@
+    loop invariant fvsz <= v6;
+    loop invariant lt == fvsz + 1;
+    loop invariant kip2 - fvsz*(v6 + w4) == 1;
+    loop assigns kip2, lt, fvsz;
+    loop variant v6 - fvsz;
+  @*/
+  while (fvsz<v6) {
+        kip2 += v6;
+        lt += 1;
+        fvsz++;
+        kip2 = kip2 + w4;
   }
------ Candidate 5/5 full code end -----
-2026-03-11 16:37:13,684 - INFO - Successfully generated 5/5 candidates
-2026-03-11 16:37:13,685 - INFO - Checking 7 invariants for conflicts...
-2026-03-11 16:37:13,687 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 16:37:13,687 - INFO -   1: int main1(int f){
-2026-03-11 16:37:13,687 - INFO -   2:   int c, ou, kit, aj, a3;
-2026-03-11 16:37:13,687 - INFO -   3: 
-2026-03-11 16:37:13,687 - INFO -   4:   c=f+3;
-2026-03-11 16:37:13,687 - INFO -   5:   ou=2;
-2026-03-11 16:37:13,687 - INFO -   6:   kit=39;
-2026-03-11 16:37:13,687 - INFO -   7:   aj=1;
-2026-03-11 16:37:13,687 - INFO -   8:   a3=0;
-2026-03-11 16:37:13,687 - INFO -   9: 
-2026-03-11 16:37:13,687 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 16:37:13,688 - INFO - DEBUG: Total lines: 33
-2026-03-11 16:37:13,978 - INFO - syntax Correct
-2026-03-11 16:37:44,896 - INFO - Validate:
-2026-03-11 16:37:44,896 - INFO - [True, True, True, True, True, True, True]
-2026-03-11 16:37:44,896 - INFO - 
-2026-03-11 16:37:44,896 - INFO - Verify:
-2026-03-11 16:37:44,896 - INFO - []
-2026-03-11 16:37:44,896 - INFO - 
-2026-03-11 16:37:44,896 - INFO - Houdini iteration 1: All invariants are valid
-2026-03-11 16:37:45,166 - INFO - syntax Correct
-2026-03-11 16:38:16,053 - INFO - Validate:
-2026-03-11 16:38:16,053 - INFO - [True, True, True, True, True, True, True]
-2026-03-11 16:38:16,053 - INFO - 
-2026-03-11 16:38:16,053 - INFO - Verify:
-2026-03-11 16:38:16,053 - INFO - []
-2026-03-11 16:38:16,053 - INFO - 
-2026-03-11 16:39:39,081 - INFO - Deduplicated 2 loop invariants in final code
-2026-03-11 16:39:39,289 - INFO - syntax Correct
-2026-03-11 16:40:10,060 - INFO - Validate:
-2026-03-11 16:40:10,060 - INFO - [True, True, True, True, True]
-2026-03-11 16:40:10,060 - INFO - 
-2026-03-11 16:40:10,060 - INFO - Verify:
-2026-03-11 16:40:10,060 - INFO - []
-2026-03-11 16:40:10,060 - INFO - 
-2026-03-11 16:40:10,060 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 16:40:10,060 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_18/1.c
-2026-03-11 16:40:10,060 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_18/1_invariants.txt
-2026-03-11 16:40:10,060 - INFO - 
-============================================================
-2026-03-11 16:40:10,060 - INFO - Final first_pass results:
-2026-03-11 16:40:10,060 - INFO -   syntax=1
-2026-03-11 16:40:10,060 - INFO -   valid=1
-2026-03-11 16:40:10,060 - INFO -   satisfy=None
-2026-03-11 16:40:10,060 - INFO - ============================================================
-2026-03-11 16:40:10,060 - INFO - 
-============================================================
-2026-03-11 16:40:10,060 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 16:40:10,060 - INFO -   Total API calls: 32
-2026-03-11 16:40:10,060 - INFO -   Total prompt tokens (input): 31,899
-2026-03-11 16:40:10,060 - INFO -   Total completion tokens (output): 162,224
-2026-03-11 16:40:10,060 - INFO -   Total tokens: 194,123
-2026-03-11 16:40:10,060 - INFO -   Average per call:
-2026-03-11 16:40:10,060 - INFO -     Prompt: 996.8 tokens
-2026-03-11 16:40:10,060 - INFO -     Completion: 5069.5 tokens
-2026-03-11 16:40:10,060 - INFO -     Total: 6066.3 tokens
-2026-03-11 16:40:10,060 - INFO - ============================================================
-2026-03-11 16:40:10,061 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_18/1.c
-2026-03-11 16:40:10,061 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_18/1_invariants.txt
-2026-03-11 16:41:10,390 - INFO - LLM quality-gate raw response: {
-  "ok": false,
-  "reason": "The invariants capture some relationships (a3 == aj - 1, ou == a3 + 2, c == f + 3, a3 >= 0) but they do not provide a robust inductive relation for all loop-modified variables (kit is not properly tracked beyond an initial-case implication). There is no loop variant to prove termination (e.g., a decreasing measure like (c - aj) that is non-negative when the loop guard holds). The (a3 == 0) ==> (kit > aj) invariant is weak and not inductive beyond the initial state. Overall, the set is insufficient for WP verification-quality invariants."
+
+  /*@
+    loop invariant kip2 - fvsz == 2;
+    loop invariant w4 <= v6;
+    loop invariant v6 - w4 >= 0;
+    loop assigns w4, kip2, fvsz;
+    loop variant v6 - w4;
+  @*/
+  while (w4<v6) {
+        w4 = w4 + 1;
+        kip2 += 1;
+        fvsz = fvsz + y;
+  }
+
 }
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+----- Candidate 5/5 full code end -----
+2026-03-14 20:30:29,289 - INFO - Successfully generated 5/5 candidates
+2026-03-14 20:30:29,290 - INFO - Checking 9 invariants for conflicts...
+2026-03-14 20:30:29,292 - INFO -   Conflict detected:
+2026-03-14 20:30:29,292 - INFO -     [1] kip2 == 1 + (v6 + w4) * fvsz
+2026-03-14 20:30:29,292 - INFO -     [6] kip2 == 2 * fvsz + 1
+2026-03-14 20:30:29,293 - INFO - Checking 8 invariants for conflicts...
+2026-03-14 20:30:29,294 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 20:30:29,294 - INFO -   1: int main1(){
+2026-03-14 20:30:29,294 - INFO -   2:   int v6, y, lt, fvsz, kip2, w4;
+2026-03-14 20:30:29,294 - INFO -   3: 
+2026-03-14 20:30:29,294 - INFO -   4:   v6=1;
+2026-03-14 20:30:29,294 - INFO -   5:   y=v6;
+2026-03-14 20:30:29,294 - INFO -   6:   lt=1;
+2026-03-14 20:30:29,294 - INFO -   7:   fvsz=0;
+2026-03-14 20:30:29,294 - INFO -   8:   kip2=y;
+2026-03-14 20:30:29,294 - INFO -   9:   w4=y;
+2026-03-14 20:30:29,294 - INFO -   10: 
+2026-03-14 20:30:29,294 - INFO - DEBUG: Total lines: 49
+2026-03-14 20:30:29,483 - INFO - syntax Correct
+2026-03-14 20:31:00,557 - INFO - Validate:
+2026-03-14 20:31:00,557 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-14 20:31:00,557 - INFO - 
+2026-03-14 20:31:00,557 - INFO - Verify:
+2026-03-14 20:31:00,557 - INFO - []
+2026-03-14 20:31:00,557 - INFO - 
+2026-03-14 20:31:00,557 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-14 20:31:00,784 - INFO - syntax Correct
+2026-03-14 20:31:31,939 - INFO - Validate:
+2026-03-14 20:31:31,939 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-14 20:31:31,939 - INFO - 
+2026-03-14 20:31:31,939 - INFO - Verify:
+2026-03-14 20:31:31,939 - INFO - []
+2026-03-14 20:31:31,939 - INFO - 
+2026-03-14 20:32:38,936 - INFO - Deduplicated 6 loop invariants in final code
+2026-03-14 20:32:39,194 - INFO - syntax Correct
+2026-03-14 20:33:10,243 - INFO - Validate:
+2026-03-14 20:33:10,243 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-14 20:33:10,243 - INFO - 
+2026-03-14 20:33:10,243 - INFO - Verify:
+2026-03-14 20:33:10,243 - INFO - []
+2026-03-14 20:33:10,243 - INFO - 
+2026-03-14 20:33:10,244 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-14 20:33:10,244 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_18/1.c
+2026-03-14 20:33:10,244 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_18/1_invariants.txt
+2026-03-14 20:33:10,244 - INFO - 
+============================================================
+2026-03-14 20:33:10,244 - INFO - Final first_pass results:
+2026-03-14 20:33:10,244 - INFO -   syntax=1
+2026-03-14 20:33:10,244 - INFO -   valid=1
+2026-03-14 20:33:10,244 - INFO -   satisfy=None
+2026-03-14 20:33:10,244 - INFO - ============================================================
+2026-03-14 20:33:10,244 - INFO - 
+============================================================
+2026-03-14 20:33:10,244 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 20:33:10,244 - INFO -   Total API calls: 10
+2026-03-14 20:33:10,244 - INFO -   Total prompt tokens (input): 12,011
+2026-03-14 20:33:10,244 - INFO -   Total completion tokens (output): 89,093
+2026-03-14 20:33:10,244 - INFO -   Total tokens: 101,104
+2026-03-14 20:33:10,244 - INFO -   Average per call:
+2026-03-14 20:33:10,244 - INFO -     Prompt: 1201.1 tokens
+2026-03-14 20:33:10,244 - INFO -     Completion: 8909.3 tokens
+2026-03-14 20:33:10,244 - INFO -     Total: 10110.4 tokens
+2026-03-14 20:33:10,244 - INFO - ============================================================
+2026-03-14 20:33:10,244 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_18/1.c
+2026-03-14 20:33:10,245 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_18/1_invariants.txt
+2026-03-14 20:33:53,865 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

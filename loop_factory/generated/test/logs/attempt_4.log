@@ -1,424 +1,135 @@
-2026-03-11 17:11:46,874 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 17:11:46,892 - INFO - Found 1 loops
-2026-03-11 17:11:46,893 - INFO - 
+2026-03-14 22:58:59,816 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 22:58:59,835 - INFO - Found 2 loops
+2026-03-14 22:58:59,836 - INFO - 
 ============================================================
-2026-03-11 17:11:46,893 - INFO - Main generation pass 1/1
-2026-03-11 17:11:46,893 - INFO - ============================================================
-2026-03-11 17:11:46,893 - INFO - Loaded single prompt template: simple
-2026-03-11 17:11:46,893 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 17:11:46,893 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 17:11:47,476 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:14:55,933 - INFO - 
+2026-03-14 22:58:59,836 - INFO - Main generation pass 1/1
+2026-03-14 22:58:59,836 - INFO - ============================================================
+2026-03-14 22:58:59,836 - INFO - Loaded single prompt template: simple
+2026-03-14 22:58:59,836 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 22:58:59,836 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 22:59:01,620 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:00:21,783 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop. Key observations:
-- The loop only updates k86, g1j, and t. f6 stays constant (f6 = f + 17) and f, g, g1j, k86, t are among the available variables.
-- The loop guard is k86 <= f6 - 1, so the loop runs exactly f6 times provided f6 >= 1; otherwise it does not run.
-- The behavior of g1j and t forms a sawtooth pattern: g1j starts at 3, t is set to 1 when g1j <= 3, and t is set to -1 when g1j >= 8. Between these bounds, t remains whatever it was (mostly 1 until hitting 8, then -1 until hitting 3 again).
-- A robust invariant set should:
-  - Constrain the bounded variables: 0 <= k86 (k86 never decreases) and 3 <= g1j <= 8 (g1j stays within [3,8] due to the update rules).
-  - Capture the sign of t and its relation to g1j at the current iteration: t is always either 1 or -1; when g1j >= 8, t = -1; when g1j <= 3, t = 1.
-  - Provide a simple progress measure for termination: loop variant f6 - k86 decreases by 1 each iteration (k86 increments by 1 while f6 is constant).
-- Loop assigns: k86, g1j, t are the variables modified in the loop.
-These invariants are inductive (they hold initially and are preserved by each iteration) and support verification with Frama-C/WP.
+<EMPTY_RESPONSE>
+----- Candidate 1/5 raw response end -----
+2026-03-14 23:00:21,784 - WARNING -   Failed to extract code from candidate 1
+2026-03-14 23:00:21,784 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 23:00:21,847 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:01:45,220 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>
+For Loop 0 (while (us>1)):
+- We want a compact, inductive set of invariants that capture the few state changes: i5x is updated by am*us, jfs is incremented by us, and us becomes 1. am and nkw stay constant; o stays constant. A safe, inductive bundle is:
+  - am == -6 (since Loop 0 does not modify am)
+  - i5x <= 0 (since initial i5x is 0 and the update is i5x += am*us with am negative; with us > 0 the result remains <= 0)
+  - jfs >= o and 0 <= jfs - o <= nkw (jfs starts at o and accumulates us at most once; nkw is the initial us, so the difference is in [0, nkw])
+  - us >= 1 (it starts as nkw ≥ 15 and becomes 1; true before and after each iteration)
+- A loop variant (us - 1) decreases each iteration (from initial us down to 1), ensuring progress to termination.
+- Loop assigns: i5x, jfs, us.
 
-The following invariants are chosen:
-- 0 <= k86
-- 3 <= g1j <= 8
-- (t == 1) || (t == -1)
-- (g1j >= 8) ==> (t == -1)
-- (g1j <= 3) ==> (t == 1)
-- loop variant: f6 - k86
-These express the essential state constraints and the state transformation behavior, while keeping the loop progression clear for WP verification. The invariant set is stronger than a tautology and directly relates to the observed loop dynamics. The required core conservation/relational statement is captured by the relation between g1j, t, and the bounds (g1j remains within [3,8], with t updated based on g1j).
+For Loop 1 (the second loop):
+- This loop updates i5x by adding the current o, increments am, and updates o by adding the new am. It continues while am < us. We want an invariant that is preserved despite these updates and that is expressive enough to reason about the relation between o, am, and the initial o value (\at(o, Pre)).
+- A precise inductive invariant can be derived from the closed form of the evolution:
+  After k iterations, am = am0 + k (where am0 = -6) and o = o0 + sum_{t=1..k} (am0 + t) = o0 + (am^2 + am - 30)/2, where o0 is the initial value of o and am is the current value (am = am0 + k). This yields the exact relation:
+  2*(o - o0) = am*am + am - 30
+  where o0 is \at(o, Pre).
+- Thus we can include:
+  - 2*(o - \at(o, Pre)) == am*am + am - 30
+- Also we keep the guard information in the invariant form by using am <= us - 1 (a non-strict form of the loop condition), which is also preserved.
+- Loop assigns: i5x, am, o.
+- Loop variant: (us - am), which decreases by 1 each iteration as am increments toward us.
 
+These invariants are inductive, relate to the available variables, avoid rewriting the code, and stay verification-friendly for Frama-C/WP.
 </reasoning>
-<code>int main1(int f,int g){
-  int f6, k86, g1j, t;
+<code>int main1(int o){
+  int nkw, us, am, i5x, jfs;
 
-  f6=f+17;
-  k86=0;
-  g1j=3;
-  t=1;
+  nkw=(o%9)+15;
+  us=nkw;
+  am=-6;
+  i5x=0;
+  jfs=o;
 
   /*@
-    loop invariant 0 <= k86;
-    loop invariant 3 <= g1j <= 8;
-    loop invariant (t == 1) || (t == -1);
-    loop invariant (g1j >= 8) ==> (t == -1);
-    loop invariant (g1j <= 3) ==> (t == 1);
-    loop assigns k86, g1j, t;
-    loop variant f6 - k86;
+    loop invariant am == -6;
+    loop invariant i5x <= 0;
+    loop invariant jfs >= o;
+    loop invariant 0 <= jfs - o <= nkw;
+    loop invariant us >= 1;
+    loop variant (us - 1);
+    loop assigns i5x, jfs, us;
   */
-  while (k86<=f6-1) {
-      if (g1j>=8) {
-          t = -1;
+  while (us>1) {
+      i5x = i5x+am*us;
+      jfs += us;
+      us = 1;
+  }
+
+  /*@
+    loop invariant am <= us - 1;
+    loop invariant 2*(o - \at(o, Pre)) == am*am + am - 30;
+    loop assigns i5x, am, o;
+    loop variant (us - am);
+  */
+  while (1) {
+      if (!(am<us)) {
+          break;
       }
-      if (g1j<=3) {
-          t = 1;
-      }
-      k86++;
-      g1j += t;
+      i5x = i5x + o;
+      am += 1;
+      o += am;
   }
 
 }</code>
------ Candidate 1/5 raw response end -----
-2026-03-11 17:14:55,935 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 17:14:55,998 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:17:35,655 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>We need inductive loop annotations that are verification-friendly for Frama-C/WP. The loop updates are:
-- k86 increments by 1 each iteration.
-- g1j increases by t each iteration.
-- t is either 1 or -1, and is reset to 1 when g1j <= 3, or reset to -1 when g1j >= 8.
+----- Candidate 2/5 raw response end -----
+2026-03-14 23:01:45,221 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 23:01:45,293 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:04:04,495 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>For both loops, I aimed for inductive, verification-friendly invariants that reflect the actual state updates and termination behavior, without modifying the code or introducing unsupported constructs.
 
-From the transition behavior, a compact core relational/conservation property emerges: g1j - k86 is never larger than 3 across iterations. This arises because g1j grows by t and k86 grows by 1 each step, so the difference changes by t - 1, which is either 0 (when t = 1) or -2 (when t = -1). Hence g1j - k86 <= 3 is preserved. In addition, we can safely assert bounds on g1j (3 to 8, reflecting the bounce between 3 and 8 due to the t flips) and that k86 stays non-negative, and that t is always either 1 or -1.
+Loop 0 (while (us>1)):
+- The loop updates i5x by am*us, increments jfs by us, and sets us to 1. Since am is constant (-6) and us starts at nkw and becomes 1 after the first iteration, the value of us can only be nkw (before the first iteration) or 1 (after the first iteration). This motivates a core relational invariant: us == nkw || us == 1.
+- i5x is driven by am and us. Given am is negative and us is positive, i5x will not become positive during these steps, so i5x <= 0 is preserved.
+- jfs is increased by us, and since us is at least 1 and jfs starts at o, jfs >= o holds throughout.
+- am is fixed and <= us in the initial state (-6 <= nkw) and remains <= us after the only possible post-state (still true as us becomes 1).
+- We also express a minimal progress bound via loop variant: us, which decreases from nkw to 1.
 
-Thus, the loop invariants below express:
-- A core relational conservation: g1j - k86 <= 3.
-- Concrete bounds on g1j: 3 <= g1j <= 8.
-- Non-negativity of k86: 0 <= k86.
-- The sign of t remains in the set {1, -1}.
+Loop 1 (while (1) with inner break when !(am<us)):
+- The loop increments am by 1 each iteration and updates o by the new am value. The loop runs while am < us, so the number of iterations is us - am, and this quantity strictly decreases by 1 each iteration. Therefore loop variant us - am is appropriate.
+- A robust invariant to keep the loop non-trivial but safe is am <= us (am increases but never exceeds us during the loop), and o does not exceed its initial value (o <= \at(o, Pre)) since the observed progression tends to decrease o for the given initial conditions (and is safe as a general bound given those preconditions). The invariant also respects the function-parameter usage: o is a parameter, so we can reference its initial value with \at(o, Pre).
 
-We also specify loop assigns to reflect the actual updated variables: k86, g1j, t. A loop variant f6 - k86 provides a decreasing measure to prove termination (since k86 increases while f6 is fixed during the loop).
-
-These invariants are inductive:
-- Initially, k86 = 0, g1j = 3, t = 1, f6 = f + 17, so the bounds hold.
-- If 0 <= k86, 3 <= g1j <= 8, g1j - k86 <= 3, and t ∈ {1, -1} at the start of an iteration, the updates preserve them as shown by the per-iteration rules (t = 1 when g1j <= 3; t = -1 when g1j >= 8; k86++, g1j += t), and k86 increases only, so 0 <= k86 remains true, 3 <= g1j <= 8 remains, (g1j - k86) <= 3 remains, and t remains in {1, -1}.
-
-The guard is not an invariant; at loop exit, the established relations plus the negation of the guard will enable concluding the needed postcondition. The annotations use only function parameters where needed and comply with the allowed ACSL constructs.
+Taken together, these invariants are strong, inductive, and verification-friendly, while accurately describing the loop transitions and progress.
 
 </reasoning>
-<code>/*@ 
-  loop invariant 0 &lt;= k86;
-  loop invariant 3 &lt;= g1j &amp;&amp; g1j &lt;= 8;
-  loop invariant (g1j - k86) &lt;= 3;
-  loop invariant (t == 1) || (t == -1);
-  loop assigns k86, g1j, t;
-  loop variant f6 - k86;
-*/ 
-while (k86 &lt;= f6 - 1) {
-      if (g1j &gt;= 8) {
-          t = -1;
-      }
-      if (g1j &lt;= 3) {
-          t = 1;
-      }
-      k86++;
-      g1j += t;
-  }</code>
------ Candidate 2/5 raw response end -----
-2026-03-11 17:17:35,657 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 17:17:35,731 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:19:31,459 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>The loop updates three variables: k86 is incremented each iteration, g1j is updated by t, and t can be set to 1 when g1j <= 3 or set to -1 when g1j >= 8. To make the loop inductive and verification-friendly, we include:
-
-- A simple bound that ensures progress and prevents overflow: 0 <= k86 <= f6.
-- A strong, yet safe, relation between t and g1j through the explicit thresholds:
-  - If g1j <= 3 then t is (will be) 1; 
-  - If g1j >= 8 then t is (will be) -1.
-  These implications hold at loop head and are preserved by the body, since the corresponding assignments to t occur exactly when those conditions hold.
-- Explicitly list the modified variables: k86, g1j, t.
-- A loop variant that proves termination: f6 - k86 decreases by 1 each iteration (since k86 increments by 1 and f6 is constant).
-
-This set is inductive: it holds initially (before first iteration), is preserved by every iteration, and, with the guard, provides a clear exit condition. It avoids tautologies and uses only allowed variables. </reasoning>
-
 <code>/*@
-  loop invariant 0 &lt;= k86 &amp;amp; k86 &lt;= f6;
-  loop invariant (g1j &lt;= 3) ==> (t == 1);
-  loop invariant (g1j &gt;= 8) ==> (t == -1);
-  loop assigns k86, g1j, t;
-  loop variant f6 - k86;
+  loop invariant i5x <= 0;
+  loop invariant jfs >= o;
+  loop invariant am <= us;
+  loop invariant us == nkw || us == 1;
+  loop assigns i5x, jfs, us;
+  loop variant us;
 */
-while (k86 &lt;= f6 - 1) {
-      if (g1j &gt;= 8) {
-          t = -1;
+while (us>1) {
+      i5x = i5x+am*us;
+      jfs += us;
+      us = 1;
+  }
+
+/*@ 
+  loop invariant am <= us;
+  loop invariant o <= \at(o, Pre);
+  loop assigns i5x, am, o;
+  loop variant (us - am);
+*/
+while (1) {
+      if (!(am<us)) {
+          break;
       }
-      if (g1j &lt;= 3) {
-          t = 1;
-      }
-      k86++;
-      g1j += t;
+      i5x = i5x + o;
+      am += 1;
+      o += am;
   }</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 17:19:31,461 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 17:19:31,529 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:22:51,425 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants for the given loop. Observations:
-- Each iteration increases k86 by 1 and updates g1j by t, where t is set to -1 if g1j >= 8 and set to 1 if g1j <= 3; otherwise t remains the previous value.
-- Initial state: k86 = 0, g1j = 3, t = 1. Loop guard is k86 <= f6 - 1, with f6 = f + 17.
-- Core state transition (per iteration): k86' = k86 + 1; g1j' = g1j + t; t' is determined by g1j' at the next iteration (through the same rules).
-- Reasonable invariants:
-  - k86 is non-decreasing and nonnegative: 0 <= k86.
-  - g1j stays within the feasible band [3, 8] given the update rules: 3 <= g1j and g1j <= 8.
-  - The deviation of g1j from its initial value 3 is bounded by the number of iterations: -k86 <= g1j - 3 <= k86.
-  - The update law for t: if g1j >= 8 then t == -1; if g1j <= 3 then t == 1. These implications hold at loop head due to the update rules inside the loop.
-- Loop variant: f6 - k86 to ensure progress (since k86 increments by 1 each iteration, and the loop guard guarantees f6 - k86 >= 1 before each iteration).
-
-These invariants are inductive and verification-friendly; they do not rely on unknowns or non-parameter initializations, and they keep the code unchanged except for the inserted annotations. The core state-transition relation described in the invariants reflects g1j' = g1j + t and k86' = k86 + 1, with t dependent on g1j as described. </reasoning>
-<code>/*@
-  loop invariant 0 &lt;= k86;
-  loop invariant 3 &lt;= g1j;
-  loop invariant g1j &lt;= 8;
-  loop invariant -k86 &lt;= g1j - 3 &lt;= k86;
-  loop invariant (g1j &gt;= 8) ==> (t == -1);
-  loop invariant (g1j &lt;= 3) ==> (t == 1);
-  loop assigns t, k86, g1j;
-  loop variant f6 - k86;
-*/</code>
------ Candidate 4/5 raw response end -----
-2026-03-11 17:22:51,426 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 17:22:51,497 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:25:42,599 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>
-I analyzed the loop dynamics to craft inductive, verification-friendly invariants for Frama-C WP.
-
-Key observations:
-- f6 is initialized once as f + 17 and never changed in the loop. Therefore, f6 == \at(f, Pre) + 17 is an exact invariant.
-- k86 is the loop counter and is incremented by 1 every iteration. Thus 0 <= k86 holds, and the loop variant f6 - k86 strictly decreases by 1 each iteration (since f6 is constant inside the loop). This gives a natural decreasing measure for termination.
-- t is assigned only to 1 or -1 inside the loop (initially t == 1). Therefore, invariant t == 1 || t == -1 is valid and helpful for reasoning about g1j updates.
-- A core relational invariant can be derived from the update rule g1j' = g1j + t with t ∈ {1, -1} and k86' = k86 + 1. This yields g1j - 3 + k86 non-decreasing, which is equivalent to g1j >= 3 - k86. This inequality holds initially (3 >= 3) and is preserved by every iteration, regardless of which branch fires (t can be 1 or -1, and k86 always increments by 1). Thus g1j >= 3 - k86 is a strong, inductive invariant that expresses the loop’s state relation without relying on non-parameter local-state specifics.
-- The loop assigns variables are exactly k86, g1j, and t.
-
-With these, I propose the following invariant set and loop variant, which are inductive and verification-friendly for WP:
-- f6 == \at(f, Pre) + 17
-- g1j >= 3 - k86
-- t == 1 || t == -1
-- 0 <= k86
-- loop variant f6 - k86
-- loop assigns k86, g1j, t
-
-This combination captures the essential state evolution, ensures termination, and remains compatible with Frama-C/WP constraints.
-</reasoning>
-<code>int main1(int f,int g){
-  int f6, k86, g1j, t;
-
-  f6=f+17;
-  k86=0;
-  g1j=3;
-  t=1;
-
-  /*@
-    loop invariant f6 == \at(f, Pre) + 17;
-    loop invariant g1j >= 3 - k86;
-    loop invariant t == 1 || t == -1;
-    loop invariant 0 <= k86;
-    loop assigns k86, g1j, t;
-    loop variant f6 - k86;
-  */
-while (k86<=f6-1) {
-      if (g1j>=8) {
-          t = -1;
-      }
-      if (g1j<=3) {
-          t = 1;
-      }
-      k86++;
-      g1j += t;
-  }
-
-}</code>
------ Candidate 5/5 raw response end -----
-2026-03-11 17:25:42,600 - INFO - 
------ Candidate 1/5 full code begin -----
-int main1(int f,int g){
-  int f6, k86, g1j, t;
-
-  f6=f+17;
-  k86=0;
-  g1j=3;
-  t=1;
-
-  /*@
-    loop invariant 0 <= k86;
-    loop invariant 3 <= g1j <= 8;
-    loop invariant (t == 1) || (t == -1);
-    loop invariant (g1j >= 8) ==> (t == -1);
-    loop invariant (g1j <= 3) ==> (t == 1);
-    loop assigns k86, g1j, t;
-    loop variant f6 - k86;
-  */
-  while (k86<=f6-1) {
-      if (g1j>=8) {
-          t = -1;
-      }
-      if (g1j<=3) {
-          t = 1;
-      }
-      k86++;
-      g1j += t;
-  }
-
-}
------ Candidate 1/5 full code end -----
-2026-03-11 17:25:42,600 - INFO - 
------ Candidate 2/5 full code begin -----
-/*@ 
-  loop invariant 0 &lt;= k86;
-  loop invariant 3 &lt;= g1j &amp;&amp; g1j &lt;= 8;
-  loop invariant (g1j - k86) &lt;= 3;
-  loop invariant (t == 1) || (t == -1);
-  loop assigns k86, g1j, t;
-  loop variant f6 - k86;
-*/ 
-while (k86 &lt;= f6 - 1) {
-      if (g1j &gt;= 8) {
-          t = -1;
-      }
-      if (g1j &lt;= 3) {
-          t = 1;
-      }
-      k86++;
-      g1j += t;
-  }
------ Candidate 2/5 full code end -----
-2026-03-11 17:25:42,600 - INFO - 
------ Candidate 3/5 full code begin -----
-/*@
-  loop invariant 0 &lt;= k86 &amp;amp; k86 &lt;= f6;
-  loop invariant (g1j &lt;= 3) ==> (t == 1);
-  loop invariant (g1j &gt;= 8) ==> (t == -1);
-  loop assigns k86, g1j, t;
-  loop variant f6 - k86;
-*/
-while (k86 &lt;= f6 - 1) {
-      if (g1j &gt;= 8) {
-          t = -1;
-      }
-      if (g1j &lt;= 3) {
-          t = 1;
-      }
-      k86++;
-      g1j += t;
-  }
------ Candidate 3/5 full code end -----
-2026-03-11 17:25:42,600 - INFO - 
------ Candidate 4/5 full code begin -----
-/*@
-  loop invariant 0 &lt;= k86;
-  loop invariant 3 &lt;= g1j;
-  loop invariant g1j &lt;= 8;
-  loop invariant -k86 &lt;= g1j - 3 &lt;= k86;
-  loop invariant (g1j &gt;= 8) ==> (t == -1);
-  loop invariant (g1j &lt;= 3) ==> (t == 1);
-  loop assigns t, k86, g1j;
-  loop variant f6 - k86;
-*/
------ Candidate 4/5 full code end -----
-2026-03-11 17:25:42,600 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int f,int g){
-  int f6, k86, g1j, t;
-
-  f6=f+17;
-  k86=0;
-  g1j=3;
-  t=1;
-
-  /*@
-    loop invariant f6 == \at(f, Pre) + 17;
-    loop invariant g1j >= 3 - k86;
-    loop invariant t == 1 || t == -1;
-    loop invariant 0 <= k86;
-    loop assigns k86, g1j, t;
-    loop variant f6 - k86;
-  */
-while (k86<=f6-1) {
-      if (g1j>=8) {
-          t = -1;
-      }
-      if (g1j<=3) {
-          t = 1;
-      }
-      k86++;
-      g1j += t;
-  }
-
-}
------ Candidate 5/5 full code end -----
-2026-03-11 17:25:42,600 - INFO - Successfully generated 5/5 candidates
-2026-03-11 17:25:42,601 - INFO - Checking 8 invariants for conflicts...
-2026-03-11 17:25:42,602 - INFO -   Conflict detected:
-2026-03-11 17:25:42,602 - INFO -     [3] (t == 1) || (t == -1)
-2026-03-11 17:25:42,602 - INFO -     [4] (g1j >= 8) ==> (t == -1)
-2026-03-11 17:25:42,604 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 17:25:42,604 - INFO -   1: int main1(int f,int g){
-2026-03-11 17:25:42,604 - INFO -   2:   int f6, k86, g1j, t;
-2026-03-11 17:25:42,604 - INFO -   3: 
-2026-03-11 17:25:42,604 - INFO -   4:   f6=f+17;
-2026-03-11 17:25:42,604 - INFO -   5:   k86=0;
-2026-03-11 17:25:42,604 - INFO -   6:   g1j=3;
-2026-03-11 17:25:42,604 - INFO -   7:   t=1;
-2026-03-11 17:25:42,604 - INFO -   8: 
-2026-03-11 17:25:42,604 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 17:25:42,604 - INFO -   10: /*@
-2026-03-11 17:25:42,604 - INFO - DEBUG: Total lines: 32
-2026-03-11 17:25:42,798 - INFO - syntax Correct
-2026-03-11 17:26:13,775 - INFO - Validate:
-2026-03-11 17:26:13,775 - INFO - [True, True, True, False, True, True, True]
-2026-03-11 17:26:13,775 - INFO - 
-2026-03-11 17:26:13,775 - INFO - Verify:
-2026-03-11 17:26:13,775 - INFO - []
-2026-03-11 17:26:13,775 - INFO - 
-2026-03-11 17:26:13,776 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-11 17:26:13,776 - INFO -   Before: 7 invariants
-2026-03-11 17:26:13,776 - INFO -   After: 6 invariants
-2026-03-11 17:26:13,776 - INFO -   Remaining invariants:
-2026-03-11 17:26:13,776 - INFO -     [1] 0 <= k86
-2026-03-11 17:26:13,776 - INFO -     [2] 3 <= g1j <= 8
-2026-03-11 17:26:13,776 - INFO -     [3] (t == 1) || (t == -1)
-2026-03-11 17:26:13,776 - INFO -     [4] f6 == \at(f, Pre) + 17
-2026-03-11 17:26:13,776 - INFO -     [5] g1j >= 3 - k86
-2026-03-11 17:26:13,776 - INFO -     [6] t == 1 || t == -1
-2026-03-11 17:26:13,975 - INFO - syntax Correct
-2026-03-11 17:26:44,831 - INFO - Validate:
-2026-03-11 17:26:44,831 - INFO - [True, True, True, True, True, True]
-2026-03-11 17:26:44,831 - INFO - 
-2026-03-11 17:26:44,831 - INFO - Verify:
-2026-03-11 17:26:44,832 - INFO - []
-2026-03-11 17:26:44,832 - INFO - 
-2026-03-11 17:26:44,832 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-11 17:26:45,017 - INFO - syntax Correct
-2026-03-11 17:27:15,835 - INFO - Validate:
-2026-03-11 17:27:15,836 - INFO - [True, True, True, True, True, True]
-2026-03-11 17:27:15,836 - INFO - 
-2026-03-11 17:27:15,836 - INFO - Verify:
-2026-03-11 17:27:15,836 - INFO - []
-2026-03-11 17:27:15,836 - INFO - 
-2026-03-11 17:27:35,937 - INFO - Deduplicated 2 loop invariants in final code
-2026-03-11 17:27:36,134 - INFO - syntax Correct
-2026-03-11 17:28:06,893 - INFO - Validate:
-2026-03-11 17:28:06,893 - INFO - [True, True, True, True]
-2026-03-11 17:28:06,893 - INFO - 
-2026-03-11 17:28:06,893 - INFO - Verify:
-2026-03-11 17:28:06,893 - INFO - []
-2026-03-11 17:28:06,893 - INFO - 
-2026-03-11 17:28:06,894 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 17:28:06,894 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_4/1.c
-2026-03-11 17:28:06,894 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_4/1_invariants.txt
-2026-03-11 17:28:06,894 - INFO - 
-============================================================
-2026-03-11 17:28:06,894 - INFO - Final first_pass results:
-2026-03-11 17:28:06,894 - INFO -   syntax=1
-2026-03-11 17:28:06,894 - INFO -   valid=1
-2026-03-11 17:28:06,894 - INFO -   satisfy=None
-2026-03-11 17:28:06,894 - INFO - ============================================================
-2026-03-11 17:28:06,894 - INFO - 
-============================================================
-2026-03-11 17:28:06,894 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 17:28:06,894 - INFO -   Total API calls: 60
-2026-03-11 17:28:06,894 - INFO -   Total prompt tokens (input): 70,321
-2026-03-11 17:28:06,894 - INFO -   Total completion tokens (output): 512,441
-2026-03-11 17:28:06,894 - INFO -   Total tokens: 582,762
-2026-03-11 17:28:06,894 - INFO -   Average per call:
-2026-03-11 17:28:06,894 - INFO -     Prompt: 1172.0 tokens
-2026-03-11 17:28:06,894 - INFO -     Completion: 8540.7 tokens
-2026-03-11 17:28:06,894 - INFO -     Total: 9712.7 tokens
-2026-03-11 17:28:06,894 - INFO - ============================================================
-2026-03-11 17:28:06,895 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_4/1.c
-2026-03-11 17:28:06,895 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_4/1_invariants.txt
-2026-03-11 17:28:40,395 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 23:04:04,496 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 23:04:04,556 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...

@@ -1,567 +1,604 @@
-2026-03-11 03:37:28,393 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 03:37:28,413 - INFO - Found 2 loops
-2026-03-11 03:37:28,414 - INFO - 
+2026-03-14 22:59:00,704 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 22:59:00,722 - INFO - Found 2 loops
+2026-03-14 22:59:00,723 - INFO - 
 ============================================================
-2026-03-11 03:37:28,414 - INFO - Main generation pass 1/1
-2026-03-11 03:37:28,414 - INFO - ============================================================
-2026-03-11 03:37:28,414 - INFO - Loaded single prompt template: simple
-2026-03-11 03:37:28,414 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 03:37:28,414 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 03:37:28,431 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:40:19,442 - INFO - 
+2026-03-14 22:59:00,723 - INFO - Main generation pass 1/1
+2026-03-14 22:59:00,723 - INFO - ============================================================
+2026-03-14 22:59:00,723 - INFO - Loaded single prompt template: simple
+2026-03-14 22:59:00,723 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 22:59:00,723 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 22:59:01,788 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:00:00,910 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<EMPTY_RESPONSE>
------ Candidate 1/5 raw response end -----
-2026-03-11 03:40:19,442 - WARNING -   Failed to extract code from candidate 1
-2026-03-11 03:40:19,442 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 03:40:19,454 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:41:36,145 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>For the first loop (tcl>=1), I established a strong conservation relation among the arithmetic accumulators:
-- agh is increased by g*g each iteration.
-- nt is increased by g*g each iteration.
-- y is increased by g*g each iteration.
+<reasoning>Loop 0 reasoning:
+- The loop updates only mu, n, and b0; h and b6 stay constant throughout this loop.
+- A natural, strong invariant is that the parameter n never changes from its initial value, because the update n = n + h - b6 uses h and b6 which themselves do not change in the loop. Given the initial relation h == b6 (from the pre-loop state) this makes n persist as its initial value: n == \at(n, Pre). This is a core conservation relation explaining the loop update on n.
+- Since b0 is the loop counter, it must stay within the guard b0 < h. A simple bound invariant b0 <= h is valid at the loop header (and is preserved whenever the loop continues, i.e., when the next iteration exists).
+- h and b6 are constants inside the loop, but it is useful to explicitly relate them to their Pre(n) initial value for clarity: h == \at(n, Pre) - 2 and b6 == \at(n, Pre) - 2. These are preserved as they are assigned only once before the loop and never changed.
+- A straightforward loop variant to aid WP is h - b0, which decreases by 2 each iteration (since b0 increments by 2) while staying non-negative while the loop runs.
 
-Thus, agh, nt, and y all accumulate the same amount, leading to the exact invariant agh == nt and nt == y. This provides an exact relational invariant that is preserved by every iteration. Additionally, tcl is decremented by 1 each iteration, so a simple progress bound tcl >= 0 is natural and inductive.
+Loop 1 reasoning:
+- This loop updates mi, b6, and mu; h and n remain constant within it.
+- A core conservation relation exists: mi is updated by h*mu and b6 is updated by mu, while mu becomes 1 each iteration. Therefore, the combination mi - h*b6 remains invariant across iterations:
+  (mi' - h*b6') = (mi + h*mu) - h*(b6 + mu) = (mi - h*b6).
+- Using the loop-entry state for Loop 1, mi = 0 and b6 = h, so the invariant evaluates to mi - h*b6 == -h*h, which remains true throughout the loop.
+- We avoid introducing a loop variant here since the code, as written, would not trivially demonstrate termination (mu is set to 1 and stays 1, potentially creating a non-terminating loop). It is safer to omit a variant for this loop in this reconstruction.
 
-For the loop body 2 (u0>vn), the updates are more intricate (u0 decreases by vn, vn increases by 1, tcl increases by 1, g changes by (u0%7), and y increases by the new tcl). A robust approach is to keep invariants that are straightforwardly preserved regardless of the complicated arithmetic updates:
-- tcl >= 0 ensures a non-decreasing progress measure for the loop guard dynamics.
-- y >= 0 ensures non-negativity of the accumulated value, given initial y = 0 and that y increments by a non-negative amount (tcl' >= 1) each iteration.
+Overall, the following invariants are chosen to be inductive, non-trivial, and verification-friendly:
+- Loop 0: n == \at(n, Pre), b0 <= h, h == \at(n, Pre) - 2, b6 == \at(n, Pre) - 2, with loop assigns n, mu, b0, and a loop variant h - b0.
+- Loop 1: mi - h*b6 == - h*h, with loop assigns mi, b6, mu; no loop variant provided due to potential termination issues in the given code.
 
-I also ensured the loop assigns list exactly includes all modified variables in each loop: first loop (agh, nt, tcl, vn, y); second loop (u0, vn, tcl, g, y). This keeps verification friendly and precise. The invariants are inductive (hold initially and preserved by each iteration) and do not rely on forbidden constructs. No changes were made to the original code aside from replacing the placeholder invariants with concrete ones.
-</reasoning>
-<code>int main1(int g){
-  int c, u0, nt, agh, y, tcl, vn;
+These invariants capture the essential state transitions (a core conservation law for Loop 0 and a linear invariant for Loop 1) while remaining grounded in the permitted variables and maintaining inductiveness. </reasoning>
+<code>int main1(int n){
+  int h, b6, b0, mu, mi;
 
-  c=g;
-  u0=c;
-  nt=0;
-  agh=0;
-  y=0;
-  tcl=(g%18)+5;
-  vn=u0;
+  h=n-2;
+  b6=h;
+  b0=0;
+  mu=b6;
+  mi=0;
 
-  /*@
-    loop invariant agh == nt;
-    loop invariant nt == y;
-    loop invariant tcl >= 0;
-    loop assigns agh, nt, tcl, vn, y;
+  /*@ 
+    loop invariant n == \at(n, Pre);
+    loop invariant b0 <= h;
+    loop invariant h == \at(n, Pre) - 2;
+    loop invariant b6 == \at(n, Pre) - 2;
+    loop assigns n, mu, b0;
+    loop variant h - b0;
   */
-  while (tcl>=1) {
-      agh = agh+g*g;
-      y = y+g*g;
-      tcl = tcl - 1;
-      nt = nt+g*g;
-      vn = vn+(tcl%3);
+while (b0<h) {
+      mu = b0+4;
+      n = n+h-b6;
+      b0 += 2;
   }
 
-  /*@
-    loop invariant tcl >= 0;
-    loop invariant y >= 0;
-    loop assigns u0, vn, tcl, g, y;
+  /*@ 
+    loop invariant mi - h*b6 == - h*h;
+    loop assigns mi, b6, mu;
   */
-  while (u0>vn) {
-      u0 -= vn;
-      vn = vn + 1;
-      tcl += 1;
-      g = g+(u0%7);
-      y = (tcl)+(y);
+while (mu>=1) {
+      mi = mi+h*mu;
+      b6 += mu;
+      mu = =1;
   }
 
 }</code>
------ Candidate 2/5 raw response end -----
-2026-03-11 03:41:36,146 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 03:41:36,158 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:46:47,411 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>
-For the first loop (loop with guard tcl >= 1), I used a strong relational invariant that captures the exact conservation across iterations: agh, nt, and y are all incremented by the same amount g*g per iteration, starting from 0. Hence, after any number of iterations, agh == nt == y. I also add a minimal progress bound: tcl >= 0, which is preserved by tcl := tcl - 1 each iteration and guarantees termination when combined with the loop guard. The loop assigns are the variables updated inside the loop: agh, nt, tcl, vn, y. A loop variant on tcl helps Frama-C WP reason about termination.
+----- Candidate 1/5 raw response end -----
+2026-03-14 23:00:00,911 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 23:00:00,972 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:01:12,433 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>Reasoning about invariants:
 
-For the second loop (loop with guard u0 > vn), the exact transition is more complex, but we can establish inductive invariants that are safely preserved given the loop’s updates and the fact that tcl starts at 0 at the entry of the second loop (the first loop ends with tcl == 0). I chose:
-- tcl >= 0: tcl is incremented by 1 each iteration, starting from 0, so this is inductive.
-- y >= 0: y starts nonnegative (it accumulates nonnegative increments tcl' since the first loop), and each iteration increases y by tcl' (which is >= 0), so y remains nonnegative.
-These invariants are modest but inductive under the given updates and do not rely on fragile relations that may not preserve across iterations. The loop assigns are: u0, vn, tcl, g, y. A loop variant on tcl maintains termination reasoning.
+Loop 0 (the first while (b0 < h)):
+- Observations from the transition:
+  - h and b6 are never modified inside this loop, and initially h == b6.
+  - n is updated as n = n + h - b6; since h == b6, this update leaves n unchanged. Therefore n remains equal to its initial value \at(n, Pre) throughout the loop.
+  - b0 is the loop counter starting at 0 and increases by 2 each iteration; the loop condition is b0 < h, so b0 remains within 0..(h-1) during the loop body. A simple invariant is b0 <= h and that b0 is even (b0 starts at 0 and increments by 2).
+- Based on these observations, useful and inductive invariants are:
+  - h == b6 (both immutables inside the loop)
+  - n == \at(n, Pre) (n does not change throughout the loop)
+  - b0 <= h (loop counter stays within bounds while the guard is true)
+  - (b0 % 2) == 0 (b0 remains even)
+- The loop assigns are b0, mu, n because these are the variables written inside the loop body.
 
-Both loops’ invariants rely only on available variables and function parameters, and do not modify code outside the annotated blocks.
+Loop 1 (the second while (mu >= 1)):
+- Observations from the transition:
+  - n remains unchanged in this loop (not modified in the body).
+  - mi is updated by mi = mi + h*mu.
+  - b6 is incremented by mu.
+  - mu is set to 1 (per the given body; we assume mu becomes 1 for the subsequent iterations).
+  - Initial values at loop entry (from the provided context) satisfy n == \at(n, Pre) and mu >= 1, with mi = 0 and b6 >= (\at(n, Pre) - 2).
+- A safe inductive invariant set is:
+  - n == \at(n, Pre) (n remains unchanged)
+  - mi >= 0 (mi starts at 0 and only increases by a non-negative amount if h and mu are non-negative; this is a reasonable, non-restrictive bound given the context)
+  - b6 >= (\at(n, Pre) - 2) (b6 never decreases and starts at at(n, Pre) - 2)
+  - mu >= 1 (mu starts at 4 in the given context and is set to 1 each iteration; hence remains >= 1)
+- The loop assigns are mi, b6, mu.
+
+These invariants are inductive: they hold before the first iteration and are preserved by each iteration of their respective loops, given the described updates. They are not overly restrictive and stay within the allowed variables. They also avoid introducing unrelated properties. The annotations use the function parameter n via \at(n, Pre) to relate current n to its initial value, as permitted.
+
 </reasoning>
-
-<code>
-int main1(int g){
-  int c, u0, nt, agh, y, tcl, vn;
-
-  c=g;
-  u0=c;
-  nt=0;
-  agh=0;
-  y=0;
-  tcl=(g%18)+5;
-  vn=u0;
-
-  /* @
-     loop invariant (agh == nt) && (nt == y);
-     loop invariant (tcl >= 0);
-     loop assigns agh, nt, tcl, vn, y;
-     loop variant tcl;
-  */
-  while (tcl>=1) {
-      agh = agh+g*g;
-      y = y+g*g;
-      tcl = tcl - 1;
-      nt = nt+g*g;
-      vn = vn+(tcl%3);
-  }
-
-  /* @
-     loop invariant (tcl >= 0);
-     loop invariant (y >= 0);
-     loop assigns u0, vn, tcl, g, y;
-     loop variant tcl;
-  */
-  while (u0>vn) {
-      u0 -= vn;
-      vn = vn + 1;
-      tcl += 1;
-      g = g+(u0%7);
-      y = (tcl)+(y);
-  }
-
-}
-</code>
------ Candidate 3/5 raw response end -----
-2026-03-11 03:46:47,411 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 03:46:47,423 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:49:22,940 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>For the first loop (tcl >= 1), each iteration updates:
-- agh and y by g*g
-- tcl by -1
-- nt by g*g
-- vn by (tcl % 3) with tcl already decreased
-
-A strong, inductive invariant is that agh and y stay in lockstep (agh == y) and that nt tracks agh (nt == agh). Since every iteration adds g*g to agh, y, and nt, these equalities are preserved across iterations. This gives a concise, exact state-conservation relation explaining the loop updates. A loop variant can be tcl, which strictly decreases by 1 each iteration and is non-negative due to the loop guard (tcl >= 1), ensuring termination reasoning.
-
-For the second loop (u0 > vn), the updates are:
-- u0 decreases by vn
-- vn increases by 1
-- tcl increases by 1
-- g increases by (u0 % 7) where u0 has already been updated
-- y increases by the new tcl value
-
-A minimal, verification-friendly approach is to establish non-decreasing, non-negative bounds on tcl and y, which are clearly invariant under these updates:
-- tcl >= 0 remains true since tcl only increases and started non-negative
-- y >= 0 remains true since y increases by tcl+1 with tcl >= 0
-
-These invariants are preserved by each iteration and do not overconstrain the loop state, aiding WP reasoning without relying on fragile relations involving u0, vn, or g. The loop assigns for the second loop includes all variables that are modified within the loop: u0, vn, tcl, g, y.
-
-With these invariants, the WP verifier has inductive properties to establish the loop behavior without altering the original code. </reasoning>
 <code>/*@
-  loop invariant agh == y;
-  loop invariant nt == agh;
-  loop assigns agh, y, tcl, nt, vn;
-  loop variant tcl;
+  loop invariant h == b6;
+  loop invariant n == \at(n, Pre);
+  loop invariant b0 <= h;
+  loop invariant (b0 % 2) == 0;
+  loop assigns b0, mu, n;
+  loop variant (h - b0);
 */
-while (tcl>=1) {
-      agh = agh+g*g;
-      y = y+g*g;
-      tcl = tcl - 1;
-      nt = nt+g*g;
-      vn = vn+(tcl%3);
+while (b0 < h) {
+      mu = b0 + 4;
+      n = n + h - b6;
+      b0 += 2;
   }
 
 /*@
-  loop invariant tcl >= 0;
-  loop invariant y >= 0;
-  loop assigns u0, vn, tcl, g, y;
+  loop invariant n == \at(n, Pre);
+  loop invariant mi >= 0;
+  loop invariant b6 >= (\at(n, Pre) - 2);
+  loop invariant mu >= 1;
+  loop assigns mi, b6, mu;
 */
-while (u0>vn) {
-      u0 -= vn;
-      vn = vn + 1;
-      tcl += 1;
-      g = g+(u0%7);
-      y = (tcl)+(y);
-  }</code>
------ Candidate 4/5 raw response end -----
-2026-03-11 03:49:22,940 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 03:49:22,954 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:51:04,938 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>For the first loop (tcl >= 1), I enforce strong, inductive invariants that directly reflect the observed state updates:
-- agh and nt are both updated by adding g*g; y is also updated by the same amount. Therefore agh == nt and nt == y are invariant relations (they hold before the first iteration and are preserved each iteration).
-- tcl decreases by 1 each iteration, and tcl is always non-negative within the loop (guard keeps tcl >= 1). Therefore tcl >= 0 is invariant, and the cycle 0 <= tcl % 3 <= 2 is also preserved since tcl remains non-negative and modulo with 3 yields a 0..2 remainder.
-- The chosen invariants do not rely on non-parameter locals and are preserved by the updates (gh is not modified in this loop, so no extra relational constraints are introduced beyond the above).
-- A loop variant is provided (tcl) to ensure termination, since tcl strictly decreases every iteration while the loop guard holds.
+while (mu >= 1) {
+      mi = mi + h * mu;
+      b6 += mu;
+      mu = 1;
+  } 
+</code>
+----- Candidate 2/5 raw response end -----
+2026-03-14 23:01:12,436 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 23:01:12,539 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:02:22,723 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>For the two loops in main1, I designed inductive, verification-friendly invariants that reflect the observed state updates and keep the code semantics intact.
 
-For the second loop (u0 > vn), I select invariants that are safe and help reasoning about progress:
-- The guard itself (u0 > vn) is a natural invariant to keep in mind: if the loop continues, the guard must hold at the start of each iteration.
-- A non-negativity/discreteness invariant: 0 <= (u0 - vn) helps bound the remaining work since the difference shrinks each iteration (the updates decrease this difference).
-- y and tcl are non-decreasing/non-negative given their update rules (y increases by tcl, which is non-negative; tcl is increased).
-- A loop variant (u0 - vn) is provided to justify termination, since the difference decreases every iteration when the loop continues.
-These invariants are inductive given the transition rules and do not rely on inaccessible pre-state values.
+Loop 0 (the loop with b0, mu, n):
+- Core update relation: b0 increases by 2 each iteration, mu is set to b0+4 based on the loop-step start value, and n is updated by h - b6. Given the initialization h = n-2 and b6 = h, we have h == b6, so the increment to n is effectively zero within this loop. To capture the exact linear relation between successive iterations and to express the state evolution, I add the core relational invariant (b0 == 0) || (mu == b0 + 2). This encodes that after the first iteration, mu equals the current b0 plus 2 (and initially b0==0 allows the invariant to hold). It’s inductive because:
+  - Initially: b0 == 0, so the invariant holds regardless of mu.
+  - If it holds at loop start (b0, mu) with either b0==0 or mu==b0+2, after the body updates (b0' = b0+2, mu' = b0+4), the invariant continues to hold at the next start: either b0'==0 (not the case after first iter) or mu' == b0' + 2 (since b0+4 == (b0+2)+2). This matches the exact transition mu' = b0+4 and b0' = b0+2.
+- Additional invariants express known constants and bounds to aid verification:
+  - n remains equal to its initial value throughout this loop: n == \at(n, Pre). This is true because h - b6 == 0 (as h == b6 and neither h nor b6 change in this loop), so n is updated by 0.
+  - h == b6 holds throughout (neither h nor b6 is modified inside this loop).
+  - b0 stays within [0, h] and is even, matching the loop guard b0 < h and the +2 step.
+- A loop variant h - b0 decreases by 2 each iteration, ensuring termination under the usual well-foundedness expectations.
+Loop 1 (the loop with mu, mi, b6):
+- Here mu is initialized to 4 (per the loop context) and is set to 1 in every iteration, so the start-of-iteration value of mu is either 4 (first iteration) or 1 (subsequent iterations). I add the invariant (mu == 1) || (mu == 4) to capture this behavior inductively:
+  - Initially mu == 4, so the invariant holds.
+  - After the first iteration, mu is set to 1 and remains 1 in all further iterations, so the invariant continues to hold.
+- Since b6 accumulates by mu each iteration, it only increases, so b6 >= h is a safe invariant (with h constant in this loop) and is preserved.
+- The loop assigns mi, b6, mu, so they are listed in the assigns clause.
 
-The resulting annotations are inductive and verification-friendly for Frama-C/WP, expressing a minimal set of strong, targeted invariants and complete loop assigns. They avoid introducing unrelated constraints and keep the code unchanged besides the annotations. </reasoning>
-<code>int main1(int g){
-  int c, u0, nt, agh, y, tcl, vn;
+These invariants are strong, inductive, and directly reflect the given loop transitions, while keeping the function and existing computations unchanged (except for the added loop annotations). They avoid unrelated properties and respect ACSL rules (e.g., using \at(n, Pre) since n is a parameter).
 
-  c=g;
-  u0=c;
-  nt=0;
-  agh=0;
-  y=0;
-  tcl=(g%18)+5;
-  vn=u0;
+</reasoning>
+<code>int main1(int n){
+  int h, b6, b0, mu, mi;
+
+  h=n-2;
+  b6=h;
+  b0=0;
+  mu=b6;
+  mi=0;
 
   /*@
-    loop invariant agh == nt;
-    loop invariant nt == y;
-    loop invariant 0 <= tcl % 3;
-    loop invariant tcl >= 0;
-    loop assigns agh, y, tcl, nt, vn;
-    loop variant tcl;
+    loop invariant (b0 == 0) || (mu == b0 + 2);
+    loop invariant n == \at(n, Pre);
+    loop invariant h == b6;
+    loop invariant 0 &lt;= b0 &amp;&amp; b0 &lt;= h;
+    loop invariant (b0 % 2) == 0;
+    loop assigns mu, n, b0;
+    loop variant h - b0;
   */
-  while (tcl>=1) {
-      agh = agh+g*g;
-      y = y+g*g;
-      tcl = tcl - 1;
-      nt = nt+g*g;
-      vn = vn+(tcl%3);
+  while (b0<h) {
+      mu = b0+4;
+      n = n+h-b6;
+      b0 += 2;
   }
 
   /*@
-    loop invariant u0 > vn;
-    loop invariant 0 <= (u0 - vn);
-    loop invariant y >= 0;
-    loop invariant tcl >= 0;
-    loop assigns c, g, tcl, u0, vn, y;
-    loop variant (u0 - vn);
+    loop invariant (mu == 1) || (mu == 4);
+    loop invariant b6 &gt;= h;
+    loop assigns mi, b6, mu;
   */
-  while (u0>vn) {
-      u0 -= vn;
-      vn = vn + 1;
-      tcl += 1;
-      g = g+(u0%7);
-      y = (tcl)+(y);
+  while (mu>=1) {
+      mi = mi+h*mu;
+      b6 += mu;
+      mu = =1;
+  }
+
+}</code>
+----- Candidate 3/5 raw response end -----
+2026-03-14 23:02:22,723 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 23:02:22,787 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:03:38,565 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>For the first loop (b0 < h), I synthesize an inductive invariant that captures the precise state progression and a simple linear relationship governing n.
+
+- State progression: each iteration increases b0 by 2 and sets mu to b0+4, while n is updated by n = n + h - b6. Since h and b6 stay constant within this loop, the delta to n per iteration is constant (h - b6). A compact, inductive way to express n after k iterations is:
+  n = n0 + (b0/2) * (h - b6), where n0 is the initial value of n. Because b0 increases by 2 on each iteration, b0 is always even, so (b0/2) tracks the number of iterations. This invariant is preserved by the loop update:
+  - b0 increases by 2 ⇒ (b0/2) increases by 1
+  - n increases by (h - b6) per iteration, matching the multiplication by (b0/2).
+- Relation bounds: 0 <= b0 <= h ensures the loop guard b0 < h is compatible with a bounded counter progression, and b0 % 2 == 0 enforces the even-step progression.
+- A minimal, useful invariant about the updated values is included via the n relation above, which is exact given the per-iteration updates.
+
+For the second loop (mu >= 1), the loop mutates mi, b6, and mu. Invariants are chosen to reflect the conservation/relative relations that are stable across iterations and that are friendly for verification:
+
+- mu >= 1 captures the loop guard condition.
+- n == \at(n,Pre) and h == \at(n,Pre) - 2 reflect the known fixed relations from the loop context: n does not change in this loop, and h remains tied to the initial Pre(n) by h = Pre(n) - 2.
+- b6 >= h and mi >= 0 capture monotonic non-decreases given the updates.
+- These invariants are inductive with respect to the stated transitions (mi += h*mu; b6 += mu; mu = 1 or stays>=1), and use only the allowed variables and \at(n,Pre) for the initial value of n.
+
+These invariants together give a concise, verification-friendly set of properties without introducing unrelated or overly weak assertions, and they respect the given loop structure and allowed ACSL expressions. I used exact, minimal loop assigns for each loop: first loop assigns b0, n, mu; second loop assigns mi, b6, mu. No modifications were made to the original code aside from the loop annotations. </reasoning>
+
+<code>int main1(int n){
+  int h, b6, b0, mu, mi;
+
+  h=n-2;
+  b6=h;
+  b0=0;
+  mu=b6;
+  mi=0;
+
+  /*@
+    loop invariant 0 &lt;= b0 &amp;=&; h;
+    loop invariant (b0 % 2) == 0;
+    loop invariant n == \at(n,Pre) + (b0/2) * (h - b6);
+    loop assigns b0, n, mu;
+  */
+while (b0<h) {
+      mu = b0+4;
+      n = n+h-b6;
+      b0 += 2;
+  }
+
+  /*@
+    loop invariant mu &gt;= 1;
+    loop invariant n == \at(n,Pre);
+    loop invariant h == \at(n,Pre) - 2;
+    loop invariant b6 &gt;= h;
+    loop invariant mi &gt;= 0;
+    loop assigns mi, b6, mu;
+  */
+while (mu>=1) {
+      mi = mi+h*mu;
+      b6 += mu;
+      mu = =1;
+  }
+
+}</code>
+----- Candidate 4/5 raw response end -----
+2026-03-14 23:03:38,565 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 23:03:38,631 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:04:46,041 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>In Loop 0, the updates are:
+- b0 increases by 2 each iteration
+- mu is assigned to b0+4
+- n is updated by n = n + h - b6
+- h and b6 stay constant during the loop
+- mi is never modified
+
+Key observations to get an inductive invariant:
+- h and b6 stay constant and initially satisfy h = b6 = atPre(n) - 2.
+- n is updated by h - b6, which is 0 since h == b6 initially, hence n remains equal to its initial value at entry, i.e., n == \at(n, Pre).
+- mi is not touched in this loop, so mi == 0 is preserved.
+
+Thus a strong, inductive invariant for Loop 0 can capture these invariants:
+- n == \at(n, Pre)
+- h == \at(n, Pre) - 2
+- b6 == \at(n, Pre) - 2
+- mi == 0
+And we declare the loop assigns to reflect the actual modified variables: n, b0, mu.
+
+In Loop 1, the updates are:
+- mi += h * mu
+- b6 += mu
+- mu becomes 1 (the code shows mu = =1, which appears to be an intended assignment to 1)
+
+From the initial state of Loop 1:
+- n remains unchanged, so n == \at(n, Pre)
+- h remains unchanged, so h == \at(n, Pre) - 2
+- b6 starts at \at(n, Pre) - 2
+- mi starts at 0, mu starts at 4
+
+A robust inductive invariant that explains the loop updates is to relate mi and b6 via the accumulated mu values:
+- After k iterations, the sum of mu values added to b6 equals (b6 - b6_init), where b6_init is \at(n, Pre) - 2.
+- Since mi is updated by h * mu each iteration, mi becomes h * (sum of all mu values seen so far).
+Hence:
+- mi == h * (b6 - (\at(n, Pre) - 2))
+
+Also preserve the natural invariants:
+- n == \at(n, Pre)
+- h == \at(n, Pre) - 2
+- b6 >= (\at(n, Pre) - 2)
+And the loop assigns reflect the modified variables: mi, b6, mu.
+
+These invariants are inductive given the transition relations, and they do not depend on local variable values beyond the allowed ones, while respecting the constraints on using \at(n, Pre) for the parameter n. The invariants are strong (non-tautological) and explain the state evolution for both loops. They also provide a clear, exact loop-assigns specification for Frama-C/WP to verify.
+
+</reasoning>
+<code>int main1(int n){
+  int h, b6, b0, mu, mi;
+
+  h=n-2;
+  b6=h;
+  b0=0;
+  mu=b6;
+  mi=0;
+
+  /*@ 
+    loop invariant n == \at(n, Pre);
+    loop invariant h == \at(n, Pre) - 2;
+    loop invariant b6 == \at(n, Pre) - 2;
+    loop invariant mi == 0;
+    loop assigns n, b0, mu;
+  */
+  while (b0<h) {
+      mu = b0+4;
+      n = n+h-b6;
+      b0 += 2;
+  }
+
+  /*@ 
+    loop invariant n == \at(n, Pre);
+    loop invariant h == \at(n, Pre) - 2;
+    loop invariant mi == h * (b6 - (\at(n, Pre) - 2));
+    loop invariant b6 >= (\at(n, Pre) - 2);
+    loop assigns mi, b6, mu;
+  */
+  while (mu>=1) {
+      mi = mi+h*mu;
+      b6 += mu;
+      mu = =1;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 03:51:04,938 - WARNING - Candidate 1/5 full code: <None> (failed to extract)
-2026-03-11 03:51:04,938 - INFO - 
------ Candidate 2/5 full code begin -----
-int main1(int g){
-  int c, u0, nt, agh, y, tcl, vn;
+2026-03-14 23:04:46,042 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int n){
+  int h, b6, b0, mu, mi;
 
-  c=g;
-  u0=c;
-  nt=0;
-  agh=0;
-  y=0;
-  tcl=(g%18)+5;
-  vn=u0;
+  h=n-2;
+  b6=h;
+  b0=0;
+  mu=b6;
+  mi=0;
 
-  /*@
-    loop invariant agh == nt;
-    loop invariant nt == y;
-    loop invariant tcl >= 0;
-    loop assigns agh, nt, tcl, vn, y;
+  /*@ 
+    loop invariant n == \at(n, Pre);
+    loop invariant b0 <= h;
+    loop invariant h == \at(n, Pre) - 2;
+    loop invariant b6 == \at(n, Pre) - 2;
+    loop assigns n, mu, b0;
+    loop variant h - b0;
   */
-  while (tcl>=1) {
-      agh = agh+g*g;
-      y = y+g*g;
-      tcl = tcl - 1;
-      nt = nt+g*g;
-      vn = vn+(tcl%3);
+while (b0<h) {
+      mu = b0+4;
+      n = n+h-b6;
+      b0 += 2;
   }
 
-  /*@
-    loop invariant tcl >= 0;
-    loop invariant y >= 0;
-    loop assigns u0, vn, tcl, g, y;
+  /*@ 
+    loop invariant mi - h*b6 == - h*h;
+    loop assigns mi, b6, mu;
   */
-  while (u0>vn) {
-      u0 -= vn;
-      vn = vn + 1;
-      tcl += 1;
-      g = g+(u0%7);
-      y = (tcl)+(y);
+while (mu>=1) {
+      mi = mi+h*mu;
+      b6 += mu;
+      mu = =1;
   }
 
 }
------ Candidate 2/5 full code end -----
-2026-03-11 03:51:04,938 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(int g){
-  int c, u0, nt, agh, y, tcl, vn;
-
-  c=g;
-  u0=c;
-  nt=0;
-  agh=0;
-  y=0;
-  tcl=(g%18)+5;
-  vn=u0;
-
-  /* @
-     loop invariant (agh == nt) && (nt == y);
-     loop invariant (tcl >= 0);
-     loop assigns agh, nt, tcl, vn, y;
-     loop variant tcl;
-  */
-  while (tcl>=1) {
-      agh = agh+g*g;
-      y = y+g*g;
-      tcl = tcl - 1;
-      nt = nt+g*g;
-      vn = vn+(tcl%3);
+----- Candidate 1/5 full code end -----
+2026-03-14 23:04:46,042 - INFO - 
+----- Candidate 2/5 full code begin -----
+/*@
+  loop invariant h == b6;
+  loop invariant n == \at(n, Pre);
+  loop invariant b0 <= h;
+  loop invariant (b0 % 2) == 0;
+  loop assigns b0, mu, n;
+  loop variant (h - b0);
+*/
+while (b0 < h) {
+      mu = b0 + 4;
+      n = n + h - b6;
+      b0 += 2;
   }
 
-  /* @
-     loop invariant (tcl >= 0);
-     loop invariant (y >= 0);
-     loop assigns u0, vn, tcl, g, y;
-     loop variant tcl;
+/*@
+  loop invariant n == \at(n, Pre);
+  loop invariant mi >= 0;
+  loop invariant b6 >= (\at(n, Pre) - 2);
+  loop invariant mu >= 1;
+  loop assigns mi, b6, mu;
+*/
+while (mu >= 1) {
+      mi = mi + h * mu;
+      b6 += mu;
+      mu = 1;
+  }
+----- Candidate 2/5 full code end -----
+2026-03-14 23:04:46,042 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int n){
+  int h, b6, b0, mu, mi;
+
+  h=n-2;
+  b6=h;
+  b0=0;
+  mu=b6;
+  mi=0;
+
+  /*@
+    loop invariant (b0 == 0) || (mu == b0 + 2);
+    loop invariant n == \at(n, Pre);
+    loop invariant h == b6;
+    loop invariant 0 &lt;= b0 &amp;&amp; b0 &lt;= h;
+    loop invariant (b0 % 2) == 0;
+    loop assigns mu, n, b0;
+    loop variant h - b0;
   */
-  while (u0>vn) {
-      u0 -= vn;
-      vn = vn + 1;
-      tcl += 1;
-      g = g+(u0%7);
-      y = (tcl)+(y);
+  while (b0<h) {
+      mu = b0+4;
+      n = n+h-b6;
+      b0 += 2;
+  }
+
+  /*@
+    loop invariant (mu == 1) || (mu == 4);
+    loop invariant b6 &gt;= h;
+    loop assigns mi, b6, mu;
+  */
+  while (mu>=1) {
+      mi = mi+h*mu;
+      b6 += mu;
+      mu = =1;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-11 03:51:04,938 - INFO - 
+2026-03-14 23:04:46,042 - INFO - 
 ----- Candidate 4/5 full code begin -----
-/*@
-  loop invariant agh == y;
-  loop invariant nt == agh;
-  loop assigns agh, y, tcl, nt, vn;
-  loop variant tcl;
-*/
-while (tcl>=1) {
-      agh = agh+g*g;
-      y = y+g*g;
-      tcl = tcl - 1;
-      nt = nt+g*g;
-      vn = vn+(tcl%3);
+int main1(int n){
+  int h, b6, b0, mu, mi;
+
+  h=n-2;
+  b6=h;
+  b0=0;
+  mu=b6;
+  mi=0;
+
+  /*@
+    loop invariant 0 &lt;= b0 &amp;=&; h;
+    loop invariant (b0 % 2) == 0;
+    loop invariant n == \at(n,Pre) + (b0/2) * (h - b6);
+    loop assigns b0, n, mu;
+  */
+while (b0<h) {
+      mu = b0+4;
+      n = n+h-b6;
+      b0 += 2;
   }
 
-/*@
-  loop invariant tcl >= 0;
-  loop invariant y >= 0;
-  loop assigns u0, vn, tcl, g, y;
-*/
-while (u0>vn) {
-      u0 -= vn;
-      vn = vn + 1;
-      tcl += 1;
-      g = g+(u0%7);
-      y = (tcl)+(y);
+  /*@
+    loop invariant mu &gt;= 1;
+    loop invariant n == \at(n,Pre);
+    loop invariant h == \at(n,Pre) - 2;
+    loop invariant b6 &gt;= h;
+    loop invariant mi &gt;= 0;
+    loop assigns mi, b6, mu;
+  */
+while (mu>=1) {
+      mi = mi+h*mu;
+      b6 += mu;
+      mu = =1;
   }
+
+}
 ----- Candidate 4/5 full code end -----
-2026-03-11 03:51:04,938 - INFO - 
+2026-03-14 23:04:46,042 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(int g){
-  int c, u0, nt, agh, y, tcl, vn;
+int main1(int n){
+  int h, b6, b0, mu, mi;
 
-  c=g;
-  u0=c;
-  nt=0;
-  agh=0;
-  y=0;
-  tcl=(g%18)+5;
-  vn=u0;
+  h=n-2;
+  b6=h;
+  b0=0;
+  mu=b6;
+  mi=0;
 
-  /*@
-    loop invariant agh == nt;
-    loop invariant nt == y;
-    loop invariant 0 <= tcl % 3;
-    loop invariant tcl >= 0;
-    loop assigns agh, y, tcl, nt, vn;
-    loop variant tcl;
+  /*@ 
+    loop invariant n == \at(n, Pre);
+    loop invariant h == \at(n, Pre) - 2;
+    loop invariant b6 == \at(n, Pre) - 2;
+    loop invariant mi == 0;
+    loop assigns n, b0, mu;
   */
-  while (tcl>=1) {
-      agh = agh+g*g;
-      y = y+g*g;
-      tcl = tcl - 1;
-      nt = nt+g*g;
-      vn = vn+(tcl%3);
+  while (b0<h) {
+      mu = b0+4;
+      n = n+h-b6;
+      b0 += 2;
   }
 
-  /*@
-    loop invariant u0 > vn;
-    loop invariant 0 <= (u0 - vn);
-    loop invariant y >= 0;
-    loop invariant tcl >= 0;
-    loop assigns c, g, tcl, u0, vn, y;
-    loop variant (u0 - vn);
+  /*@ 
+    loop invariant n == \at(n, Pre);
+    loop invariant h == \at(n, Pre) - 2;
+    loop invariant mi == h * (b6 - (\at(n, Pre) - 2));
+    loop invariant b6 >= (\at(n, Pre) - 2);
+    loop assigns mi, b6, mu;
   */
-  while (u0>vn) {
-      u0 -= vn;
-      vn = vn + 1;
-      tcl += 1;
-      g = g+(u0%7);
-      y = (tcl)+(y);
+  while (mu>=1) {
+      mi = mi+h*mu;
+      b6 += mu;
+      mu = =1;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 03:51:04,938 - INFO - Successfully generated 4/5 candidates
-2026-03-11 03:51:04,939 - INFO - Checking 8 invariants for conflicts...
-2026-03-11 03:51:04,940 - INFO - Checking 6 invariants for conflicts...
-2026-03-11 03:51:04,941 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 03:51:04,941 - INFO -   1: int main1(int g){
-2026-03-11 03:51:04,941 - INFO -   2:   int c, u0, nt, agh, y, tcl, vn;
-2026-03-11 03:51:04,941 - INFO -   3: 
-2026-03-11 03:51:04,941 - INFO -   4:   c=g;
-2026-03-11 03:51:04,941 - INFO -   5:   u0=c;
-2026-03-11 03:51:04,941 - INFO -   6:   nt=0;
-2026-03-11 03:51:04,941 - INFO -   7:   agh=0;
-2026-03-11 03:51:04,941 - INFO -   8:   y=0;
-2026-03-11 03:51:04,941 - INFO -   9:   tcl=(g%18)+5;
-2026-03-11 03:51:04,941 - INFO -   10:   vn=u0;
-2026-03-11 03:51:04,941 - INFO - DEBUG: Total lines: 51
-2026-03-11 03:51:05,146 - INFO - syntax Correct
-2026-03-11 03:51:36,473 - INFO - Validate:
-2026-03-11 03:51:36,473 - INFO - [True, True, False, True, True, True, True, True, True, False, True, True, False, True]
-2026-03-11 03:51:36,473 - INFO - 
-2026-03-11 03:51:36,473 - INFO - Verify:
-2026-03-11 03:51:36,473 - INFO - []
-2026-03-11 03:51:36,473 - INFO - 
-2026-03-11 03:51:36,474 - INFO - Houdini iteration 1: Removed 3 failed invariants
-2026-03-11 03:51:36,474 - INFO -   Before: 14 invariants
-2026-03-11 03:51:36,474 - INFO -   After: 11 invariants
-2026-03-11 03:51:36,474 - INFO -   Remaining invariants:
-2026-03-11 03:51:36,474 - INFO -     [1] agh == nt
-2026-03-11 03:51:36,474 - INFO -     [2] nt == y
-2026-03-11 03:51:36,474 - INFO -     [3] (agh == nt) && (nt == y)
-2026-03-11 03:51:36,474 - INFO -     [4] (tcl >= 0)
-2026-03-11 03:51:36,474 - INFO -     [5] agh == y
-2026-03-11 03:51:36,474 - INFO -     [6] nt == agh
-2026-03-11 03:51:36,474 - INFO -     [7] 0 <= tcl % 3
-2026-03-11 03:51:36,474 - INFO -     [8] tcl >= 0
-2026-03-11 03:51:36,474 - INFO -     [9] (tcl >= 0)
-2026-03-11 03:51:36,474 - INFO -     [10] (y >= 0)
-2026-03-11 03:51:36,474 - INFO -     [11] 0 <= (u0 - vn)
-2026-03-11 03:51:36,710 - INFO - syntax Correct
-2026-03-11 03:52:37,697 - INFO - Validate:
-2026-03-11 03:52:37,697 - INFO - [True, True, True, False, True, True, True, True, True, False, False]
-2026-03-11 03:52:37,697 - INFO - 
-2026-03-11 03:52:37,697 - INFO - Verify:
-2026-03-11 03:52:37,697 - INFO - []
-2026-03-11 03:52:37,697 - INFO - 
-2026-03-11 03:52:37,697 - INFO - Houdini iteration 2: Removed 3 failed invariants
-2026-03-11 03:52:37,698 - INFO -   Before: 11 invariants
-2026-03-11 03:52:37,698 - INFO -   After: 8 invariants
-2026-03-11 03:52:37,698 - INFO -   Remaining invariants:
-2026-03-11 03:52:37,698 - INFO -     [1] agh == nt
-2026-03-11 03:52:37,698 - INFO -     [2] nt == y
-2026-03-11 03:52:37,698 - INFO -     [3] (agh == nt) && (nt == y)
-2026-03-11 03:52:37,698 - INFO -     [4] agh == y
-2026-03-11 03:52:37,698 - INFO -     [5] nt == agh
-2026-03-11 03:52:37,698 - INFO -     [6] 0 <= tcl % 3
-2026-03-11 03:52:37,698 - INFO -     [7] tcl >= 0
-2026-03-11 03:52:37,698 - INFO -     [8] (tcl >= 0)
-2026-03-11 03:52:37,917 - INFO - syntax Correct
-2026-03-11 03:53:08,915 - INFO - Validate:
-2026-03-11 03:53:08,915 - INFO - [True, True, True, True, True, False, False, True]
-2026-03-11 03:53:08,915 - INFO - 
-2026-03-11 03:53:08,915 - INFO - Verify:
-2026-03-11 03:53:08,915 - INFO - []
-2026-03-11 03:53:08,915 - INFO - 
-2026-03-11 03:53:08,915 - INFO - Houdini iteration 3: Removed 2 failed invariants
-2026-03-11 03:53:08,915 - INFO -   Before: 8 invariants
-2026-03-11 03:53:08,915 - INFO -   After: 6 invariants
-2026-03-11 03:53:08,915 - INFO -   Remaining invariants:
-2026-03-11 03:53:08,915 - INFO -     [1] agh == nt
-2026-03-11 03:53:08,915 - INFO -     [2] nt == y
-2026-03-11 03:53:08,915 - INFO -     [3] (agh == nt) && (nt == y)
-2026-03-11 03:53:08,915 - INFO -     [4] agh == y
-2026-03-11 03:53:08,915 - INFO -     [5] nt == agh
-2026-03-11 03:53:08,915 - INFO -     [6] (tcl >= 0)
-2026-03-11 03:53:09,120 - INFO - syntax Correct
-2026-03-11 03:53:39,950 - INFO - Validate:
-2026-03-11 03:53:39,950 - INFO - [True, True, True, True, True, False]
-2026-03-11 03:53:39,950 - INFO - 
-2026-03-11 03:53:39,950 - INFO - Verify:
-2026-03-11 03:53:39,950 - INFO - []
-2026-03-11 03:53:39,950 - INFO - 
-2026-03-11 03:53:39,950 - INFO - Houdini iteration 4: Removed 1 failed invariants
-2026-03-11 03:53:39,950 - INFO -   Before: 6 invariants
-2026-03-11 03:53:39,950 - INFO -   After: 5 invariants
-2026-03-11 03:53:39,950 - INFO -   Remaining invariants:
-2026-03-11 03:53:39,950 - INFO -     [1] agh == nt
-2026-03-11 03:53:39,950 - INFO -     [2] nt == y
-2026-03-11 03:53:39,950 - INFO -     [3] (agh == nt) && (nt == y)
-2026-03-11 03:53:39,950 - INFO -     [4] agh == y
-2026-03-11 03:53:39,950 - INFO -     [5] nt == agh
-2026-03-11 03:53:40,167 - INFO - syntax Correct
-2026-03-11 03:54:10,947 - INFO - Validate:
-2026-03-11 03:54:10,947 - INFO - [True, True, True, True, True]
-2026-03-11 03:54:10,947 - INFO - 
-2026-03-11 03:54:10,947 - INFO - Verify:
-2026-03-11 03:54:10,947 - INFO - []
-2026-03-11 03:54:10,947 - INFO - 
-2026-03-11 03:54:10,947 - INFO - Houdini iteration 5: All invariants are valid
-2026-03-11 03:54:11,144 - INFO - syntax Correct
-2026-03-11 03:54:41,878 - INFO - Validate:
-2026-03-11 03:54:41,878 - INFO - [True, True, True, True, True]
-2026-03-11 03:54:41,878 - INFO - 
-2026-03-11 03:54:41,878 - INFO - Verify:
-2026-03-11 03:54:41,878 - INFO - []
-2026-03-11 03:54:41,878 - INFO - 
-2026-03-11 03:55:03,104 - INFO - Deduplicated 5 loop invariants in final code
-2026-03-11 03:55:03,321 - INFO - syntax Correct
-2026-03-11 03:55:34,018 - INFO - Validate:
-2026-03-11 03:55:34,018 - INFO - [True, True]
-2026-03-11 03:55:34,018 - INFO - 
-2026-03-11 03:55:34,018 - INFO - Verify:
-2026-03-11 03:55:34,018 - INFO - []
-2026-03-11 03:55:34,018 - INFO - 
-2026-03-11 03:55:34,019 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 03:55:34,019 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_36/1.c
-2026-03-11 03:55:34,019 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_36/1_invariants.txt
-2026-03-11 03:55:34,019 - INFO - 
+2026-03-14 23:04:46,042 - INFO - Successfully generated 5/5 candidates
+2026-03-14 23:04:46,045 - INFO - Checking 8 invariants for conflicts...
+2026-03-14 23:04:46,050 - INFO - Checking 8 invariants for conflicts...
+2026-03-14 23:04:46,054 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 23:04:46,054 - INFO -   1: int main1(int n){
+2026-03-14 23:04:46,054 - INFO -   2:   int h, b6, b0, mu, mi;
+2026-03-14 23:04:46,054 - INFO -   3: 
+2026-03-14 23:04:46,054 - INFO -   4:   h=n-2;
+2026-03-14 23:04:46,054 - INFO -   5:   b6=h;
+2026-03-14 23:04:46,054 - INFO -   6:   b0=0;
+2026-03-14 23:04:46,054 - INFO -   7:   mu=b6;
+2026-03-14 23:04:46,054 - INFO -   8:   mi=0;
+2026-03-14 23:04:46,054 - INFO -   9: 
+2026-03-14 23:04:46,054 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-14 23:04:46,054 - INFO - DEBUG: Total lines: 47
+2026-03-14 23:04:46,272 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1.c:43: 
+  syntax error:
+  Location: line 43, between columns 11 and 12, before or at token: =
+  41          mi = mi+h*mu;
+  42          b6 += mu;
+  43          mu = =1;
+        ^^^^^^^^^^^^^^
+  44      }
+  45
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 23:04:46,272 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-03-14 23:04:46,272 - INFO - Houdini iteration 1: Removed 16 failed invariants
+2026-03-14 23:04:46,272 - INFO -   Before: 16 invariants
+2026-03-14 23:04:46,272 - INFO -   After: 0 invariants
+2026-03-14 23:04:46,272 - ERROR - All invariants were removed by Houdini
+2026-03-14 23:04:46,494 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1.c:43: 
+  syntax error:
+  Location: line 43, between columns 11 and 12, before or at token: =
+  41          mi = mi+h*mu;
+  42          b6 += mu;
+  43          mu = =1;
+        ^^^^^^^^^^^^^^
+  44      }
+  45
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 23:05:21,640 - INFO - Deduplicated 4 loop invariants in final code
+2026-03-14 23:05:21,882 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1.c:39: 
+  syntax error:
+  Location: line 39, between columns 11 and 12, before or at token: =
+  37          mi = mi+h*mu;
+  38          b6 += mu;
+  39          mu = =1;
+        ^^^^^^^^^^^^^^
+  40      }
+  41
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 23:05:21,882 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-03-14 23:05:21,883 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-03-14 23:05:21,883 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1.c
+2026-03-14 23:05:21,883 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1_invariants.txt
+2026-03-14 23:05:21,883 - INFO - 
 ============================================================
-2026-03-11 03:55:34,019 - INFO - Final first_pass results:
-2026-03-11 03:55:34,019 - INFO -   syntax=1
-2026-03-11 03:55:34,019 - INFO -   valid=1
-2026-03-11 03:55:34,019 - INFO -   satisfy=None
-2026-03-11 03:55:34,019 - INFO - ============================================================
-2026-03-11 03:55:34,019 - INFO - 
+2026-03-14 23:05:21,883 - INFO - Final first_pass results:
+2026-03-14 23:05:21,883 - INFO -   syntax=None
+2026-03-14 23:05:21,883 - INFO -   valid=None
+2026-03-14 23:05:21,883 - INFO -   satisfy=None
+2026-03-14 23:05:21,883 - INFO - ============================================================
+2026-03-14 23:05:21,883 - INFO - 
 ============================================================
-2026-03-11 03:55:34,019 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 03:55:34,019 - INFO -   Total API calls: 8
-2026-03-11 03:55:34,019 - INFO -   Total prompt tokens (input): 9,734
-2026-03-11 03:55:34,019 - INFO -   Total completion tokens (output): 77,478
-2026-03-11 03:55:34,019 - INFO -   Total tokens: 87,212
-2026-03-11 03:55:34,019 - INFO -   Average per call:
-2026-03-11 03:55:34,019 - INFO -     Prompt: 1216.8 tokens
-2026-03-11 03:55:34,019 - INFO -     Completion: 9684.8 tokens
-2026-03-11 03:55:34,019 - INFO -     Total: 10901.5 tokens
-2026-03-11 03:55:34,019 - INFO - ============================================================
-2026-03-11 03:55:34,019 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_36/1.c
-2026-03-11 03:55:34,019 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_36/1_invariants.txt
-2026-03-11 03:56:01,315 - INFO - LLM quality-gate raw response: {
-  "ok": false,
-  "reason": "fail"
-}
-2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
-2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
-2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
-2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
-2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
-2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
-2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
-2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 23:05:21,883 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 23:05:21,883 - INFO -   Total API calls: 7
+2026-03-14 23:05:21,883 - INFO -   Total prompt tokens (input): 8,883
+2026-03-14 23:05:21,883 - INFO -   Total completion tokens (output): 61,894
+2026-03-14 23:05:21,883 - INFO -   Total tokens: 70,777
+2026-03-14 23:05:21,883 - INFO -   Average per call:
+2026-03-14 23:05:21,883 - INFO -     Prompt: 1269.0 tokens
+2026-03-14 23:05:21,883 - INFO -     Completion: 8842.0 tokens
+2026-03-14 23:05:21,883 - INFO -     Total: 10111.0 tokens
+2026-03-14 23:05:21,883 - INFO - ============================================================
+2026-03-14 23:05:21,884 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1.c
+2026-03-14 23:05:21,884 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_36/1_invariants.txt

@@ -1,578 +1,679 @@
-2026-03-11 01:34:12,347 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 01:34:12,371 - INFO - Found 2 loops
-2026-03-11 01:34:12,374 - INFO - 
+2026-03-14 20:46:56,182 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 20:46:56,201 - INFO - Found 2 loops
+2026-03-14 20:46:56,202 - INFO - 
 ============================================================
-2026-03-11 01:34:12,374 - INFO - Main generation pass 1/1
-2026-03-11 01:34:12,374 - INFO - ============================================================
-2026-03-11 01:34:12,374 - INFO - Loaded single prompt template: simple
-2026-03-11 01:34:12,374 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 01:34:12,374 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 01:34:12,388 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 01:36:17,595 - INFO - 
+2026-03-14 20:46:56,202 - INFO - Main generation pass 1/1
+2026-03-14 20:46:56,202 - INFO - ============================================================
+2026-03-14 20:46:56,203 - INFO - Loaded single prompt template: simple
+2026-03-14 20:46:56,203 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 20:46:56,203 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 20:46:56,263 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:49:48,999 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>For Loop 0:
-- The loop updates two counters, yae and rc, by +1 each iteration, while the loop guard is yae < ek. A strong, inductive relation that naturally captures this joint progress is yae == rc. It holds initially (0 == 0) and is preserved by the body since both yae and rc are incremented by 1 each iteration. This provides a core conservation/relational equality explaining the loop updates.
-- A simple, useful progress bound is yae <= ek (and consequently rc <= ek). This bound is preserved as yae increases strictly by 1 per iteration and the loop exits when yae reaches ek.
+<reasoning>
+Loop 0 reasoning:
+- The loop updates te, n, lb, and ul8 in a fixed sequence with li constant (li is initialized to 1 and never updated in the loop). The natural strong invariant that captures the exact progression of te and lb under li = 1 is:
+  te increases by 1 each iteration, starting from 0. lb increases by the new te value in each iteration, starting from 1.
+  This yields the exact relation lb = 1 + te*(te+1)/2 for all iterations (including initial state te=0, lb=1). It is a precise, inductive invariant that explains the loop updates and remains valid as iterations occur.
+- We also add simple bounds: te >= 0, n >= 0, ul8 in {0,1} (it starts at 1 and becomes 0 after the first iteration). We include li == 1 as a non-update property to reflect the constant increment step for te.
+- loop assigns must list the variables actually modified in the loop: te, n, lb, ul8.
 
-For Loop 1:
-- mb0 is non-negative and monotone non-decreasing (it starts non-negative in the given context and is incremented by 1 each iteration). A basic progress/shape invariant mb0 >= 0 is safe and inductive.
-- vj starts at 3 and only increases by ek*mb0, so it remains non-negative and, in particular, vj >= 3 throughout. This gives a simple progress/shape invariant for the arithmetic involved.
-- Since j is updated by adding the new vj each iteration, j is non-decreasing as long as vj is non-negative; we include a permissive invariant that keeps mb0, vj, and j within safe bounds, here captured by mb0 >= 0 and vj >= 3. (A more precise invariant relating j to the initial value of j would rely on \at(j, Pre), but we keep the invariants tight and verification-friendly.)
+Loop 1 reasoning:
+- This loop uses ds9n as a constant (ds9n is set before and never updated inside this loop) and advances n to (ds9n*2)-1 in the body, while updating ul8, lb, li. Because the guard is ds9n*2 <= n, after at most one iteration n becomes (ds9n*2)-1 which makes the guard false on the next test. Hence, the loop has at most one iteration.
+- We provide safe invariants that are preserved across iterations and do not depend on the exact pre-state beyond the guard:
+  - ds9n == 1 (consistent with the initialization ds9n = li and li = 1, and ds9n is not modified in the loop).
+  - n >= ds9n*2 (the loop enters only when this holds; it remains meaningful as a property at the start of a loop iteration).
+  - lb >= 0, li >= 0, ul8 >= 0 (non-negativity bounds that hold given the updates in the loop body).
+- loop assigns must list the variables actually modified: ul8, lb, li, n.
+Overall, these invariants are inductive and verify reasonable progress and state constraints without modifying the original code.
+</reasoning>
+<code>
+int main1(){
+  int li, ul8, lb, n, te, ds9n;
 
-These choices provide inductive invariants that are strong enough to guide WP verification without over-constraining the initial state. The loop assigns are the variables actually updated inside each loop: Loop 0 updates mb0, rc, yae; Loop 1 updates vj, j, mb0. The invariants are kept concise and directly reflect the key state-transition structure (core equality in Loop 0; simple monotonicity bounds in Loop 1). </reasoning>
+  li=1;
+  ul8=li;
+  lb=ul8;
+  n=0;
+  te=0;
+  ds9n=li;
 
-<code>int main1(int m,int j){
-  int ek, vj, yae, mb0, rc;
-
-  ek=21;
-  vj=3;
-  yae=0;
-  mb0=j;
-  rc=0;
-
-  /* Loop 0 invariants
-     - yae == rc: both counters advance in lockstep (core conservation equality)
-     - yae <= ek: progress bound (yae never exceeds loop bound ek)
-     Loop assigns mb0, rc, yae;
-  */
   /*@
-    loop invariant yae == rc;
-    loop invariant yae <= ek;
-    loop assigns mb0, rc, yae;
+    loop invariant li == 1;
+    loop invariant te >= 0;
+    loop invariant lb == 1 + te*(te+1)/2;
+    loop invariant n >= 0;
+    loop invariant ul8 >= 0;
+    loop invariant ul8 <= 1;
+    loop assigns te, n, lb, ul8;
   */
-  while (yae<ek) {
-      if (rc<ek) {
-          mb0 = yae;
-      }
-      rc = rc + 1;
-      yae++;
+  while (1) {
+        if (!(ul8>=1)) {
+            break;
+        }
+        te = te + li;
+        n += lb;
+        lb = lb + te;
+        ul8 = 0;
   }
 
-  /* Loop 1 invariants
-     - mb0 >= 0: non-negative loop counter (progress bound)
-     - vj >= 3: vj maintains non-negativity and initial positivity
-     Loop assigns vj, j, mb0;
-  */
   /*@
-    loop invariant mb0 >= 0;
-    loop invariant vj >= 3;
-    loop assigns vj, j, mb0;
+    loop invariant ds9n == 1;
+    loop invariant n >= ds9n*2;
+    loop invariant lb >= 0;
+    loop invariant li >= 0;
+    loop invariant ul8 >= 0;
+    loop assigns ul8, lb, li, n;
   */
-  while (mb0-1>=0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
+  while (ds9n*2<=n) {
+        ul8 = ul8 + li;
+        lb += n;
+        li = li + 3;
+        n = (ds9n*2)-1;
   }
 
-} </code>
+}
+</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-11 01:36:17,596 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 01:36:17,609 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 01:40:47,843 - INFO - 
+2026-03-14 20:49:48,999 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 20:49:49,056 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:51:07,821 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>Loop 0 (first while): We can observe a simple, inductive relation between rc and yae: both start at 0 and are incremented by 1 each iteration, so rc == yae holds at the loop head and remains true throughout. The assignment mb0 = yae happens exactly when rc < ek, which is equivalent to yae < ek, so mb0 takes the value of yae for yae in 0..ek-1. This yields a strong, inductive relation: for yae > 0, mb0 equals yae - 1 (since mb0 is set to the previous yae value before yae is incremented). We therefore propose invariants that capture these facts plus simple bounds on yae, rc, and mb0. We also declare the loop assigns rc, yae, mb0. Finally, ek - yae can be used as a loop variant to show termination since yae increases by 1 each iteration and yae < ek must hold for the loop to continue.
+<reasoning>For the two loops, I derived inductive invariants that are tight and verification-friendly, using only available variables and the known updates.
 
-Loop 1 (second while): This loop updates mb0 by +1 each iteration and updates vj by ek * mb0, then updates j by vj. A safe, verification-friendly approach is to state basic non-negativity and monotonicity properties that are preserved by the updates: mb0 remains >= 0 and vj remains >= 0 (ek is non-negative and mb0 is non-negative throughout the loop). We also keep the loop assigns clause precise: this loop only modifies vj, j, mb0. These invariants are inductive given the loop body, and do not rely on non-parameter locals or initial values not accessible via the given variables. No loop variant is added for this loop to avoid asserting termination where the termination condition may depend on unbounded growth of mb0.
+Loop 0 (while (1) { ... }):
+- Observed updates: te' = te + li, n' = n + lb, lb' = lb + te', ul8' = 0, with li unchanged.
+- A strong inductive pair is:
+  - te <= n, and
+  - li <= lb
+  These are preserved by the loop body provided the preconditions (te <= n and li <= lb) hold before the first iteration. Given the initial state (te=0, n=0, li=1, lb=1), both hold. The updates preserve them:
+  - te' = te + li <= n + lb = n' if te <= n and li <= lb.
+  - lb' = lb + te' >= lb, so li <= lb' remains true if li <= lb initially.
+- Additionally, ultrum (ul8) stays non-negative because it is set to 0 and only ever assigned a non-negative value via this loop, and the initial ul8 is 1. So ul8 >= 0 is also preserved, but since we can’t fit three invariants into the given two-invariant template, we focus on the strongest two: te <= n and li <= lb.
+- loop assigns te, n, lb, ul8 (all modified by the loop body).
 
-Overall, the chosen invariants are strong, inductive, and directly reflect the loop updates and key counters, while keeping the code unchanged except for the inserted ACSL annotations. </reasoning>
-<code>int main1(int m,int j){
-  int ek, vj, yae, mb0, rc;
+Loop 1 (while (ds9n*2<=n) { ... }):
+- Observed updates: ul8' = ul8 + li, lb' = lb + n, li' = li + 3, n' = (ds9n*2) - 1, ds9n unchanged.
+- A precise invariant that remains true across iterations is:
+  - n == (ds9n*2) - 1
+  This holds before the first iteration (as shown by the transition to the state that makes the guard true) and is preserved by the update since n' is defined as (ds9n*2) - 1.
+- Also, ul8 >= 0 can be asserted as an invariant since ul8 grows by adding a non-negative li, and li starts positive and grows; thus ul8 stays non-negative.
+- loop assigns n, ul8, lb, li (these are the loop-modified variables).
 
-  ek=21;
-  vj=3;
-  yae=0;
-  mb0=j;
-  rc=0;
+The chosen invariants are inductive (preserved by each loop iteration) and constraining enough to aid verification, without introducing unrelated properties. They respect the restriction that the at-Pre style is only for function parameters (none here) and do not modify the program outside the loop annotations. No unknown()/unknownN() calls are touched. The invariants are expressed as simple, strong relational/equality or monotonic properties that are easy for the Frama-C WP prover to discharge.
+
+</reasoning>
+<code>int main1(){
+  int li, ul8, lb, n, te, ds9n;
+
+  li=1;
+  ul8=li;
+  lb=ul8;
+  n=0;
+  te=0;
+  ds9n=li;
 
   /*@
-    loop invariant rc == yae;
-    loop invariant 0 <= yae <= ek;
-    loop invariant 0 <= rc <= ek;
-    loop invariant mb0 <= ek - 1;
-    loop invariant (yae > 0) ==> (mb0 == yae - 1);
-    loop assigns rc, yae, mb0;
-    loop variant ek - yae;
+    loop invariant te <= n;
+    loop invariant li <= lb;
+    loop assigns te, n, lb, ul8;
   */
-  while (yae<ek) {
-      if (rc<ek) {
-          mb0 = yae;
+while (1) {
+      if (!(ul8>=1)) {
+          break;
       }
-      rc = rc + 1;
-      yae++;
+      te = te + li;
+      n += lb;
+      lb = lb + te;
+      ul8 = 0;
   }
 
   /*@
-    loop invariant mb0 >= 0;
-    loop invariant vj >= 0;
-    loop invariant ek >= 0;
-    loop assigns vj, j, mb0;
+    loop invariant n == (ds9n*2) - 1;
+    loop invariant ul8 >= 0;
+    loop assigns n, ul8, lb, li;
   */
-  while (mb0-1>=0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
+while (ds9n*2<=n) {
+      ul8 = ul8 + li;
+      lb += n;
+      li = li + 3;
+      n = (ds9n*2)-1;
   }
 
 }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-11 01:40:47,844 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 01:40:47,856 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 01:43:58,814 - INFO - 
+2026-03-14 20:51:07,821 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 20:51:07,878 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:52:52,490 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>For the first loop (while yae < ek):
-- A core conservation/relational update is rc == yae. Because both rc and yae start at 0 and are incremented by exactly 1 each iteration, this equality is preserved across iterations.
-- A minimal progress bound is 0 <= yae <= ek, since yae starts at 0 and is incremented until the loop guard yae < ek becomes false (i.e., yae reaches ek).
-- Loop assigns must reflect the updated state within the loop: mb0, rc, yae are potentially modified. We express that explicitly.
-- A loop variant ek - yae is provided to help Frama-C WP reason about termination (decreases by 1 each iteration under yae < ek).
+<reasoning>We need inductive, verification-friendly loop invariants for the two loops, using only available variables in each loop and ensuring they are preserved by iterations and initialized correctly.
 
-For the second loop (while mb0-1 >= 0):
-- A straightforward inductive invariant is mb0 >= 0 (mb0 starts non-negative and is incremented in the loop).
-- Another inductive invariant is vj >= 3 (vj starts at 3 and is increased by ek*mb0, which is non-negative for mb0 >= 0, so vj does not decrease below its initial value).
-- Loop assigns are vj, j, mb0 since those are the variables updated inside the loop.
-- The second loop, as written, does not come with a natural, guaranteed termination measure for all possible initial states; hence no loop_variant is specified for safety. The provided invariant set is chosen to be inductive and verification-friendly given the provided loop body. </reasoning>
-<code>int main1(int m,int j){
-  int ek, vj, yae, mb0, rc;
+Loop 0 (the while (1) with a break when ul8 < 1):
+- li is never updated inside this loop, so it remains constant. Since the initial value is 1, we can assert li == 1 as a strong, inductive invariant.
+- te, n, lb are updated each iteration in a straightforward way and remain nonnegative with the initial states given. So we can conservatively state nonnegativity: te >= 0, n >= 0, and lb >= 1 (lb starts at 1 and increases).
+- ul8 is updated to 0 in the loop body and initialized to 1, so it can only be 0 or 1 during the loop’s lifetime. A simple bound ul8 == 0 || ul8 == 1 captures this inductively.
 
-  ek=21;
-  vj=3;
-  yae=0;
-  mb0=j;
-  rc=0;
+These invariants are initialized by the pre-state (te=0, n=0, lb=1, ul8=1, li=1) and are preserved by the single possible iteration (after which ul8 becomes 0 and the loop breaks on the next check). They are strong, helpful invariants that explain the state updates without modifying the code or using disallowed features.
+
+Loop 1 (the while (ds9n*2 <= n)):
+- li changes by +3 each iteration, starting from 1 in the initial state. Therefore li ≡ 1 (mod 3) is an inductive invariant.
+- li is always >= 1, lb and n remain nonnegative, and ul8 remains nonnegative; ds9n stays constant (the loop does not modify it).
+- We also capture the fact that ds9n is equal to 1 in the current context (the code initializes ds9n from li and never changes it); although this is a specific case, it is a valid invariant based on the loop’s execution pattern here.
+
+These invariants provide nontrivial, inductive properties that reflect the updates in the loop body:
+ul8 = ul8 + li; lb += n; li = li + 3; n = (ds9n*2)-1;
+and the loop guard ds9n*2 <= n, together ensuring progress and termination in this particular context (the loop can execute at most once for the given relationships, which the invariants accommodate).
+
+In summary, the invariants are chosen to be strong, non-tautological, and to reflect the exact state transitions caused by the loop bodies, while listing a complete and exact set of loop assigns for Frama-C/WP verification. They do not modify the code and comply with the allowed ACSL constructs. </reasoning>
+<code>int main1(){
+  int li, ul8, lb, n, te, ds9n;
+
+  li=1;
+  ul8=li;
+  lb=ul8;
+  n=0;
+  te=0;
+  ds9n=li;
 
   /*@
-    loop invariant rc == yae;
-    loop invariant 0 <= yae && yae <= ek;
-    loop assigns mb0, rc, yae;
-    loop variant ek - yae;
+    loop invariant te >= 0;
+    loop invariant n >= 0;
+    loop invariant lb >= 1;
+    loop invariant li == 1;
+    loop invariant ul8 == 0 || ul8 == 1;
+    loop assigns te, n, lb, ul8;
   */
-  while (yae&lt;ek) {
-      if (rc&lt;ek) {
-          mb0 = yae;
+  while (1) {
+      if (!(ul8>=1)) {
+          break;
       }
-      rc = rc + 1;
-      yae++;
+      te = te + li;
+      n += lb;
+      lb = lb + te;
+      ul8 = 0;
   }
 
   /*@
-    loop invariant mb0 &gt;= 0;
-    loop invariant vj &gt;= 3;
-    loop assigns vj, j, mb0;
+    loop invariant ds9n == 1;
+    loop invariant li % 3 == 1;
+    loop invariant li >= 1;
+    loop invariant lb >= 1;
+    loop invariant ul8 >= 0;
+    loop assigns ul8, lb, li, n;
   */
-  while (mb0-1&ge;0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
+  while (ds9n*2<=n) {
+      ul8 = ul8 + li;
+      lb += n;
+      li = li + 3;
+      n = (ds9n*2)-1;
   }
 
 }</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 01:43:58,814 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 01:43:58,829 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 01:46:00,814 - INFO - 
+2026-03-14 20:52:52,491 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 20:52:52,547 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:54:26,249 - INFO - 
 ----- Candidate 4/5 raw response begin -----
 <reasoning>
-First loop:
-- Use rc == yae as a core conserved relation. Both rc and yae start at 0 and are incremented by 1 in each loop iteration, so rc == yae holds before every iteration and is preserved.
-- Add bounds 0 <= yae <= ek to capture progress toward the loop exit (yae starts at 0 and is incremented until it reaches ek).
-- The loop updates mb0, rc, yae; hence loop assigns mb0, rc, yae.
-- Include a loop variant ek - yae to assist termination reasoning.
+We need inductive loop invariants for two loops, using only the available variables per loop.
 
-Second loop:
-- The loop has a predictable, closed-form evolution for vj in terms of mb0 and ek. Using the exact update pattern, we can derive an invariant:
-  vj == 3 + ek * ((mb0 - (ek - 1)) * (mb0 + (ek - 1) - 1) / 2)
-  which holds initially (mb0 == ek - 1, vj == 3) and is preserved by each iteration (the derivation can be verified by induction from the update rules).
-- Also, since mb0 starts at ek - 1 and increments each iteration, a simple invariant mb0 >= (ek - 1) holds.
-- The loop assigns vj, j, mb0.
+Loop 0 (the while (1) with a break):
+- Observed updates: te <- te + li; n <- n + lb; lb <- lb + te' (where te' = te + li); ul8 <- 0.
+- Core relational equality (conservation) that remains true across the reachable states is lb - te = constant. With the initial state (lb = 1, te = 0), this constant is 1. After the first iteration, te' = te + li = 1 and lb' = lb + te' = 2, so lb' - te' = 1 still holds. Given the actual control flow, there is at most one iteration (ul8 becomes 0, causing the next loop check to break). Therefore lb - te == 1 is a strong, inductive invariant that explains the observed update pattern and is preserved in the reachable execution path.
+- Additional safe invariants: te <= n (since li is 1 and lb >= 1, te increases by 1 and n increases by at least 1), li == 1 (li is initialized to 1 and never altered in this loop), lb >= 1, ul8 >= 0.
+- Loop variant: ul8 (goes from 1 to 0), showing progress toward termination.
 
-These invariants are inductive, non-tautological, and aligned with the loop updates, and they use only allowed variables. They avoid relying on at-Pre for local variables and keep the function unchanged otherwise.
+Loop 1 (the while (ds9n*2 <= n)):
+- Observed updates: ul8 <- ul8 + li; lb <- lb + n; li <- li + 3; n <- (ds9n*2) - 1. Here, ds9n is constant within this loop, and n is reset to ds9n*2 - 1 on every iteration. If the loop runs, n decreases to ds9n*2 - 1, which is at most n-1 (since ds9n*2 <= n at entry). Thus n is a valid loop variant and the loop terminates after at most one iteration.
+- Invariants: since li increases by 3 each iteration, li % 3 remains 1 (starting from 1). lb and ul8 remain non-negative throughout. n stays non-negative if the loop runs (initial guard requires n >= 2 for the loop to run when ds9n>=1). We also keep loop assigns to all modified locals: ul8, lb, li, n. The chosen invariants are strong enough to be inductive and do not introduce unrelated facts.
+
+These invariants are intended to be strong, inductive, and verification-friendly for Frama-C/WP while staying faithful to the code and the given loop contexts.
 </reasoning>
-<code>/*@
-  loop invariant rc == yae;
-  loop invariant 0 &lt;= yae &amp;&amp; yae &amp;&amp; yae &lt;= ek;
-  loop assigns mb0, rc, yae;
-  loop variant ek - yae;
-*/
-while (yae&lt;ek) {
-      if (rc&lt;ek) {
-          mb0 = yae;
+<code>int main1(){
+  int li, ul8, lb, n, te, ds9n;
+
+  li=1;
+  ul8=li;
+  lb=ul8;
+  n=0;
+  te=0;
+  ds9n=li;
+
+  /*@
+    loop invariant te <= n;
+    loop invariant li == 1;
+    loop invariant lb >= 1;
+    loop invariant ul8 >= 0;
+    loop invariant (lb - te) == 1;
+    loop assigns te, n, lb, ul8;
+    loop variant ul8;
+  */
+  while (1) {
+      if (!(ul8>=1)) {
+          break;
       }
-      rc = rc + 1;
-      yae++;
+      te = te + li;
+      n += lb;
+      lb = lb + te;
+      ul8 = 0;
+  }
+
+  /*@
+    loop invariant li % 3 == 1;
+    loop invariant lb >= 0;
+    loop invariant ul8 >= 0;
+    loop invariant n >= 0;
+    loop assigns ul8, lb, li, n;
+    loop variant n;
+  */
+  while (ds9n*2<=n) {
+      ul8 = ul8 + li;
+      lb += n;
+      li = li + 3;
+      n = (ds9n*2)-1;
+  }
+
+}</code>
+----- Candidate 4/5 raw response end -----
+2026-03-14 20:54:26,249 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 20:54:26,305 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:56:05,676 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>For Loop 0:
+- Core conservation/relational equality: n == te is a strong relation that explains the updates in the loop, since te is incremented by li and n is incremented by lb, and in the initial state li and lb are both 1, making n and te track each other through the first iteration. This relation is preserved by the single possible iteration (the loop then sets ul8 to 0, breaking the next iteration).
+- Minimal progress bound: use loop variant ul8, which starts at 1 and becomes 0 after the first iteration, providing a decreasing measure.
+- Additional stable invariants: ds9n == 1 (ds9n is never updated in this loop), li == 1 (li is not updated in this loop), and te >= 0 (te only increases).
+
+For Loop 1:
+- The guard is ds9n*2 <= n, with ds9n == 1, so the effective guard is 2 <= n. This loop will at most execute once because n is set to 1 inside the body, which would violate the guard for a second iteration.
+- Core conservation/relational equality: since n becomes 1 after the body, and li increases by 3, a compact invariants set that is safe and helpful includes ds9n == 1, li >= 1, ul8 >= 0, and n >= 2 on entry (as guaranteed by the guard). These capture the loop’s internal behavior while remaining verifiable.
+- Minimal progress bound: use loop variant n, which decreases from at least 2 down to 1 when the loop executes, ensuring termination in the single possible iteration.
+
+Note: The invariants are chosen to be inductive (base case holds at loop entry and are preserved by each iterated execution when the loop body executes). They avoid touching non-parameter locals with Pre-annotations and respect the available variable constraints. The loop assigns lists correctly enumerate the modified variables in each loop. </reasoning>
+
+<code>/*@
+  loop invariant ds9n == 1;
+  loop invariant li == 1;
+  loop invariant n == te;
+  loop invariant te &gt;= 0;
+  loop assigns te, n, lb, ul8;
+  loop variant ul8;
+*/
+while (1) {
+      if (!(ul8 &gt;= 1)) {
+          break;
+      }
+      te = te + li;
+      n += lb;
+      lb = lb + te;
+      ul8 = 0;
   }
 
 /*@ 
-  loop invariant vj == 3 + ek * ((mb0 - (ek - 1)) * (mb0 + (ek - 1) - 1) / 2);
-  loop invariant mb0 &gt;= (ek - 1);
-  loop assigns vj, j, mb0;
+  loop invariant ds9n == 1;
+  loop invariant li &gt;= 1;
+  loop invariant ul8 &gt;= 0;
+  loop invariant n &gt;= 2;
+  loop assigns ul8, lb, li, n;
+  loop variant n;
 */
-while (mb0-1&gt;=0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
-  }</code>
------ Candidate 4/5 raw response end -----
-2026-03-11 01:46:00,814 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 01:46:00,826 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 01:47:30,953 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>For Loop 0 I use a simple, inductive invariant that captures the core state update observed in the loop: rc increments exactly as yae, and both stay within the natural progress bounds up to ek. This gives a strong, inductive relation that is preserved by each iteration and helps reason about loop termination. I also include a bound on rc to tighten the range.
-
-- Core conservation/relational equality: rc == yae
-- Progress bounds: 0 <= yae <= ek and 0 <= rc <= ek
-- Loop assigns for this loop: mb0, rc, yae
-
-For Loop 1 I provide invariants that capture non-negativity and monotonicity of the arithmetic progression:
-
-- mb0 is non-negative: 0 <= mb0
-- vj is non-decreasing and at least its initial value (3): 3 <= vj
-- Loop assigns for this loop: vj, j, mb0
-
-These invariants are inductive (hold initially and preserved by each iteration) and verification-friendly for Frama-C/WP, while keeping the code unchanged and within the allowed variable set. They avoid tautologies and do not rely on non-parameter local Pre-views. </reasoning>
-<code>int main1(int m,int j){
-  int ek, vj, yae, mb0, rc;
-
-  ek=21;
-  vj=3;
-  yae=0;
-  mb0=j;
-  rc=0;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant rc == yae && (0 <= yae && yae <= ek);
-    loop invariant 0 <= rc && rc <= ek;
-    loop assigns mb0, rc, yae;
-  */
-  while (yae&lt;ek) {
-      if (rc&lt;ek) {
-          mb0 = yae;
-      }
-      rc = rc + 1;
-      yae++;
-  }
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 0 <= mb0;
-    loop invariant 3 <= vj;
-    loop assigns vj, j, mb0;
-  */
-  while (mb0-1&gt;=0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
+while (ds9n*2<=n) {
+      ul8 = ul8 + li;
+      lb += n;
+      li = li + 3;
+      n = (ds9n*2)-1;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 01:47:30,953 - INFO - 
+2026-03-14 20:56:05,676 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int m,int j){
-  int ek, vj, yae, mb0, rc;
+int main1(){
+  int li, ul8, lb, n, te, ds9n;
 
-  ek=21;
-  vj=3;
-  yae=0;
-  mb0=j;
-  rc=0;
+  li=1;
+  ul8=li;
+  lb=ul8;
+  n=0;
+  te=0;
+  ds9n=li;
 
-  /* Loop 0 invariants
-     - yae == rc: both counters advance in lockstep (core conservation equality)
-     - yae <= ek: progress bound (yae never exceeds loop bound ek)
-     Loop assigns mb0, rc, yae;
-  */
   /*@
-    loop invariant yae == rc;
-    loop invariant yae <= ek;
-    loop assigns mb0, rc, yae;
+    loop invariant li == 1;
+    loop invariant te >= 0;
+    loop invariant lb == 1 + te*(te+1)/2;
+    loop invariant n >= 0;
+    loop invariant ul8 >= 0;
+    loop invariant ul8 <= 1;
+    loop assigns te, n, lb, ul8;
   */
-  while (yae<ek) {
-      if (rc<ek) {
-          mb0 = yae;
-      }
-      rc = rc + 1;
-      yae++;
+  while (1) {
+        if (!(ul8>=1)) {
+            break;
+        }
+        te = te + li;
+        n += lb;
+        lb = lb + te;
+        ul8 = 0;
   }
 
-  /* Loop 1 invariants
-     - mb0 >= 0: non-negative loop counter (progress bound)
-     - vj >= 3: vj maintains non-negativity and initial positivity
-     Loop assigns vj, j, mb0;
-  */
   /*@
-    loop invariant mb0 >= 0;
-    loop invariant vj >= 3;
-    loop assigns vj, j, mb0;
+    loop invariant ds9n == 1;
+    loop invariant n >= ds9n*2;
+    loop invariant lb >= 0;
+    loop invariant li >= 0;
+    loop invariant ul8 >= 0;
+    loop assigns ul8, lb, li, n;
   */
-  while (mb0-1>=0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
+  while (ds9n*2<=n) {
+        ul8 = ul8 + li;
+        lb += n;
+        li = li + 3;
+        n = (ds9n*2)-1;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-11 01:47:30,953 - INFO - 
+2026-03-14 20:56:05,676 - INFO - 
 ----- Candidate 2/5 full code begin -----
-int main1(int m,int j){
-  int ek, vj, yae, mb0, rc;
+int main1(){
+  int li, ul8, lb, n, te, ds9n;
 
-  ek=21;
-  vj=3;
-  yae=0;
-  mb0=j;
-  rc=0;
+  li=1;
+  ul8=li;
+  lb=ul8;
+  n=0;
+  te=0;
+  ds9n=li;
 
   /*@
-    loop invariant rc == yae;
-    loop invariant 0 <= yae <= ek;
-    loop invariant 0 <= rc <= ek;
-    loop invariant mb0 <= ek - 1;
-    loop invariant (yae > 0) ==> (mb0 == yae - 1);
-    loop assigns rc, yae, mb0;
-    loop variant ek - yae;
+    loop invariant te <= n;
+    loop invariant li <= lb;
+    loop assigns te, n, lb, ul8;
   */
-  while (yae<ek) {
-      if (rc<ek) {
-          mb0 = yae;
+while (1) {
+      if (!(ul8>=1)) {
+          break;
       }
-      rc = rc + 1;
-      yae++;
+      te = te + li;
+      n += lb;
+      lb = lb + te;
+      ul8 = 0;
   }
 
   /*@
-    loop invariant mb0 >= 0;
-    loop invariant vj >= 0;
-    loop invariant ek >= 0;
-    loop assigns vj, j, mb0;
+    loop invariant n == (ds9n*2) - 1;
+    loop invariant ul8 >= 0;
+    loop assigns n, ul8, lb, li;
   */
-  while (mb0-1>=0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
+while (ds9n*2<=n) {
+      ul8 = ul8 + li;
+      lb += n;
+      li = li + 3;
+      n = (ds9n*2)-1;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-11 01:47:30,953 - INFO - 
+2026-03-14 20:56:05,676 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int m,int j){
-  int ek, vj, yae, mb0, rc;
+int main1(){
+  int li, ul8, lb, n, te, ds9n;
 
-  ek=21;
-  vj=3;
-  yae=0;
-  mb0=j;
-  rc=0;
+  li=1;
+  ul8=li;
+  lb=ul8;
+  n=0;
+  te=0;
+  ds9n=li;
 
   /*@
-    loop invariant rc == yae;
-    loop invariant 0 <= yae && yae <= ek;
-    loop assigns mb0, rc, yae;
-    loop variant ek - yae;
+    loop invariant te >= 0;
+    loop invariant n >= 0;
+    loop invariant lb >= 1;
+    loop invariant li == 1;
+    loop invariant ul8 == 0 || ul8 == 1;
+    loop assigns te, n, lb, ul8;
   */
-  while (yae&lt;ek) {
-      if (rc&lt;ek) {
-          mb0 = yae;
+  while (1) {
+      if (!(ul8>=1)) {
+          break;
       }
-      rc = rc + 1;
-      yae++;
+      te = te + li;
+      n += lb;
+      lb = lb + te;
+      ul8 = 0;
   }
 
   /*@
-    loop invariant mb0 &gt;= 0;
-    loop invariant vj &gt;= 3;
-    loop assigns vj, j, mb0;
+    loop invariant ds9n == 1;
+    loop invariant li % 3 == 1;
+    loop invariant li >= 1;
+    loop invariant lb >= 1;
+    loop invariant ul8 >= 0;
+    loop assigns ul8, lb, li, n;
   */
-  while (mb0-1&ge;0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
+  while (ds9n*2<=n) {
+      ul8 = ul8 + li;
+      lb += n;
+      li = li + 3;
+      n = (ds9n*2)-1;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-11 01:47:30,953 - INFO - 
+2026-03-14 20:56:05,676 - INFO - 
 ----- Candidate 4/5 full code begin -----
-/*@
-  loop invariant rc == yae;
-  loop invariant 0 &lt;= yae &amp;&amp; yae &amp;&amp; yae &lt;= ek;
-  loop assigns mb0, rc, yae;
-  loop variant ek - yae;
-*/
-while (yae&lt;ek) {
-      if (rc&lt;ek) {
-          mb0 = yae;
+int main1(){
+  int li, ul8, lb, n, te, ds9n;
+
+  li=1;
+  ul8=li;
+  lb=ul8;
+  n=0;
+  te=0;
+  ds9n=li;
+
+  /*@
+    loop invariant te <= n;
+    loop invariant li == 1;
+    loop invariant lb >= 1;
+    loop invariant ul8 >= 0;
+    loop invariant (lb - te) == 1;
+    loop assigns te, n, lb, ul8;
+    loop variant ul8;
+  */
+  while (1) {
+      if (!(ul8>=1)) {
+          break;
       }
-      rc = rc + 1;
-      yae++;
+      te = te + li;
+      n += lb;
+      lb = lb + te;
+      ul8 = 0;
+  }
+
+  /*@
+    loop invariant li % 3 == 1;
+    loop invariant lb >= 0;
+    loop invariant ul8 >= 0;
+    loop invariant n >= 0;
+    loop assigns ul8, lb, li, n;
+    loop variant n;
+  */
+  while (ds9n*2<=n) {
+      ul8 = ul8 + li;
+      lb += n;
+      li = li + 3;
+      n = (ds9n*2)-1;
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-03-14 20:56:05,676 - INFO - 
+----- Candidate 5/5 full code begin -----
+/*@
+  loop invariant ds9n == 1;
+  loop invariant li == 1;
+  loop invariant n == te;
+  loop invariant te &gt;= 0;
+  loop assigns te, n, lb, ul8;
+  loop variant ul8;
+*/
+while (1) {
+      if (!(ul8 &gt;= 1)) {
+          break;
+      }
+      te = te + li;
+      n += lb;
+      lb = lb + te;
+      ul8 = 0;
   }
 
 /*@ 
-  loop invariant vj == 3 + ek * ((mb0 - (ek - 1)) * (mb0 + (ek - 1) - 1) / 2);
-  loop invariant mb0 &gt;= (ek - 1);
-  loop assigns vj, j, mb0;
+  loop invariant ds9n == 1;
+  loop invariant li &gt;= 1;
+  loop invariant ul8 &gt;= 0;
+  loop invariant n &gt;= 2;
+  loop assigns ul8, lb, li, n;
+  loop variant n;
 */
-while (mb0-1&gt;=0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
-  }
------ Candidate 4/5 full code end -----
-2026-03-11 01:47:30,953 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int m,int j){
-  int ek, vj, yae, mb0, rc;
-
-  ek=21;
-  vj=3;
-  yae=0;
-  mb0=j;
-  rc=0;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant rc == yae && (0 <= yae && yae <= ek);
-    loop invariant 0 <= rc && rc <= ek;
-    loop assigns mb0, rc, yae;
-  */
-  while (yae&lt;ek) {
-      if (rc&lt;ek) {
-          mb0 = yae;
-      }
-      rc = rc + 1;
-      yae++;
-  }
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 0 <= mb0;
-    loop invariant 3 <= vj;
-    loop assigns vj, j, mb0;
-  */
-  while (mb0-1&gt;=0) {
-      vj = vj+ek*mb0;
-      j += vj;
-      mb0 = mb0 + 1;
+while (ds9n*2<=n) {
+      ul8 = ul8 + li;
+      lb += n;
+      li = li + 3;
+      n = (ds9n*2)-1;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 01:47:30,953 - INFO - Successfully generated 5/5 candidates
-2026-03-11 01:47:30,954 - INFO - Checking 10 invariants for conflicts...
-2026-03-11 01:47:30,955 - INFO - Checking 7 invariants for conflicts...
-2026-03-11 01:47:30,957 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 01:47:30,957 - INFO -   1: int main1(int m,int j){
-2026-03-11 01:47:30,957 - INFO -   2:   int ek, vj, yae, mb0, rc;
-2026-03-11 01:47:30,957 - INFO -   3: 
-2026-03-11 01:47:30,957 - INFO -   4:   ek=21;
-2026-03-11 01:47:30,957 - INFO -   5:   vj=3;
-2026-03-11 01:47:30,957 - INFO -   6:   yae=0;
-2026-03-11 01:47:30,957 - INFO -   7:   mb0=j;
-2026-03-11 01:47:30,957 - INFO -   8:   rc=0;
-2026-03-11 01:47:30,957 - INFO -   9: 
-2026-03-11 01:47:30,957 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 01:47:30,957 - INFO - DEBUG: Total lines: 50
-2026-03-11 01:47:31,158 - INFO - syntax Correct
-2026-03-11 01:48:01,921 - INFO - Validate:
-2026-03-11 01:48:01,922 - INFO - [True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 01:48:01,922 - INFO - 
-2026-03-11 01:48:01,922 - INFO - Verify:
-2026-03-11 01:48:01,922 - INFO - []
-2026-03-11 01:48:01,922 - INFO - 
-2026-03-11 01:48:01,922 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-11 01:48:01,922 - INFO -   Before: 17 invariants
-2026-03-11 01:48:01,922 - INFO -   After: 16 invariants
-2026-03-11 01:48:01,922 - INFO -   Remaining invariants:
-2026-03-11 01:48:01,922 - INFO -     [1] yae == rc
-2026-03-11 01:48:01,922 - INFO -     [2] yae <= ek
-2026-03-11 01:48:01,922 - INFO -     [3] rc == yae
-2026-03-11 01:48:01,922 - INFO -     [4] 0 <= yae <= ek
-2026-03-11 01:48:01,922 - INFO -     [5] 0 <= rc <= ek
-2026-03-11 01:48:01,922 - INFO -     [6] (yae > 0) ==> (mb0 == yae - 1)
-2026-03-11 01:48:01,922 - INFO -     [7] 0 <= yae && yae <= ek
-2026-03-11 01:48:01,922 - INFO -     [8] rc == yae && (0 <= yae && yae <= ek)
-2026-03-11 01:48:01,922 - INFO -     [9] 0 <= rc && rc <= ek
-2026-03-11 01:48:01,922 - INFO -     [10] mb0 >= 0
-2026-03-11 01:48:01,922 - INFO -     [11] vj >= 3
-2026-03-11 01:48:01,922 - INFO -     [12] vj >= 0
-2026-03-11 01:48:01,922 - INFO -     [13] ek >= 0
-2026-03-11 01:48:01,922 - INFO -     [14] vj == 3 + ek * ((mb0 - (ek - 1)) * (mb0 + (ek - 1) - 1) / 2)
-2026-03-11 01:48:01,922 - INFO -     [15] 0 <= mb0
-2026-03-11 01:48:01,922 - INFO -     [16] 3 <= vj
-2026-03-11 01:48:02,146 - INFO - syntax Correct
-2026-03-11 01:48:03,371 - INFO - Validate:
-2026-03-11 01:48:03,372 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 01:48:03,372 - INFO - 
-2026-03-11 01:48:03,372 - INFO - Verify:
-2026-03-11 01:48:03,372 - INFO - []
-2026-03-11 01:48:03,372 - INFO - 
-2026-03-11 01:48:03,372 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-11 01:48:03,594 - INFO - syntax Correct
-2026-03-11 01:48:04,817 - INFO - Validate:
-2026-03-11 01:48:04,817 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 01:48:04,817 - INFO - 
-2026-03-11 01:48:04,817 - INFO - Verify:
-2026-03-11 01:48:04,817 - INFO - []
-2026-03-11 01:48:04,817 - INFO - 
-2026-03-11 01:49:57,830 - INFO - Deduplicated 14 loop invariants in final code
-2026-03-11 01:49:58,015 - INFO - syntax Correct
-2026-03-11 01:49:58,967 - INFO - Validate:
-2026-03-11 01:49:58,967 - INFO - [True, True, True, True, True, True, True, True]
-2026-03-11 01:49:58,967 - INFO - 
-2026-03-11 01:49:58,968 - INFO - Verify:
-2026-03-11 01:49:58,968 - INFO - []
-2026-03-11 01:49:58,968 - INFO - 
-2026-03-11 01:49:58,968 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 01:49:58,968 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_501790_1773159979_70/1.c
-2026-03-11 01:49:58,968 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_501790_1773159979_70/1_invariants.txt
-2026-03-11 01:49:58,968 - INFO - 
+2026-03-14 20:56:05,676 - INFO - Successfully generated 5/5 candidates
+2026-03-14 20:56:05,677 - INFO - Checking 12 invariants for conflicts...
+2026-03-14 20:56:05,679 - INFO - Checking 10 invariants for conflicts...
+2026-03-14 20:56:05,681 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 20:56:05,681 - INFO -   1: int main1(){
+2026-03-14 20:56:05,681 - INFO -   2:   int li, ul8, lb, n, te, ds9n;
+2026-03-14 20:56:05,681 - INFO -   3: 
+2026-03-14 20:56:05,681 - INFO -   4:   li=1;
+2026-03-14 20:56:05,681 - INFO -   5:   ul8=li;
+2026-03-14 20:56:05,681 - INFO -   6:   lb=ul8;
+2026-03-14 20:56:05,681 - INFO -   7:   n=0;
+2026-03-14 20:56:05,681 - INFO -   8:   te=0;
+2026-03-14 20:56:05,681 - INFO -   9:   ds9n=li;
+2026-03-14 20:56:05,681 - INFO -   10: 
+2026-03-14 20:56:05,681 - INFO - DEBUG: Total lines: 59
+2026-03-14 20:56:05,881 - INFO - syntax Correct
+2026-03-14 20:56:36,998 - INFO - Validate:
+2026-03-14 20:56:36,998 - INFO - [True, True, True, True, True, True, True, True, True, True, False, True, True, False, True, True, True, True, True, True, True, True]
+2026-03-14 20:56:36,998 - INFO - 
+2026-03-14 20:56:36,998 - INFO - Verify:
+2026-03-14 20:56:36,998 - INFO - []
+2026-03-14 20:56:36,998 - INFO - 
+2026-03-14 20:56:36,998 - INFO - Houdini iteration 1: Removed 2 failed invariants
+2026-03-14 20:56:36,998 - INFO -   Before: 22 invariants
+2026-03-14 20:56:36,998 - INFO -   After: 20 invariants
+2026-03-14 20:56:36,998 - INFO -   Remaining invariants:
+2026-03-14 20:56:36,998 - INFO -     [1] li == 1
+2026-03-14 20:56:36,998 - INFO -     [2] te >= 0
+2026-03-14 20:56:36,998 - INFO -     [3] lb == 1 + te*(te+1)/2
+2026-03-14 20:56:36,998 - INFO -     [4] n >= 0
+2026-03-14 20:56:36,998 - INFO -     [5] ul8 >= 0
+2026-03-14 20:56:36,998 - INFO -     [6] ul8 <= 1
+2026-03-14 20:56:36,999 - INFO -     [7] te <= n
+2026-03-14 20:56:36,999 - INFO -     [8] li <= lb
+2026-03-14 20:56:36,999 - INFO -     [9] lb >= 1
+2026-03-14 20:56:36,999 - INFO -     [10] ul8 == 0 || ul8 == 1
+2026-03-14 20:56:36,999 - INFO -     [11] n == te
+2026-03-14 20:56:36,999 - INFO -     [12] ds9n == 1
+2026-03-14 20:56:36,999 - INFO -     [13] lb >= 0
+2026-03-14 20:56:36,999 - INFO -     [14] li >= 0
+2026-03-14 20:56:36,999 - INFO -     [15] ul8 >= 0
+2026-03-14 20:56:36,999 - INFO -     [16] n == (ds9n*2) - 1
+2026-03-14 20:56:36,999 - INFO -     [17] li % 3 == 1
+2026-03-14 20:56:36,999 - INFO -     [18] li >= 1
+2026-03-14 20:56:36,999 - INFO -     [19] lb >= 1
+2026-03-14 20:56:36,999 - INFO -     [20] n >= 0
+2026-03-14 20:56:37,204 - INFO - syntax Correct
+2026-03-14 20:57:08,609 - INFO - Validate:
+2026-03-14 20:57:08,609 - INFO - [True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, False, True, True, True, True]
+2026-03-14 20:57:08,609 - INFO - 
+2026-03-14 20:57:08,609 - INFO - Verify:
+2026-03-14 20:57:08,609 - INFO - []
+2026-03-14 20:57:08,609 - INFO - 
+2026-03-14 20:57:08,609 - INFO - Houdini iteration 2: Removed 2 failed invariants
+2026-03-14 20:57:08,609 - INFO -   Before: 20 invariants
+2026-03-14 20:57:08,609 - INFO -   After: 18 invariants
+2026-03-14 20:57:08,610 - INFO -   Remaining invariants:
+2026-03-14 20:57:08,610 - INFO -     [1] li == 1
+2026-03-14 20:57:08,610 - INFO -     [2] te >= 0
+2026-03-14 20:57:08,610 - INFO -     [3] lb == 1 + te*(te+1)/2
+2026-03-14 20:57:08,610 - INFO -     [4] n >= 0
+2026-03-14 20:57:08,610 - INFO -     [5] ul8 >= 0
+2026-03-14 20:57:08,610 - INFO -     [6] ul8 <= 1
+2026-03-14 20:57:08,610 - INFO -     [7] te <= n
+2026-03-14 20:57:08,610 - INFO -     [8] li <= lb
+2026-03-14 20:57:08,610 - INFO -     [9] lb >= 1
+2026-03-14 20:57:08,610 - INFO -     [10] ul8 == 0 || ul8 == 1
+2026-03-14 20:57:08,610 - INFO -     [11] ds9n == 1
+2026-03-14 20:57:08,610 - INFO -     [12] lb >= 0
+2026-03-14 20:57:08,610 - INFO -     [13] li >= 0
+2026-03-14 20:57:08,610 - INFO -     [14] ul8 >= 0
+2026-03-14 20:57:08,610 - INFO -     [15] li % 3 == 1
+2026-03-14 20:57:08,610 - INFO -     [16] li >= 1
+2026-03-14 20:57:08,610 - INFO -     [17] lb >= 1
+2026-03-14 20:57:08,610 - INFO -     [18] n >= 0
+2026-03-14 20:57:08,821 - INFO - syntax Correct
+2026-03-14 20:57:40,349 - INFO - Validate:
+2026-03-14 20:57:40,349 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-14 20:57:40,349 - INFO - 
+2026-03-14 20:57:40,349 - INFO - Verify:
+2026-03-14 20:57:40,349 - INFO - []
+2026-03-14 20:57:40,349 - INFO - 
+2026-03-14 20:57:40,349 - INFO - Houdini iteration 3: All invariants are valid
+2026-03-14 20:57:40,576 - INFO - syntax Correct
+2026-03-14 20:58:12,111 - INFO - Validate:
+2026-03-14 20:58:12,111 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-14 20:58:12,111 - INFO - 
+2026-03-14 20:58:12,111 - INFO - Verify:
+2026-03-14 20:58:12,111 - INFO - []
+2026-03-14 20:58:12,111 - INFO - 
+2026-03-14 20:58:54,683 - INFO - Deduplicated 7 loop invariants in final code
+2026-03-14 20:58:54,888 - INFO - syntax Correct
+2026-03-14 20:59:26,128 - INFO - Validate:
+2026-03-14 20:59:26,128 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
+2026-03-14 20:59:26,128 - INFO - 
+2026-03-14 20:59:26,128 - INFO - Verify:
+2026-03-14 20:59:26,128 - INFO - []
+2026-03-14 20:59:26,128 - INFO - 
+2026-03-14 20:59:26,128 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-14 20:59:26,128 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_70/1.c
+2026-03-14 20:59:26,128 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_70/1_invariants.txt
+2026-03-14 20:59:26,128 - INFO - 
 ============================================================
-2026-03-11 01:49:58,968 - INFO - Final first_pass results:
-2026-03-11 01:49:58,968 - INFO -   syntax=1
-2026-03-11 01:49:58,968 - INFO -   valid=1
-2026-03-11 01:49:58,968 - INFO -   satisfy=None
-2026-03-11 01:49:58,968 - INFO - ============================================================
-2026-03-11 01:49:58,968 - INFO - 
+2026-03-14 20:59:26,128 - INFO - Final first_pass results:
+2026-03-14 20:59:26,128 - INFO -   syntax=1
+2026-03-14 20:59:26,129 - INFO -   valid=1
+2026-03-14 20:59:26,129 - INFO -   satisfy=None
+2026-03-14 20:59:26,129 - INFO - ============================================================
+2026-03-14 20:59:26,129 - INFO - 
 ============================================================
-2026-03-11 01:49:58,968 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 01:49:58,968 - INFO -   Total API calls: 10
-2026-03-11 01:49:58,968 - INFO -   Total prompt tokens (input): 11,051
-2026-03-11 01:49:58,968 - INFO -   Total completion tokens (output): 70,264
-2026-03-11 01:49:58,968 - INFO -   Total tokens: 81,315
-2026-03-11 01:49:58,968 - INFO -   Average per call:
-2026-03-11 01:49:58,968 - INFO -     Prompt: 1105.1 tokens
-2026-03-11 01:49:58,968 - INFO -     Completion: 7026.4 tokens
-2026-03-11 01:49:58,968 - INFO -     Total: 8131.5 tokens
-2026-03-11 01:49:58,968 - INFO - ============================================================
-2026-03-11 01:49:58,968 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_501790_1773159979_70/1.c
-2026-03-11 01:49:58,968 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_501790_1773159979_70/1_invariants.txt
-2026-03-11 01:51:25,668 - INFO - LLM quality-gate raw response: {
+2026-03-14 20:59:26,129 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 20:59:26,129 - INFO -   Total API calls: 13
+2026-03-14 20:59:26,129 - INFO -   Total prompt tokens (input): 18,066
+2026-03-14 20:59:26,129 - INFO -   Total completion tokens (output): 129,199
+2026-03-14 20:59:26,129 - INFO -   Total tokens: 147,265
+2026-03-14 20:59:26,129 - INFO -   Average per call:
+2026-03-14 20:59:26,129 - INFO -     Prompt: 1389.7 tokens
+2026-03-14 20:59:26,129 - INFO -     Completion: 9938.4 tokens
+2026-03-14 20:59:26,129 - INFO -     Total: 11328.1 tokens
+2026-03-14 20:59:26,129 - INFO - ============================================================
+2026-03-14 20:59:26,129 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_70/1.c
+2026-03-14 20:59:26,129 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_70/1_invariants.txt
+2026-03-14 20:59:55,867 - INFO - LLM quality-gate raw response: {
   "ok": true,
   "reason": "pass"
 }
-2026-03-11 02:09:23 - INFO - COT Phase#1: generating reverse-COTs for 14 code pieces (existing=236, dedup inside)...
-2026-03-11 02:20:37 - INFO - COT Phase#1: 14/14 unique COTs generated successfully.
-2026-03-11 02:20:38 - INFO - COT Phase#2: generating rejected reverse-COTs for 73 unique dpo_aug.rejected code pieces (existing=1076)...
-2026-03-11 03:18:41 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces (existing=1204)...
-2026-03-11 03:19:18 - WARNING - COT Phase: dropped 6 distill records missing valid <reasoning>/<code>.
-2026-03-11 03:19:18 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
-2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
-2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
-2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
-2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
-2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
-2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
-2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

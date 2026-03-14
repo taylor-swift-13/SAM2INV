@@ -1,453 +1,668 @@
-2026-03-11 17:11:46,416 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 17:11:46,431 - INFO - Found 1 loops
-2026-03-11 17:11:46,432 - INFO - 
+2026-03-14 22:58:59,629 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 22:58:59,652 - INFO - Found 2 loops
+2026-03-14 22:58:59,653 - INFO - 
 ============================================================
-2026-03-11 17:11:46,432 - INFO - Main generation pass 1/1
-2026-03-11 17:11:46,432 - INFO - ============================================================
-2026-03-11 17:11:46,432 - INFO - Loaded single prompt template: simple
-2026-03-11 17:11:46,432 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 17:11:46,432 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 17:11:47,266 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:15:36,010 - INFO - 
+2026-03-14 22:58:59,653 - INFO - Main generation pass 1/1
+2026-03-14 22:58:59,653 - INFO - ============================================================
+2026-03-14 22:58:59,653 - INFO - Loaded single prompt template: simple
+2026-03-14 22:58:59,653 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 22:58:59,654 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 22:59:01,408 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:00:20,024 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>
-- The loop updates two arithmetic state variables: xp5 (increments by 1 every iteration) and e (updated by nlh). The auxiliary variable nlh is selectively set based on e: it becomes 1 when e <= 2 and -1 when e >= 6; otherwise it retains its previous value.
-- A robust set of invariants that are inductive and verification-friendly:
-  - Bounds on e: starting from e = 2 and given the update rules, e always stays in the range [2, 6]. This helps bound arithmetic behavior and the nlh updates.
-  - Bounds on xp5: since the loop runs only while xp5 < ij5, after each iteration xp5 remains <= ij5; this is a natural invariant that also supports termination via the loop variant.
-  - Relationship between e and nlh: if e <= 2 then nlh is set to 1, and if e >= 6 then nlh is set to -1. These implications hold because the code explicitly assigns nlh in those cases. This captures the core state-transition law for the loop.
-- Core conservation/relational equality: the loop updates satisfy the explicit transition rules:
-  - xp5 is incremented by 1: xp5' = xp5 + 1
-  - e is incremented by nlh: e' = e + nlh
-  - nlh is adjusted to reflect thresholds on e: nlh ∈ {1, -1} with the guard-based assignments above.
-- A concrete loop variant is ij5 - xp5, which decreases by 1 each iteration (since xp5 increases by 1) and is non-negative as long as the loop condition xp5 < ij5 holds. This ensures termination under the given loop guard.
-- The loop assigns set includes all modified variables: xp5, e, nlh; ij5 is not modified inside the loop.
+<reasoning>To create inductive, verification-friendly loop invariants for Frama-C WP, I looked for relational facts that are preserved by each loop's body and are strong enough to characterize the state evolution without requiring unknowns or parameters. I also aimed to give complete loop assigns that reflect all modified variables for each loop.
+
+Loop 0 (first while):
+- Observed updates per iteration (ignoring the syntax typo in the code for i6cl assignment): i6cl quickly becomes zm-1 and then stays there; cc grows by i6cl; cy grows by old_cc * i6cl.
+- This leads to a strong closed-form relation between cy, cc, and zm (via r = zm-1): after the initial phase where i6cl reaches r, cc = j*r and cy = r^2 * j*(j-1)/2 for some j, which satisfies the exact invariant cy = (cc^2 - cc*(zm-1))/2.
+- Invariant 1 (core conservation/relational equality): cy == (cc * (cc - (zm - 1))) / 2. This captures the exact relationship between cy and cc given zm, and is preserved by the per-iteration updates (cc increases by i6cl, cy increases by old_cc * i6cl, and i6cl is set to zm-1).
+- Additional progress bounds and safety: 0 <= i6cl <= zm-1, 0 <= cc, 0 <= cy. These are natural bounds given initial values and nonnegative increments.
+- Loop assigns: cy, cc, i6cl.
+
+Loop 1 (second while):
+- Observed updates per iteration: cc += cy; zm += 1; s4 += 1; cy stays constant across the loop.
+- There is a simple invariant relating the three changing quantities cc, s4, and cy: if initially cc = 0, s4 = 0, cy = 0 (as in this function), then after each iteration cc - s4*cy stays constant. Since cy is constant in this loop, the invariant cc - s4*cy == 0 is preserved by cc += cy and s4 += 1.
+- Additional progress bounds: 0 <= cc, 0 <= cy, 0 <= s4, 0 <= zm.
+- Loop assigns: cc, zm, s4.
+
+These invariants are inductive (base case true given initial values in the function and preserved by each iteration when the guard is true) and provide strong, non-tautological properties that assist Frama-C/WP in proving termination via loop variants (the second loop presents a bounded progression in zm via the guard).
+
 </reasoning>
-<code>
-int main1(){
-  int ij5, xp5, e, nlh;
-
-  ij5=1*2;
-  xp5=ij5;
-  e=2;
-  nlh=1;
-
-  /*@
-    loop invariant 2 <= e && e <= 6;
-    loop invariant xp5 <= ij5;
-    loop invariant (e <= 2) ==> (nlh == 1);
-    loop invariant (e >= 6) ==> (nlh == -1);
-    loop assigns xp5, e, nlh;
-    loop variant ij5 - xp5;
-  @*/
-  while (xp5<ij5) {
-        if (e>=6) {
-            nlh = -1;
-        }
-        if (e<=2) {
-            nlh = 1;
-        }
-        xp5 = xp5 + 1;
-        e += nlh;
-  }
-
-}
-</code>
------ Candidate 1/5 raw response end -----
-2026-03-11 17:15:36,010 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 17:15:36,072 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:17:57,935 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>We analyze the loop to craft inductive, verification-friendly invariants.
-
-Key observations:
-- The loop updates xp5 by +1 each iteration (xp5 = xp5 + 1).
-- The loop updates e by adding nlh (e += nlh).
-- The variable nlh is assigned only by two if statements:
-  - if (e >= 6) nlh = -1;
-  - if (e <= 2) nlh = 1;
-  Otherwise nlh retains its previous value.
-- ij5 is never changed inside the loop; thus xp5 is always bounded by ij5 and the guard xp5 < ij5.
-- Given the code, nlh takes values in {1, -1} (initially 1, possibly flipping to -1 when e >= 6, and back to 1 when e <= 2).
-- The loop invariant should include a core conservation/relational statement describing how updates relate, plus minimal progress bounds and a complete loop-assigns list.
-
-Chosen inductive invariants (inductive and verification-friendly):
-- xp5 <= ij5, which is preserved because xp5 increases by 1 whenever the guard xp5 < ij5 held previously.
-- (e <= 2) ==> (nlh == 1) ensures that whenever the boundary e <= 2 is in effect, nlh is forced to 1 (as the code enforces).
-- (e >= 6) ==> (nlh == -1) ensures that when e reaches or exceeds 6, nlh is pushed to -1 by the code.
-- (nlh == 1) || (nlh == -1) captures the fact that nlh only takes these two values.
-- loop assigns xp5, e, nlh (the only modified variables inside the loop).
-- loop variant ij5 - xp5 to prove termination: each iteration reduces the difference between ij5 and xp5 by 1 (since xp5 increases by 1 while ij5 is unchanged).
-
-These invariants are strong, cover the updates, and are inductive under the given loop body. They do not rely on parameters (there are none), do not require at-Pre on locals, and are compatible with Frama-C/WP.</reasoning>
-<code>/*@
-  loop invariant xp5 <= ij5;
-  loop invariant (e <= 2) ==> (nlh == 1);
-  loop invariant (e >= 6) ==> (nlh == -1);
-  loop invariant (nlh == 1) || (nlh == -1);
-  loop assigns xp5, e, nlh;
-  loop variant ij5 - xp5;
-*/
-while (xp5<ij5) {
-      if (e>=6) {
-          nlh = -1;
-      }
-      if (e<=2) {
-          nlh = 1;
-      }
-      xp5 = xp5 + 1;
-      e += nlh;
-  }</code>
------ Candidate 2/5 raw response end -----
-2026-03-11 17:17:57,936 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 17:17:58,013 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:20:35,763 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>The loop updates two arithmetic-state variables (e and xp5) with xp5 incrementing by 1 each iteration (until the guard xp5 < ij5 is false) and e being adjusted by nlh, which itself is piecewise updated based on e (nlh becomes 1 when e <= 2, becomes -1 when e >= 6, otherwise unchanged). To produce inductive, verification-friendly invariants:
-
-- A simple progress/conservation relation is that the loop counter xp5 moves toward ij5 by 1 each iteration. A canonical measure that strictly decreases with every iteration is ij5 - xp5. This serves as a loop variant to prove termination.
-
-- A minimal, robust state-bounded invariant is xp5 <= ij5, which is preserved by the loop body given the guard.
-
-- A basic, safe lower bound on arithmetic variable e is e >= 2, which holds initially and is preserved by the update rules (e can oscillate between 2 and higher, but never drops below 2 due to the combination of the two e-updating conditions and the initial state).
-
-- We explicitly declare which variables the loop may modify: xp5, e, nlh.
-
-These invariants are inductive (hold before the first iteration and preserved by each iteration) for the given loop semantics and initializations, and the loop variant ij5 - xp5 ensures progress towards termination. They are verification-friendly for Frama-C/WP and do not require changing the program’s logic or known initializations. The chosen invariants avoid relying on properties of internal timing of nlh beyond what the update rules guarantee. </reasoning>
 <code>int main1(){
-  int ij5, xp5, e, nlh;
+  int zm, i6cl, cc, cy, s4;
 
-  ij5=1*2;
-  xp5=ij5;
-  e=2;
-  nlh=1;
+  zm=1*4;
+  i6cl=0;
+  cc=0;
+  cy=0;
+  s4=i6cl;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant xp5 <= ij5;
-    loop invariant e >= 2;
-    loop assigns xp5, e, nlh;
-    loop variant ij5 - xp5;
-  */
-  while (xp5&lt;ij5) {
-      if (e>=6) {
-          nlh = -1;
+ /*@
+  loop invariant 0 <= i6cl <= zm - 1;
+  loop invariant 0 <= cc;
+  loop invariant 0 <= cy;
+  loop invariant cy == (cc * (cc - (zm - 1))) / 2;
+  loop assigns cy, cc, i6cl;
+ */
+while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
       }
-      if (e<=2) {
-          nlh = 1;
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+ /*@
+  loop invariant 0 <= cc;
+  loop invariant 0 <= cy;
+  loop invariant 0 <= s4;
+  loop invariant 0 <= zm;
+  loop invariant cc - s4 * cy == 0;
+  loop assigns cc, zm, s4;
+ */
+while (1) {
+      if (!(zm<i6cl)) {
+          break;
       }
-      xp5 = xp5 + 1;
-      e += nlh;
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
   }
 
 }</code>
------ Candidate 3/5 raw response end -----
-2026-03-11 17:20:35,765 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 17:20:35,825 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:24:42,148 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>
-We need inductive, verification-friendly ACSL loop annotations for the given loop. The loop body updates two primary state variables: xp5 (incremented by 1 each iteration) and e (updated by nlh). The local variable nlh is assigned either 1 (when e <= 2), -1 (when e >= 6), or kept as its previous value otherwise. The loop guard is xp5 < ij5, with ij5 initialized to ij5 = 1*2 = 2 and xp5 = ij5 = 2, so the loop has zero iterations in this particular program, but we still want invariants that would be inductive in general.
+----- Candidate 1/5 raw response end -----
+2026-03-14 23:00:20,024 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 23:00:20,088 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:01:10,420 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>The two loops operate on the following state for this function (initial values at entry to main1):
+- zm = 4
+- i6cl = 0
+- cc = 0
+- cy = 0
+- s4 = 0
 
-Key design choices:
-- A core relational invariant tying e to xp5: since each iteration changes e by at most +/- 1, the deviation of e from its initial value 2 is bounded by the number of iterations performed, which equals (xp5 - 2). To encode this without using the forbidden absolute value operator, we use two linear inequalities:
-  (e - 2) <= (xp5 - 2) and (2 - e) <= (xp5 - 2).
-  Together they express |e - 2| <= (xp5 - 2).
-- A simple bound xp5 <= ij5 and a non-negativity bound 0 <= xp5 - 2 for progress and to reflect xp5 never decreases from its initial value.
-- nlh is always either 1 or -1 during execution, so (nlh == 1) || (nlh == -1) is a valid invariant.
-- Loop assigns should include all modified locals: xp5, e, nlh.
-- Loop variant is ij5 - xp5, a natural measure that decreases by 1 each iteration and is non-negative under the loop guard.
+Loop 0 summary:
+- Guard: i6cl <= zm - 1
+- Updates: cy := cy + cc * i6cl; cc := cc + i6cl; i6cl := zm - 1
+- After the first iteration, i6cl becomes zm - 1 and stays there (the guard remains true as long as zm - 1 <= zm - 1).
+- A simple inductive invariant that is preserved is:
+  - i6cl <= zm - 1 (holds before and after each iteration)
+  - (i6cl == 0) ==> (cc == 0 && cy == 0) (true at initialization; preserved because after the first iteration i6cl != 0)
 
-These invariants are strong, inductive, and align with WP expectations, while keeping the original code otherwise unchanged.
+- We also include basic nonnegativity invariants to aid verification.
+
+Loop 1 summary:
+- Guard: zm < i6cl
+- Updates: cc += cy; zm += 1; s4 += 1
+- Given the typical execution path for the provided initial state, this loop does not execute after the first loop (since i6cl is zm-1 and zm < i6cl is false when zm is 4). Nevertheless, we provide straightforward invariants that stay true regardless of execution:
+  - cc >= 0
+  - s4 >= 0
+  - zm >= 0
+
+The chosen invariants are inductive (preserved by each loop iteration when the loop guard holds) and provide sufficient information for Frama-C/WP to reason about the state progression without modifying the function body. They are not tautological and use only available variables.
+
+</reasoning>
+<code>/*@
+  loop invariant i6cl_leq_zm_m1: i6cl <= zm - 1;
+  loop invariant i6cl_zero_or_zm1: (i6cl == 0) ==> (cc == 0 && cy == 0);
+  loop invariant cc_nonneg: cc >= 0;
+  loop invariant cy_nonneg: cy >= 0;
+  loop assigns cy, cc, i6cl;
+*/
+while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
+      }
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+/*@
+  loop invariant cc_nonneg_l2: cc >= 0;
+  loop invariant s4_nonneg: s4 >= 0;
+  loop invariant zm_nonneg_l2: zm >= 0;
+  loop assigns cc, zm, s4;
+*/
+while (1) {
+      if (!(zm<i6cl)) {
+          break;
+      }
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
+  }</code>
+----- Candidate 2/5 raw response end -----
+2026-03-14 23:01:10,425 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 23:01:10,496 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:02:25,917 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>For the two loops, we need inductive invariants that hold initially, are preserved by each iteration, and help reason about termination where possible. We focus on simple, strong, and verification-friendly properties that rely only on the available variables.
+
+Loop 0 (first while):
+- The loop updates cy, cc, i6cl with:
+  - cy' = cy + cc*i6cl
+  - cc' = cc + i6cl
+  - i6cl' = zm-1
+- A basic bound that is preserved is that i6cl stays within the range [0, zm-1], since i6cl starts at 0 and is set to zm-1 every iteration, which is within the bounds. Also, cy and cc are never decreased (updates add nonnegative contributions when i6cl and cc are nonnegative), so cy >= 0 and cc >= 0 hold throughout.
+
+Loop 1 (second while):
+- The loop updates cc and zm and s4 as:
+  - cc' = cc + cy
+  - zm' = zm + 1
+  - s4' = s4 + 1
+- A useful invariant is that s4 is a nonnegative counter (0, 1, 2, ...) because it starts at 0 and increments by 1 each iteration.
+- Since cy does not change in this loop, the quantity cc - s4*cy remains constant across iterations (cc' - s4'*cy = (cc + cy) - (s4+1)*cy = cc - s4*cy). Given the initial state of the loop, this implies a nonnegative invariant cc - s4*cy >= 0.
+- These invariants are tight enough to guide the verifier without over-committing to pre-state values, and they directly reflect the observed state transitions.
+
+Invariants chosen:
+- For Loop 0:
+  - 0 <= i6cl <= zm - 1
+  - cy >= 0
+  - cc >= 0
+  - loop assigns cy, cc, i6cl
+
+- For Loop 1:
+  - 0 <= s4
+  - cc - s4*cy >= 0
+  - loop assigns cc, zm, s4
+
+These invariants are inductive (preserved by each iteration) and use only the allowed variables. They also provide minimal, non-trivial progress information about the state variables that Frama-C/WP can verify.
+
 </reasoning>
 <code>int main1(){
-  int ij5, xp5, e, nlh;
+  int zm, i6cl, cc, cy, s4;
 
-  ij5=1*2;
-  xp5=ij5;
-  e=2;
-  nlh=1;
+  zm=1*4;
+  i6cl=0;
+  cc=0;
+  cy=0;
+  s4=i6cl;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
+  /* Loop 0 invariants: keeps i6cl within bounds and nonnegative accumulators */
   /*@
-    loop invariant 0 <= xp5 - 2;
-    loop invariant xp5 <= ij5;
-    loop invariant (e - 2) <= (xp5 - 2);
-    loop invariant (2 - e) <= (xp5 - 2);
-    loop invariant (nlh == 1) || (nlh == -1);
-    loop assigns xp5, e, nlh;
-    loop variant ij5 - xp5;
+    loop invariant 0 <= i6cl <= zm - 1;
+    loop invariant cy >= 0;
+    loop invariant cc >= 0;
+    loop assigns cy, cc, i6cl;
   */
-  while (xp5&lt;ij5) {
-      if (e>=6) {
-          nlh = -1;
+  while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
       }
-      if (e<=2) {
-          nlh = 1;
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+  /* Loop 1 invariants: s4 is a nonnegative counter; cc - s4*cy is invariant and nonnegative */
+  /*@
+    loop invariant 0 <= s4;
+    loop invariant cc - s4*cy >= 0;
+    loop assigns cc, zm, s4;
+  */
+  while (1) {
+      if (!(zm<i6cl)) {
+          break;
       }
-      xp5 = xp5 + 1;
-      e += nlh;
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
+  }
+
+}
+----- Candidate 3/5 raw response end -----
+2026-03-14 23:02:25,917 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 23:02:25,976 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:03:16,668 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+Goal: provide inductive loop invariants for two loops that are verification-friendly in Frama-C/WP, using only the given variables.
+
+Loop 0 (first while):
+- Modifications per iteration: cy := cy + cc*i6cl; cc := cc + i6cl; i6cl := zm-1.
+- Observed behavior: after the first iteration, i6cl becomes zm-1 and remains that value in subsequent iterations; thus i6cl takes only the values 0 (before the first update) or zm-1 (after the first update).
+- Core relational/conservation idea: encode the fact that i6cl is constrained to be either 0 or zm-1 throughout the loop.
+- Additional simple bounds that help verification: keep cc and cy non-negative as a safety property (they are sums of non-negative terms given i6cl is non-negative in practical use).
+- Loop assigns: cy, cc, i6cl.
+
+Loop 1 (second while):
+- Modifications per iteration: cc := cc + cy; zm := zm + 1; s4 := s4 + 1; i6cl is not touched here.
+- Observed behavior: loop body increments cc by a non-negative amount (since cy is non-negative in the invariant), increments zm, and increments s4.
+- Core safety/relational idea: keep basic non-negativity invariants for the updated variables and for zm, s4, cc, cy to reflect progress in the loop.
+- Loop assigns: cc, zm, s4.
+
+Notes:
+- The loops have an unusual termination behavior (the first loop appears non-terminating given i6cl is set to zm-1 and never changes thereafter in the guard), so we avoid adding a loop variant (termination measure). The invariants focus on inductive properties and simple bounds.
+- We avoid using any non-parameter at-pre state constructs (\at on locals) and keep to allowed ACSL features.
+- Invariants are kept strong enough to be meaningful but not tautological, and only relevant variables are used.
+
+</reasoning>
+<code>int main1(){
+  int zm, i6cl, cc, cy, s4;
+
+  zm=1*4;
+  i6cl=0;
+  cc=0;
+  cy=0;
+  s4=i6cl;
+
+  /*@
+    loop invariant (i6cl == 0) || (i6cl == zm - 1);
+    loop invariant cc >= 0;
+    loop invariant cy >= 0;
+    loop assigns cy, cc, i6cl;
+  */
+while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
+      }
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+  /*@
+    loop invariant cc >= 0;
+    loop invariant cy >= 0;
+    loop invariant s4 >= 0;
+    loop invariant zm >= 0;
+    loop assigns cc, zm, s4;
+  */
+while (1) {
+      if (!(zm<i6cl)) {
+          break;
+      }
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
   }
 
 }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-11 17:24:42,148 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 17:24:42,211 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:27:07,434 - INFO - 
+2026-03-14 23:03:16,669 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 23:03:16,730 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:04:19,560 - INFO - 
 ----- Candidate 5/5 raw response begin -----
-<reasoning>The loop has a simple, regular update pattern that can be captured with a small set of inductive invariants:
+<reasoning>The two loops operate on the state variables cc, cy, i6cl, zm, and in the second loop s4 as well. We aim for inductive, verification-friendly invariants that are strong enough to guide proof but do not depend on unreachable states.
 
-- Progress bound: xp5 is never allowed to exceed ij5, since the loop guard is xp5 < ij5 and xp5 is incremented unconditionally inside the loop. This provides a termination-progress measure.
-- Key arithmetic bounds: With the given update rules for e and nlh, the head-of-loop value e remains within the range [2, 6]. Starting from e = 2 and with updates e += nlh where nlh is set to 1 when e <= 2 and -1 when e >= 6, the values of e at loop heads cycle through 2..6 and then back, never leaving this interval.
-- Core conservation/relational equality: The difference d = e - xp5 can only stay the same (when nlh = 1) or decrease by 2 (when nlh = -1). Since initially d = 0, this yields a preserved invariant d <= 0, i.e., e - xp5 <= 0. Moreover, because d changes by +0 or -2, its parity remains even; hence (e - xp5) is always even.
-- Loop assigns: The loop modifies xp5, e, and nlh.
+Key observations:
+- Loop 0 updates: cy = cy + cc*i6cl; cc += i6cl; i6cl = zm-1.
+  - i6cl starts at 0 and, after the first iteration, becomes zm-1 and then remains zm-1 (since it is reassigned to zm-1 every iteration).
+  - Therefore, a tight invariant is that i6cl is either the initial 0 or zm-1, i.e., (i6cl == 0) || (i6cl == zm-1); also 0 <= i6cl <= zm-1.
+  - If i6cl == 0, then the loop is at its initial state, so cc == 0 and cy == 0 hold (initial state preservation).
+  - If i6cl == zm-1, then cc has accumulated in steps of (zm-1), so cc is a multiple of (zm-1); similarly, cy has accumulated multiples of (zm-1) (since cy increments by cc*i6cl and i6cl == zm-1 in later iterations, starting from cc multiple of zm-1). This can be expressed as modulo relations: cc % (zm-1) == 0 and cy % (zm-1) == 0 when i6cl == zm-1.
+  - Basic non-negativity of cc and cy is preserved.
+  - These invariants are preserved by each iteration given the per-iteration updates.
 
-These invariants are strong and inductive for the given transition, and they do not introduce irrelevant facts. They also align with the provided loop guard xp5 < ij5 and the visible state transitions. The loop variant ij5 - xp5 provides a decreasing measure ensuring termination for non-trivial iterations (and it is valid since xp5 <= ij5 is maintained by the first invariant).
+- Loop 1 updates (if it runs): cc += cy; zm += 1; s4 += 1. i6cl does not change here.
+  - Invariants should cover basic non-negativity and that the loop assigns the updated variables.
+  - Given the guard condition, in the typical execution this loop may not execute (depending on the relation between zm and i6cl established by the first loop). Therefore, keep invariants simple but still correct: cc >= 0, cy >= 0, s4 >= 0, zm >= 0, and declare the loop assigns cc, zm, s4.
 
+Summary of chosen invariants:
+- Loop 0:
+  - i6cl ∈ {0, zm-1} and 0 <= i6cl <= zm-1
+  - (i6cl == 0) ==> (cc == 0 && cy == 0)
+  - (i6cl == zm-1) ==> (cc % (zm-1) == 0 && cy % (zm-1) == 0)
+  - cc >= 0, cy >= 0
+  These give a core conservation/relational picture of the updates and provide inductive hooks for Frama-C/WP.
+
+- Loop 1:
+  - cc >= 0
+  - cy >= 0
+  - s4 >= 0
+  - zm >= 0
+  Loop assigns: cc, zm, s4.
+
+These invariants avoid unrelated properties, stay within the available variables, and present a reasonably strong inductive core for the loop reasoning without altering the program logic.
 </reasoning>
 <code>int main1(){
-  int ij5, xp5, e, nlh;
+  int zm, i6cl, cc, cy, s4;
 
-  ij5=1*2;
-  xp5=ij5;
-  e=2;
-  nlh=1;
+  zm=1*4;
+  i6cl=0;
+  cc=0;
+  cy=0;
+  s4=i6cl;
 
   /*@
-    loop invariant xp5 <= ij5;
-    loop invariant (2 <= e && e <= 6);
-    loop invariant (e - xp5) <= 0;
-    loop invariant ((e - xp5) % 2 == 0);
-    loop assigns xp5, e, nlh;
-    loop variant ij5 - xp5;
+    loop invariant ((i6cl == 0) ==> (cc == 0 && cy == 0));
+    loop invariant ((i6cl == 0) || (i6cl == zm-1));
+    loop invariant (0 <= i6cl && i6cl <= zm-1);
+    loop invariant (cc >= 0);
+    loop invariant (cy >= 0);
+    loop invariant ((i6cl == zm-1) ==> (cc % (zm-1) == 0 && cy % (zm-1) == 0));
+    loop assigns cc, cy, i6cl;
   */
-  while (xp5<ij5) {
-      if (e>=6) {
-          nlh = -1;
+  while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
       }
-      if (e<=2) {
-          nlh = 1;
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+  /*@
+    loop invariant (cc >= 0);
+    loop invariant (cy >= 0);
+    loop invariant (s4 >= 0);
+    loop invariant (zm >= 0);
+    loop assigns cc, zm, s4;
+  */
+  while (1) {
+      if (!(zm<i6cl)) {
+          break;
       }
-      xp5 = xp5 + 1;
-      e += nlh;
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 17:27:07,434 - INFO - 
+2026-03-14 23:04:19,560 - INFO - 
 ----- Candidate 1/5 full code begin -----
 int main1(){
-  int ij5, xp5, e, nlh;
+  int zm, i6cl, cc, cy, s4;
 
-  ij5=1*2;
-  xp5=ij5;
-  e=2;
-  nlh=1;
+  zm=1*4;
+  i6cl=0;
+  cc=0;
+  cy=0;
+  s4=i6cl;
 
-  /*@
-    loop invariant 2 <= e && e <= 6;
-    loop invariant xp5 <= ij5;
-    loop invariant (e <= 2) ==> (nlh == 1);
-    loop invariant (e >= 6) ==> (nlh == -1);
-    loop assigns xp5, e, nlh;
-    loop variant ij5 - xp5;
-  @*/
-  while (xp5<ij5) {
-        if (e>=6) {
-            nlh = -1;
-        }
-        if (e<=2) {
-            nlh = 1;
-        }
-        xp5 = xp5 + 1;
-        e += nlh;
+  /* >>> LOOP INVARIANT TO FILL <<< */
+ /*@
+  loop invariant 0 <= i6cl <= zm - 1;
+  loop invariant 0 <= cc;
+  loop invariant 0 <= cy;
+  loop invariant cy == (cc * (cc - (zm - 1))) / 2;
+  loop assigns cy, cc, i6cl;
+ */
+while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
+      }
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+ /*@
+  loop invariant 0 <= cc;
+  loop invariant 0 <= cy;
+  loop invariant 0 <= s4;
+  loop invariant 0 <= zm;
+  loop invariant cc - s4 * cy == 0;
+  loop assigns cc, zm, s4;
+ */
+while (1) {
+      if (!(zm<i6cl)) {
+          break;
+      }
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-11 17:27:07,434 - INFO - 
+2026-03-14 23:04:19,561 - INFO - 
 ----- Candidate 2/5 full code begin -----
 /*@
-  loop invariant xp5 <= ij5;
-  loop invariant (e <= 2) ==> (nlh == 1);
-  loop invariant (e >= 6) ==> (nlh == -1);
-  loop invariant (nlh == 1) || (nlh == -1);
-  loop assigns xp5, e, nlh;
-  loop variant ij5 - xp5;
+  loop invariant i6cl_leq_zm_m1: i6cl <= zm - 1;
+  loop invariant i6cl_zero_or_zm1: (i6cl == 0) ==> (cc == 0 && cy == 0);
+  loop invariant cc_nonneg: cc >= 0;
+  loop invariant cy_nonneg: cy >= 0;
+  loop assigns cy, cc, i6cl;
 */
-while (xp5<ij5) {
-      if (e>=6) {
-          nlh = -1;
+while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
       }
-      if (e<=2) {
-          nlh = 1;
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+/*@
+  loop invariant cc_nonneg_l2: cc >= 0;
+  loop invariant s4_nonneg: s4 >= 0;
+  loop invariant zm_nonneg_l2: zm >= 0;
+  loop assigns cc, zm, s4;
+*/
+while (1) {
+      if (!(zm<i6cl)) {
+          break;
       }
-      xp5 = xp5 + 1;
-      e += nlh;
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
   }
 ----- Candidate 2/5 full code end -----
-2026-03-11 17:27:07,434 - INFO - 
+2026-03-14 23:04:19,561 - INFO - 
 ----- Candidate 3/5 full code begin -----
 int main1(){
-  int ij5, xp5, e, nlh;
+  int zm, i6cl, cc, cy, s4;
 
-  ij5=1*2;
-  xp5=ij5;
-  e=2;
-  nlh=1;
+  zm=1*4;
+  i6cl=0;
+  cc=0;
+  cy=0;
+  s4=i6cl;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
+  /* Loop 0 invariants: keeps i6cl within bounds and nonnegative accumulators */
   /*@
-    loop invariant xp5 <= ij5;
-    loop invariant e >= 2;
-    loop assigns xp5, e, nlh;
-    loop variant ij5 - xp5;
+    loop invariant 0 <= i6cl <= zm - 1;
+    loop invariant cy >= 0;
+    loop invariant cc >= 0;
+    loop assigns cy, cc, i6cl;
   */
-  while (xp5&lt;ij5) {
-      if (e>=6) {
-          nlh = -1;
+  while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
       }
-      if (e<=2) {
-          nlh = 1;
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+  /* Loop 1 invariants: s4 is a nonnegative counter; cc - s4*cy is invariant and nonnegative */
+  /*@
+    loop invariant 0 <= s4;
+    loop invariant cc - s4*cy >= 0;
+    loop assigns cc, zm, s4;
+  */
+  while (1) {
+      if (!(zm<i6cl)) {
+          break;
       }
-      xp5 = xp5 + 1;
-      e += nlh;
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-11 17:27:07,434 - INFO - 
+2026-03-14 23:04:19,561 - INFO - 
 ----- Candidate 4/5 full code begin -----
 int main1(){
-  int ij5, xp5, e, nlh;
+  int zm, i6cl, cc, cy, s4;
 
-  ij5=1*2;
-  xp5=ij5;
-  e=2;
-  nlh=1;
+  zm=1*4;
+  i6cl=0;
+  cc=0;
+  cy=0;
+  s4=i6cl;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 0 <= xp5 - 2;
-    loop invariant xp5 <= ij5;
-    loop invariant (e - 2) <= (xp5 - 2);
-    loop invariant (2 - e) <= (xp5 - 2);
-    loop invariant (nlh == 1) || (nlh == -1);
-    loop assigns xp5, e, nlh;
-    loop variant ij5 - xp5;
+    loop invariant (i6cl == 0) || (i6cl == zm - 1);
+    loop invariant cc >= 0;
+    loop invariant cy >= 0;
+    loop assigns cy, cc, i6cl;
   */
-  while (xp5&lt;ij5) {
-      if (e>=6) {
-          nlh = -1;
+while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
       }
-      if (e<=2) {
-          nlh = 1;
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+  /*@
+    loop invariant cc >= 0;
+    loop invariant cy >= 0;
+    loop invariant s4 >= 0;
+    loop invariant zm >= 0;
+    loop assigns cc, zm, s4;
+  */
+while (1) {
+      if (!(zm<i6cl)) {
+          break;
       }
-      xp5 = xp5 + 1;
-      e += nlh;
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
   }
 
 }
 ----- Candidate 4/5 full code end -----
-2026-03-11 17:27:07,434 - INFO - 
+2026-03-14 23:04:19,561 - INFO - 
 ----- Candidate 5/5 full code begin -----
 int main1(){
-  int ij5, xp5, e, nlh;
+  int zm, i6cl, cc, cy, s4;
 
-  ij5=1*2;
-  xp5=ij5;
-  e=2;
-  nlh=1;
+  zm=1*4;
+  i6cl=0;
+  cc=0;
+  cy=0;
+  s4=i6cl;
 
   /*@
-    loop invariant xp5 <= ij5;
-    loop invariant (2 <= e && e <= 6);
-    loop invariant (e - xp5) <= 0;
-    loop invariant ((e - xp5) % 2 == 0);
-    loop assigns xp5, e, nlh;
-    loop variant ij5 - xp5;
+    loop invariant ((i6cl == 0) ==> (cc == 0 && cy == 0));
+    loop invariant ((i6cl == 0) || (i6cl == zm-1));
+    loop invariant (0 <= i6cl && i6cl <= zm-1);
+    loop invariant (cc >= 0);
+    loop invariant (cy >= 0);
+    loop invariant ((i6cl == zm-1) ==> (cc % (zm-1) == 0 && cy % (zm-1) == 0));
+    loop assigns cc, cy, i6cl;
   */
-  while (xp5<ij5) {
-      if (e>=6) {
-          nlh = -1;
+  while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
       }
-      if (e<=2) {
-          nlh = 1;
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+  /*@
+    loop invariant (cc >= 0);
+    loop invariant (cy >= 0);
+    loop invariant (s4 >= 0);
+    loop invariant (zm >= 0);
+    loop assigns cc, zm, s4;
+  */
+  while (1) {
+      if (!(zm<i6cl)) {
+          break;
       }
-      xp5 = xp5 + 1;
-      e += nlh;
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 17:27:07,434 - INFO - Successfully generated 5/5 candidates
-2026-03-11 17:27:07,435 - INFO - Checking 12 invariants for conflicts...
-2026-03-11 17:27:07,436 - INFO -   Conflict detected:
-2026-03-11 17:27:07,436 - INFO -     [3] (e <= 2) ==> (nlh == 1)
-2026-03-11 17:27:07,436 - INFO -     [4] (e >= 6) ==> (nlh == -1)
-2026-03-11 17:27:07,440 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 17:27:07,440 - INFO -   1: int main1(){
-2026-03-11 17:27:07,440 - INFO -   2:   int ij5, xp5, e, nlh;
-2026-03-11 17:27:07,440 - INFO -   3: 
-2026-03-11 17:27:07,440 - INFO -   4:   ij5=1*2;
-2026-03-11 17:27:07,440 - INFO -   5:   xp5=ij5;
-2026-03-11 17:27:07,440 - INFO -   6:   e=2;
-2026-03-11 17:27:07,440 - INFO -   7:   nlh=1;
-2026-03-11 17:27:07,440 - INFO -   8: 
-2026-03-11 17:27:07,440 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 17:27:07,440 - INFO -   10: /*@
-2026-03-11 17:27:07,440 - INFO - DEBUG: Total lines: 36
-2026-03-11 17:27:07,670 - INFO - syntax Correct
-2026-03-11 17:27:38,615 - INFO - Validate:
-2026-03-11 17:27:38,615 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 17:27:38,615 - INFO - 
-2026-03-11 17:27:38,615 - INFO - Verify:
-2026-03-11 17:27:38,615 - INFO - []
-2026-03-11 17:27:38,615 - INFO - 
-2026-03-11 17:27:38,615 - INFO - Houdini iteration 1: All invariants are valid
-2026-03-11 17:27:38,818 - INFO - syntax Correct
-2026-03-11 17:28:09,706 - INFO - Validate:
-2026-03-11 17:28:09,706 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 17:28:09,707 - INFO - 
-2026-03-11 17:28:09,707 - INFO - Verify:
-2026-03-11 17:28:09,707 - INFO - []
-2026-03-11 17:28:09,707 - INFO - 
-2026-03-11 17:28:56,671 - INFO - Deduplicated 7 loop invariants in final code
-2026-03-11 17:28:56,890 - INFO - syntax Correct
-2026-03-11 17:29:27,685 - INFO - Validate:
-2026-03-11 17:29:27,685 - INFO - [True, True, True, True, True, True]
-2026-03-11 17:29:27,685 - INFO - 
-2026-03-11 17:29:27,685 - INFO - Verify:
-2026-03-11 17:29:27,685 - INFO - []
-2026-03-11 17:29:27,685 - INFO - 
-2026-03-11 17:29:27,685 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 17:29:27,686 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_2/1.c
-2026-03-11 17:29:27,686 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_2/1_invariants.txt
-2026-03-11 17:29:27,686 - INFO - 
+2026-03-14 23:04:19,561 - INFO - Successfully generated 5/5 candidates
+2026-03-14 23:04:19,563 - INFO - Checking 13 invariants for conflicts...
+2026-03-14 23:04:19,566 - INFO - Checking 14 invariants for conflicts...
+2026-03-14 23:04:19,568 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 23:04:19,569 - INFO -   1: int main1(){
+2026-03-14 23:04:19,569 - INFO -   2:   int zm, i6cl, cc, cy, s4;
+2026-03-14 23:04:19,569 - INFO -   3: 
+2026-03-14 23:04:19,569 - INFO -   4:   zm=1*4;
+2026-03-14 23:04:19,569 - INFO -   5:   i6cl=0;
+2026-03-14 23:04:19,569 - INFO -   6:   cc=0;
+2026-03-14 23:04:19,569 - INFO -   7:   cy=0;
+2026-03-14 23:04:19,569 - INFO -   8:   s4=i6cl;
+2026-03-14 23:04:19,569 - INFO -   9: 
+2026-03-14 23:04:19,569 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-14 23:04:19,569 - INFO - DEBUG: Total lines: 64
+2026-03-14 23:04:19,806 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1.c:33: 
+  syntax error:
+  Location: line 33, between columns 13 and 14, before or at token: =
+  31          cy = cy+cc*i6cl;
+  32          cc += i6cl;
+  33          i6cl = =zm-1;
+        ^^^^^^^^^^^^^^^^^^^
+  34      }
+  35
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 23:04:19,807 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-03-14 23:04:19,807 - INFO - Houdini iteration 1: Removed 27 failed invariants
+2026-03-14 23:04:19,807 - INFO -   Before: 27 invariants
+2026-03-14 23:04:19,807 - INFO -   After: 0 invariants
+2026-03-14 23:04:19,807 - ERROR - All invariants were removed by Houdini
+2026-03-14 23:04:20,018 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1.c:33: 
+  syntax error:
+  Location: line 33, between columns 13 and 14, before or at token: =
+  31          cy = cy+cc*i6cl;
+  32          cc += i6cl;
+  33          i6cl = =zm-1;
+        ^^^^^^^^^^^^^^^^^^^
+  34      }
+  35
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 23:04:37,272 - INFO - Deduplicated 15 loop invariants in final code
+2026-03-14 23:04:37,498 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1.c:27: 
+  syntax error:
+  Location: line 27, between columns 13 and 14, before or at token: =
+  25          cy = cy+cc*i6cl;
+  26          cc += i6cl;
+  27          i6cl = =zm-1;
+        ^^^^^^^^^^^^^^^^^^^
+  28      }
+  29
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 23:04:37,499 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-03-14 23:04:37,499 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-03-14 23:04:37,499 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1.c
+2026-03-14 23:04:37,499 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1_invariants.txt
+2026-03-14 23:04:37,499 - INFO - 
 ============================================================
-2026-03-11 17:29:27,686 - INFO - Final first_pass results:
-2026-03-11 17:29:27,686 - INFO -   syntax=1
-2026-03-11 17:29:27,686 - INFO -   valid=1
-2026-03-11 17:29:27,686 - INFO -   satisfy=None
-2026-03-11 17:29:27,686 - INFO - ============================================================
-2026-03-11 17:29:27,686 - INFO - 
+2026-03-14 23:04:37,499 - INFO - Final first_pass results:
+2026-03-14 23:04:37,499 - INFO -   syntax=None
+2026-03-14 23:04:37,499 - INFO -   valid=None
+2026-03-14 23:04:37,499 - INFO -   satisfy=None
+2026-03-14 23:04:37,499 - INFO - ============================================================
+2026-03-14 23:04:37,499 - INFO - 
 ============================================================
-2026-03-11 17:29:27,686 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 17:29:27,686 - INFO -   Total API calls: 66
-2026-03-11 17:29:27,686 - INFO -   Total prompt tokens (input): 76,780
-2026-03-11 17:29:27,686 - INFO -   Total completion tokens (output): 539,589
-2026-03-11 17:29:27,686 - INFO -   Total tokens: 616,369
-2026-03-11 17:29:27,686 - INFO -   Average per call:
-2026-03-11 17:29:27,686 - INFO -     Prompt: 1163.3 tokens
-2026-03-11 17:29:27,686 - INFO -     Completion: 8175.6 tokens
-2026-03-11 17:29:27,686 - INFO -     Total: 9338.9 tokens
-2026-03-11 17:29:27,686 - INFO - ============================================================
-2026-03-11 17:29:27,686 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_2/1.c
-2026-03-11 17:29:27,686 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_2/1_invariants.txt
-2026-03-11 17:30:15,961 - INFO - LLM quality-gate raw response: {
-  "ok": true,
-  "reason": "pass"
-}
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 23:04:37,499 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 23:04:37,499 - INFO -   Total API calls: 7
+2026-03-14 23:04:37,499 - INFO -   Total prompt tokens (input): 9,443
+2026-03-14 23:04:37,499 - INFO -   Total completion tokens (output): 68,152
+2026-03-14 23:04:37,499 - INFO -   Total tokens: 77,595
+2026-03-14 23:04:37,499 - INFO -   Average per call:
+2026-03-14 23:04:37,499 - INFO -     Prompt: 1349.0 tokens
+2026-03-14 23:04:37,499 - INFO -     Completion: 9736.0 tokens
+2026-03-14 23:04:37,499 - INFO -     Total: 11085.0 tokens
+2026-03-14 23:04:37,499 - INFO - ============================================================
+2026-03-14 23:04:37,500 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1.c
+2026-03-14 23:04:37,500 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3699162_1773500334_2/1_invariants.txt

@@ -1,20 +1,21 @@
-int main1(int u){
-  int ksc9, dz, jue8, p1j2;
+int main1(){
+  int mwz, jl, rb, vluu, ln0s;
 
-  ksc9=u;
-  dz=3;
-  jue8=3;
-  p1j2=1;
+  mwz=1;
+  jl=0;
+  rb=0;
+  vluu=0;
+  ln0s=jl;
 
-  while (dz<ksc9) {
-      if (jue8>=8) {
-          p1j2 = -1;
-      }
-      if (jue8<=3) {
-          p1j2 = 1;
-      }
-      dz = dz + 1;
-      jue8 = jue8 + p1j2;
+  while (vluu<mwz) {
+      vluu++;
+      rb += 1;
+      ln0s += vluu;
+  }
+
+  while (rb<=jl-5) {
+      mwz = mwz + ln0s;
+      rb = =jl-5;
   }
 
 }

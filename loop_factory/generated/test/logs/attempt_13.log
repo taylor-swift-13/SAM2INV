@@ -1,575 +1,629 @@
-2026-03-11 16:24:17,309 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 16:24:17,322 - INFO - Found 1 loops
-2026-03-11 16:24:17,326 - INFO - 
+2026-03-14 22:58:59,788 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 22:58:59,807 - INFO - Found 2 loops
+2026-03-14 22:58:59,809 - INFO - 
 ============================================================
-2026-03-11 16:24:17,326 - INFO - Main generation pass 1/1
-2026-03-11 16:24:17,326 - INFO - ============================================================
-2026-03-11 16:24:17,326 - INFO - Loaded single prompt template: simple
-2026-03-11 16:24:17,326 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 16:24:17,326 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 16:24:18,927 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:26:19,690 - INFO - 
+2026-03-14 22:58:59,809 - INFO - Main generation pass 1/1
+2026-03-14 22:58:59,809 - INFO - ============================================================
+2026-03-14 22:58:59,809 - INFO - Loaded single prompt template: simple
+2026-03-14 22:58:59,809 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 22:58:59,809 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 22:59:01,569 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:00:19,500 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>The loop uses four stateful variables (xn, lxy, nn, tub) and a constant-like zb3 that doesn’t change. A strong, inductive relation that captures the loop’s update pattern is to relate the counters lxy and tub to the number of iterations nn. Since each iteration increments both lxy and tub exactly once and nn is incremented once per iteration, a natural invariant is:
+<reasoning>First loop reasoning:
+- The loop body updates are: at = at + 1; jf += cc; uyp += p.
+- Given the initializations, cc is never changed inside the loop, so cc remains 0. Therefore jf += cc leaves jf unchanged throughout the loop, and since jf was initialized to o, we have jf == o invariant for the loop. The variable o is set to p - 9 before the loop, so o == p - 9 holds and is preserved.
+- uyp starts at 0 and increases by p every iteration, while p is constant across this loop, hence uyp == at * p holds (initially at = 0, uyp = 0; after k iterations, at = k and uyp = k*p).
+- at only increases (by 1 each iteration) and starts at 0, so at >= 0 holds.
+- These invariants are preserved by the transition, and they describe a core conservation/relational law: jf remains equal to o, and uyp grows in proportion to at via p.
 
-- lxy == nn + 1
-- tub == nn + 1
+Thus, the following loop invariants are inductive for the first loop:
+- o == p - 9
+- cc == 0
+- jf == o
+- uyp == at * p
+- at >= 0
+And the loop assigns are at, jf, uyp.
 
-This pair is tight and explains the state evolution. It is initialized correctly (nn=0, lxy=1, tub=1) and preserved by each iteration (nn++, lxy++, tub++). We also add a basic non-negativity invariant for xn to reflect its guarded updates (xn is never negative during loop progress).
+Second loop reasoning:
+- After the first loop, we have at == o and jf == o. The second loop updates are: jf++ (jf becomes o+1, o+2, ...), p += jf (p increases by the new jf), and at-- (at decreases by 1). So the sum jf + at remains constant at 2*o across iterations:
+  Initially jf + at = o + o = 2*o. After one iteration: (jf+1) + (at-1) = jf + at = 2*o, etc.
+- Also jf starts at o and increases, while at starts at o and decreases; this yields invariants:
+  - jf + at == 2*o
+  - jf >= o (jf only increases)
+  - at <= o (at only decreases)
+- The loop assigns are at, jf, p.
 
-The loop assigns the moving variables (xn, lxy, nn, tub); zb3 is not modified, so it is not listed in assigns. We provide two invariant lines as required by the template, followed by the assigns line. This keeps the invariants inductive and verification-friendly for Frama-C/WP.
-
-Planned invariants:
-- lxy == nn + 1
-- tub == nn + 1
-- (xn >= 0) is also true throughout the loop body, but to keep to the requested two invariants, we rely on the two relational equalities above as the core inductive facts. The non-negativity of xn is implicitly preserved by the guarded updates.
-
-Overall, the invariants are strong (non-trivial equalities that describe the exact update pattern) and minimal (only what is necessary to prove correctness given the loop structure and guard). They are inductive and help establish loop-exit facts when combined with the exit condition.
-
+The chosen invariants are strong, inductive, and directly reflect the state updates, while using only allowed variables. They avoid tautologies, and they provide enough relational information to verify the loop progress without altering the original code structure.
 </reasoning>
-<code>int main1(){
-  int zb3, tub, xn, lxy, nn;
 
-  zb3=1;
-  tub=zb3;
-  xn=36;
-  lxy=1;
-  nn=0;
+<code>int main1(int p){
+  int o, cc, uyp, at, jf;
 
-  /*@ 
-    loop invariant lxy == nn + 1;
-    loop invariant tub == nn + 1;
-    loop assigns xn, lxy, nn, tub;
+  o=p-9;
+  cc=0;
+  uyp=0;
+  at=0;
+  jf=o;
+
+  /*@
+    loop invariant o == p - 9;
+    loop invariant cc == 0;
+    loop invariant jf == o;
+    loop invariant uyp == at * p;
+    loop invariant at >= 0;
+    loop assigns at, jf, uyp;
+  */
+  while (at<=o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
+
+  /*@
+    loop invariant jf + at == 2 * o;
+    loop invariant jf >= o;
+    loop invariant at <= o;
+    loop assigns at, jf, p;
   */
   while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+     jf++;
+      p += jf;
+      at--;
   }
 
 }</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-11 16:26:19,691 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 16:26:19,765 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:29:03,282 - INFO - 
+2026-03-14 23:00:19,500 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 23:00:19,566 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:01:12,199 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations that reflect the loop’s state updates and bounds without changing the code.
+<reasoning>For the first loop, I aim to express a tight, inductive relation that captures the state evolution given the actual code: o is constant (o = p-9), cc remains 0, jf is initialized to o and only updated by jf += cc (which does nothing since cc == 0), and uyp increases by p every iteration while at increases by 1. A compact, strong invariant set is:
+- o == \at(p, Pre) - 9 (relates current o to initial parameter)
+- 0 <= at <= o (counter progress and bounds)
+- jf == o (jf does not change because cc == 0)
+- cc == 0 (cc never changes in the loop)
+- uyp == at * p (uyp tracks number of iterations times p)
 
-Observations about the loop updates:
-- Each iteration increases lxy by 1, nn by 1, and tub by 1.
-- xn is decreased by lxy (previous value) if xn > lxy, else it becomes 0.
-- zb3 is constant (used in the loop guard).
+These are inductive given the loop body updates. The corresponding loop assigns are at, jf, uyp.
 
-From the initial state (lxy = 1, nn = 0, tub = 1), a straightforward inductive relationship emerges:
-- nn equals lxy minus 1 after every iteration: nn == lxy - 1.
-  This holds initially (0 == 1 - 1) and is preserved because both nn and lxy are incremented by 1 each iteration.
-- tub equals lxy after every iteration: tub == lxy.
-  Initially 1 == 1, and since both tub and lxy are incremented together, this invariant is preserved.
-- xn remains within [0, 36] throughout execution since it starts at 36 and is only decreased (or set to 0) on each iteration.
+For the second loop, I derive a closed-form relationship between at, jf, and p that remains invariant as the loop progresses. Let o be fixed as before. After k iterations of the second loop (starting with at = o, jf = o), we have:
+- at = o - k
+- jf = o + k
+- p = p_start + k*o + k*(k+1)/2, where p_start is the value of p at the start of the second loop, which equals the initial parameter value \at(p, Pre) since p was not modified before this loop.
 
-These invariants are strong and directly reflect the loop’s core state-transition behavior without introducing unrelated properties. They also provide a simple, exact relationship that is preserved by every iteration, which is ideal for WP verification.
+From these, the invariant jf == 2*o - at holds, and p can be expressed as:
+p == \at(p, Pre) + (o - at)*o + ((o - at) * (o - at + 1)) / 2
 
-The loop assigns xn, lxy, nn, and tub (not zb3). So the loop assigns clause lists exactly these variables.
+Additionally, 0 <= at <= o remains true during the loop. The loop assigns are at, jf, p.
 
-Therefore the following invariants are suitable:
-- nn == lxy - 1 (core conservation/relational equality)
-- tub == lxy (progress relation reflecting equal incremental updates)
-- 0 <= xn <= 36 (bounds on arithmetic variable)
+I avoid weakening invariants or introducing unrelated facts. I also ensure the invariants use only allowed variables and, for parameters, \at(param, Pre) is used to reference their initial values. The final annotations remain inductive and verification-friendly for Frama-C/WP. </reasoning>
+<code>int main1(int p){
+  int o, cc, uyp, at, jf;
 
-No loop variant is required for termination in this context, but if desired one could add a well-founded measure, e.g., based on xn or lxy, for termination proof. Here we keep it simple and verification-friendly.
-
-</reasoning>
-<code>int main1(){
-  int zb3, tub, xn, lxy, nn;
-
-  zb3=1;
-  tub=zb3;
-  xn=36;
-  lxy=1;
-  nn=0;
+  o=p-9;
+  cc=0;
+  uyp=0;
+  at=0;
+  jf=o;
 
   /*@
-    loop invariant nn == lxy - 1;
-    loop invariant tub == lxy;
-    loop invariant 0 &lt;= xn &lt;= 36;
-    loop assigns xn, lxy, nn, tub;
+    loop invariant o == \at(p, Pre) - 9;
+    loop invariant 0 <= at <= o;
+    loop invariant jf == o;
+    loop invariant cc == 0;
+    loop invariant uyp == at * p;
+    loop assigns at, jf, uyp;
+  */
+  while (at<=o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
+
+  /*@
+    loop invariant o == \at(p, Pre) - 9;
+    loop invariant 0 <= at <= o;
+    loop invariant jf == 2*o - at;
+    loop invariant p == \at(p, Pre) + (o - at) * o + ((o - at) * (o - at + 1)) / 2;
+    loop assigns at, jf, p;
   */
   while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+      jf++;
+      p += jf;
+      at--;
   }
 
 }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-11 16:29:03,282 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 16:29:03,343 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:32:38,080 - INFO - 
+2026-03-14 23:01:12,202 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 23:01:12,270 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:02:07,661 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>Chosen invariants capture the essential, inductive state relations that hold at the top of each loop iteration and are preserved by the loop body:
+<reasoning>For the two loops in main1, I designed inductive loop invariants that reflect the exact state update rules and provide minimal yet sufficient progress guarantees. The invariants stay valid across iterations and are expressed using only the available variables. I added:
+- Loop 0 invariants that capture the linear conservation jf - cc*at = p - 9, the direct relation uyp = p*at, and the fact cc remains 0; plus a loop variant o - at to ensure termination.
+- Loop 1 invariants that capture the straight-line relationship jf = o + 1 - at (which is preserved by each iteration: jf increments by 1 and at decrements by 1), plus a loop variant at to ensure termination. The loop assigns for each loop are exact: first loop assigns at, jf, uyp; second loop assigns jf, p, at. These invariants are strong and avoid tautologies, and they do not rely on any non-existent or unintended variables. </reasoning>
+<code>int main1(int p){
+  int o, cc, uyp, at, jf;
 
-- Core conservation: zb3 == 1 expresses that zb3 is a constant in this loop (it is not modified inside the loop).
-- Counter relation: lxy == nn + 1 expresses that the two counters increment in lockstep (each iteration increases both by 1). This is preserved because the body increments nn and lxy by 1.
-- Additional counter relation: tub == lxy expresses that tub tracks the same value as lxy; since tub and lxy are both incremented by 1 each iteration, this equality is preserved as well.
-- Value bounds: 0 <= xn <= 36 ensures xn remains within its initial bounds (xn starts at 36 and the only updates are reductions to 0 or smaller positive values).
-- Assigns: The loop may modify xn, lxy, nn, and tub; zb3 is never modified.
+  o=p-9;
+  cc=0;
+  uyp=0;
+  at=0;
+  jf=o;
 
-These invariants are strong and directly reflect the loop’s state-update law:
-- xn is updated to max(0, xn - lxy) (via the if-then-else), and lxy, nn, tub are incremented by 1 each iteration.
-- The loop guard xn > 0 && lxy <= zb3 restricts executions; with zb3 = 1, the loop can only proceed while nn = 0 and lxy = 1, so the invariants are still preserved across the possible iterations.
+  /*@
+    loop invariant jf - cc * at == p - 9;
+    loop invariant uyp == p * at;
+    loop invariant cc == 0;
+    loop assigns at, jf, uyp;
+    loop variant o - at;
+  */
+  while (at<=o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
 
-The chosen invariants are inductive and helpful for WP to verify the loop’s behavior without introducing unrelated facts. They do not rely on parameters (none exist) and stay within the allowed variables. The minimal progress bounds are given by the linear relationships between the counters and the bounds on xn.
-
-</reasoning>
-<code>int main1(){
-  int zb3, tub, xn, lxy, nn;
-
-  zb3=1;
-  tub=zb3;
-  xn=36;
-  lxy=1;
-  nn=0;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-   loop invariant zb3 == 1 && lxy == nn + 1 && tub == lxy && 0 <= xn && xn <= 36;
-   loop invariant zb3 == 1 && lxy == nn + 1 && tub == lxy;
-   loop assigns xn, lxy, nn, tub;
- */
- while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+  /*@
+    loop invariant jf == o + 1 - at;
+    loop assigns jf, p, at;
+    loop variant at;
+  */
+  while (1) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+      jf++;
+      p += jf;
+      at--;
   }
 
 }</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 16:32:38,080 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 16:32:38,150 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:34:56,735 - INFO - 
+2026-03-14 23:02:07,661 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 23:02:07,719 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:03:06,052 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>The loop body updates four variables: xn, lxy, nn, tub. We want inductive, verification-friendly invariants that describe the exact state progression and support termination reasoning.
+<reasoning>
+For Loop 0 (the first while): 
+- The loop body updates only at (by +1) and uyp (by + p) and jf (by cc). Since cc == 0, jf does not change, so jf remains equal to its initial value, which is o. This yields the invariant jf == o. 
+- uyp is increased by p exactly once per iteration, while at counts the number of iterations. Starting from 0, we get uyp == at * p as a tight relation between the accumulated increment and the current loop index at, which increases by 1 each iteration. 
+- A simple loop variant that provides progress is o - at, which decreases by 1 each iteration while at <= o-1, guaranteeing termination progress.
 
-Key observations:
-- lxy is initialized to 1 and is incremented each iteration; nn starts at 0 and increments each iteration; tub starts at 1 and increments each iteration. Therefore, a strong relational invariant is lxy == 1 + nn and tub == 1 + nn. These are preserved by every iteration (both sides increase by 1).
-- xb3 is initialized to 1 and never modified; thus zb3 == 1 is an invariant.
-- xn is initialized to 36 and is only decreased or set to 0. Hence 0 <= xn <= 36 always holds. This also provides a natural loop-variant for termination: xn strictly decreases on each loop iteration (either by subtracting lxy when xn > lxy, or going to 0 when xn <= lxy), so a suitable loop variant is xn.
-- These invariants are strong enough to reason about the loop state without changing code. They are preserved under the two possible xn-update branches and under the increments of lxy, nn, and tub.
+For Loop 1 (the second while): 
+- This loop transforms (jf, p, at) according to: jf := jf + 1; p := p + jf (using the new jf); at := at - 1. If we denote t as the number of iterations performed so far, with the initial values at = 1 and jf = o and p = p0 = \at(p, Pre), then:
+  - at = 1 - t
+  - jf = o + t
+  - p = p0 + t * o + t*(t+1)/2
+  Therefore, an invariant capturing these relations is:
+  - jf == o + (1 - at)
+  - p == \at(p, Pre) + (1 - at) * o + ((1 - at) * (2 - at)) / 2
+- A natural loop variant is at, which decreases by 1 each iteration (starting from 1), providing a minimal progress bound.
 
-Progress bounds / loop-variant:
-- loop variant xn provides a decreasing, non-negative measure on each iteration, ensuring eventual termination consistent with the break guard (the loop exits when xn <= 0 or lxy > zb3).
-
-Thus we use the following invariants and assigns:
-- lxy == 1 + nn
-- tub == 1 + nn
-- 0 <= xn <= 36
-- zb3 == 1
-- loop variant xn
-- loop assigns xn, lxy, nn, tub
-
-These are inductive and verification-friendly for Frama-C/WP.
-
+The chosen invariants are inductive, relate the updates to the current state, use only allowed variables, and provide a verification-friendly structure for Frama-C/WP without modifying the program logic.
 </reasoning>
 <code>/*@
-  loop invariant lxy == 1 + nn;
-  loop invariant tub == 1 + nn;
-  loop invariant (0 <= xn) && (xn <= 36);
-  loop invariant zb3 == 1;
-  loop variant xn;
-  loop assigns xn, lxy, nn, tub;
+  loop invariant jf == o;
+  loop invariant uyp == at * p;
+  loop assigns at, jf, uyp;
+  loop variant o - at;
+*/
+while (at &lt;= o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
+
+/*@
+  loop invariant jf == o + (1 - at);
+  loop invariant p == \at(p, Pre) + (1 - at) * o + ((1 - at) * (2 - at)) / 2;
+  loop assigns at, jf, p;
+  loop variant at;
 */
 while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+      jf++;
+      p += jf;
+      at--;
   }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-11 16:34:56,735 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 16:34:56,799 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:37:09,743 - INFO - 
+2026-03-14 23:03:06,052 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 23:03:06,116 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:03:56,839 - INFO - 
 ----- Candidate 5/5 raw response begin -----
-<reasoning>
-We need inductive loop invariants that are easy for Frama-C/WP to discharge and that reflect how the loop updates its state.
+<reasoning>First loop (with o = p-9, cc = 0, initial jf = o, uyp = 0, at = 0):
+- Since cc is 0 and never changed in the loop, jf is not updated (jf += cc), so jf remains equal to its initial value o throughout the loop.
+- uyp is incremented by p each iteration, so after k iterations uyp = k * p and at = k. This gives the exact relation uyp = at * p.
+- at monotonically increases from 0 up to o, so 0 <= at <= o holds. The loop terminates when at reaches o (guard is at <= o-1, so the last iteration yields at = o).
+- Providing a loop variant o - at shows progress toward termination.
 
-Key observations from the loop:
-- zb3 is never modified inside the loop, and initially zb3 == 1. Therefore, zb3 == 1 is an invariant.
-- The loop body increments lxy and nn by 1 each iteration. Starting from lxy = 1 and nn = 0, we have nn == lxy - 1 as an invariant (both increase together by 1 each iteration).
-- xn is updated to either (xn - lxy) when xn > lxy, or reset to 0 otherwise. Across iterations, xn remains non-negative and does not exceed its initial value, 36. Moreover, after an iteration, lxy increases, so a derived bound that tightly relates xn and lxy is xn <= 36 - (lxy - 1). This bound is preserved both in the branch xn > lxy (since xn <= 36 and lxy increases by 1) and in the else branch (0 <= 36 - lxy for lxy >= 1). It also holds initially: with lxy = 1 and xn = 36, 36 <= 36 - (1 - 1) is true.
-- These relations are strong and sufficient to reason about the loop state without altering code.
+Thus a strong, inductive invariant set is:
+- cc == 0
+- jf == o
+- uyp == p * at
+- 0 <= at <= o
+These are enough to imply the needed state updates and guide termination. We use a combineable invariant line structure (two loop invariant lines) and include a loop variant o - at for termination proof. Loop assigns are at, jf, uyp.
 
-From these observations, we propose the following invariants:
-- zb3 == 1
-- nn == lxy - 1
-- 0 <= xn
-- xn <= 36 - (lxy - 1)
-And we declare the loop assigns: xn, lxy, nn, tub.
+Second loop (the while (1) with an inner break when at < 1):
+- The loop can execute at most once given the initial state in the context (entry at = 1). It updates:
+  at' = at - 1
+  jf' = jf + 1
+  p' = p + jf'
+- A useful invariant to relate these variables across the single step is jf - o == 1 - at, which is preserved by the updates:
+  If jf - o == 1 - at holds, after the iteration: jf' - o = (jf + 1) - o = (jf - o) + 1 = (1 - at) + 1 = 2 - at, and 1 - at' = 1 - (at - 1) = 2 - at, so jf' - o == 1 - at' holds.
+- Additionally, 0 <= at <= 1 captures the small progress of at during the loop.
+- Loop assigns are at, jf, p. A loop variant at ensures termination as at decreases from 1 to 0.
 
-These invariants are inductive: they hold before the first iteration (initial state), they are preserved by the body when the guard (xn > 0 && lxy <= zb3) is true, and together with the exit condition (not (xn > 0 && lxy <= zb3)) they help characterize the loop termination.
+Overall, these invariants are inductive, relate the key state variables across iterations, provide progress measures, and keep the loop parameters fixed while satisfying the constraints of the available variables.</reasoning>
+<code>int main1(int p){
+  int o, cc, uyp, at, jf;
 
-Note: We avoid introducing a loop variant since the loop termination is governed by the inner break and the guard dynamics; the invariants above are sufficient for WP verification in this context.
-</reasoning>
-<code>int main1(){
-  int zb3, tub, xn, lxy, nn;
-
-  zb3=1;
-  tub=zb3;
-  xn=36;
-  lxy=1;
-  nn=0;
+  o=p-9;
+  cc=0;
+  uyp=0;
+  at=0;
+  jf=o;
 
   /*@
-    loop invariant zb3 == 1;
-    loop invariant nn == lxy - 1;
-    loop invariant 0 <= xn;
-    loop invariant xn <= 36 - (lxy - 1);
-    loop assigns xn, lxy, nn, tub;
+    loop invariant cc == 0 && jf == o && uyp == p * at;
+    loop invariant 0 <= at && at <= o;
+    loop assigns at, jf, uyp;
+    loop variant o - at;
+  */
+  while (at<=o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
+
+  /*@
+    loop invariant 0 <= at && at <= 1;
+    loop invariant jf - o == 1 - at;
+    loop assigns at, jf, p;
+    loop variant at;
   */
   while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+      jf++;
+      p += jf;
+      at--;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 16:37:09,745 - INFO - 
+2026-03-14 23:03:56,839 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(){
-  int zb3, tub, xn, lxy, nn;
+int main1(int p){
+  int o, cc, uyp, at, jf;
 
-  zb3=1;
-  tub=zb3;
-  xn=36;
-  lxy=1;
-  nn=0;
+  o=p-9;
+  cc=0;
+  uyp=0;
+  at=0;
+  jf=o;
 
-  /*@ 
-    loop invariant lxy == nn + 1;
-    loop invariant tub == nn + 1;
-    loop assigns xn, lxy, nn, tub;
+  /*@
+    loop invariant o == p - 9;
+    loop invariant cc == 0;
+    loop invariant jf == o;
+    loop invariant uyp == at * p;
+    loop invariant at >= 0;
+    loop assigns at, jf, uyp;
+  */
+  while (at<=o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
+
+  /*@
+    loop invariant jf + at == 2 * o;
+    loop invariant jf >= o;
+    loop invariant at <= o;
+    loop assigns at, jf, p;
   */
   while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+     jf++;
+      p += jf;
+      at--;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-11 16:37:09,745 - INFO - 
+2026-03-14 23:03:56,839 - INFO - 
 ----- Candidate 2/5 full code begin -----
-int main1(){
-  int zb3, tub, xn, lxy, nn;
+int main1(int p){
+  int o, cc, uyp, at, jf;
 
-  zb3=1;
-  tub=zb3;
-  xn=36;
-  lxy=1;
-  nn=0;
+  o=p-9;
+  cc=0;
+  uyp=0;
+  at=0;
+  jf=o;
 
   /*@
-    loop invariant nn == lxy - 1;
-    loop invariant tub == lxy;
-    loop invariant 0 &lt;= xn &lt;= 36;
-    loop assigns xn, lxy, nn, tub;
+    loop invariant o == \at(p, Pre) - 9;
+    loop invariant 0 <= at <= o;
+    loop invariant jf == o;
+    loop invariant cc == 0;
+    loop invariant uyp == at * p;
+    loop assigns at, jf, uyp;
+  */
+  while (at<=o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
+
+  /*@
+    loop invariant o == \at(p, Pre) - 9;
+    loop invariant 0 <= at <= o;
+    loop invariant jf == 2*o - at;
+    loop invariant p == \at(p, Pre) + (o - at) * o + ((o - at) * (o - at + 1)) / 2;
+    loop assigns at, jf, p;
   */
   while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+      jf++;
+      p += jf;
+      at--;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-11 16:37:09,745 - INFO - 
+2026-03-14 23:03:56,839 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(){
-  int zb3, tub, xn, lxy, nn;
+int main1(int p){
+  int o, cc, uyp, at, jf;
 
-  zb3=1;
-  tub=zb3;
-  xn=36;
-  lxy=1;
-  nn=0;
+  o=p-9;
+  cc=0;
+  uyp=0;
+  at=0;
+  jf=o;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-   loop invariant zb3 == 1 && lxy == nn + 1 && tub == lxy && 0 <= xn && xn <= 36;
-   loop invariant zb3 == 1 && lxy == nn + 1 && tub == lxy;
-   loop assigns xn, lxy, nn, tub;
- */
- while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+  /*@
+    loop invariant jf - cc * at == p - 9;
+    loop invariant uyp == p * at;
+    loop invariant cc == 0;
+    loop assigns at, jf, uyp;
+    loop variant o - at;
+  */
+  while (at<=o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
+
+  /*@
+    loop invariant jf == o + 1 - at;
+    loop assigns jf, p, at;
+    loop variant at;
+  */
+  while (1) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+      jf++;
+      p += jf;
+      at--;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-11 16:37:09,745 - INFO - 
+2026-03-14 23:03:56,839 - INFO - 
 ----- Candidate 4/5 full code begin -----
 /*@
-  loop invariant lxy == 1 + nn;
-  loop invariant tub == 1 + nn;
-  loop invariant (0 <= xn) && (xn <= 36);
-  loop invariant zb3 == 1;
-  loop variant xn;
-  loop assigns xn, lxy, nn, tub;
+  loop invariant jf == o;
+  loop invariant uyp == at * p;
+  loop assigns at, jf, uyp;
+  loop variant o - at;
+*/
+while (at &lt;= o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
+
+/*@
+  loop invariant jf == o + (1 - at);
+  loop invariant p == \at(p, Pre) + (1 - at) * o + ((1 - at) * (2 - at)) / 2;
+  loop assigns at, jf, p;
+  loop variant at;
 */
 while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+      jf++;
+      p += jf;
+      at--;
   }
 ----- Candidate 4/5 full code end -----
-2026-03-11 16:37:09,745 - INFO - 
+2026-03-14 23:03:56,839 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(){
-  int zb3, tub, xn, lxy, nn;
+int main1(int p){
+  int o, cc, uyp, at, jf;
 
-  zb3=1;
-  tub=zb3;
-  xn=36;
-  lxy=1;
-  nn=0;
+  o=p-9;
+  cc=0;
+  uyp=0;
+  at=0;
+  jf=o;
 
   /*@
-    loop invariant zb3 == 1;
-    loop invariant nn == lxy - 1;
-    loop invariant 0 <= xn;
-    loop invariant xn <= 36 - (lxy - 1);
-    loop assigns xn, lxy, nn, tub;
+    loop invariant cc == 0 && jf == o && uyp == p * at;
+    loop invariant 0 <= at && at <= o;
+    loop assigns at, jf, uyp;
+    loop variant o - at;
+  */
+  while (at<=o-1) {
+      at = at + 1;
+      jf += cc;
+      uyp += p;
+  }
+
+  /*@
+    loop invariant 0 <= at && at <= 1;
+    loop invariant jf - o == 1 - at;
+    loop assigns at, jf, p;
+    loop variant at;
   */
   while (1) {
-      if (!(xn>0&&lxy<=zb3)) {
+      if (!(at>=1)) {
           break;
       }
-      if (xn>lxy) {
-          xn = xn - lxy;
-      }
-      else {
-          xn = 0;
-      }
-      lxy++;
-      nn++;
-      tub++;
+      jf++;
+      p += jf;
+      at--;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 16:37:09,745 - INFO - Successfully generated 5/5 candidates
-2026-03-11 16:37:09,746 - INFO - Checking 12 invariants for conflicts...
-2026-03-11 16:37:09,752 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 16:37:09,753 - INFO -   1: int main1(){
-2026-03-11 16:37:09,753 - INFO -   2:   int zb3, tub, xn, lxy, nn;
-2026-03-11 16:37:09,753 - INFO -   3: 
-2026-03-11 16:37:09,753 - INFO -   4:   zb3=1;
-2026-03-11 16:37:09,753 - INFO -   5:   tub=zb3;
-2026-03-11 16:37:09,753 - INFO -   6:   xn=36;
-2026-03-11 16:37:09,753 - INFO -   7:   lxy=1;
-2026-03-11 16:37:09,753 - INFO -   8:   nn=0;
-2026-03-11 16:37:09,753 - INFO -   9: 
-2026-03-11 16:37:09,753 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 16:37:09,753 - INFO - DEBUG: Total lines: 42
-2026-03-11 16:37:10,034 - INFO - syntax Correct
-2026-03-11 16:37:41,239 - INFO - Validate:
-2026-03-11 16:37:41,239 - INFO - [True, True, True, True, False, True, True, True, True, True, True, True]
-2026-03-11 16:37:41,239 - INFO - 
-2026-03-11 16:37:41,239 - INFO - Verify:
-2026-03-11 16:37:41,239 - INFO - []
-2026-03-11 16:37:41,239 - INFO - 
-2026-03-11 16:37:41,239 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-11 16:37:41,239 - INFO -   Before: 12 invariants
-2026-03-11 16:37:41,239 - INFO -   After: 11 invariants
-2026-03-11 16:37:41,240 - INFO -   Remaining invariants:
-2026-03-11 16:37:41,240 - INFO -     [1] lxy == nn + 1
-2026-03-11 16:37:41,240 - INFO -     [2] tub == nn + 1
-2026-03-11 16:37:41,240 - INFO -     [3] nn == lxy - 1
-2026-03-11 16:37:41,240 - INFO -     [4] tub == lxy
-2026-03-11 16:37:41,240 - INFO -     [5] zb3 == 1 && lxy == nn + 1 && tub == lxy
-2026-03-11 16:37:41,240 - INFO -     [6] lxy == 1 + nn
-2026-03-11 16:37:41,240 - INFO -     [7] tub == 1 + nn
-2026-03-11 16:37:41,240 - INFO -     [8] (0 <= xn) && (xn <= 36)
-2026-03-11 16:37:41,240 - INFO -     [9] zb3 == 1
-2026-03-11 16:37:41,240 - INFO -     [10] 0 <= xn
-2026-03-11 16:37:41,240 - INFO -     [11] xn <= 36 - (lxy - 1)
-2026-03-11 16:37:41,504 - INFO - syntax Correct
-2026-03-11 16:38:12,622 - INFO - Validate:
-2026-03-11 16:38:12,622 - INFO - [True, True, True, True, True, True, True, False, True, True, True]
-2026-03-11 16:38:12,622 - INFO - 
-2026-03-11 16:38:12,622 - INFO - Verify:
-2026-03-11 16:38:12,622 - INFO - []
-2026-03-11 16:38:12,622 - INFO - 
-2026-03-11 16:38:12,623 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-11 16:38:12,623 - INFO -   Before: 11 invariants
-2026-03-11 16:38:12,623 - INFO -   After: 10 invariants
-2026-03-11 16:38:12,623 - INFO -   Remaining invariants:
-2026-03-11 16:38:12,623 - INFO -     [1] lxy == nn + 1
-2026-03-11 16:38:12,623 - INFO -     [2] tub == nn + 1
-2026-03-11 16:38:12,623 - INFO -     [3] nn == lxy - 1
-2026-03-11 16:38:12,623 - INFO -     [4] tub == lxy
-2026-03-11 16:38:12,623 - INFO -     [5] zb3 == 1 && lxy == nn + 1 && tub == lxy
-2026-03-11 16:38:12,623 - INFO -     [6] lxy == 1 + nn
-2026-03-11 16:38:12,623 - INFO -     [7] tub == 1 + nn
-2026-03-11 16:38:12,623 - INFO -     [8] zb3 == 1
-2026-03-11 16:38:12,623 - INFO -     [9] 0 <= xn
-2026-03-11 16:38:12,623 - INFO -     [10] xn <= 36 - (lxy - 1)
-2026-03-11 16:38:12,926 - INFO - syntax Correct
-2026-03-11 16:38:44,021 - INFO - Validate:
-2026-03-11 16:38:44,021 - INFO - [True, True, True, True, True, True, True, True, True, False]
-2026-03-11 16:38:44,021 - INFO - 
-2026-03-11 16:38:44,021 - INFO - Verify:
-2026-03-11 16:38:44,022 - INFO - []
-2026-03-11 16:38:44,022 - INFO - 
-2026-03-11 16:38:44,022 - INFO - Houdini iteration 3: Removed 1 failed invariants
-2026-03-11 16:38:44,022 - INFO -   Before: 10 invariants
-2026-03-11 16:38:44,022 - INFO -   After: 9 invariants
-2026-03-11 16:38:44,022 - INFO -   Remaining invariants:
-2026-03-11 16:38:44,022 - INFO -     [1] lxy == nn + 1
-2026-03-11 16:38:44,022 - INFO -     [2] tub == nn + 1
-2026-03-11 16:38:44,022 - INFO -     [3] nn == lxy - 1
-2026-03-11 16:38:44,022 - INFO -     [4] tub == lxy
-2026-03-11 16:38:44,022 - INFO -     [5] zb3 == 1 && lxy == nn + 1 && tub == lxy
-2026-03-11 16:38:44,022 - INFO -     [6] lxy == 1 + nn
-2026-03-11 16:38:44,022 - INFO -     [7] tub == 1 + nn
-2026-03-11 16:38:44,022 - INFO -     [8] zb3 == 1
-2026-03-11 16:38:44,022 - INFO -     [9] 0 <= xn
-2026-03-11 16:38:44,257 - INFO - syntax Correct
-2026-03-11 16:39:15,196 - INFO - Validate:
-2026-03-11 16:39:15,196 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-11 16:39:15,196 - INFO - 
-2026-03-11 16:39:15,196 - INFO - Verify:
-2026-03-11 16:39:15,196 - INFO - []
-2026-03-11 16:39:15,196 - INFO - 
-2026-03-11 16:39:15,196 - INFO - Houdini iteration 4: All invariants are valid
-2026-03-11 16:39:15,410 - INFO - syntax Correct
-2026-03-11 16:39:46,303 - INFO - Validate:
-2026-03-11 16:39:46,303 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-11 16:39:46,303 - INFO - 
-2026-03-11 16:39:46,303 - INFO - Verify:
-2026-03-11 16:39:46,303 - INFO - []
-2026-03-11 16:39:46,303 - INFO - 
-2026-03-11 16:40:20,309 - INFO - Deduplicated 8 loop invariants in final code
-2026-03-11 16:40:20,523 - INFO - syntax Correct
-2026-03-11 16:40:51,275 - INFO - Validate:
-2026-03-11 16:40:51,275 - INFO - [True, True, True, True]
-2026-03-11 16:40:51,275 - INFO - 
-2026-03-11 16:40:51,275 - INFO - Verify:
-2026-03-11 16:40:51,275 - INFO - []
-2026-03-11 16:40:51,275 - INFO - 
-2026-03-11 16:40:51,275 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 16:40:51,276 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_13/1.c
-2026-03-11 16:40:51,276 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_13/1_invariants.txt
-2026-03-11 16:40:51,276 - INFO - 
-============================================================
-2026-03-11 16:40:51,276 - INFO - Final first_pass results:
-2026-03-11 16:40:51,276 - INFO -   syntax=1
-2026-03-11 16:40:51,276 - INFO -   valid=1
-2026-03-11 16:40:51,276 - INFO -   satisfy=None
-2026-03-11 16:40:51,276 - INFO - ============================================================
-2026-03-11 16:40:51,276 - INFO - 
-============================================================
-2026-03-11 16:40:51,276 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 16:40:51,276 - INFO -   Total API calls: 41
-2026-03-11 16:40:51,276 - INFO -   Total prompt tokens (input): 41,940
-2026-03-11 16:40:51,276 - INFO -   Total completion tokens (output): 210,114
-2026-03-11 16:40:51,276 - INFO -   Total tokens: 252,054
-2026-03-11 16:40:51,276 - INFO -   Average per call:
-2026-03-11 16:40:51,276 - INFO -     Prompt: 1022.9 tokens
-2026-03-11 16:40:51,276 - INFO -     Completion: 5124.7 tokens
-2026-03-11 16:40:51,276 - INFO -     Total: 6147.7 tokens
-2026-03-11 16:40:51,276 - INFO - ============================================================
-2026-03-11 16:40:51,276 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_13/1.c
-2026-03-11 16:40:51,276 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_13/1_invariants.txt
-2026-03-11 16:41:50,787 - INFO - LLM quality-gate raw response: {
-  "ok": false,
-  "reason": "The provided invariants cover the modified variables, but they do not provide an explicit termination bound or loop-variant for the break-based termination (e.g., a bound on the loop-control variable lxy). The relations lxy == nn + 1 and tub == nn + 1 are inductive but weak/redundant and do not clearly summarize the loop behavior or support a termination argument. As a result, the invariants do not meet the higher-quality criteria for termination reasoning and non-trivial summarization."
-}
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 23:03:56,839 - INFO - Successfully generated 5/5 candidates
+2026-03-14 23:03:56,844 - INFO - Checking 11 invariants for conflicts...
+2026-03-14 23:03:56,847 - INFO - Checking 12 invariants for conflicts...
+2026-03-14 23:03:56,850 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 23:03:56,850 - INFO -   1: int main1(int p){
+2026-03-14 23:03:56,850 - INFO -   2:   int o, cc, uyp, at, jf;
+2026-03-14 23:03:56,850 - INFO -   3: 
+2026-03-14 23:03:56,850 - INFO -   4:   o=p-9;
+2026-03-14 23:03:56,850 - INFO -   5:   cc=0;
+2026-03-14 23:03:56,850 - INFO -   6:   uyp=0;
+2026-03-14 23:03:56,850 - INFO -   7:   at=0;
+2026-03-14 23:03:56,850 - INFO -   8:   jf=o;
+2026-03-14 23:03:56,850 - INFO -   9: 
+2026-03-14 23:03:56,850 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-14 23:03:56,850 - INFO - DEBUG: Total lines: 57
+2026-03-14 23:03:57,059 - INFO - syntax Correct
+2026-03-14 23:04:28,736 - INFO - Validate:
+2026-03-14 23:04:28,737 - INFO - [True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True]
+2026-03-14 23:04:28,737 - INFO - 
+2026-03-14 23:04:28,737 - INFO - Verify:
+2026-03-14 23:04:28,737 - INFO - []
+2026-03-14 23:04:28,737 - INFO - 
+2026-03-14 23:04:28,738 - INFO - Houdini iteration 1: Removed 2 failed invariants
+2026-03-14 23:04:28,738 - INFO -   Before: 23 invariants
+2026-03-14 23:04:28,738 - INFO -   After: 21 invariants
+2026-03-14 23:04:28,738 - INFO -   Remaining invariants:
+2026-03-14 23:04:28,738 - INFO -     [1] o == p - 9
+2026-03-14 23:04:28,738 - INFO -     [2] cc == 0
+2026-03-14 23:04:28,738 - INFO -     [3] jf == o
+2026-03-14 23:04:28,738 - INFO -     [4] uyp == at * p
+2026-03-14 23:04:28,738 - INFO -     [5] at >= 0
+2026-03-14 23:04:28,738 - INFO -     [6] o == \at(p, Pre) - 9
+2026-03-14 23:04:28,738 - INFO -     [7] jf - cc * at == p - 9
+2026-03-14 23:04:28,738 - INFO -     [8] uyp == p * at
+2026-03-14 23:04:28,738 - INFO -     [9] cc == 0 && jf == o && uyp == p * at
+2026-03-14 23:04:28,738 - INFO -     [10] 0 <= at && at <= o
+2026-03-14 23:04:28,738 - INFO -     [11] jf + at == 2 * o
+2026-03-14 23:04:28,738 - INFO -     [12] jf >= o
+2026-03-14 23:04:28,738 - INFO -     [13] at <= o
+2026-03-14 23:04:28,738 - INFO -     [14] o == \at(p, Pre) - 9
+2026-03-14 23:04:28,738 - INFO -     [15] 0 <= at <= o
+2026-03-14 23:04:28,738 - INFO -     [16] jf == 2*o - at
+2026-03-14 23:04:28,738 - INFO -     [17] p == \at(p, Pre) + (o - at) * o + ((o - at) * (o - at + 1)) / 2
+2026-03-14 23:04:28,738 - INFO -     [18] jf == o + (1 - at)
+2026-03-14 23:04:28,738 - INFO -     [19] p == \at(p, Pre) + (1 - at) * o + ((1 - at) * (2 - at)) / 2
+2026-03-14 23:04:28,738 - INFO -     [20] 0 <= at && at <= 1
+2026-03-14 23:04:28,738 - INFO -     [21] jf - o == 1 - at
+2026-03-14 23:04:28,986 - INFO - syntax Correct
+2026-03-14 23:05:00,587 - INFO - Validate:
+2026-03-14 23:05:00,587 - INFO - [True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, False, True, True, True]
+2026-03-14 23:05:00,587 - INFO - 
+2026-03-14 23:05:00,587 - INFO - Verify:
+2026-03-14 23:05:00,587 - INFO - []
+2026-03-14 23:05:00,587 - INFO - 
+2026-03-14 23:05:00,587 - INFO - Houdini iteration 2: Removed 2 failed invariants
+2026-03-14 23:05:00,587 - INFO -   Before: 21 invariants
+2026-03-14 23:05:00,587 - INFO -   After: 19 invariants
+2026-03-14 23:05:00,587 - INFO -   Remaining invariants:
+2026-03-14 23:05:00,587 - INFO -     [1] o == p - 9
+2026-03-14 23:05:00,587 - INFO -     [2] cc == 0
+2026-03-14 23:05:00,588 - INFO -     [3] jf == o
+2026-03-14 23:05:00,588 - INFO -     [4] uyp == at * p
+2026-03-14 23:05:00,588 - INFO -     [5] at >= 0
+2026-03-14 23:05:00,588 - INFO -     [6] o == \at(p, Pre) - 9
+2026-03-14 23:05:00,588 - INFO -     [7] jf - cc * at == p - 9
+2026-03-14 23:05:00,588 - INFO -     [8] uyp == p * at
+2026-03-14 23:05:00,588 - INFO -     [9] cc == 0 && jf == o && uyp == p * at
+2026-03-14 23:05:00,588 - INFO -     [10] jf + at == 2 * o
+2026-03-14 23:05:00,588 - INFO -     [11] jf >= o
+2026-03-14 23:05:00,588 - INFO -     [12] at <= o
+2026-03-14 23:05:00,588 - INFO -     [13] o == \at(p, Pre) - 9
+2026-03-14 23:05:00,588 - INFO -     [14] 0 <= at <= o
+2026-03-14 23:05:00,588 - INFO -     [15] jf == 2*o - at
+2026-03-14 23:05:00,588 - INFO -     [16] p == \at(p, Pre) + (o - at) * o + ((o - at) * (o - at + 1)) / 2
+2026-03-14 23:05:00,588 - INFO -     [17] p == \at(p, Pre) + (1 - at) * o + ((1 - at) * (2 - at)) / 2
+2026-03-14 23:05:00,588 - INFO -     [18] 0 <= at && at <= 1
+2026-03-14 23:05:00,588 - INFO -     [19] jf - o == 1 - at
+2026-03-14 23:05:00,820 - INFO - syntax Correct
+2026-03-14 23:05:32,392 - INFO - Validate:
+2026-03-14 23:05:32,392 - INFO - [True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, False, True, True]
+2026-03-14 23:05:32,392 - INFO - 
+2026-03-14 23:05:32,392 - INFO - Verify:
+2026-03-14 23:05:32,392 - INFO - []
+2026-03-14 23:05:32,392 - INFO - 
+2026-03-14 23:05:32,393 - INFO - Houdini iteration 3: Removed 2 failed invariants
+2026-03-14 23:05:32,393 - INFO -   Before: 19 invariants
+2026-03-14 23:05:32,393 - INFO -   After: 17 invariants
+2026-03-14 23:05:32,393 - INFO -   Remaining invariants:
+2026-03-14 23:05:32,393 - INFO -     [1] o == p - 9
+2026-03-14 23:05:32,393 - INFO -     [2] cc == 0
+2026-03-14 23:05:32,393 - INFO -     [3] jf == o
+2026-03-14 23:05:32,393 - INFO -     [4] uyp == at * p
+2026-03-14 23:05:32,393 - INFO -     [5] at >= 0
+2026-03-14 23:05:32,393 - INFO -     [6] o == \at(p, Pre) - 9
+2026-03-14 23:05:32,393 - INFO -     [7] jf - cc * at == p - 9
+2026-03-14 23:05:32,393 - INFO -     [8] uyp == p * at
+2026-03-14 23:05:32,393 - INFO -     [9] cc == 0 && jf == o && uyp == p * at
+2026-03-14 23:05:32,393 - INFO -     [10] jf >= o
+2026-03-14 23:05:32,393 - INFO -     [11] at <= o
+2026-03-14 23:05:32,393 - INFO -     [12] o == \at(p, Pre) - 9
+2026-03-14 23:05:32,393 - INFO -     [13] 0 <= at <= o
+2026-03-14 23:05:32,393 - INFO -     [14] jf == 2*o - at
+2026-03-14 23:05:32,393 - INFO -     [15] p == \at(p, Pre) + (o - at) * o + ((o - at) * (o - at + 1)) / 2
+2026-03-14 23:05:32,393 - INFO -     [16] 0 <= at && at <= 1
+2026-03-14 23:05:32,393 - INFO -     [17] jf - o == 1 - at
+2026-03-14 23:05:32,665 - INFO - syntax Correct
+2026-03-14 23:06:04,188 - INFO - Validate:
+2026-03-14 23:06:04,188 - INFO - [True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, False, False]
+2026-03-14 23:06:04,188 - INFO - 
+2026-03-14 23:06:04,189 - INFO - Verify:
+2026-03-14 23:06:04,189 - INFO - []
+2026-03-14 23:06:04,189 - INFO - 
+2026-03-14 23:06:04,189 - INFO - Houdini iteration 4: Removed 3 failed invariants
+2026-03-14 23:06:04,189 - INFO -   Before: 17 invariants
+2026-03-14 23:06:04,189 - INFO -   After: 14 invariants
+2026-03-14 23:06:04,189 - INFO -   Remaining invariants:
+2026-03-14 23:06:04,189 - INFO -     [1] o == p - 9
+2026-03-14 23:06:04,189 - INFO -     [2] cc == 0
+2026-03-14 23:06:04,189 - INFO -     [3] jf == o
+2026-03-14 23:06:04,189 - INFO -     [4] uyp == at * p
+2026-03-14 23:06:04,189 - INFO -     [5] at >= 0
+2026-03-14 23:06:04,189 - INFO -     [6] o == \at(p, Pre) - 9
+2026-03-14 23:06:04,189 - INFO -     [7] jf - cc * at == p - 9
+2026-03-14 23:06:04,189 - INFO -     [8] uyp == p * at
+2026-03-14 23:06:04,189 - INFO -     [9] cc == 0 && jf == o && uyp == p * at
+2026-03-14 23:06:04,189 - INFO -     [10] jf >= o
+2026-03-14 23:06:04,189 - INFO -     [11] o == \at(p, Pre) - 9
+2026-03-14 23:06:04,189 - INFO -     [12] 0 <= at <= o
+2026-03-14 23:06:04,189 - INFO -     [13] jf == 2*o - at
+2026-03-14 23:06:04,189 - INFO -     [14] p == \at(p, Pre) + (o - at) * o + ((o - at) * (o - at + 1)) / 2
+2026-03-14 23:06:04,462 - INFO - syntax Correct

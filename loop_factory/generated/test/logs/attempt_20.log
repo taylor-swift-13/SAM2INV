@@ -1,512 +1,730 @@
-2026-03-11 16:24:17,324 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 16:24:17,339 - INFO - Found 1 loops
-2026-03-11 16:24:17,340 - INFO - 
+2026-03-14 20:23:33,943 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 20:23:33,957 - INFO - Found 2 loops
+2026-03-14 20:23:33,959 - INFO - 
 ============================================================
-2026-03-11 16:24:17,340 - INFO - Main generation pass 1/1
-2026-03-11 16:24:17,340 - INFO - ============================================================
-2026-03-11 16:24:17,340 - INFO - Loaded single prompt template: simple
-2026-03-11 16:24:17,340 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 16:24:17,340 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 16:24:18,935 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:26:37,654 - INFO - 
+2026-03-14 20:23:33,959 - INFO - Main generation pass 1/1
+2026-03-14 20:23:33,959 - INFO - ============================================================
+2026-03-14 20:23:33,959 - INFO - Loaded single prompt template: simple
+2026-03-14 20:23:33,959 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 20:23:33,959 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 20:23:35,859 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:25:37,708 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>The loop updates v and bx in lockstep: each iteration increments both by 1. Therefore their difference remains constant and equal to the initial difference between v and bx, which is ak (since v starts as ak and bx starts at 0). This yields a strong, inductive invariant:
-- v - bx == ak
+<reasoning>For Loop 0 (the taoc-a1 loop):
+- We need an inductive invariant that captures how the loop updates known state components. taoc and r both increment by 1 each iteration, and vd increments by 1, while a1 stays constant during this loop. A simple, exact relation is:
+  - r - taoc == a1 + 4
+  - vd - taoc == 2
+These two equalities are preserved by the updates: r and taoc both increment by 1, so their difference stays the same; vd also increments by 1 in step with taoc, so vd - taoc stays 2. In addition, taoc <= a1 holds since taoc increases by 1 each iteration until taoc == a1, at which point the loop terminates. We also include cu in the assigns because it's updated in the loop body. The loop variant a1 - taoc decreases by 1 each iteration, ensuring termination.
 
-Additionally, t3r is non-negative and increases by 1 each iteration, so a minimal progress bound is 0 <= t3r, and a natural well-founded loop variant that decreases every time the body executes is ak - t3r (since t3r increments by 1 while ak is constant). Together, these give a concise, verification-friendly loop annotation set without modifying the program logic.
+For Loop 1 (the cu-a1 loop after the first loop):
+- In this loop, a1 and cu are incremented by 1 each iteration, and vd is updated by (cu % 9) using the updated cu. A simple, exact relational invariant that remains true is:
+  - a1 - cu == 67
+This holds because initially a1 = 69 and cu = 2, so a1 - cu = 67; each iteration increases both a1 and cu by 1, preserving the difference. A second, natural invariant is that the remaining gap to the (constant) bound r is nonnegative, which is implied by the loop guard cu < r; we also include a non-negative bound explicitly:
+  - r - cu >= 0
+The loop variant r - cu decreases by 1 each iteration (since cu increases by 1 while r stays constant), which guarantees termination. The modified variables in this loop are a1, cu, vd.
 
-Thus we provide:
-- loop invariant v - bx == ak (conservation)
-- loop invariant 0 <= t3r (progress bound for t3r)
-- loop assigns v, bx, i, t3r (complete and exact)
-- loop variant ak - t3r (well-founded, decreasing while the loop can run)
-
-This set preserves initialization, is preserved by the loop body when the guard is true, and supports termination reasoning via the variant. It avoids introducing unrelated invariants and uses only allowed variables. </reasoning>
+All invariants are inductive (preserved by the loop body) and verification-friendly. The loop assigns are exact: the first loop updates vd, taoc, r, cu; the second loop updates a1, cu, vd. No unknown()/unknownN() calls are altered. The chosen invariants are strong and non-tautological, and they explain the main state transitions in a simple, checkable way. </reasoning>
 <code>int main1(){
-  int ak, v, i, t3r, bx;
+  int a1, b5, vd, taoc, cu, r;
 
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
+  a1=69;
+  b5=a1+4;
+  vd=2;
+  taoc=0;
+  cu=2;
+  r=b5;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant v - bx == ak;
-    loop invariant 0 &lt;= t3r;
-    loop assigns v, bx, i, t3r;
-    loop variant ak - t3r;
+    loop invariant r - taoc == a1 + 4;
+    loop invariant vd - taoc == 2;
+    loop invariant taoc <= a1;
+    loop assigns vd, taoc, r, cu;
+    loop variant a1 - taoc;
   */
   while (1) {
-      if (!(i>0&&t3r<=ak)) {
+      if (!(taoc<a1)) {
           break;
       }
-      if (!(i<=t3r)) {
-          i = 0;
+      vd += 1;
+      taoc = taoc + 1;
+      r = r + 1;
+      cu = cu+(taoc%5);
+  }
+
+  /*@
+    loop invariant a1 - cu == 67;
+    loop invariant r - cu >= 0;
+    loop assigns a1, cu, vd;
+    loop variant r - cu;
+  */
+  while (1) {
+      if (!(cu<r)) {
+          break;
       }
-      else {
-          i = i - t3r;
-      }
-      v++;
-      bx += 1;
-      t3r += 1;
+      a1 += 1;
+      cu = cu + 1;
+      vd = vd+(cu%9);
   }
 
 }</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-11 16:26:37,654 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 16:26:37,737 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:29:03,780 - INFO - 
+2026-03-14 20:25:37,709 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 20:25:37,767 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:26:52,085 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>Chosen inductive invariants focus on the core state-evolution of the loop:
-- v == ak + bx expresses the conservation relation: both v and bx increase by 1 every iteration, keeping v tied to the initial ak.
-- t3r == bx + 1 expresses the direct relation between t3r and bx, since t3r also increases by 1 each iteration, starting from 1.
-These two invariants are preserved by the loop body:
-- After an iteration: v' = v + 1 and bx' = bx + 1, so v' = ak + bx' holds if v = ak + bx.
-- After an iteration: t3r' = t3r + 1 and bx' = bx + 1, so t3r' = bx' + 1 holds if t3r = bx + 1.
-The loop assigns correctly lists all variables that are modified in the loop: i, v, bx, t3r. The loop variant ak - t3r provides a decreasing measure (since t3r increases when the loop is active and t3r <= ak is part of the break condition), ensuring progress towards termination of the loop when the guard i>0 && t3r<=ak fails. These invariants are strong and non-tautological, independent of i’s exact value, and they hold before the first iteration (given the initial state) and are preserved by every iteration (inductive). They also aid in proving properties at loop exit when !guard holds. </reasoning>
-<code>int main1(){
-  int ak, bx, i, t3r, v;
+<reasoning>
+For the first loop:
+- Identify a core conservation relation: both taoc and r are incremented by 1 each iteration, so r - taoc remains constant. With the initial values r = 73 and taoc = 0, we have r - taoc == 73 invariantly.
+- A second simple progress relation: vd is incremented by 1 each iteration while taoc also increments by 1; hence vd - taoc remains constant. With initial vd = 2 and taoc = 0, vd - taoc == 2 invariantly.
+- A relatively strong relation for cu can be derived by observing cu accumulates taoc%5 each iteration (with taoc updated before the sum). A precise closed form is cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2, which exactly matches the accumulated sum starting from cu = 2. While strong, this keeps cu in lockstep with taoc and is preserved by the loop body.
+- A minimal termination progress bound: since taoc increases by 1 each iteration and the loop exits when taoc >= a1, a natural loop variant is (a1 - taoc), which decreases by 1 every iteration and is non-negative within the loop.
 
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
+For the second loop:
+- Both a1 and cu are incremented by 1 each iteration, so their difference stays constant: cu - a1 is preserved. With initial values cu = 2 and a1 = 69, cu - a1 == -67 invariantly.
+- A simple termination progress bound: the loop continues while cu < r; since cu is incremented and r is constant within the loop, (r - cu) decreases by 1 per iteration and remains non-negative until termination. So use loop variant (r - cu).
+
+These invariants are inductive (hold initially and preserved by every iteration), provide useful state relations, and support verification with Frama-C/WP. They also respect the constraint of not modifying the function body or introducing disallowed constructs.
+</reasoning>
+<code>int main1(){
+  int a1, b5, vd, taoc, cu, r;
+
+  a1=69;
+  b5=a1+4;
+  vd=2;
+  taoc=0;
+  cu=2;
+  r=b5;
 
   /*@
-    loop invariant v == ak + bx;
-    loop invariant t3r == bx + 1;
-    loop assigns i, v, bx, t3r;
-    loop variant ak - t3r;
+    loop invariant r - taoc == 73;
+    loop invariant vd - taoc == 2;
+    loop invariant cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2;
+    loop assigns vd, taoc, r, cu;
+    loop variant a1 - taoc;
   */
-while (1) {
-      if (!(i>0&&t3r<=ak)) {
-          break;
-      }
-      if (!(i<=t3r)) {
-          i = 0;
-      }
-      else {
-          i = i - t3r;
-      }
-      v++;
-      bx += 1;
-      t3r += 1;
+  while (1) {
+        if (!(taoc<a1)) {
+            break;
+        }
+        vd += 1;
+        taoc = taoc + 1;
+        r = r + 1;
+        cu = cu+(taoc%5);
+  }
+
+  /*@
+    loop invariant cu - a1 == -67;
+    loop assigns a1, cu, vd;
+    loop variant (r - cu);
+  */
+  while (1) {
+        if (!(cu<r)) {
+            break;
+        }
+        a1 += 1;
+        cu = cu + 1;
+        vd = vd+(cu%9);
   }
 
 }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-11 16:29:03,780 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 16:29:03,839 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:32:37,968 - INFO - 
+2026-03-14 20:26:52,085 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 20:26:52,148 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:27:46,142 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>The loop updates two arithmetic variables by the same amount each iteration: v is incremented by 1 and bx is incremented by 1. A strong, induction-friendly invariant that captures this relation is v - ak == bx. Since ak is never changed in the function, this relation is preserved by every iteration: if before an iteration v - ak == bx, then after the increment v' = v + 1 and bx' = bx + 1, so v' - ak == bx'. This gives a concise conservation law for the loop state.
+<reasoning>For the two loops in main1, I propose inductive invariants that capture the exact state evolution and provide strong, verification-friendly properties.
 
-A second, simpler invariant is 0 <= bx, which is naturally preserved because bx starts at 0 and is only increased by 1 on each iteration (and the loop can continue only when the guard holds, which in practice limits the number of iterations here).
+Loop 0 (taoc < a1, updates vd, taoc, r, cu with cu += (taoc%5) after taoc is incremented):
+- Core conservation/equality: r - taoc == 73 holds because both r and taoc are incremented by 1 each iteration, with initial r = 73.
+- Progress/bound: taoc <= a1 ensures the loop progresses toward termination (the guard is taoc < a1).
+- Arithmetic progression tracking: vd == 2 + taoc captures that vd increments by 1 per iteration starting from 2.
+- Closed-form for cu: cu equals the initial cu plus the sum of (i % 5) for i = 1..taoc. This is exactly cu == 2 + floor(taoc/5)*10 + (taoc%5)*((taoc%5)+1)/2, given the 1,2,3,4,0 pattern of i%5.
+- Loop assigns: vd, taoc, r, cu are modified in the loop.
 
-For termination, a loop variant ak - t3r decreases by 1 each iteration (since t3r is incremented every iteration and the loop only continues while t3r <= ak). This shows progress toward termination under the guarded iterations.
+Loop 1 (cu < r, updates a1, cu, vd; note cu increased before vd is updated with (cu%9)):
+- The loop is bounded by cu <= r during iterations; we add cu <= r to express the progress bound.
+- The loop increases a1 and cu monotonically; we add a1 >= 69 to reflect the initial value and its non-decreasing nature.
+- A safety bound for vd is preserved: vd >= 2 since vd only increases.
+- Loop assigns: a1, cu, vd are modified.
 
-Together:
-- Core invariant: v - ak == bx (conservation/relational equality explaining the state updates)
-- Auxiliary invariant: 0 <= bx (non-decreasing, non-negative bound)
-- Loop assigns: i, v, bx, t3r (these are the variables modified inside the loop)
-- Loop variant: ak - t3r (ensures termination as t3r increases up to ak)
+For termination, provide loop variants:
+- Loop 0: a1 - taoc decreases each iteration (taoc increases while a1 is fixed in this loop).
+- Loop 1: r - cu decreases by 1 each iteration (cu increases while r stays constant in this loop).
 
-These invariants are inductive (held initially and preserved by each iteration) and verification-friendly for Frama-C/WP. They do not require modifying any code or calling unknowns, and they respect the allowed syntax and semantics. </reasoning>
-<code>int main1(){
-  int ak, v, i, t3r, bx;
-
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
-
-  /*@
-    loop invariant v - ak == bx;
-    loop invariant 0 <= bx;
-    loop assigns i, v, bx, t3r;
-    loop variant ak - t3r;
-  */
-  while (1) {
-      if (!(i>0&&t3r<=ak)) {
+These invariants are strong, exact, and inductive, and they rely only on the available variables (a1, cu, r, taoc, vd) without introducing unrelated facts. They also do not rely on Pre or unknownN, and fit the required ACSL format. </reasoning>
+<code>/*@
+  loop invariant r - taoc == 73;
+  loop invariant taoc <= a1;
+  loop invariant vd == 2 + taoc;
+  loop invariant cu == 2 + ((taoc/5)*10) + (((taoc%5) * ((taoc%5) + 1)) / 2);
+  loop assigns vd, taoc, r, cu;
+  loop variant a1 - taoc;
+*/
+while (1) {
+      if (!(taoc<a1)) {
           break;
       }
-      if (!(i<=t3r)) {
-          i = 0;
-      }
-      else {
-          i = i - t3r;
-      }
-      v++;
-      bx += 1;
-      t3r += 1;
+      vd += 1;
+      taoc = taoc + 1;
+      r = r + 1;
+      cu = cu+(taoc%5);
   }
 
-}</code>
+/*@
+  loop invariant a1 >= 69;
+  loop invariant cu <= r;
+  loop invariant vd >= 2;
+  loop assigns a1, cu, vd;
+  loop variant r - cu;
+*/
+while (1) {
+      if (!(cu<r)) {
+          break;
+      }
+      a1 += 1;
+      cu = cu + 1;
+      vd = vd+(cu%9);
+  }</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 16:32:37,969 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 16:32:38,031 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:35:59,698 - INFO - 
+2026-03-14 20:27:46,143 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 20:27:46,210 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:29:26,453 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>
-Chosen invariants capture the core state evolution of the loop:
+<reasoning>Loop 0 (taoc vs a1): The loop runs while taoc < a1, with taoc incrementing by 1 each iteration. We can express exact state evolution to be inductive:
+- taoc after k iterations is k.
+- r after k iterations is 73 + k (since r starts at 73 and increments every iteration).
+- vd after k iterations is 2 + k (since vd starts at 2 and increments every iteration).
+- cu after k iterations follows cu = 2 + sum_{i=1..k} (i mod 5) which has a closed form: cu = 2 + 10*(k/5) + ((k%5)*(k%5 + 1))/2.
+Thus invariant: taoc, r, vd, cu relate to taoc as above. We also keep a1 constant at 69. The loop variant a1 - taoc decreases by 1 each iteration, proving termination. The loop assigns taoc, r, vd, cu. This invariant is strong and exact, enabling WP to verify the loop inductively.
 
-- v == ak + bx
-  Both v and bx are incremented by 1 every iteration, starting from v = ak and bx = 0. Therefore, their sum relation holds before every loop iteration and is preserved by the updates v++, bx++.
+Loop 1 (second loop): The loop runs while cu < r, with a1 increasing by 1, cu increasing by 1, and vd increasing by (cu%9) after the cu increment. In the actual program, initial cu = r, so the guard cu<r is false and the loop executes zero times, but we still provide a robust invariant for inductive reasoning if future states were possible. A safe, simple invariant is that r - cu is non-negative, and since cu only increases while r stays fixed, r - cu decreases but remains >= 0 during any hypothetical iterations. Additionally, a1 and vd are non-decreasing and non-decreasing lower bounds hold (a1 >= 69, vd >= 71). These invariants are preserved by the loop body and provide a termination metric loop variant (r - cu).
 
-- t3r == bx + 1
-  Initially t3r = 1 and bx = 0, giving t3r == bx + 1. Each iteration increments both t3r and bx by 1, so this relation is preserved: after an iteration, t3r' = t3r + 1 and bx' = bx + 1, hence t3r' = (bx + 1) + 1 = bx' + 1.
-
-These two invariants are inductive and explain the linear coupling of the primary arithmetic state across iterations. They are verification-friendly because:
-- They directly relate to the synthesis of the loop’s arithmetic progressions.
-- They are preserved by the loop body updates (v++, bx++, t3r++).
-- They help reason about termination since t3r grows and, combined with the guard, ensures eventual exit when t3r > ak.
-
-Loosely, the loop assigns are exactly the variables written inside the loop: i, v, bx, t3r.
-
-A loop variant ak - t3r provides a decreasing measure while t3r <= ak holds (and the loop can only continue when the guard i>0 && t3r<=ak is true). Since t3r increments by 1 each iteration, ak - t3r decreases by 1 each time and is non-negative during active iterations, ensuring progress toward termination.
-
-No changes are made to the program logic; the annotations only provide inductive invariants and a precise assigns list.
 </reasoning>
-<code>int main1(){
-  int ak, v, i, t3r, bx;
-
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
-
-  /*@
-    loop invariant v == ak + bx;
-    loop invariant t3r == bx + 1;
-    loop assigns i, v, bx, t3r;
-    loop variant ak - t3r;
-  */
-  while (1) {
-      if (!(i>0&&t3r<=ak)) {
+<code>/*@
+  loop invariant 0 <= taoc;
+  loop invariant taoc <= a1;
+  loop invariant r == 73 + taoc;
+  loop invariant vd == 2 + taoc;
+  loop invariant cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2;
+  loop invariant a1 == 69;
+  loop assigns taoc, r, vd, cu;
+  loop variant a1 - taoc;
+*/
+while (1) {
+      if (!(taoc<a1)) {
           break;
       }
-      if (!(i<=t3r)) {
-          i = 0;
-      }
-      else {
-          i = i - t3r;
-      }
-      v++;
-      bx += 1;
-      t3r += 1;
+      vd += 1;
+      taoc = taoc + 1;
+      r = r + 1;
+      cu = cu+(taoc%5);
   }
 
-}</code>
------ Candidate 4/5 raw response end -----
-2026-03-11 16:35:59,699 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 16:35:59,790 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:37:29,395 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>We need inductive loop invariants that are meaningful for the given loop without modifying the code. The loop updates four variables each iteration: v, bx, t3r (each incremented by 1), and i (assigned either 0 or i - t3r). ak remains constant. A strong, conservation-oriented invariant capturing the core state evolution is:
-
-- v - ak == bx, which states that the difference between v and the initial ak equals the number of iterations performed (bx). This holds initially (72 - 72 == 0) and is preserved because both v and bx are incremented by 1 every iteration.
-- t3r <= ak, which bounds the loop counter t3r by ak. This holds at the start of each iteration (the loop guard requires t3r <= ak) and is preserved since t3r is incremented by 1 each iteration; once it would exceed ak, the loop terminates.
-- bx >= 0, a basic non-negativity bound ensuring bx does not go negative (true initially and preserved as bx is incremented each iteration).
-
-These invariants are strong and non-tautological, do not rely on parameters (there are none) and do not introduce unrelated properties. The loop assigns must include all variables that can be modified inside the loop body: i, v, bx, t3r. A suitable loop variant to prove termination is ak - t3r, which decreases by 1 each iteration (since t3r increases by 1) and remains non-negative on loop entry because the loop continues only while t3r <= ak. The combination ensures inductiveness and progress toward termination.
-
-Now present the complete annotated code with these invariants, assignments, and a loop variant. The original code remains unchanged except for the ACSL annotations. </reasoning>
-<code>int main1(){
-  int ak, v, i, t3r, bx;
-
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
-
   /*@
-    loop invariant v - ak == bx;
-    loop invariant t3r <= ak;
-    loop invariant bx >= 0;
-    loop assigns i, v, bx, t3r;
-    loop variant ak - t3r;
+    loop invariant 0 <= (r - cu);
+    loop invariant a1 >= 69;
+    loop invariant vd >= 71;
+    loop assigns a1, cu, vd;
+    loop variant (r - cu);
   */
 while (1) {
-      if (!(i>0&&t3r<=ak)) {
+      if (!(cu<r)) {
           break;
       }
-      if (!(i<=t3r)) {
-          i = 0;
+      a1 += 1;
+      cu = cu + 1;
+      vd = vd+(cu%9);
+  }</code>
+----- Candidate 4/5 raw response end -----
+2026-03-14 20:29:26,453 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 20:29:26,511 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:31:03,273 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>The two loops can be described with inductive relations that tightly capture their state updates without modifying the program logic.
+
+Loop 0 (updates: vd, taoc, r, cu; a1 and others remain constant during the loop):
+- A strong, exact relation exists between r, taoc, and a1: since r starts at a1+4 and increases by 1 every iteration while a1 is constant, r == taoc + a1 + 4 holds after each iteration.
+- vd starts at 2 and is increased by 1 every iteration, while taoc is increased by 1 each iteration; hence vd == taoc + 2.
+- taoc never exceeds a1 (loop condition is taoc < a1); we express this as taoc <= a1 for the inductive invariant.
+- These invariants are preserved by the loop body:
+  - taoc becomes taoc+1, a1 stays the same, so taoc <= a1 remains true.
+  - r becomes r+1 and taoc increases by 1, preserving r == taoc + a1 + 4.
+  - vd becomes vd+1 and taoc increases by 1, preserving vd == taoc + 2.
+- A loop variant a1 - taoc decreases by 1 each iteration and stays non-negative while the guard taoc < a1 holds.
+
+Loop 1 (updates: a1, cu, vd; cu and a1 both increase by 1 each iteration):
+- Since cu and a1 both increase by 1 each iteration (and cu starts at 2 while a1 starts at 69), their difference remains constant: cu - a1 == 2 - 69 == -67. This is captured by the invariant cu == a1 - 67.
+- a1 is non-decreasing and initially 69, so invariant a1 >= 69 holds.
+- The loop exits when cu >= r; since r does not change in this loop, a natural variant is r - cu, which decreases by 1 each iteration as cu is incremented and remains non-negative until termination.
+
+These invariants are inductive, exact for the respective loops, and use only allowed variables. They also avoid introducing tautologies or unrelated facts, and they provide workable loop assigns for Frama-C/WP verification.
+
+</reasoning>
+<code>int main1(){
+  int a1, b5, vd, taoc, cu, r;
+
+  a1=69;
+  b5=a1+4;
+  vd=2;
+  taoc=0;
+  cu=2;
+  r=b5;
+
+  /*@
+    loop invariant taoc <= a1;
+    loop invariant r == taoc + a1 + 4;
+    loop invariant vd == taoc + 2;
+    loop assigns vd, taoc, r, cu;
+    loop variant a1 - taoc;
+  */
+  while (1) {
+      if (!(taoc<a1)) {
+          break;
       }
-      else {
-          i = i - t3r;
+      vd += 1;
+      taoc = taoc + 1;
+      r = r + 1;
+      cu = cu+(taoc%5);
+  }
+
+  /*@
+    loop invariant cu == a1 - 67;
+    loop invariant a1 >= 69;
+    loop assigns a1, cu, vd;
+    loop variant r - cu;
+  */
+  while (1) {
+      if (!(cu<r)) {
+          break;
       }
-      v++;
-      bx += 1;
-      t3r += 1;
+      a1 += 1;
+      cu = cu + 1;
+      vd = vd+(cu%9);
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 16:37:29,396 - INFO - 
+2026-03-14 20:31:03,273 - INFO - 
 ----- Candidate 1/5 full code begin -----
 int main1(){
-  int ak, v, i, t3r, bx;
+  int a1, b5, vd, taoc, cu, r;
 
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
+  a1=69;
+  b5=a1+4;
+  vd=2;
+  taoc=0;
+  cu=2;
+  r=b5;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant v - bx == ak;
-    loop invariant 0 &lt;= t3r;
-    loop assigns v, bx, i, t3r;
-    loop variant ak - t3r;
+    loop invariant r - taoc == a1 + 4;
+    loop invariant vd - taoc == 2;
+    loop invariant taoc <= a1;
+    loop assigns vd, taoc, r, cu;
+    loop variant a1 - taoc;
   */
   while (1) {
-      if (!(i>0&&t3r<=ak)) {
+      if (!(taoc<a1)) {
           break;
       }
-      if (!(i<=t3r)) {
-          i = 0;
+      vd += 1;
+      taoc = taoc + 1;
+      r = r + 1;
+      cu = cu+(taoc%5);
+  }
+
+  /*@
+    loop invariant a1 - cu == 67;
+    loop invariant r - cu >= 0;
+    loop assigns a1, cu, vd;
+    loop variant r - cu;
+  */
+  while (1) {
+      if (!(cu<r)) {
+          break;
       }
-      else {
-          i = i - t3r;
-      }
-      v++;
-      bx += 1;
-      t3r += 1;
+      a1 += 1;
+      cu = cu + 1;
+      vd = vd+(cu%9);
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-11 16:37:29,396 - INFO - 
+2026-03-14 20:31:03,273 - INFO - 
 ----- Candidate 2/5 full code begin -----
 int main1(){
-  int ak, bx, i, t3r, v;
+  int a1, b5, vd, taoc, cu, r;
 
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
+  a1=69;
+  b5=a1+4;
+  vd=2;
+  taoc=0;
+  cu=2;
+  r=b5;
 
   /*@
-    loop invariant v == ak + bx;
-    loop invariant t3r == bx + 1;
-    loop assigns i, v, bx, t3r;
-    loop variant ak - t3r;
+    loop invariant r - taoc == 73;
+    loop invariant vd - taoc == 2;
+    loop invariant cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2;
+    loop assigns vd, taoc, r, cu;
+    loop variant a1 - taoc;
   */
-while (1) {
-      if (!(i>0&&t3r<=ak)) {
-          break;
-      }
-      if (!(i<=t3r)) {
-          i = 0;
-      }
-      else {
-          i = i - t3r;
-      }
-      v++;
-      bx += 1;
-      t3r += 1;
+  while (1) {
+        if (!(taoc<a1)) {
+            break;
+        }
+        vd += 1;
+        taoc = taoc + 1;
+        r = r + 1;
+        cu = cu+(taoc%5);
+  }
+
+  /*@
+    loop invariant cu - a1 == -67;
+    loop assigns a1, cu, vd;
+    loop variant (r - cu);
+  */
+  while (1) {
+        if (!(cu<r)) {
+            break;
+        }
+        a1 += 1;
+        cu = cu + 1;
+        vd = vd+(cu%9);
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-11 16:37:29,396 - INFO - 
+2026-03-14 20:31:03,273 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(){
-  int ak, v, i, t3r, bx;
-
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
-
-  /*@
-    loop invariant v - ak == bx;
-    loop invariant 0 <= bx;
-    loop assigns i, v, bx, t3r;
-    loop variant ak - t3r;
-  */
-  while (1) {
-      if (!(i>0&&t3r<=ak)) {
+/*@
+  loop invariant r - taoc == 73;
+  loop invariant taoc <= a1;
+  loop invariant vd == 2 + taoc;
+  loop invariant cu == 2 + ((taoc/5)*10) + (((taoc%5) * ((taoc%5) + 1)) / 2);
+  loop assigns vd, taoc, r, cu;
+  loop variant a1 - taoc;
+*/
+while (1) {
+      if (!(taoc<a1)) {
           break;
       }
-      if (!(i<=t3r)) {
-          i = 0;
-      }
-      else {
-          i = i - t3r;
-      }
-      v++;
-      bx += 1;
-      t3r += 1;
+      vd += 1;
+      taoc = taoc + 1;
+      r = r + 1;
+      cu = cu+(taoc%5);
   }
 
-}
+/*@
+  loop invariant a1 >= 69;
+  loop invariant cu <= r;
+  loop invariant vd >= 2;
+  loop assigns a1, cu, vd;
+  loop variant r - cu;
+*/
+while (1) {
+      if (!(cu<r)) {
+          break;
+      }
+      a1 += 1;
+      cu = cu + 1;
+      vd = vd+(cu%9);
+  }
 ----- Candidate 3/5 full code end -----
-2026-03-11 16:37:29,396 - INFO - 
+2026-03-14 20:31:03,273 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(){
-  int ak, v, i, t3r, bx;
-
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
-
-  /*@
-    loop invariant v == ak + bx;
-    loop invariant t3r == bx + 1;
-    loop assigns i, v, bx, t3r;
-    loop variant ak - t3r;
-  */
-  while (1) {
-      if (!(i>0&&t3r<=ak)) {
+/*@
+  loop invariant 0 <= taoc;
+  loop invariant taoc <= a1;
+  loop invariant r == 73 + taoc;
+  loop invariant vd == 2 + taoc;
+  loop invariant cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2;
+  loop invariant a1 == 69;
+  loop assigns taoc, r, vd, cu;
+  loop variant a1 - taoc;
+*/
+while (1) {
+      if (!(taoc<a1)) {
           break;
       }
-      if (!(i<=t3r)) {
-          i = 0;
-      }
-      else {
-          i = i - t3r;
-      }
-      v++;
-      bx += 1;
-      t3r += 1;
+      vd += 1;
+      taoc = taoc + 1;
+      r = r + 1;
+      cu = cu+(taoc%5);
   }
 
-}
------ Candidate 4/5 full code end -----
-2026-03-11 16:37:29,396 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(){
-  int ak, v, i, t3r, bx;
-
-  ak=72;
-  v=ak;
-  i=15;
-  t3r=1;
-  bx=0;
-
   /*@
-    loop invariant v - ak == bx;
-    loop invariant t3r <= ak;
-    loop invariant bx >= 0;
-    loop assigns i, v, bx, t3r;
-    loop variant ak - t3r;
+    loop invariant 0 <= (r - cu);
+    loop invariant a1 >= 69;
+    loop invariant vd >= 71;
+    loop assigns a1, cu, vd;
+    loop variant (r - cu);
   */
 while (1) {
-      if (!(i>0&&t3r<=ak)) {
+      if (!(cu<r)) {
           break;
       }
-      if (!(i<=t3r)) {
-          i = 0;
+      a1 += 1;
+      cu = cu + 1;
+      vd = vd+(cu%9);
+  }
+----- Candidate 4/5 full code end -----
+2026-03-14 20:31:03,273 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(){
+  int a1, b5, vd, taoc, cu, r;
+
+  a1=69;
+  b5=a1+4;
+  vd=2;
+  taoc=0;
+  cu=2;
+  r=b5;
+
+  /*@
+    loop invariant taoc <= a1;
+    loop invariant r == taoc + a1 + 4;
+    loop invariant vd == taoc + 2;
+    loop assigns vd, taoc, r, cu;
+    loop variant a1 - taoc;
+  */
+  while (1) {
+      if (!(taoc<a1)) {
+          break;
       }
-      else {
-          i = i - t3r;
+      vd += 1;
+      taoc = taoc + 1;
+      r = r + 1;
+      cu = cu+(taoc%5);
+  }
+
+  /*@
+    loop invariant cu == a1 - 67;
+    loop invariant a1 >= 69;
+    loop assigns a1, cu, vd;
+    loop variant r - cu;
+  */
+  while (1) {
+      if (!(cu<r)) {
+          break;
       }
-      v++;
-      bx += 1;
-      t3r += 1;
+      a1 += 1;
+      cu = cu + 1;
+      vd = vd+(cu%9);
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 16:37:29,396 - INFO - Successfully generated 5/5 candidates
-2026-03-11 16:37:29,396 - INFO - Checking 7 invariants for conflicts...
-2026-03-11 16:37:29,399 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 16:37:29,399 - INFO -   1: int main1(){
-2026-03-11 16:37:29,399 - INFO -   2:   int ak, v, i, t3r, bx;
-2026-03-11 16:37:29,399 - INFO -   3: 
-2026-03-11 16:37:29,399 - INFO -   4:   ak=72;
-2026-03-11 16:37:29,399 - INFO -   5:   v=ak;
-2026-03-11 16:37:29,399 - INFO -   6:   i=15;
-2026-03-11 16:37:29,399 - INFO -   7:   t3r=1;
-2026-03-11 16:37:29,399 - INFO -   8:   bx=0;
-2026-03-11 16:37:29,399 - INFO -   9: 
-2026-03-11 16:37:29,399 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 16:37:29,399 - INFO - DEBUG: Total lines: 37
-2026-03-11 16:37:29,645 - INFO - syntax Correct
-2026-03-11 16:38:00,468 - INFO - Validate:
-2026-03-11 16:38:00,468 - INFO - [True, True, True, True, True, False, True]
-2026-03-11 16:38:00,468 - INFO - 
-2026-03-11 16:38:00,468 - INFO - Verify:
-2026-03-11 16:38:00,468 - INFO - []
-2026-03-11 16:38:00,468 - INFO - 
-2026-03-11 16:38:00,468 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-11 16:38:00,468 - INFO -   Before: 7 invariants
-2026-03-11 16:38:00,468 - INFO -   After: 6 invariants
-2026-03-11 16:38:00,468 - INFO -   Remaining invariants:
-2026-03-11 16:38:00,468 - INFO -     [1] v - bx == ak
-2026-03-11 16:38:00,468 - INFO -     [2] v == ak + bx
-2026-03-11 16:38:00,468 - INFO -     [3] t3r == bx + 1
-2026-03-11 16:38:00,468 - INFO -     [4] v - ak == bx
-2026-03-11 16:38:00,468 - INFO -     [5] 0 <= bx
-2026-03-11 16:38:00,468 - INFO -     [6] bx >= 0
-2026-03-11 16:38:00,722 - INFO - syntax Correct
-2026-03-11 16:38:31,625 - INFO - Validate:
-2026-03-11 16:38:31,625 - INFO - [True, True, True, True, True, True]
-2026-03-11 16:38:31,625 - INFO - 
-2026-03-11 16:38:31,625 - INFO - Verify:
-2026-03-11 16:38:31,625 - INFO - []
-2026-03-11 16:38:31,625 - INFO - 
-2026-03-11 16:38:31,625 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-11 16:38:31,897 - INFO - syntax Correct
-2026-03-11 16:39:02,814 - INFO - Validate:
-2026-03-11 16:39:02,814 - INFO - [True, True, True, True, True, True]
-2026-03-11 16:39:02,814 - INFO - 
-2026-03-11 16:39:02,814 - INFO - Verify:
-2026-03-11 16:39:02,814 - INFO - []
-2026-03-11 16:39:02,814 - INFO - 
-2026-03-11 16:39:18,363 - INFO - Deduplicated 3 loop invariants in final code
-2026-03-11 16:39:18,576 - INFO - syntax Correct
-2026-03-11 16:39:49,297 - INFO - Validate:
-2026-03-11 16:39:49,297 - INFO - [True, True, True]
-2026-03-11 16:39:49,297 - INFO - 
-2026-03-11 16:39:49,297 - INFO - Verify:
-2026-03-11 16:39:49,297 - INFO - []
-2026-03-11 16:39:49,297 - INFO - 
-2026-03-11 16:39:49,297 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 16:39:49,298 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_20/1.c
-2026-03-11 16:39:49,298 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_20/1_invariants.txt
-2026-03-11 16:39:49,298 - INFO - 
+2026-03-14 20:31:03,273 - INFO - Successfully generated 5/5 candidates
+2026-03-14 20:31:03,274 - INFO - Checking 12 invariants for conflicts...
+2026-03-14 20:31:03,275 - INFO -   Conflict detected:
+2026-03-14 20:31:03,275 - INFO -     [2] vd - taoc == 2
+2026-03-14 20:31:03,275 - INFO -     [4] r - taoc == 73
+2026-03-14 20:31:03,276 - INFO - Checking 9 invariants for conflicts...
+2026-03-14 20:31:03,278 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 20:31:03,278 - INFO -   1: int main1(){
+2026-03-14 20:31:03,278 - INFO -   2:   int a1, b5, vd, taoc, cu, r;
+2026-03-14 20:31:03,278 - INFO -   3: 
+2026-03-14 20:31:03,278 - INFO -   4:   a1=69;
+2026-03-14 20:31:03,278 - INFO -   5:   b5=a1+4;
+2026-03-14 20:31:03,278 - INFO -   6:   vd=2;
+2026-03-14 20:31:03,278 - INFO -   7:   taoc=0;
+2026-03-14 20:31:03,278 - INFO -   8:   cu=2;
+2026-03-14 20:31:03,278 - INFO -   9:   r=b5;
+2026-03-14 20:31:03,278 - INFO -   10: 
+2026-03-14 20:31:03,278 - INFO - DEBUG: Total lines: 59
+2026-03-14 20:31:03,539 - INFO - syntax Correct
+2026-03-14 20:31:34,658 - INFO - Validate:
+2026-03-14 20:31:34,658 - INFO - [True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True]
+2026-03-14 20:31:34,658 - INFO - 
+2026-03-14 20:31:34,658 - INFO - Verify:
+2026-03-14 20:31:34,658 - INFO - []
+2026-03-14 20:31:34,658 - INFO - 
+2026-03-14 20:31:34,658 - INFO - Houdini iteration 1: Removed 1 failed invariants
+2026-03-14 20:31:34,658 - INFO -   Before: 20 invariants
+2026-03-14 20:31:34,658 - INFO -   After: 19 invariants
+2026-03-14 20:31:34,659 - INFO -   Remaining invariants:
+2026-03-14 20:31:34,659 - INFO -     [1] r - taoc == a1 + 4
+2026-03-14 20:31:34,659 - INFO -     [2] vd - taoc == 2
+2026-03-14 20:31:34,659 - INFO -     [3] taoc <= a1
+2026-03-14 20:31:34,659 - INFO -     [4] cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2
+2026-03-14 20:31:34,659 - INFO -     [5] vd == 2 + taoc
+2026-03-14 20:31:34,659 - INFO -     [6] cu == 2 + ((taoc/5)*10) + (((taoc%5) * ((taoc%5) + 1)) / 2)
+2026-03-14 20:31:34,659 - INFO -     [7] 0 <= taoc
+2026-03-14 20:31:34,659 - INFO -     [8] r == 73 + taoc
+2026-03-14 20:31:34,659 - INFO -     [9] a1 == 69
+2026-03-14 20:31:34,659 - INFO -     [10] r == taoc + a1 + 4
+2026-03-14 20:31:34,659 - INFO -     [11] vd == taoc + 2
+2026-03-14 20:31:34,659 - INFO -     [12] r - cu >= 0
+2026-03-14 20:31:34,659 - INFO -     [13] cu - a1 == -67
+2026-03-14 20:31:34,659 - INFO -     [14] a1 >= 69
+2026-03-14 20:31:34,659 - INFO -     [15] cu <= r
+2026-03-14 20:31:34,659 - INFO -     [16] vd >= 2
+2026-03-14 20:31:34,659 - INFO -     [17] 0 <= (r - cu)
+2026-03-14 20:31:34,659 - INFO -     [18] vd >= 71
+2026-03-14 20:31:34,659 - INFO -     [19] cu == a1 - 67
+2026-03-14 20:31:34,872 - INFO - syntax Correct
+2026-03-14 20:32:05,923 - INFO - Validate:
+2026-03-14 20:32:05,923 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True]
+2026-03-14 20:32:05,923 - INFO - 
+2026-03-14 20:32:05,923 - INFO - Verify:
+2026-03-14 20:32:05,923 - INFO - []
+2026-03-14 20:32:05,923 - INFO - 
+2026-03-14 20:32:05,923 - INFO - Houdini iteration 2: Removed 1 failed invariants
+2026-03-14 20:32:05,923 - INFO -   Before: 19 invariants
+2026-03-14 20:32:05,923 - INFO -   After: 18 invariants
+2026-03-14 20:32:05,923 - INFO -   Remaining invariants:
+2026-03-14 20:32:05,923 - INFO -     [1] r - taoc == a1 + 4
+2026-03-14 20:32:05,923 - INFO -     [2] vd - taoc == 2
+2026-03-14 20:32:05,923 - INFO -     [3] taoc <= a1
+2026-03-14 20:32:05,923 - INFO -     [4] cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2
+2026-03-14 20:32:05,923 - INFO -     [5] vd == 2 + taoc
+2026-03-14 20:32:05,923 - INFO -     [6] cu == 2 + ((taoc/5)*10) + (((taoc%5) * ((taoc%5) + 1)) / 2)
+2026-03-14 20:32:05,923 - INFO -     [7] 0 <= taoc
+2026-03-14 20:32:05,923 - INFO -     [8] r == 73 + taoc
+2026-03-14 20:32:05,923 - INFO -     [9] a1 == 69
+2026-03-14 20:32:05,923 - INFO -     [10] r == taoc + a1 + 4
+2026-03-14 20:32:05,923 - INFO -     [11] vd == taoc + 2
+2026-03-14 20:32:05,923 - INFO -     [12] r - cu >= 0
+2026-03-14 20:32:05,923 - INFO -     [13] a1 >= 69
+2026-03-14 20:32:05,923 - INFO -     [14] cu <= r
+2026-03-14 20:32:05,923 - INFO -     [15] vd >= 2
+2026-03-14 20:32:05,923 - INFO -     [16] 0 <= (r - cu)
+2026-03-14 20:32:05,923 - INFO -     [17] vd >= 71
+2026-03-14 20:32:05,923 - INFO -     [18] cu == a1 - 67
+2026-03-14 20:32:06,157 - INFO - syntax Correct
+2026-03-14 20:32:37,554 - INFO - Validate:
+2026-03-14 20:32:37,554 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False]
+2026-03-14 20:32:37,554 - INFO - 
+2026-03-14 20:32:37,554 - INFO - Verify:
+2026-03-14 20:32:37,554 - INFO - []
+2026-03-14 20:32:37,554 - INFO - 
+2026-03-14 20:32:37,555 - INFO - Houdini iteration 3: Removed 1 failed invariants
+2026-03-14 20:32:37,555 - INFO -   Before: 18 invariants
+2026-03-14 20:32:37,555 - INFO -   After: 17 invariants
+2026-03-14 20:32:37,555 - INFO -   Remaining invariants:
+2026-03-14 20:32:37,555 - INFO -     [1] r - taoc == a1 + 4
+2026-03-14 20:32:37,555 - INFO -     [2] vd - taoc == 2
+2026-03-14 20:32:37,555 - INFO -     [3] taoc <= a1
+2026-03-14 20:32:37,555 - INFO -     [4] cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2
+2026-03-14 20:32:37,555 - INFO -     [5] vd == 2 + taoc
+2026-03-14 20:32:37,555 - INFO -     [6] cu == 2 + ((taoc/5)*10) + (((taoc%5) * ((taoc%5) + 1)) / 2)
+2026-03-14 20:32:37,555 - INFO -     [7] 0 <= taoc
+2026-03-14 20:32:37,555 - INFO -     [8] r == 73 + taoc
+2026-03-14 20:32:37,555 - INFO -     [9] a1 == 69
+2026-03-14 20:32:37,555 - INFO -     [10] r == taoc + a1 + 4
+2026-03-14 20:32:37,555 - INFO -     [11] vd == taoc + 2
+2026-03-14 20:32:37,555 - INFO -     [12] r - cu >= 0
+2026-03-14 20:32:37,555 - INFO -     [13] a1 >= 69
+2026-03-14 20:32:37,555 - INFO -     [14] cu <= r
+2026-03-14 20:32:37,555 - INFO -     [15] vd >= 2
+2026-03-14 20:32:37,555 - INFO -     [16] 0 <= (r - cu)
+2026-03-14 20:32:37,555 - INFO -     [17] vd >= 71
+2026-03-14 20:32:37,804 - INFO - syntax Correct
+2026-03-14 20:33:09,156 - INFO - Validate:
+2026-03-14 20:33:09,157 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False]
+2026-03-14 20:33:09,157 - INFO - 
+2026-03-14 20:33:09,158 - INFO - Verify:
+2026-03-14 20:33:09,158 - INFO - []
+2026-03-14 20:33:09,158 - INFO - 
+2026-03-14 20:33:09,158 - INFO - Houdini iteration 4: Removed 1 failed invariants
+2026-03-14 20:33:09,158 - INFO -   Before: 17 invariants
+2026-03-14 20:33:09,158 - INFO -   After: 16 invariants
+2026-03-14 20:33:09,158 - INFO -   Remaining invariants:
+2026-03-14 20:33:09,158 - INFO -     [1] r - taoc == a1 + 4
+2026-03-14 20:33:09,158 - INFO -     [2] vd - taoc == 2
+2026-03-14 20:33:09,158 - INFO -     [3] taoc <= a1
+2026-03-14 20:33:09,158 - INFO -     [4] cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2
+2026-03-14 20:33:09,158 - INFO -     [5] vd == 2 + taoc
+2026-03-14 20:33:09,158 - INFO -     [6] cu == 2 + ((taoc/5)*10) + (((taoc%5) * ((taoc%5) + 1)) / 2)
+2026-03-14 20:33:09,158 - INFO -     [7] 0 <= taoc
+2026-03-14 20:33:09,158 - INFO -     [8] r == 73 + taoc
+2026-03-14 20:33:09,158 - INFO -     [9] a1 == 69
+2026-03-14 20:33:09,158 - INFO -     [10] r == taoc + a1 + 4
+2026-03-14 20:33:09,159 - INFO -     [11] vd == taoc + 2
+2026-03-14 20:33:09,159 - INFO -     [12] r - cu >= 0
+2026-03-14 20:33:09,159 - INFO -     [13] a1 >= 69
+2026-03-14 20:33:09,159 - INFO -     [14] cu <= r
+2026-03-14 20:33:09,159 - INFO -     [15] vd >= 2
+2026-03-14 20:33:09,159 - INFO -     [16] 0 <= (r - cu)
+2026-03-14 20:33:09,476 - INFO - syntax Correct
+2026-03-14 20:33:40,934 - INFO - Validate:
+2026-03-14 20:33:40,935 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True]
+2026-03-14 20:33:40,935 - INFO - 
+2026-03-14 20:33:40,935 - INFO - Verify:
+2026-03-14 20:33:40,935 - INFO - []
+2026-03-14 20:33:40,935 - INFO - 
+2026-03-14 20:33:40,935 - INFO - Houdini iteration 5: Removed 1 failed invariants
+2026-03-14 20:33:40,935 - INFO -   Before: 16 invariants
+2026-03-14 20:33:40,935 - INFO -   After: 15 invariants
+2026-03-14 20:33:40,935 - INFO -   Remaining invariants:
+2026-03-14 20:33:40,935 - INFO -     [1] r - taoc == a1 + 4
+2026-03-14 20:33:40,935 - INFO -     [2] vd - taoc == 2
+2026-03-14 20:33:40,935 - INFO -     [3] taoc <= a1
+2026-03-14 20:33:40,935 - INFO -     [4] cu == 2 + 10*(taoc/5) + ((taoc%5)*(taoc%5 + 1))/2
+2026-03-14 20:33:40,935 - INFO -     [5] vd == 2 + taoc
+2026-03-14 20:33:40,935 - INFO -     [6] cu == 2 + ((taoc/5)*10) + (((taoc%5) * ((taoc%5) + 1)) / 2)
+2026-03-14 20:33:40,935 - INFO -     [7] 0 <= taoc
+2026-03-14 20:33:40,935 - INFO -     [8] r == 73 + taoc
+2026-03-14 20:33:40,935 - INFO -     [9] a1 == 69
+2026-03-14 20:33:40,935 - INFO -     [10] r == taoc + a1 + 4
+2026-03-14 20:33:40,935 - INFO -     [11] vd == taoc + 2
+2026-03-14 20:33:40,935 - INFO -     [12] r - cu >= 0
+2026-03-14 20:33:40,935 - INFO -     [13] a1 >= 69
+2026-03-14 20:33:40,935 - INFO -     [14] cu <= r
+2026-03-14 20:33:40,935 - INFO -     [15] 0 <= (r - cu)
+2026-03-14 20:33:41,160 - INFO - syntax Correct
+2026-03-14 20:34:12,400 - INFO - Validate:
+2026-03-14 20:34:12,400 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-14 20:34:12,400 - INFO - 
+2026-03-14 20:34:12,401 - INFO - Verify:
+2026-03-14 20:34:12,401 - INFO - []
+2026-03-14 20:34:12,401 - INFO - 
+2026-03-14 20:34:12,401 - INFO - Houdini iteration 6: All invariants are valid
+2026-03-14 20:34:12,644 - INFO - syntax Correct
+2026-03-14 20:34:43,900 - INFO - Validate:
+2026-03-14 20:34:43,901 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-14 20:34:43,901 - INFO - 
+2026-03-14 20:34:43,901 - INFO - Verify:
+2026-03-14 20:34:43,901 - INFO - []
+2026-03-14 20:34:43,901 - INFO - 
+2026-03-14 20:35:23,260 - INFO - Deduplicated 7 loop invariants in final code
+2026-03-14 20:35:23,506 - INFO - syntax Correct
+2026-03-14 20:35:54,408 - INFO - Validate:
+2026-03-14 20:35:54,408 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-14 20:35:54,408 - INFO - 
+2026-03-14 20:35:54,408 - INFO - Verify:
+2026-03-14 20:35:54,408 - INFO - []
+2026-03-14 20:35:54,408 - INFO - 
+2026-03-14 20:35:54,408 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-14 20:35:54,408 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_20/1.c
+2026-03-14 20:35:54,408 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_20/1_invariants.txt
+2026-03-14 20:35:54,408 - INFO - 
 ============================================================
-2026-03-11 16:39:49,298 - INFO - Final first_pass results:
-2026-03-11 16:39:49,298 - INFO -   syntax=1
-2026-03-11 16:39:49,298 - INFO -   valid=1
-2026-03-11 16:39:49,298 - INFO -   satisfy=None
-2026-03-11 16:39:49,298 - INFO - ============================================================
-2026-03-11 16:39:49,298 - INFO - 
+2026-03-14 20:35:54,409 - INFO - Final first_pass results:
+2026-03-14 20:35:54,409 - INFO -   syntax=1
+2026-03-14 20:35:54,409 - INFO -   valid=1
+2026-03-14 20:35:54,409 - INFO -   satisfy=None
+2026-03-14 20:35:54,409 - INFO - ============================================================
+2026-03-14 20:35:54,409 - INFO - 
 ============================================================
-2026-03-11 16:39:49,298 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 16:39:49,298 - INFO -   Total API calls: 32
-2026-03-11 16:39:49,298 - INFO -   Total prompt tokens (input): 31,899
-2026-03-11 16:39:49,298 - INFO -   Total completion tokens (output): 162,224
-2026-03-11 16:39:49,298 - INFO -   Total tokens: 194,123
-2026-03-11 16:39:49,298 - INFO -   Average per call:
-2026-03-11 16:39:49,298 - INFO -     Prompt: 996.8 tokens
-2026-03-11 16:39:49,298 - INFO -     Completion: 5069.5 tokens
-2026-03-11 16:39:49,298 - INFO -     Total: 6066.3 tokens
-2026-03-11 16:39:49,298 - INFO - ============================================================
-2026-03-11 16:39:49,298 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_20/1.c
-2026-03-11 16:39:49,298 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_20/1_invariants.txt
-2026-03-11 16:40:17,504 - INFO - LLM quality-gate raw response: {
+2026-03-14 20:35:54,409 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 20:35:54,409 - INFO -   Total API calls: 2
+2026-03-14 20:35:54,409 - INFO -   Total prompt tokens (input): 2,380
+2026-03-14 20:35:54,409 - INFO -   Total completion tokens (output): 13,557
+2026-03-14 20:35:54,409 - INFO -   Total tokens: 15,937
+2026-03-14 20:35:54,409 - INFO -   Average per call:
+2026-03-14 20:35:54,409 - INFO -     Prompt: 1190.0 tokens
+2026-03-14 20:35:54,409 - INFO -     Completion: 6778.5 tokens
+2026-03-14 20:35:54,409 - INFO -     Total: 7968.5 tokens
+2026-03-14 20:35:54,409 - INFO - ============================================================
+2026-03-14 20:35:54,409 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_20/1.c
+2026-03-14 20:35:54,409 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_20/1_invariants.txt
+2026-03-14 20:36:03,921 - INFO - LLM quality-gate raw response: {
   "ok": false,
-  "reason": "fail"
+  "reason": "The first loop invariants are somewhat detailed but rely on an unnecessarily complex relation for cu and lack an explicit variant for termination. The second loop invariants fail to capture a termination bound for the loop counter (cu), lacking a clear progress measure or an invariant that ensures cu eventually meets or exceeds r. Moreover, the mix of invariants (with a1 fixed in the first loop but only lower bounded in the second) misses full consistency over the modified variables."
 }
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

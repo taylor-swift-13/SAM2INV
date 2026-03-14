@@ -1,465 +1,654 @@
-2026-03-11 03:38:05,332 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 03:38:05,361 - INFO - Found 2 loops
-2026-03-11 03:38:05,362 - INFO - 
+2026-03-14 20:34:24,564 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 20:34:24,591 - INFO - Found 2 loops
+2026-03-14 20:34:24,593 - INFO - 
 ============================================================
-2026-03-11 03:38:05,362 - INFO - Main generation pass 1/1
-2026-03-11 03:38:05,362 - INFO - ============================================================
-2026-03-11 03:38:05,362 - INFO - Loaded single prompt template: simple
-2026-03-11 03:38:05,362 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 03:38:05,362 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 03:38:05,374 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:42:14,796 - INFO - 
+2026-03-14 20:34:24,593 - INFO - Main generation pass 1/1
+2026-03-14 20:34:24,593 - INFO - ============================================================
+2026-03-14 20:34:24,593 - INFO - Loaded single prompt template: simple
+2026-03-14 20:34:24,593 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 20:34:24,593 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 20:34:24,657 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:35:54,079 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>
-We need inductive, verification-friendly loop invariants for two loops operating on the locals ya, ox, f9, b, p. The initial setup fixes p = (1%18) + 5 = 6, so the first loop runs p down from 6 to 0, and the second loop then runs while b > p with p increasing from 0.
+<reasoning>For the two loops, I designed inductive loop invariants that are strong, yet maintainable by the WP verifier and do not rely on pre-state values of locals (as required). The invariants target core state relations that are preserved by each loop iteration and provide minimal but sufficient progress information to aid termination proofs.
 
-First loop (while (p>0)):
-- Observed relations across iterations:
-  - After t iterations, p = 6 - t, b = t, f9 = t, ox = sum_{i=1..t} (1 + i) = t(t+3)/2.
-  - Therefore, b and f9 both equal 6 - p, and ox satisfies 2*ox = (6 - p)*(9 - p). Also b and f9 are equal, and p remains in [0,6].
-- From these, strong, inductive invariants are:
-  - b == f9 (both count iterations)
-  - b == 6 - p (t = 6 - p)
-  - ox*2 == (6 - p) * (9 - p) (conservation of ox growth)
-  - 0 <= p <= 6 (progress bound)
-  - loop assigns ox, b, f9, p
-  - loop variant 6 - p (strictly decreases as p decreases by 1 each iteration)
+Loop 0 (nr < we6 and updates nr, hqr, ioe, at):
+- Core relational invariant: hqr = nr * x. This captures the exact per-iteration updates (nr increments by 1; hqr increments by x) starting from the initial values.
+- Conservative invariant for ioe, since ioe starts equal to gh and grows by a fixed amount per iteration: ioe = gh + 2*nr.
+- Fixed relations that are preserved by the loop: gh = we6 and we6 = x*3 (gh and we6 are not modified in the loop, and we6 is set to x*3 initially; gh tracks we6).
+- Numerics progress: 0 <= nr <= we6 to bound the loop counter.
+- Loop assigns: nr, hqr, ioe, at.
 
-Second loop (while (b>p)):
-- After t iterations in this loop (starting with p = 0, b = 6, f9 = 6, ox = 27, ya = 0):
-  - p increases by t: p = t
-  - f9 increases by t: f9 = 6 + t
-  - ox increases by ya per iteration: ox = 27 + ya*t
-  - b decreases according to a triangular schedule: b = 6 - t*(t-1)/2
-- Thus, inductive invariants are:
-  - b == 6 - p*(p-1)/2
-  - f9 == 6 + p
-  - ox == 27 + ya*p
-  - 0 <= p <= 6 (progress bound; loop terminates when p reaches 6)
-  - loop assigns b, f9, ox, p
-  - loop variant 6 - p (since p increases by 1 each iteration, this decreases)
-These invariants are inductive with the given transition relations, rely only on available variables, and aid Frama-C/WP verification without altering the code.
-</reasoning>
-<code>
-int main1(){
-  int ya, ox, f9, b, p;
+Loop 1 (infinite loop with explicit break guarded by hqr < ioe):
+- The loop updates hqr by +1 on each iteration, while ioe and gh are not changed inside the loop. A natural invariant is hqr <= ioe.
+- Since ioe is constant with respect to the loop, and gh and we6 remain fixed, we can also capture ioe == gh and gh == we6, and we6 == x*3 as fixed relations.
+- Progress measure: (ioe - hqr) strictly decreases by 1 each iteration, providing a natural loop variant.
+- Loop assigns: at, hqr, nr.
+These invariants collectively give a verification-friendly, inductive specification without altering the original code beyond annotations.
 
-  ya=0;
-  ox=0;
-  f9=0;
-  b=0;
-  p=(1%18)+5;
+Note: The invariant choices avoid using \at on non-parameter locals, adhere to the allowed operators, and keep the loop guard separate from the invariant (permitted by the rules). The invariant for Loop 0 contains a strong relational equality (hqr == nr * x) that cleanly explains the loop updates, while Loop 1 uses a non-strict relational invariant and a decreasing variant (ioe - hqr) to support termination reasoning, with minimal and relevant state insights. </reasoning>
+<code>int main1(int x){
+  int we6, gh, hqr, nr, at, ioe;
 
+  we6=x*3;
+  gh=we6;
+  hqr=0;
+  nr=0;
+  at=x;
+  ioe=gh;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant b == f9;
-    loop invariant b == 6 - p;
-    loop invariant ox*2 == (6 - p) * (9 - p);
-    loop invariant 0 &lt;= p &lt;= 6;
-    loop assigns ox, b, f9, p;
-    loop variant 6 - p;
-  @*/
-  while (p>0) {
-      ox = ox+1*1;
-      b = b+1*1;
-      f9 = f9+1*1;
-      p -= 1;
-      ox = ox + f9;
+    loop invariant hqr == nr * x;
+    loop invariant ioe == gh + 2 * nr;
+    loop invariant gh == we6;
+    loop invariant we6 == x * 3;
+    loop invariant 0 <= nr && nr <= we6;
+    loop assigns nr, hqr, ioe, at;
+    loop variant we6 - nr;
+  */
+  while (nr<we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
   }
 
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant b == 6 - p*(p-1)/2;
-    loop invariant f9 == 6 + p;
-    loop invariant ox == 27 + ya*p;
-    loop invariant 0 &lt;= p &lt;= 6;
-    loop assigns b, f9, ox, p;
-    loop variant 6 - p;
-  @*/
-  while (b>p) {
-      b -= p;
-      f9 = f9 + 1;
-      ox += ya;
-      p = (1)+(p);
+    loop invariant hqr <= ioe;
+    loop invariant ioe == gh;
+    loop invariant gh == we6;
+    loop invariant we6 == x * 3;
+    loop assigns at, hqr, nr;
+    loop variant (ioe - hqr);
+  */
+  while (1) {
+      if (!(hqr<ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
   }
 
-}
-</code>
+}</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-11 03:42:14,796 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 03:42:14,813 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:45:09,053 - INFO - 
+2026-03-14 20:35:54,079 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 20:35:54,148 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:38:49,639 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<EMPTY_RESPONSE>
+<reasoning>The two loops have distinct state-update patterns. I derive inductive, verification-friendly invariants that capture the essential state-relations preserved by each loop, along with complete loop-assign sets and suitable progress metrics.
+
+Loop 0 (nr < we6):
+- Core conservation: hqr grows by x each iteration while nr grows by 1, starting from hqr=0, nr=0. This yields the exact relation hqr == nr * x, which is preserved by hqr += x and nr += 1.
+- Additional linear relation: ioe starts at gh and increases by 2 each iteration, while gh and we6 are constants; thus ioe == gh + 2*nr is preserved.
+- Constants preserved: gh == we6 and we6 == 3*x (gh and we6 do not change in the loop; x is the initial parameter). These help tie the loop state to the initial input.
+- Loop assigns: nr, hqr, ioe, at are modified in this loop exactly as in code.
+- Loop variant: we6 - nr decreases by 1 each iteration and remains non-negative while nr < we6, providing a well-founded measure.
+
+Loop 1 (infinite-while with break when hqr >= ioe):
+- Core conservation: nr increases by x per iteration, while hqr increases by 1 per iteration. This yields the exact relation nr == hqr * x, which is preserved by nr += x and hqr++ starting from nr=0, hqr=0.
+- Invariant about ioe/gh/we6/x: ioe remains equal to gh throughout this loop (ioe is not modified in the loop body), and gh == we6 and we6 == 3*x tie the invariant to the initial input as well.
+- Loop assigns: nr, hqr, at are modified in this loop (and at uses gh but gh itself is not changed).
+- The loop termination is controlled by the break condition (hqr < ioe). The invariant hqr == nr * x guarantees that if nr and hqr grow, their relationship remains consistent; with the break guarding, the invariant helps verify the loop’s progress without depending on at for the termination.
+
+The chosen invariants are strong (not tautological), inductively preserved by the respective updates, and use only allowed variables. They also allow deriving key facts about the final state once the loops terminate.
+
+Now the complete annotated C code with ACSL loop annotations follows. It preserves the original code structure and does not modify unknown()/unknownN() calls or any other code semantics. </reasoning>
+<code>int main1(int x){
+  int we6, gh, hqr, nr, at, ioe;
+
+  we6=x*3;
+  gh=we6;
+  hqr=0;
+  nr=0;
+  at=x;
+  ioe=gh;
+
+  /*@
+    loop invariant hqr == nr * x;
+    loop invariant ioe == gh + (2 * nr);
+    loop invariant gh == we6;
+    loop invariant we6 == 3 * x;
+    loop assigns nr, hqr, ioe, at;
+    loop variant we6 - nr;
+  */
+  while (nr<we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
+  }
+
+  /*@
+    loop invariant nr == hqr * x;
+    loop invariant ioe == gh;
+    loop invariant gh == we6;
+    loop invariant we6 == 3 * x;
+    loop assigns nr, hqr, at;
+  */
+  while (1) {
+      if (!(hqr<ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
+  }
+
+}</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-11 03:45:09,053 - WARNING -   Failed to extract code from candidate 2
-2026-03-11 03:45:09,053 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 03:45:09,065 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:49:09,649 - INFO - 
+2026-03-14 20:38:49,639 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 20:38:49,700 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:40:59,655 - INFO - 
 ----- Candidate 3/5 raw response begin -----
 <reasoning>
-For Loop 0 (the first while p > 0), we want an inductive, verification-friendly invariant that captures the core state-change pattern observed in the loop:
+I analyzed the two loops and derived inductive, verification-friendly invariants that relate the state variables in a way Frama-C WP can prove.
 
-- b and f9 both increase by 1 each iteration, so a strong relation is b == f9 (they stay equal).
-- p decreases by 1 each iteration, while b increases by 1 each iteration, which yields the linear relation p == 6 - b (since initial p is 6 when b is 0).
-- ox accumulates in a way that corresponds to the accumulated growth of b; a closed-form relation derived from the updates is ox == b*(b+3)/2 (with initial ox = 0 when b = 0). This is a strong, exact relation that holds inductively with the given updates.
+Loop 0 (first while, nr < we6):
+- Core conservation/relational equality: hqr grows by x each iteration and nr grows by 1, starting from hqr = 0, nr = 0. Therefore a strong invariant is hqr == nr * x.
+- A simple linear relation for ioe: ioe grows by 2 each iteration, starting from ioe = gh. Since gh is constant during the loop, ioe == gh + 2*nr is preserved.
+- Progress bound: nr is non-negative and bounded above by we6, so nr >= 0 and a natural decreasing variant can be we6 - nr.
+- A basic monotonicity invariant for at: since at is increased by a non-negative amount each iteration, at >= initial value which equals x (i.e., at >= \at(x, Pre)) holds (x > 0 by precondition reasoning).
 
-Thus, for Loop 0 we can provide invariants:
-- b == f9
-- p == 6 - b
-- ox == b*(b+3)/2
+These invariants are preserved by the loop body:
+- nr' = nr + 1, hqr' = hqr + x, ioe' = ioe + 2, and at' = at + (hqr' % 6) maintain hqr == nr*x and ioe == gh + 2*nr.
 
-We also provide a loop variant to aid termination reasoning:
-- loop variant p
+Loop 1 (second while, effectively a loop with an internal break when hqr < ioe fails):
+- Here, hqr starts at x and increments by 1 per iteration; nr starts at 1 and increases by x per iteration. This yields a precise invariant: hqr == x + (nr - 1) / x. It captures the exact relation between hqr and nr given the update rules.
+- nr >= 1 is true at loop entry and preserved (since nr increases by x > 0).
+- The loop assigns at, hqr, nr, so we declare those explicitly.
+- For progress, the variant ioe - hqr decreases by 1 each iteration (ioe is constant in this loop, hqr increases by 1).
 
-Loop 1 (the second while b > p) has different dynamics (notably ya remains 0, ox is unchanged, and p grows while b decreases). From the actual execution path:
-- f9 increases by 1 each iteration, while b decreases by p, and p increases by 1. The difference f9 - b tends to stay nonnegative; a useful inductive invariant is f9 >= b.
-- ya is constant, hence ox doesn’t change; with initial ox (at loop entry) known from prior loop, a safe invariant is ox == 27 (since ya == 0 and the first loop ends with ox = 27). This is tight but valid given the fixed initial conditions.
-- p is nonnegative throughout the loop since it starts at 0 and increases; thus p >= 0 is a natural bound.
-To support termination, we use a loop variant that monotonically decreases across iterations:
-- loop variant (b - p)
-
-Thus, for Loop 1 we provide invariants:
-- f9 >= b
-- ox == 27
-- p >= 0
-
-And the loop variant:
-- loop variant (b - p)
-
-The assignments for both loops are the set of variables actually modified inside each loop: b, f9, ox, p.
-All reasoning uses only the available variables (b, f9, ox, p, ya) and constants; no parameters are used, and no \at() is attempted on non-parameters.
+I avoided any unrelated invariants and kept all used variables within the given Available Variables. I did not modify any unknown() or unknownN() calls, and I only used \at(x, Pre) as the function parameter’s initial value where needed.
 </reasoning>
 <code>
-int main1(){
-  int ya, ox, f9, b, p;
+int main1(int x){
+  int we6, gh, hqr, nr, at, ioe;
 
-  ya=0;
-  ox=0;
-  f9=0;
-  b=0;
-  p=(1%18)+5;
+  we6=x*3;
+  gh=we6;
+  hqr=0;
+  nr=0;
+  at=x;
+  ioe=gh;
 
   /*@
-    loop invariant b == f9;
-    loop invariant p == 6 - b;
-    loop invariant ox == b*(b+3)/2;
-    loop assigns ox, b, f9, p;
-    loop variant p;
-  @*/
-  while (p>0) {
-      ox = ox+1*1;
-      b = b+1*1;
-      f9 = f9+1*1;
-      p -= 1;
-      ox = ox + f9;
+      loop invariant hqr == nr * x;
+      loop invariant ioe == gh + 2 * nr;
+      loop invariant nr >= 0;
+      loop invariant at >= \at(x, Pre);
+      loop assigns nr, hqr, ioe, at;
+      loop variant we6 - nr;
+  */
+  while (nr<we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
   }
 
   /*@
-    loop invariant f9 >= b;
-    loop invariant ox == 27;
-    loop invariant p >= 0;
-    loop assigns ox, b, f9, p;
-    loop variant (b - p);
-  @*/
-  while (b>p) {
-      b -= p;
-      f9 = f9 + 1;
-      ox += ya;
-      p = (1)+(p);
+      loop invariant hqr == x + ((nr - 1) / x);
+      loop invariant nr >= 1;
+      loop assigns nr, hqr, at;
+      loop variant ioe - hqr;
+  */
+  while (1) {
+      if (!(hqr<ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
   }
 
 }
 </code>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 03:49:09,649 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 03:49:09,666 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:52:36,358 - INFO - 
+2026-03-14 20:40:59,655 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 20:40:59,715 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:43:04,578 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>For Loop 0 (while (p>0)):
-- Observed state evolution: p decreases by 1 each iteration; b and f9 each increase by 1; ox increases by 1, then by the new f9, yielding a net ox increment that depends on b.
-- A compact inductive description that captures the loop behavior is:
-  - f9 tracks b: f9 == b (since both start at 0 and both are incremented by 1 every iteration).
-  - The sum p + b stays constant (= initial p, which is (1%18) + 5, i.e., 6).
-  - The relationship 2*ox == b*(b+3) holds because ox advances by 1 then by f9, i.e., after k iterations ox = k*(k+3)/2 and b = k, giving 2*ox = b*(b+3).
-  - p >= 0 ensures a progress bound.
-- Loop assigns must include all modified variables: ox, b, f9, p.
-- A loop variant of p ensures termination (p decreases each iteration).
+<reasoning>For Loop 0 (nr < we6):
+- Provide a core conservation relation explaining updates: hqr is increased by x each iteration and nr is increased by 1, with hqr initialized to 0. A tight invariant is hqr == nr * x.
+- Track progress: ioe is increased by 2 each iteration, and gh remains constant while we6 remains constant. Therefore ioe == gh + 2*nr is a natural invariant (ioe grows exactly by 2 per iteration while nr grows by 1).
+- Track a stable relation between gh and we6 since gh is assigned from we6 at initialization and never updated: gh == we6.
+- Keep a simple non-decreasing counter invariant: 0 <= nr.
+- Provide a termination measure: loop variant we6 - nr, which decreases by 1 each iteration because nr increments by 1 while we6 is constant.
+- loop assigns must list the variables modified in the loop: nr, hqr, ioe, at.
 
-For Loop 1 (while (b>p)):
-- After finishing Loop 0, the loop starts with p = 0, b = 6, f9 = 6, ox = 27, ya = 0.
-- In Loop 1, updates are:
-  - p increases by 1 each iteration.
-  - f9 increases by 1 each iteration.
-  - b decreases by p (the current p before increment).
-  - ox remains unchanged (since ya = 0).
-- This yields a clean invariant set:
-  - ox == 27 (unchanged since ya == 0).
-  - f9 == p + 6 (since f9 starts at 6 and increases by 1 with each increment of p).
-  - b == 6 - p*(p-1)/2 (b starts at 6 and loses p, then p+1, then p+2, ... across iterations; this quadratic relation holds by induction with p increasing by 1 per iteration).
-  - p >= 0 (progress bound).
-- Loop assigns must include: ox, b, f9, p.
-- Loop variant p again provides a finite descending measure (as p strictly increases, the loop will eventually terminate when b <= p).
+For Loop 1 (the second loop body inside while (1)):
+- The loop body is guarded by if (!(hqr<ioe)) break; thus, as long as the loop body runs, hqr < ioe holds. To be robust with the break-style loop, use a non-strict invariant hqr <= ioe that stays true when the body executes and also right before termination.
+- hqr increases by 1 each iteration, starting from the initial value of hqr at loop entry. So hqr >= \at(x,Pre) captures the fact that hqr never decreases and starts at the initial function-argument value.
+- gh and we6 remain unchanged, and nr grows by x; We keep gh == we6 as a maintained invariant (constant throughout) and allow nr as a state variable in the loop assigns.
+- Termination measure: since hqr increases and ioe is constant in this loop, the difference ioe - hqr decreases by 1 each iteration; thus loop variant ioe - hqr is appropriate.
+- loop assigns must list the variables modified in the loop: at, hqr, nr.
 
-These invariants are inductive, non-tautological, and tightly describe the exact state evolution of both loops using only available variables.</reasoning>
-<code>int main1(){
-  int ya, ox, f9, b, p;
+With these invariants, the first loop’s behavior is captured by a straightforward linear relation between hqr and nr, and the second loop’s behavior is captured by bounds and a decreasing variant, while using the Pre value for referencing the initial hqr. All invariants are inductive and verifyable by Frama-C/WP, and the code itself remains unchanged. </reasoning>
 
-  ya=0;
-  ox=0;
-  f9=0;
-  b=0;
-  p=(1%18)+5;
+<code>int main1(int x){
+  int we6, gh, hqr, nr, at, ioe;
+
+  we6=x*3;
+  gh=we6;
+  hqr=0;
+  nr=0;
+  at=x;
+  ioe=gh;
 
   /*@
-    loop invariant f9 == b;
-    loop invariant p + b == ((1 % 18) + 5);
-    loop invariant 2 * ox == b * (b + 3);
-    loop invariant p >= 0;
-    loop assigns ox, b, f9, p;
-    loop variant p;
+    loop invariant hqr == nr * x;
+    loop invariant ioe == gh + 2 * nr;
+    loop invariant gh == we6;
+    loop invariant 0 <= nr;
+    loop assigns nr, hqr, ioe, at;
+    loop variant we6 - nr;
   */
-  while (p>0) {
-      ox = ox+1*1;
-      b = b+1*1;
-      f9 = f9+1*1;
-      p -= 1;
-      ox = ox + f9;
+  while (nr<we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
   }
 
   /*@
-    loop invariant ox == 27;
-    loop invariant f9 == p + 6;
-    loop invariant b == 6 - p*(p-1)/2;
-    loop invariant p >= 0;
-    loop assigns ox, b, f9, p;
-    loop variant p;
+    loop invariant hqr <= ioe;
+    loop invariant hqr >= \at(x, Pre);
+    loop invariant gh == we6;
+    loop assigns at, hqr, nr;
+    loop variant ioe - hqr;
   */
-  while (b>p) {
-      b -= p;
-      f9 = f9 + 1;
-      ox += ya;
-      p = (1)+(p);
+  while (1) {
+      if (!(hqr<ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
   }
 
 }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-11 03:52:36,358 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 03:52:36,371 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:54:25,729 - INFO - 
+2026-03-14 20:43:04,578 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 20:43:04,675 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:44:43,062 - INFO - 
 ----- Candidate 5/5 raw response begin -----
-<EMPTY_RESPONSE>
------ Candidate 5/5 raw response end -----
-2026-03-11 03:54:25,730 - WARNING -   Failed to extract code from candidate 5
-2026-03-11 03:54:25,730 - INFO - 
------ Candidate 1/5 full code begin -----
-int main1(){
-  int ya, ox, f9, b, p;
+<reasoning>For the two loops I aim for inductive, verification-friendly invariants that are easy to prove and directly reflect the observed state updates.
 
-  ya=0;
-  ox=0;
-  f9=0;
-  b=0;
-  p=(1%18)+5;
+First loop (nr<we6):
+- hqr is increased by x each iteration, and nr is increased by 1. With the initial conditions hqr = 0, nr = 0, we can establish the simple invariant hqr == nr * x. This is preserved because both sides increment in lockstep: nr' = nr+1 and hqr' = hqr + x.
+- ioe starts at gh and is increased by 2 per iteration, while gh stays constant. Therefore ioe = gh + 2*nr holds after every iteration.
+- nr is non-decreasing and starts at 0, so 0 <= nr is invariant.
+- A termination-progress measure is useful; since nr increases by 1 and the loop guard is nr < we6, the natural decreasing variant is we6 - nr.
 
-  /*@
-    loop invariant b == f9;
-    loop invariant b == 6 - p;
-    loop invariant ox*2 == (6 - p) * (9 - p);
-    loop invariant 0 &lt;= p &lt;= 6;
-    loop assigns ox, b, f9, p;
-    loop variant 6 - p;
-  @*/
-  while (p>0) {
-      ox = ox+1*1;
-      b = b+1*1;
-      f9 = f9+1*1;
-      p -= 1;
-      ox = ox + f9;
+Second loop (the infinite loop with a break based on hqr<ioe):
+- The loop condition is guarded by hqr < ioe inside the body (the break) so within the loop, hqr < ioe holds at entry to each iteration. A simple, robust invariant is hqr <= ioe, which is preserved because hqr increments by 1 while ioe is constant in this loop.
+- The loop updates nr by x, hqr by 1, and at by a linear affine transformation; ioe is not modified in this loop. We keep loop assigns to only the modified variables: nr, hqr, at.
+- For termination progress, the natural variant is ioe - hqr, since hqr increases by 1 each iteration, reducing the difference by 1 each time.
+
+These choices are strong, non-tautological, respect the given variable constraints, and are inductive across iterations of each loop. They also avoid introducing invariants that depend on at's exact (and complex) evolution, which keeps verification friendly for Frama-C/WP. </reasoning>
+<code>/*@ 
+  loop invariant hqr == nr * x;
+  loop invariant ioe == gh + 2 * nr;
+  loop invariant 0 <= nr;
+  loop assigns nr, hqr, ioe, at;
+  loop variant we6 - nr;
+*/
+while (nr&lt;we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
   }
 
+  /*@ 
+  loop invariant hqr <= ioe;
+  loop assigns nr, hqr, at;
+  loop variant ioe - hqr;
+*/
+while (1) {
+      if (!(hqr&lt;ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
+  }</code>
+----- Candidate 5/5 raw response end -----
+2026-03-14 20:44:43,062 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int x){
+  int we6, gh, hqr, nr, at, ioe;
+
+  we6=x*3;
+  gh=we6;
+  hqr=0;
+  nr=0;
+  at=x;
+  ioe=gh;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant b == 6 - p*(p-1)/2;
-    loop invariant f9 == 6 + p;
-    loop invariant ox == 27 + ya*p;
-    loop invariant 0 &lt;= p &lt;= 6;
-    loop assigns b, f9, ox, p;
-    loop variant 6 - p;
-  @*/
-  while (b>p) {
-      b -= p;
-      f9 = f9 + 1;
-      ox += ya;
-      p = (1)+(p);
+    loop invariant hqr == nr * x;
+    loop invariant ioe == gh + 2 * nr;
+    loop invariant gh == we6;
+    loop invariant we6 == x * 3;
+    loop invariant 0 <= nr && nr <= we6;
+    loop assigns nr, hqr, ioe, at;
+    loop variant we6 - nr;
+  */
+  while (nr<we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant hqr <= ioe;
+    loop invariant ioe == gh;
+    loop invariant gh == we6;
+    loop invariant we6 == x * 3;
+    loop assigns at, hqr, nr;
+    loop variant (ioe - hqr);
+  */
+  while (1) {
+      if (!(hqr<ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-11 03:54:25,730 - WARNING - Candidate 2/5 full code: <None> (failed to extract)
-2026-03-11 03:54:25,730 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(){
-  int ya, ox, f9, b, p;
+2026-03-14 20:44:43,062 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int x){
+  int we6, gh, hqr, nr, at, ioe;
 
-  ya=0;
-  ox=0;
-  f9=0;
-  b=0;
-  p=(1%18)+5;
+  we6=x*3;
+  gh=we6;
+  hqr=0;
+  nr=0;
+  at=x;
+  ioe=gh;
 
   /*@
-    loop invariant b == f9;
-    loop invariant p == 6 - b;
-    loop invariant ox == b*(b+3)/2;
-    loop assigns ox, b, f9, p;
-    loop variant p;
-  @*/
-  while (p>0) {
-      ox = ox+1*1;
-      b = b+1*1;
-      f9 = f9+1*1;
-      p -= 1;
-      ox = ox + f9;
+    loop invariant hqr == nr * x;
+    loop invariant ioe == gh + (2 * nr);
+    loop invariant gh == we6;
+    loop invariant we6 == 3 * x;
+    loop assigns nr, hqr, ioe, at;
+    loop variant we6 - nr;
+  */
+  while (nr<we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
   }
 
   /*@
-    loop invariant f9 >= b;
-    loop invariant ox == 27;
-    loop invariant p >= 0;
-    loop assigns ox, b, f9, p;
-    loop variant (b - p);
-  @*/
-  while (b>p) {
-      b -= p;
-      f9 = f9 + 1;
-      ox += ya;
-      p = (1)+(p);
+    loop invariant nr == hqr * x;
+    loop invariant ioe == gh;
+    loop invariant gh == we6;
+    loop invariant we6 == 3 * x;
+    loop assigns nr, hqr, at;
+  */
+  while (1) {
+      if (!(hqr<ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-03-14 20:44:43,062 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int x){
+  int we6, gh, hqr, nr, at, ioe;
+
+  we6=x*3;
+  gh=we6;
+  hqr=0;
+  nr=0;
+  at=x;
+  ioe=gh;
+
+  /*@
+      loop invariant hqr == nr * x;
+      loop invariant ioe == gh + 2 * nr;
+      loop invariant nr >= 0;
+      loop invariant at >= \at(x, Pre);
+      loop assigns nr, hqr, ioe, at;
+      loop variant we6 - nr;
+  */
+  while (nr<we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
+  }
+
+  /*@
+      loop invariant hqr == x + ((nr - 1) / x);
+      loop invariant nr >= 1;
+      loop assigns nr, hqr, at;
+      loop variant ioe - hqr;
+  */
+  while (1) {
+      if (!(hqr<ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-11 03:54:25,730 - INFO - 
+2026-03-14 20:44:43,062 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(){
-  int ya, ox, f9, b, p;
+int main1(int x){
+  int we6, gh, hqr, nr, at, ioe;
 
-  ya=0;
-  ox=0;
-  f9=0;
-  b=0;
-  p=(1%18)+5;
+  we6=x*3;
+  gh=we6;
+  hqr=0;
+  nr=0;
+  at=x;
+  ioe=gh;
 
   /*@
-    loop invariant f9 == b;
-    loop invariant p + b == ((1 % 18) + 5);
-    loop invariant 2 * ox == b * (b + 3);
-    loop invariant p >= 0;
-    loop assigns ox, b, f9, p;
-    loop variant p;
+    loop invariant hqr == nr * x;
+    loop invariant ioe == gh + 2 * nr;
+    loop invariant gh == we6;
+    loop invariant 0 <= nr;
+    loop assigns nr, hqr, ioe, at;
+    loop variant we6 - nr;
   */
-  while (p>0) {
-      ox = ox+1*1;
-      b = b+1*1;
-      f9 = f9+1*1;
-      p -= 1;
-      ox = ox + f9;
+  while (nr<we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
   }
 
   /*@
-    loop invariant ox == 27;
-    loop invariant f9 == p + 6;
-    loop invariant b == 6 - p*(p-1)/2;
-    loop invariant p >= 0;
-    loop assigns ox, b, f9, p;
-    loop variant p;
+    loop invariant hqr <= ioe;
+    loop invariant hqr >= \at(x, Pre);
+    loop invariant gh == we6;
+    loop assigns at, hqr, nr;
+    loop variant ioe - hqr;
   */
-  while (b>p) {
-      b -= p;
-      f9 = f9 + 1;
-      ox += ya;
-      p = (1)+(p);
+  while (1) {
+      if (!(hqr<ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
   }
 
 }
 ----- Candidate 4/5 full code end -----
-2026-03-11 03:54:25,730 - WARNING - Candidate 5/5 full code: <None> (failed to extract)
-2026-03-11 03:54:25,730 - INFO - Successfully generated 3/5 candidates
-2026-03-11 03:54:25,731 - INFO - Checking 9 invariants for conflicts...
-2026-03-11 03:54:25,732 - INFO - Checking 7 invariants for conflicts...
-2026-03-11 03:54:25,733 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 03:54:25,734 - INFO -   1: int main1(){
-2026-03-11 03:54:25,734 - INFO -   2:   int ya, ox, f9, b, p;
-2026-03-11 03:54:25,734 - INFO -   3: 
-2026-03-11 03:54:25,734 - INFO -   4:   ya=0;
-2026-03-11 03:54:25,734 - INFO -   5:   ox=0;
-2026-03-11 03:54:25,734 - INFO -   6:   f9=0;
-2026-03-11 03:54:25,734 - INFO -   7:   b=0;
-2026-03-11 03:54:25,734 - INFO -   8:   p=(1%18)+5;
-2026-03-11 03:54:25,734 - INFO -   9: 
-2026-03-11 03:54:25,734 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 03:54:25,734 - INFO - DEBUG: Total lines: 50
-2026-03-11 03:54:25,932 - INFO - syntax Correct
-2026-03-11 03:54:57,206 - INFO - Validate:
-2026-03-11 03:54:57,206 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 03:54:57,206 - INFO - 
-2026-03-11 03:54:57,206 - INFO - Verify:
-2026-03-11 03:54:57,206 - INFO - []
-2026-03-11 03:54:57,206 - INFO - 
-2026-03-11 03:54:57,206 - INFO - Houdini iteration 1: All invariants are valid
-2026-03-11 03:54:57,413 - INFO - syntax Correct
-2026-03-11 03:55:28,617 - INFO - Validate:
-2026-03-11 03:55:28,617 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 03:55:28,617 - INFO - 
-2026-03-11 03:55:28,617 - INFO - Verify:
-2026-03-11 03:55:28,617 - INFO - []
-2026-03-11 03:55:28,617 - INFO - 
-2026-03-11 03:57:28,944 - INFO - Deduplicated 7 loop invariants in final code
-2026-03-11 03:57:29,156 - INFO - syntax Correct
-2026-03-11 03:58:00,071 - INFO - Validate:
-2026-03-11 03:58:00,071 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-11 03:58:00,071 - INFO - 
-2026-03-11 03:58:00,071 - INFO - Verify:
-2026-03-11 03:58:00,071 - INFO - []
-2026-03-11 03:58:00,071 - INFO - 
-2026-03-11 03:58:00,071 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 03:58:00,072 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_39/1.c
-2026-03-11 03:58:00,072 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_39/1_invariants.txt
-2026-03-11 03:58:00,072 - INFO - 
+2026-03-14 20:44:43,062 - INFO - 
+----- Candidate 5/5 full code begin -----
+/*@ 
+  loop invariant hqr == nr * x;
+  loop invariant ioe == gh + 2 * nr;
+  loop invariant 0 <= nr;
+  loop assigns nr, hqr, ioe, at;
+  loop variant we6 - nr;
+*/
+while (nr&lt;we6) {
+      nr += 1;
+      hqr += x;
+      ioe += 2;
+      at = at+(hqr%6);
+  }
+
+  /*@ 
+  loop invariant hqr <= ioe;
+  loop assigns nr, hqr, at;
+  loop variant ioe - hqr;
+*/
+while (1) {
+      if (!(hqr&lt;ioe)) {
+          break;
+      }
+      at = at + gh;
+      hqr++;
+      nr += x;
+      at = at*2;
+  }
+----- Candidate 5/5 full code end -----
+2026-03-14 20:44:43,062 - INFO - Successfully generated 5/5 candidates
+2026-03-14 20:44:43,063 - INFO - Checking 7 invariants for conflicts...
+2026-03-14 20:44:43,065 - INFO - Checking 9 invariants for conflicts...
+2026-03-14 20:44:43,067 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 20:44:43,067 - INFO -   1: int main1(int x){
+2026-03-14 20:44:43,067 - INFO -   2:   int we6, gh, hqr, nr, at, ioe;
+2026-03-14 20:44:43,067 - INFO -   3: 
+2026-03-14 20:44:43,067 - INFO -   4:   we6=x*3;
+2026-03-14 20:44:43,067 - INFO -   5:   gh=we6;
+2026-03-14 20:44:43,067 - INFO -   6:   hqr=0;
+2026-03-14 20:44:43,067 - INFO -   7:   nr=0;
+2026-03-14 20:44:43,067 - INFO -   8:   at=x;
+2026-03-14 20:44:43,067 - INFO -   9:   ioe=gh;
+2026-03-14 20:44:43,067 - INFO -   10: 
+2026-03-14 20:44:43,067 - INFO - DEBUG: Total lines: 53
+2026-03-14 20:44:43,257 - INFO - syntax Correct
+2026-03-14 20:45:44,442 - INFO - Validate:
+2026-03-14 20:45:44,442 - INFO - [True, True, False, True, True, True, True, False, False, True, True, True, True, False, False, True]
+2026-03-14 20:45:44,442 - INFO - 
+2026-03-14 20:45:44,442 - INFO - Verify:
+2026-03-14 20:45:44,442 - INFO - []
+2026-03-14 20:45:44,442 - INFO - 
+2026-03-14 20:45:44,442 - INFO - Houdini iteration 1: Removed 5 failed invariants
+2026-03-14 20:45:44,442 - INFO -   Before: 16 invariants
+2026-03-14 20:45:44,442 - INFO -   After: 11 invariants
+2026-03-14 20:45:44,442 - INFO -   Remaining invariants:
+2026-03-14 20:45:44,442 - INFO -     [1] hqr == nr * x
+2026-03-14 20:45:44,442 - INFO -     [2] we6 == x * 3
+2026-03-14 20:45:44,442 - INFO -     [3] we6 == 3 * x
+2026-03-14 20:45:44,442 - INFO -     [4] nr >= 0
+2026-03-14 20:45:44,442 - INFO -     [5] at >= \at(x, Pre)
+2026-03-14 20:45:44,442 - INFO -     [6] 0 <= nr
+2026-03-14 20:45:44,442 - INFO -     [7] gh == we6
+2026-03-14 20:45:44,442 - INFO -     [8] we6 == x * 3
+2026-03-14 20:45:44,442 - INFO -     [9] nr == hqr * x
+2026-03-14 20:45:44,442 - INFO -     [10] we6 == 3 * x
+2026-03-14 20:45:44,442 - INFO -     [11] hqr >= \at(x, Pre)
+2026-03-14 20:45:44,647 - INFO - syntax Correct
+2026-03-14 20:46:15,814 - INFO - Validate:
+2026-03-14 20:46:15,814 - INFO - [True, True, True, True, True, True, True, True, False, True, False]
+2026-03-14 20:46:15,814 - INFO - 
+2026-03-14 20:46:15,814 - INFO - Verify:
+2026-03-14 20:46:15,814 - INFO - []
+2026-03-14 20:46:15,814 - INFO - 
+2026-03-14 20:46:15,814 - INFO - Houdini iteration 2: Removed 2 failed invariants
+2026-03-14 20:46:15,814 - INFO -   Before: 11 invariants
+2026-03-14 20:46:15,814 - INFO -   After: 9 invariants
+2026-03-14 20:46:15,814 - INFO -   Remaining invariants:
+2026-03-14 20:46:15,814 - INFO -     [1] hqr == nr * x
+2026-03-14 20:46:15,814 - INFO -     [2] we6 == x * 3
+2026-03-14 20:46:15,814 - INFO -     [3] we6 == 3 * x
+2026-03-14 20:46:15,814 - INFO -     [4] nr >= 0
+2026-03-14 20:46:15,814 - INFO -     [5] at >= \at(x, Pre)
+2026-03-14 20:46:15,814 - INFO -     [6] 0 <= nr
+2026-03-14 20:46:15,814 - INFO -     [7] gh == we6
+2026-03-14 20:46:15,814 - INFO -     [8] we6 == x * 3
+2026-03-14 20:46:15,814 - INFO -     [9] we6 == 3 * x
+2026-03-14 20:46:16,024 - INFO - syntax Correct
+2026-03-14 20:46:46,971 - INFO - Validate:
+2026-03-14 20:46:46,971 - INFO - [True, True, True, True, True, True, True, True, True]
+2026-03-14 20:46:46,971 - INFO - 
+2026-03-14 20:46:46,971 - INFO - Verify:
+2026-03-14 20:46:46,971 - INFO - []
+2026-03-14 20:46:46,972 - INFO - 
+2026-03-14 20:46:46,972 - INFO - Houdini iteration 3: All invariants are valid
+2026-03-14 20:46:47,177 - INFO - syntax Correct
+2026-03-14 20:47:18,127 - INFO - Validate:
+2026-03-14 20:47:18,127 - INFO - [True, True, True, True, True, True, True, True, True]
+2026-03-14 20:47:18,127 - INFO - 
+2026-03-14 20:47:18,127 - INFO - Verify:
+2026-03-14 20:47:18,127 - INFO - []
+2026-03-14 20:47:18,127 - INFO - 
+2026-03-14 20:48:06,079 - INFO - Deduplicated 3 loop invariants in final code
+2026-03-14 20:48:06,273 - INFO - syntax Correct
+2026-03-14 20:48:37,145 - INFO - Validate:
+2026-03-14 20:48:37,145 - INFO - [True, True, True, True, True, True]
+2026-03-14 20:48:37,145 - INFO - 
+2026-03-14 20:48:37,145 - INFO - Verify:
+2026-03-14 20:48:37,145 - INFO - []
+2026-03-14 20:48:37,145 - INFO - 
+2026-03-14 20:48:37,146 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-14 20:48:37,146 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_39/1.c
+2026-03-14 20:48:37,146 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_39/1_invariants.txt
+2026-03-14 20:48:37,146 - INFO - 
 ============================================================
-2026-03-11 03:58:00,072 - INFO - Final first_pass results:
-2026-03-11 03:58:00,072 - INFO -   syntax=1
-2026-03-11 03:58:00,072 - INFO -   valid=1
-2026-03-11 03:58:00,072 - INFO -   satisfy=None
-2026-03-11 03:58:00,072 - INFO - ============================================================
-2026-03-11 03:58:00,072 - INFO - 
+2026-03-14 20:48:37,146 - INFO - Final first_pass results:
+2026-03-14 20:48:37,146 - INFO -   syntax=1
+2026-03-14 20:48:37,146 - INFO -   valid=1
+2026-03-14 20:48:37,146 - INFO -   satisfy=None
+2026-03-14 20:48:37,146 - INFO - ============================================================
+2026-03-14 20:48:37,146 - INFO - 
 ============================================================
-2026-03-11 03:58:00,072 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 03:58:00,072 - INFO -   Total API calls: 11
-2026-03-11 03:58:00,072 - INFO -   Total prompt tokens (input): 17,401
-2026-03-11 03:58:00,072 - INFO -   Total completion tokens (output): 146,926
-2026-03-11 03:58:00,072 - INFO -   Total tokens: 164,327
-2026-03-11 03:58:00,072 - INFO -   Average per call:
-2026-03-11 03:58:00,072 - INFO -     Prompt: 1581.9 tokens
-2026-03-11 03:58:00,072 - INFO -     Completion: 13356.9 tokens
-2026-03-11 03:58:00,072 - INFO -     Total: 14938.8 tokens
-2026-03-11 03:58:00,072 - INFO - ============================================================
-2026-03-11 03:58:00,072 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_39/1.c
-2026-03-11 03:58:00,072 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_39/1_invariants.txt
-2026-03-11 03:58:28,391 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
-2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
-2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
-2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
-2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
-2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
-2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
-2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
-2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 20:48:37,146 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 20:48:37,146 - INFO -   Total API calls: 9
+2026-03-14 20:48:37,146 - INFO -   Total prompt tokens (input): 10,102
+2026-03-14 20:48:37,146 - INFO -   Total completion tokens (output): 55,450
+2026-03-14 20:48:37,146 - INFO -   Total tokens: 65,552
+2026-03-14 20:48:37,146 - INFO -   Average per call:
+2026-03-14 20:48:37,146 - INFO -     Prompt: 1122.4 tokens
+2026-03-14 20:48:37,146 - INFO -     Completion: 6161.1 tokens
+2026-03-14 20:48:37,146 - INFO -     Total: 7283.6 tokens
+2026-03-14 20:48:37,146 - INFO - ============================================================
+2026-03-14 20:48:37,146 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_39/1.c
+2026-03-14 20:48:37,147 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_39/1_invariants.txt
+2026-03-14 20:49:46,344 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "fail"
+}
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

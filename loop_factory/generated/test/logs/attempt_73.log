@@ -1,601 +1,534 @@
-2026-03-11 04:08:08,433 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 04:08:08,454 - INFO - Found 2 loops
-2026-03-11 04:08:08,455 - INFO - 
+2026-03-14 20:47:34,235 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 20:47:34,253 - INFO - Found 2 loops
+2026-03-14 20:47:34,254 - INFO - 
 ============================================================
-2026-03-11 04:08:08,455 - INFO - Main generation pass 1/1
-2026-03-11 04:08:08,455 - INFO - ============================================================
-2026-03-11 04:08:08,455 - INFO - Loaded single prompt template: simple
-2026-03-11 04:08:08,455 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 04:08:08,455 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 04:08:08,472 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:10:19,554 - INFO - 
+2026-03-14 20:47:34,254 - INFO - Main generation pass 1/1
+2026-03-14 20:47:34,254 - INFO - ============================================================
+2026-03-14 20:47:34,254 - INFO - Loaded single prompt template: simple
+2026-03-14 20:47:34,254 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 20:47:34,254 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 20:47:34,321 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:53:12,620 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>For Loop 0 (the while (1) { ... } block)
-- Core conservation/relational equality: f, uma, and l5 are all updated by the same amount (i*i) each iteration, starting from 0. Hence, f == uma == l5 at every point inside the loop. This is a strong, exact invariant reflecting the loop updates.
-- Progress bound: qg acts as the loop counter, initialized to (i%18)+5 and decremented by 1 each iteration. Therefore qg remains between 0 and its initial value. We express the bound using the initial i via \at(i,Pre) to avoid depending on the current i value, which is allowed since i is a parameter.
-- Loop assigns: the loop mutates i, qg, f, uma, l5.
-- Loop variant: use qg as the loop variant since it strictly decreases on every iteration and ensures termination when qg reaches 0.
+<reasoning>
+We need inductive loop invariants that are strong enough to help Frama-C/WP verify the two loops without modifying the code.
 
-For Loop 1 (the while (cpw>qg) { ... } block)
-- Core relational equality: the updates show a consistent relationship between cpw and qg, i, and f. The most straightforward inductive measure is the difference cpw - qg, which strictly decreases by 1 each iteration (since cpw' = cpw - qg and qg' = qg + 1, hence (cpw - qg)' = (cpw - qg) - 1). We encode this as a loop variant to reflect progress toward termination.
-- Additional invariant: f remains non-negative through Loop 2 because it starts non-negative (from Loop 0) and each iteration applies f = 3*f + 9, which preserves non-negativity.
-- Loop assigns: the loop mutates cpw, i, f, qg.
-- Loop variant: (cpw - qg), which strictly decreases by 1 each iteration while the loop condition cpw > qg holds.
+Key observations from the code and initial state:
+- Initial values at function entry:
+  h3 = -9, n = 0, y8pp = 12, wl = 0, dm = -9, s59 = -9
+- Loop 0 (while n+2 <= h3):
+  Updates: wl <- wl + y8pp; dm <- dm + wl; y8pp <- y8pp + wl; h3 <- n+2 + (-1) which simplifies to h3 <- n + 1
+  From these, a simple conserved quantity emerges:
+  dm' - y8pp' = (dm + wl) - (y8pp + wl) = dm - y8pp
+  Hence, the quantity dm - y8pp stays constant across iterations. Its initial value is -9 - 12 = -21, so a robust invariant is:
+  dm - y8pp == -21
+  Additionally, since y8pp is updated as y8pp <- y8pp + wl and wl starts at 0 and only increases (y8pp is nonnegative initially and wl grows by y8pp each time), y8pp does not decrease below h3. A minimal, strong invariant that is preserved is:
+  h3 <= y8pp
+  This helps with understanding progress and remains valid: initially -9 <= 12, and after the body y8pp becomes at least as large as h3 (in fact more than or equal to h3).
+  Loop 0 assigns dm, wl, y8pp, h3.
 
-These invariants are inductive: they hold before the first iteration and are preserved by each iteration. They are verification-friendly for Frama-C/WP and do not modify the original program logic beyond adding annotations.
+- Loop 1 (while h3+6 <= y8pp):
+  Updates: wl <- wl + dm; dm <- dm * 2; s59 <- s59 + (wl % 3) [note: wl used here is the updated value]; y8pp <- (h3+6) - 1
+  The crucial structural property is that y8pp is rewritten to a fixed value (h3+5) inside the loop body, while h3 remains constant during the loop. A safe invariant that is preserved across the iterative step is simply:
+  h3 <= y8pp
+  Initially this is true since h3 = -9 and y8pp = 12. After the body, y8pp becomes h3+5, which is greater than h3, so h3 <= y8pp remains true. This invariant is preserved and aligns with the guard structure (the loop will terminate after the first iteration in practice due to y8pp being set to h3+5).
+  Loop 1 assigns wl, dm, s59, y8pp.
+
+The chosen invariants are strong, non-tautological, and directly reflect the state transitions in each loop. They also use only variables from the available sets and do not rely on function parameters.
 </reasoning>
-<code>int main1(int i){
-  int cpw, uma, f, l5, qg;
-
-  cpw=i;
-  uma=0;
-  f=0;
-  l5=0;
-  qg=(i%18)+5;
-
-  /*@
-    loop invariant f == uma && uma == l5;
-    loop invariant 0 <= qg <= ((\at(i, Pre) % 18) + 5);
-    loop assigns i, qg, f, uma, l5;
-    loop variant qg;
-  */
-while (1) {
-      if (!(qg>=1)) {
-          break;
-      }
-      qg--;
-      f = f+i*i;
-      uma = uma+i*i;
-      l5 = l5+i*i;
-      i = i*2+(uma%3)+1;
+<code>/*@
+  loop invariant dm - y8pp == -21;
+  loop invariant h3 <= y8pp;
+  loop assigns dm, wl, y8pp, h3;
+*/
+while (n+2<=h3) {
+      wl = wl + y8pp;
+      dm = dm + wl;
+      y8pp = y8pp + wl;
+      h3 = ((n+2))+(-(1));
   }
 
   /*@
-    loop invariant (cpw - qg) >= 1;
-    loop invariant f >= 0;
-    loop assigns cpw, i, f, qg;
-    loop variant (cpw - qg);
+    loop invariant h3 <= y8pp;
+    loop assigns wl, dm, s59, y8pp;
   */
-while (cpw>qg) {
-      cpw -= qg;
-      i = (l5)+(i);
-      f = f + 3;
-      qg = qg + 1;
-      f = f*3;
+while (h3+6<=y8pp) {
+      wl = wl + dm;
+      dm = dm*2;
+      s59 = s59+(wl%3);
+      y8pp = (h3+6)-1;
+  }</code>
+----- Candidate 1/5 raw response end -----
+2026-03-14 20:53:12,621 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 20:53:12,677 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:55:22,035 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<EMPTY_RESPONSE>
+----- Candidate 2/5 raw response end -----
+2026-03-14 20:55:22,035 - WARNING -   Failed to extract code from candidate 2
+2026-03-14 20:55:22,035 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 20:55:22,096 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:57:17,173 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>For Loop 0 (while (n+2<=h3)):
+- Core conservation (state-transition law): dm - y8pp remains invariant across iterations since:
+  dm' = dm + wl' and y8pp' = y8pp + wl', where wl' = wl + y8pp.
+  Therefore dm' - y8pp' = (dm + wl') - (y8pp + wl') = dm - y8pp.
+  With initial values dm = h3 = -9 and y8pp = 12, we have dm - y8pp = -21, which is preserved. So add invariant: dm - y8pp == -21.
+- Minimal progress / bounds: wl and y8pp stay non-negative given initial positive y8pp and wl starts at 0 and is increased by a non-negative wl' increment in the loop. So add wl >= 0 and y8pp >= 0.
+- Loop assigns: wl, dm, y8pp, h3 (these are the modified variables in the loop body).
+- Loop variant for termination: (n+1 - h3) decreases when the loop executes (since h3 becomes n+1), starting from initial value 10, ensuring termination as appropriate for the single-step transition observed in the context.
+
+For Loop 1 (while (h3+6<=y8pp)):
+- Core relation to capture updates: y8pp is set to h3+5 in every iteration, while h3 remains unchanged in this loop. This yields invariant h3 + 5 <= y8pp, which is true before the first iteration (12 >= -4) and remains true (indeed it becomes equality after the first iteration).
+- Minimal progress / bounds: dm is non-positive after the doubling (initial dm = -9). Doubling preserves dm <= 0. Also wl is updated by adding dm, so wl becomes non-positive (since wl starts at 0 and dm <= 0, wl' <= wl). So include dm <= 0 and wl <= 0.
+- Loop assigns: wl, dm, s59, y8pp (these are the updated variables in the loop body).
+- Loop variant: (y8pp - (h3+5)) decreases from 16 to 0 (since y8pp becomes h3+5 on the first iteration), ensuring termination for this context.
+
+These invariants are inductive given the exact loop bodies and initial values provided. They are expressed strictly with allowed variables and without changing the original code structure. </reasoning>
+<code>int main1(){
+  int h3, n, y8pp, wl, dm, s59;
+
+  h3=1-10;
+  n=0;
+  y8pp=12;
+  wl=0;
+  dm=h3;
+  s59=h3;
+
+  /*@
+    loop invariant dm - y8pp == -21;
+    loop invariant wl >= 0;
+    loop invariant y8pp >= 0;
+    loop assigns wl, dm, y8pp, h3;
+    loop variant (n+1 - h3);
+  */
+  while (n+2<=h3) {
+      wl = wl + y8pp;
+      dm = dm + wl;
+      y8pp = y8pp + wl;
+      h3 = ((n+2))+(-(1));
+  }
+
+  /*@
+    loop invariant h3 + 5 <= y8pp;
+    loop invariant dm <= 0;
+    loop invariant wl <= 0;
+    loop assigns wl, dm, s59, y8pp;
+    loop variant (y8pp - (h3+5));
+  */
+  while (h3+6<=y8pp) {
+      wl = wl + dm;
+      dm = dm*2;
+      s59 = s59+(wl%3);
+      y8pp = (h3+6)-1;
   }
 
 }</code>
------ Candidate 1/5 raw response end -----
-2026-03-11 04:10:19,555 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 04:10:19,569 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:12:14,509 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>Loop 0 (the first while loop) analysis:
-- Observed updates: qg is decremented by 1 each iteration; f, uma, and l5 are all incremented by i*i, so they stay in sync: f == Uma == L5 is preserved across iterations.
-- Since i*i is non-negative, f, uma, and l5 never decrease; thus f >= 0 and l5 >= 0 and uma >= 0 hold throughout.
-- qg starts positive and decreases by 1 every iteration, so qg >= 0 holds and qg strictly decreases until termination (via the break when qg < 1). A loop variant of qg is appropriate.
-- The invariants chosen are strong enough to capture the core conservation (f == uma == l5) and basic non-negativity, while remaining inductive and verification-friendly.
-
-Loop 1 (the second while loop) analysis:
-- Observed updates: cpw decreases by qg; i increases by l5 + i; f is updated as f = (f + 3) then f = f * 3, which results in f = 3f + 9; qg is incremented by 1.
-- From these, if we start with f >= 0, then after each iteration f remains >= 0 (since f becomes 3f + 9, with f >= 0). qg increases, so qg >= 0 is preserved.
-- The loop guard is cpw > qg; thus cpw is strictly larger than qg at the start of each iteration. Since cpw is decremented by qg (a positive value), cpw strictly decreases across iterations. A loop variant cpw is a natural, verification-friendly measure.
-- We keep invariants simple and non-contrived: non-negativity of f and qg, plus the standard assignment set for this loop.
-
-The resulting inductive invariants are:
-- For Loop 0: f == uma && uma == l5; f >= 0; qg >= 0; loop assigns {qg, f, uma, l5, i}; loop variant qg.
-- For Loop 1: f >= 0; qg >= 0; loop assigns {cpw, i, f, qg}; loop variant cpw.
-</reasoning>
-<code>/*@
-  loop invariant f == uma && uma == l5;
-  loop invariant f >= 0;
-  loop invariant qg >= 0;
-  loop assigns qg, f, uma, l5, i;
-  loop variant qg;
-*/
-while (1) {
-      if (!(qg>=1)) {
-          break;
-      }
-      qg--;
-      f = f+i*i;
-      uma = uma+i*i;
-      l5 = l5+i*i;
-      i = i*2+(uma%3)+1;
-  }
-
-/*@
-  loop invariant f >= 0;
-  loop invariant qg >= 0;
-  loop assigns cpw, i, f, qg;
-  loop variant cpw;
-*/
-while (cpw>qg) {
-      cpw -= qg;
-      i = (l5)+(i);
-      f = f + 3;
-      qg = qg + 1;
-      f = f*3;
-  }</code>
------ Candidate 2/5 raw response end -----
-2026-03-11 04:12:14,510 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 04:12:14,523 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:16:55,269 - INFO - 
------ Candidate 3/5 raw response begin -----
-<EMPTY_RESPONSE>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 04:16:55,269 - WARNING -   Failed to extract code from candidate 3
-2026-03-11 04:16:55,269 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 04:16:55,283 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:18:50,286 - INFO - 
+2026-03-14 20:57:17,173 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 20:57:17,231 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:58:40,045 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>Loop 0 (the while (1) with break) updates qg, f, uma, l5 by adding i^2 to f/uma/l5 and decrementing qg, then updates i based on updated uma. A simple, inductive invariant is that f, uma, and l5 stay equal at the loop head and throughout the loop body, since each iteration adds i^2 to all three. This gives a strong, conserved relational equality: f == uma && uma == l5. Because qg decreases by 1 each iteration, we can bound it by its initial value, so 0 <= qg <= (initial i mod 18) + 5. Also f/uma/l5 remain nonnegative since they start at 0 and each addition is i^2 >= 0. We include loop assigns for all modified variables in this loop: f, uma, l5, i, qg. We also provide a loop variant on qg to help termination reasoning.
+<reasoning>For Loop 0, a strong inductive relation is the conservation dm - wl. Inspecting the updates:
+- wl := wl + y8pp
+- dm := dm + wl  (where wl on the right is the new wl)
+We get wl' = wl + y8pp, dm' = dm + wl' so dm' - wl' = dm. Thus, the quantity dm - wl remains constant across iterations. Using the initial values, dm - wl starts as -9 and remains -9. This invariant is preserved regardless of whether the loop runs (in this program, the loop may or may not execute at the entry, but the invariant must hold whenever the loop is entered and after each iteration).
 
-Loop 1 (the second while, cpw > qg) updates cpw, i, f, qg, with l5 unchanged across the loop. A helpful invariant here is that f and l5 always satisfy f % 3 == l5 % 3, since f is increased by 3 and then multiplied by 3 on each iteration (net effect f becomes 3*(f+3) = 3f + 9), which preserves the modulo-3 relation with l5 (which remains constant in this loop). We also note qg remains nonnegative (it only increases) and i and cpw are subject to their respective updates. The chosen invariants are inductive and are preserved by the loop body; we keep loop assigns precise to the variables actually modified in this loop: cpw, i, f, qg. The invariants are kept minimal and tight to the observed state transitions.
+Additionally, provide a minimal, well-founded loop variant to help Frama-C WP prove termination:
+- A natural choice is (n+1) - h3. Initially, n=0 and h3=-9, giving 10. After one iteration (if it occurs), h3 becomes n+1, so the variant becomes 0. Since at most one iteration can occur due to the update of h3, the variant properly decreases and stays non-negative at loop entries.
 
-</reasoning>
-<code>int main1(int i){
-  int cpw, uma, f, l5, qg;
+For Loop 1, the same invariant dm - wl == -9 is preserved by the updates:
+- wl := wl + dm
+- dm := dm * 2
+Thus dm' - wl' = (dm*2) - (wl + dm) = dm - wl. Since Loop 1 starts in a state that already satisfies dm - wl == -9 (because Loop 0 enforced it and Loop 1 only continues if the previous state obeys the invariant), it remains true after each iteration. The loop variant can be chosen as (y8pp - (h3 + 5)), which starts non-negative (given the entry states) and becomes 0 after one iteration (since y8pp is updated to h3+6-1 = h3+5). This ensures termination.
 
-  cpw=i;
-  uma=0;
-  f=0;
-  l5=0;
-  qg=(i%18)+5;
+Thus we have:
+- Loop 0 invariant: dm - wl == -9
+- Loop 0 assigns: wl, dm, y8pp, h3
+- Loop 0 variant: (n+1) - h3
+
+- Loop 1 invariant: dm - wl == -9
+- Loop 1 assigns: wl, dm, s59, y8pp
+- Loop 1 variant: y8pp - (h3 + 5)
+
+These invariants are inductive, non-trivial, and respect the available variables for each loop. They explain the loop updates and provide minimal progress bounds. </reasoning>
+<code>int main1(){
+  int h3, n, y8pp, wl, dm, s59;
+
+  h3=1-10;
+  n=0;
+  y8pp=12;
+  wl=0;
+  dm=h3;
+  s59=h3;
 
   /*@
-    loop invariant f == uma && uma == l5;
-    loop invariant 0 <= qg <= ((\at(i, Pre) % 18) + 5);
-    loop invariant 0 <= f;
-    loop invariant 0 <= uma;
-    loop invariant 0 <= l5;
-    loop assigns f, uma, l5, i, qg;
-    loop variant qg;
-  */
-  while (1) {
-      if (!(qg>=1)) {
-          break;
-      }
-      qg--;
-      f = f+i*i;
-      uma = uma+i*i;
-      l5 = l5+i*i;
-      i = i*2+(uma%3)+1;
+    loop invariant dm - wl == -9;
+    loop assigns wl, dm, y8pp, h3;
+    loop variant (n+1) - h3;
+  @*/
+  while (n+2<=h3) {
+      wl = wl + y8pp;
+      dm = dm + wl;
+      y8pp = y8pp + wl;
+      h3 = ((n+2))+(-(1));
   }
 
   /*@
-    loop invariant (f % 3) == (l5 % 3);
-    loop invariant 0 <= qg;
-    loop assigns cpw, i, f, qg;
-  */
-  while (cpw>qg) {
-      cpw -= qg;
-      i = (l5)+(i);
-      f = f + 3;
-      qg = qg + 1;
-      f = f*3;
+    loop invariant dm - wl == -9;
+    loop assigns wl, dm, s59, y8pp;
+    loop variant (y8pp - (h3 + 5));
+  @*/
+  while (h3+6<=y8pp) {
+      wl = wl + dm;
+      dm = dm*2;
+      s59 = s59+(wl%3);
+      y8pp = (h3+6)-1;
   }
 
 }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-11 04:18:50,286 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 04:18:50,300 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:31:40,501 - INFO - 
+2026-03-14 20:58:40,046 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 20:58:40,110 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:59:59,533 - INFO - 
 ----- Candidate 5/5 raw response begin -----
-<reasoning>For Loop 0 (the first while (1) loop):
-- The loop updates f, uma, l5 by adding i*i each iteration and updates i itself. Since all three of f, uma, and l5 are incremented by the same amount (i*i) every iteration, they remain equal throughout the loop. Thus a strong and exact invariant is f == uma && f == l5.
-- qg is decremented by 1 each iteration (qg--), and the loop starts with qg == (i % 18) + 5. Therefore, qg always remains within the initial bound [0, (i % 18) + 5], which can be expressed using the initial value of i: 0 <= qg <= ((\at(i,Pre) % 18) + 5). This is a good inductive invariant that also helps bound the loop.
-- We specify the loop assigns to reflect all variables that can be updated in this loop: qg, f, uma, l5, i.
-- A loop variant qg is provided to aid termination reasoning since qg decreases by 1 each iteration and is non-negative.
+<reasoning>
+Loop 0 analysis:
+- Updates inside the loop:
+  wl := wl + y8pp
+  dm := dm + wl (with wl from the start of the iteration)
+  y8pp := y8pp + wl (with wl from the start of the iteration)
+  h3  := (n+2) + (-1) which simplifies to n+1 (n is constant across the loop)
+- A conserved relational quantity across iterations is:
+  dm' - y8pp' = (dm + wl) - (y8pp + wl) = dm - y8pp
+  Hence dm - y8pp stays invariant across iterations. With the initial values dm = h3 = -9 and y8pp = 12, we have dm - y8pp = -21 initially, so the invariant dm - y8pp == -21 holds throughout the loop.
+- A simple, monotone invariant showing progress bounds is wl <= y8pp. Initially wl = 0 and y8pp = 12, so the invariant holds. After one iteration wl' = wl + y8pp and y8pp' = y8pp + wl, which preserves wl <= y8pp (indeed it becomes equality after the update). This provides a minimal, nontrivial bound on the arithmetic progression in this loop.
 
-For Loop 1 (the second while (cpw > qg) loop):
-- This loop updates cpw, i, f, qg in a nontrivial way, while l5 remains unchanged. A concise, inductive set of invariants can focus on monotonic properties that are preserved by every iteration:
-  - f >= 0: initially f is 0 and after each iteration f becomes 3f + 9, which is always >= 0 if f >= 0.
-  - l5 >= 0: l5 is set in the first loop as a cumulative sum of i*i (non-negative) and is never modified in the second loop.
-  - qg >= 0: qg is incremented by 1 each iteration, starting from a non-negative value.
-- These invariants are preserved by the respective updates: cpw decreases, i increases by l5, qg increases, and f stays non-negative with the given update.
-- The loop assigns reflect all updates in this loop: cpw, i, f, qg. (l5 is not modified in this loop.)
+Loop 1 analysis:
+- Updates inside the loop:
+  wl := wl + dm
+  dm := dm * 2
+  s59 := s59 + (wl % 3)
+  y8pp := (h3 + 6) - 1, i.e., y8pp := h3 + 5
+- Given the initial values, dm starts negative and is doubled every iteration, so dm < 0 is preserved across iterations (and even if the loop executes at most once, it remains true).
+- Note that y8pp is explicitly assigned to h3 + 5 in every iteration. Therefore y8pp >= h3 + 5 holds before and after the body (with the initial value 12, which is >= h3 + 5 = -4). This bound is preserved across iterations.
 
-These invariants are inductive, non-tautological, and compatible with the provided code and the allowed variables. They also use \at(i,Pre) to express the initial bound on qg for the first loop where i is a function parameter. They do not modify any unknown()/unknownN() feature and keep the code otherwise unchanged. </reasoning>
+Thus we add:
+- For Loop 0:
+  - invariant dm - y8pp == -21 (conservation)
+  - invariant wl <= y8pp (progress bound)
+  - assigns wl, dm, y8pp, h3
+- For Loop 1:
+  - invariant dm < 0 (progress/monotonicity)
+  - invariant y8pp >= h3 + 5 (explicit post-update bound)
+  - assigns wl, dm, s59, y8pp
 
-<code>int main1(int i){
-  int cpw, uma, f, l5, qg;
+The invariants use only the available variables for each loop, are inductive (preserved by each iteration when the guard holds), and are helpful for WP verification.
+</reasoning>
+<code>int main1(){
+  int h3, n, y8pp, wl, dm, s59;
 
-  cpw=i;
-  uma=0;
-  f=0;
-  l5=0;
-  qg=(i%18)+5;
+  h3=1-10;
+  n=0;
+  y8pp=12;
+  wl=0;
+  dm=h3;
+  s59=h3;
 
-  /* @
-     loop invariant f == uma && f == l5;
-     loop invariant 0 <= qg && qg <= ((\at(i,Pre) % 18) + 5);
-     loop assigns qg, f, uma, l5, i;
-     loop variant qg;
+  /*@
+    loop invariant dm - y8pp == -21;
+    loop invariant wl <= y8pp;
+    loop assigns wl, dm, y8pp, h3;
   */
-  while (1) {
-      if (!(qg>=1)) {
-          break;
-      }
-      qg--;
-      f = f+i*i;
-      uma = uma+i*i;
-      l5 = l5+i*i;
-      i = i*2+(uma%3)+1;
+while (n+2<=h3) {
+      wl = wl + y8pp;
+      dm = dm + wl;
+      y8pp = y8pp + wl;
+      h3 = ((n+2))+(-(1));
   }
 
-  /* @
-     loop invariant f >= 0;
-     loop invariant l5 >= 0;
-     loop invariant qg >= 0;
-     loop assigns cpw, i, f, qg;
+  /*@
+    loop invariant dm < 0;
+    loop invariant y8pp >= h3 + 5;
+    loop assigns wl, dm, s59, y8pp;
   */
-  while (cpw>qg) {
-      cpw -= qg;
-      i = (l5)+(i);
-      f = f + 3;
-      qg = qg + 1;
-      f = f*3;
+while (h3+6<=y8pp) {
+      wl = wl + dm;
+      dm = dm*2;
+      s59 = s59+(wl%3);
+      y8pp = (h3+6)-1;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 04:31:40,501 - INFO - 
+2026-03-14 20:59:59,534 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int i){
-  int cpw, uma, f, l5, qg;
-
-  cpw=i;
-  uma=0;
-  f=0;
-  l5=0;
-  qg=(i%18)+5;
-
-  /*@
-    loop invariant f == uma && uma == l5;
-    loop invariant 0 <= qg <= ((\at(i, Pre) % 18) + 5);
-    loop assigns i, qg, f, uma, l5;
-    loop variant qg;
-  */
-while (1) {
-      if (!(qg>=1)) {
-          break;
-      }
-      qg--;
-      f = f+i*i;
-      uma = uma+i*i;
-      l5 = l5+i*i;
-      i = i*2+(uma%3)+1;
+/*@
+  loop invariant dm - y8pp == -21;
+  loop invariant h3 <= y8pp;
+  loop assigns dm, wl, y8pp, h3;
+*/
+while (n+2<=h3) {
+      wl = wl + y8pp;
+      dm = dm + wl;
+      y8pp = y8pp + wl;
+      h3 = ((n+2))+(-(1));
   }
 
   /*@
-    loop invariant (cpw - qg) >= 1;
-    loop invariant f >= 0;
-    loop assigns cpw, i, f, qg;
-    loop variant (cpw - qg);
+    loop invariant h3 <= y8pp;
+    loop assigns wl, dm, s59, y8pp;
   */
-while (cpw>qg) {
-      cpw -= qg;
-      i = (l5)+(i);
-      f = f + 3;
-      qg = qg + 1;
-      f = f*3;
+while (h3+6<=y8pp) {
+      wl = wl + dm;
+      dm = dm*2;
+      s59 = s59+(wl%3);
+      y8pp = (h3+6)-1;
+  }
+----- Candidate 1/5 full code end -----
+2026-03-14 20:59:59,534 - WARNING - Candidate 2/5 full code: <None> (failed to extract)
+2026-03-14 20:59:59,534 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(){
+  int h3, n, y8pp, wl, dm, s59;
+
+  h3=1-10;
+  n=0;
+  y8pp=12;
+  wl=0;
+  dm=h3;
+  s59=h3;
+
+  /*@
+    loop invariant dm - y8pp == -21;
+    loop invariant wl >= 0;
+    loop invariant y8pp >= 0;
+    loop assigns wl, dm, y8pp, h3;
+    loop variant (n+1 - h3);
+  */
+  while (n+2<=h3) {
+      wl = wl + y8pp;
+      dm = dm + wl;
+      y8pp = y8pp + wl;
+      h3 = ((n+2))+(-(1));
+  }
+
+  /*@
+    loop invariant h3 + 5 <= y8pp;
+    loop invariant dm <= 0;
+    loop invariant wl <= 0;
+    loop assigns wl, dm, s59, y8pp;
+    loop variant (y8pp - (h3+5));
+  */
+  while (h3+6<=y8pp) {
+      wl = wl + dm;
+      dm = dm*2;
+      s59 = s59+(wl%3);
+      y8pp = (h3+6)-1;
   }
 
 }
------ Candidate 1/5 full code end -----
-2026-03-11 04:31:40,501 - INFO - 
------ Candidate 2/5 full code begin -----
-/*@
-  loop invariant f == uma && uma == l5;
-  loop invariant f >= 0;
-  loop invariant qg >= 0;
-  loop assigns qg, f, uma, l5, i;
-  loop variant qg;
-*/
-while (1) {
-      if (!(qg>=1)) {
-          break;
-      }
-      qg--;
-      f = f+i*i;
-      uma = uma+i*i;
-      l5 = l5+i*i;
-      i = i*2+(uma%3)+1;
-  }
-
-/*@
-  loop invariant f >= 0;
-  loop invariant qg >= 0;
-  loop assigns cpw, i, f, qg;
-  loop variant cpw;
-*/
-while (cpw>qg) {
-      cpw -= qg;
-      i = (l5)+(i);
-      f = f + 3;
-      qg = qg + 1;
-      f = f*3;
-  }
------ Candidate 2/5 full code end -----
-2026-03-11 04:31:40,501 - WARNING - Candidate 3/5 full code: <None> (failed to extract)
-2026-03-11 04:31:40,501 - INFO - 
+----- Candidate 3/5 full code end -----
+2026-03-14 20:59:59,534 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(int i){
-  int cpw, uma, f, l5, qg;
+int main1(){
+  int h3, n, y8pp, wl, dm, s59;
 
-  cpw=i;
-  uma=0;
-  f=0;
-  l5=0;
-  qg=(i%18)+5;
+  h3=1-10;
+  n=0;
+  y8pp=12;
+  wl=0;
+  dm=h3;
+  s59=h3;
 
   /*@
-    loop invariant f == uma && uma == l5;
-    loop invariant 0 <= qg <= ((\at(i, Pre) % 18) + 5);
-    loop invariant 0 <= f;
-    loop invariant 0 <= uma;
-    loop invariant 0 <= l5;
-    loop assigns f, uma, l5, i, qg;
-    loop variant qg;
-  */
-  while (1) {
-      if (!(qg>=1)) {
-          break;
-      }
-      qg--;
-      f = f+i*i;
-      uma = uma+i*i;
-      l5 = l5+i*i;
-      i = i*2+(uma%3)+1;
+    loop invariant dm - wl == -9;
+    loop assigns wl, dm, y8pp, h3;
+    loop variant (n+1) - h3;
+  @*/
+  while (n+2<=h3) {
+      wl = wl + y8pp;
+      dm = dm + wl;
+      y8pp = y8pp + wl;
+      h3 = ((n+2))+(-(1));
   }
 
   /*@
-    loop invariant (f % 3) == (l5 % 3);
-    loop invariant 0 <= qg;
-    loop assigns cpw, i, f, qg;
-  */
-  while (cpw>qg) {
-      cpw -= qg;
-      i = (l5)+(i);
-      f = f + 3;
-      qg = qg + 1;
-      f = f*3;
+    loop invariant dm - wl == -9;
+    loop assigns wl, dm, s59, y8pp;
+    loop variant (y8pp - (h3 + 5));
+  @*/
+  while (h3+6<=y8pp) {
+      wl = wl + dm;
+      dm = dm*2;
+      s59 = s59+(wl%3);
+      y8pp = (h3+6)-1;
   }
 
 }
 ----- Candidate 4/5 full code end -----
-2026-03-11 04:31:40,501 - INFO - 
+2026-03-14 20:59:59,534 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(int i){
-  int cpw, uma, f, l5, qg;
+int main1(){
+  int h3, n, y8pp, wl, dm, s59;
 
-  cpw=i;
-  uma=0;
-  f=0;
-  l5=0;
-  qg=(i%18)+5;
+  h3=1-10;
+  n=0;
+  y8pp=12;
+  wl=0;
+  dm=h3;
+  s59=h3;
 
-  /* @
-     loop invariant f == uma && f == l5;
-     loop invariant 0 <= qg && qg <= ((\at(i,Pre) % 18) + 5);
-     loop assigns qg, f, uma, l5, i;
-     loop variant qg;
+  /*@
+    loop invariant dm - y8pp == -21;
+    loop invariant wl <= y8pp;
+    loop assigns wl, dm, y8pp, h3;
   */
-  while (1) {
-      if (!(qg>=1)) {
-          break;
-      }
-      qg--;
-      f = f+i*i;
-      uma = uma+i*i;
-      l5 = l5+i*i;
-      i = i*2+(uma%3)+1;
+while (n+2<=h3) {
+      wl = wl + y8pp;
+      dm = dm + wl;
+      y8pp = y8pp + wl;
+      h3 = ((n+2))+(-(1));
   }
 
-  /* @
-     loop invariant f >= 0;
-     loop invariant l5 >= 0;
-     loop invariant qg >= 0;
-     loop assigns cpw, i, f, qg;
+  /*@
+    loop invariant dm < 0;
+    loop invariant y8pp >= h3 + 5;
+    loop assigns wl, dm, s59, y8pp;
   */
-  while (cpw>qg) {
-      cpw -= qg;
-      i = (l5)+(i);
-      f = f + 3;
-      qg = qg + 1;
-      f = f*3;
+while (h3+6<=y8pp) {
+      wl = wl + dm;
+      dm = dm*2;
+      s59 = s59+(wl%3);
+      y8pp = (h3+6)-1;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 04:31:40,501 - INFO - Successfully generated 4/5 candidates
-2026-03-11 04:31:40,502 - INFO - Checking 9 invariants for conflicts...
-2026-03-11 04:31:40,503 - INFO - Checking 6 invariants for conflicts...
-2026-03-11 04:31:40,504 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 04:31:40,504 - INFO -   1: int main1(int i){
-2026-03-11 04:31:40,504 - INFO -   2:   int cpw, uma, f, l5, qg;
-2026-03-11 04:31:40,504 - INFO -   3: 
-2026-03-11 04:31:40,504 - INFO -   4:   cpw=i;
-2026-03-11 04:31:40,504 - INFO -   5:   uma=0;
-2026-03-11 04:31:40,504 - INFO -   6:   f=0;
-2026-03-11 04:31:40,504 - INFO -   7:   l5=0;
-2026-03-11 04:31:40,504 - INFO -   8:   qg=(i%18)+5;
-2026-03-11 04:31:40,504 - INFO -   9: 
-2026-03-11 04:31:40,504 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 04:31:40,504 - INFO - DEBUG: Total lines: 53
-2026-03-11 04:31:40,690 - INFO - syntax Correct
-2026-03-11 04:32:11,940 - INFO - Validate:
-2026-03-11 04:32:11,940 - INFO - [True, False, True, True, True, True, True, True, True, False, True, True, False, True, True]
-2026-03-11 04:32:11,940 - INFO - 
-2026-03-11 04:32:11,940 - INFO - Verify:
-2026-03-11 04:32:11,940 - INFO - []
-2026-03-11 04:32:11,940 - INFO - 
-2026-03-11 04:32:11,941 - INFO - Houdini iteration 1: Removed 3 failed invariants
-2026-03-11 04:32:11,941 - INFO -   Before: 15 invariants
-2026-03-11 04:32:11,941 - INFO -   After: 12 invariants
-2026-03-11 04:32:11,941 - INFO -   Remaining invariants:
-2026-03-11 04:32:11,941 - INFO -     [1] f == uma && uma == l5
-2026-03-11 04:32:11,941 - INFO -     [2] f >= 0
-2026-03-11 04:32:11,941 - INFO -     [3] qg >= 0
-2026-03-11 04:32:11,941 - INFO -     [4] 0 <= f
-2026-03-11 04:32:11,941 - INFO -     [5] 0 <= uma
-2026-03-11 04:32:11,941 - INFO -     [6] 0 <= l5
-2026-03-11 04:32:11,941 - INFO -     [7] f == uma && f == l5
-2026-03-11 04:32:11,941 - INFO -     [8] 0 <= qg && qg <= ((\at(i,Pre) % 18) + 5)
-2026-03-11 04:32:11,941 - INFO -     [9] f >= 0
-2026-03-11 04:32:11,941 - INFO -     [10] qg >= 0
-2026-03-11 04:32:11,941 - INFO -     [11] 0 <= qg
-2026-03-11 04:32:11,941 - INFO -     [12] l5 >= 0
-2026-03-11 04:32:12,134 - INFO - syntax Correct
-2026-03-11 04:32:43,238 - INFO - Validate:
-2026-03-11 04:32:43,238 - INFO - [True, True, False, True, True, True, True, True, True, True, True, True]
-2026-03-11 04:32:43,238 - INFO - 
-2026-03-11 04:32:43,238 - INFO - Verify:
-2026-03-11 04:32:43,238 - INFO - []
-2026-03-11 04:32:43,238 - INFO - 
-2026-03-11 04:32:43,238 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-11 04:32:43,238 - INFO -   Before: 12 invariants
-2026-03-11 04:32:43,238 - INFO -   After: 11 invariants
-2026-03-11 04:32:43,239 - INFO -   Remaining invariants:
-2026-03-11 04:32:43,239 - INFO -     [1] f == uma && uma == l5
-2026-03-11 04:32:43,239 - INFO -     [2] f >= 0
-2026-03-11 04:32:43,239 - INFO -     [3] 0 <= f
-2026-03-11 04:32:43,239 - INFO -     [4] 0 <= uma
-2026-03-11 04:32:43,239 - INFO -     [5] 0 <= l5
-2026-03-11 04:32:43,239 - INFO -     [6] f == uma && f == l5
-2026-03-11 04:32:43,239 - INFO -     [7] 0 <= qg && qg <= ((\at(i,Pre) % 18) + 5)
-2026-03-11 04:32:43,239 - INFO -     [8] f >= 0
-2026-03-11 04:32:43,239 - INFO -     [9] qg >= 0
-2026-03-11 04:32:43,239 - INFO -     [10] 0 <= qg
-2026-03-11 04:32:43,239 - INFO -     [11] l5 >= 0
-2026-03-11 04:32:43,429 - INFO - syntax Correct
-2026-03-11 04:33:14,479 - INFO - Validate:
-2026-03-11 04:33:14,479 - INFO - [True, True, True, True, True, True, False, True, True, True, True]
-2026-03-11 04:33:14,479 - INFO - 
-2026-03-11 04:33:14,479 - INFO - Verify:
-2026-03-11 04:33:14,479 - INFO - []
-2026-03-11 04:33:14,479 - INFO - 
-2026-03-11 04:33:14,479 - INFO - Houdini iteration 3: Removed 1 failed invariants
-2026-03-11 04:33:14,479 - INFO -   Before: 11 invariants
-2026-03-11 04:33:14,479 - INFO -   After: 10 invariants
-2026-03-11 04:33:14,479 - INFO -   Remaining invariants:
-2026-03-11 04:33:14,479 - INFO -     [1] f == uma && uma == l5
-2026-03-11 04:33:14,479 - INFO -     [2] f >= 0
-2026-03-11 04:33:14,479 - INFO -     [3] 0 <= f
-2026-03-11 04:33:14,479 - INFO -     [4] 0 <= uma
-2026-03-11 04:33:14,479 - INFO -     [5] 0 <= l5
-2026-03-11 04:33:14,479 - INFO -     [6] f == uma && f == l5
-2026-03-11 04:33:14,479 - INFO -     [7] f >= 0
-2026-03-11 04:33:14,479 - INFO -     [8] qg >= 0
-2026-03-11 04:33:14,479 - INFO -     [9] 0 <= qg
-2026-03-11 04:33:14,479 - INFO -     [10] l5 >= 0
-2026-03-11 04:33:14,685 - INFO - syntax Correct
-2026-03-11 04:33:45,600 - INFO - Validate:
-2026-03-11 04:33:45,600 - INFO - [True, True, True, True, True, True, True, False, True, True]
-2026-03-11 04:33:45,600 - INFO - 
-2026-03-11 04:33:45,600 - INFO - Verify:
-2026-03-11 04:33:45,600 - INFO - []
-2026-03-11 04:33:45,600 - INFO - 
-2026-03-11 04:33:45,600 - INFO - Houdini iteration 4: Removed 1 failed invariants
-2026-03-11 04:33:45,600 - INFO -   Before: 10 invariants
-2026-03-11 04:33:45,600 - INFO -   After: 9 invariants
-2026-03-11 04:33:45,600 - INFO -   Remaining invariants:
-2026-03-11 04:33:45,600 - INFO -     [1] f == uma && uma == l5
-2026-03-11 04:33:45,600 - INFO -     [2] f >= 0
-2026-03-11 04:33:45,600 - INFO -     [3] 0 <= f
-2026-03-11 04:33:45,600 - INFO -     [4] 0 <= uma
-2026-03-11 04:33:45,600 - INFO -     [5] 0 <= l5
-2026-03-11 04:33:45,600 - INFO -     [6] f == uma && f == l5
-2026-03-11 04:33:45,600 - INFO -     [7] f >= 0
-2026-03-11 04:33:45,600 - INFO -     [8] 0 <= qg
-2026-03-11 04:33:45,600 - INFO -     [9] l5 >= 0
-2026-03-11 04:33:45,801 - INFO - syntax Correct
-2026-03-11 04:34:16,690 - INFO - Validate:
-2026-03-11 04:34:16,690 - INFO - [True, True, True, True, True, True, True, False, True]
-2026-03-11 04:34:16,690 - INFO - 
-2026-03-11 04:34:16,690 - INFO - Verify:
-2026-03-11 04:34:16,690 - INFO - []
-2026-03-11 04:34:16,690 - INFO - 
-2026-03-11 04:34:16,690 - INFO - Houdini iteration 5: Removed 1 failed invariants
-2026-03-11 04:34:16,690 - INFO -   Before: 9 invariants
-2026-03-11 04:34:16,691 - INFO -   After: 8 invariants
-2026-03-11 04:34:16,691 - INFO -   Remaining invariants:
-2026-03-11 04:34:16,691 - INFO -     [1] f == uma && uma == l5
-2026-03-11 04:34:16,691 - INFO -     [2] f >= 0
-2026-03-11 04:34:16,691 - INFO -     [3] 0 <= f
-2026-03-11 04:34:16,691 - INFO -     [4] 0 <= uma
-2026-03-11 04:34:16,691 - INFO -     [5] 0 <= l5
-2026-03-11 04:34:16,691 - INFO -     [6] f == uma && f == l5
-2026-03-11 04:34:16,691 - INFO -     [7] f >= 0
-2026-03-11 04:34:16,691 - INFO -     [8] l5 >= 0
-2026-03-11 04:34:16,906 - INFO - syntax Correct
-2026-03-11 04:34:47,800 - INFO - Validate:
-2026-03-11 04:34:47,800 - INFO - [True, True, True, True, True, True, True, True]
-2026-03-11 04:34:47,800 - INFO - 
-2026-03-11 04:34:47,800 - INFO - Verify:
-2026-03-11 04:34:47,800 - INFO - []
-2026-03-11 04:34:47,800 - INFO - 
-2026-03-11 04:34:47,800 - INFO - Houdini iteration 6: All invariants are valid
-2026-03-11 04:34:48,004 - INFO - syntax Correct
-2026-03-11 04:35:18,874 - INFO - Validate:
-2026-03-11 04:35:18,874 - INFO - [True, True, True, True, True, True, True, True]
-2026-03-11 04:35:18,874 - INFO - 
-2026-03-11 04:35:18,874 - INFO - Verify:
-2026-03-11 04:35:18,874 - INFO - []
-2026-03-11 04:35:18,874 - INFO - 
-2026-03-11 04:38:14,082 - INFO - Deduplicated 7 loop invariants in final code
-2026-03-11 04:38:14,273 - INFO - syntax Correct
-2026-03-11 04:38:45,033 - INFO - Validate:
-2026-03-11 04:38:45,033 - INFO - [True, True, True, True, True]
-2026-03-11 04:38:45,033 - INFO - 
-2026-03-11 04:38:45,033 - INFO - Verify:
-2026-03-11 04:38:45,033 - INFO - []
-2026-03-11 04:38:45,033 - INFO - 
-2026-03-11 04:38:45,033 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 04:38:45,033 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_73/1.c
-2026-03-11 04:38:45,033 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_73/1_invariants.txt
-2026-03-11 04:38:45,033 - INFO - 
+2026-03-14 20:59:59,534 - INFO - Successfully generated 4/5 candidates
+2026-03-14 20:59:59,534 - INFO - Checking 6 invariants for conflicts...
+2026-03-14 20:59:59,535 - INFO - Checking 7 invariants for conflicts...
+2026-03-14 20:59:59,536 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 20:59:59,537 - INFO -   1: int main1(){
+2026-03-14 20:59:59,537 - INFO -   2:   int h3, n, y8pp, wl, dm, s59;
+2026-03-14 20:59:59,537 - INFO -   3: 
+2026-03-14 20:59:59,537 - INFO -   4:   h3=1-10;
+2026-03-14 20:59:59,537 - INFO -   5:   n=0;
+2026-03-14 20:59:59,537 - INFO -   6:   y8pp=12;
+2026-03-14 20:59:59,537 - INFO -   7:   wl=0;
+2026-03-14 20:59:59,537 - INFO -   8:   dm=h3;
+2026-03-14 20:59:59,537 - INFO -   9:   s59=h3;
+2026-03-14 20:59:59,537 - INFO -   10: 
+2026-03-14 20:59:59,537 - INFO - DEBUG: Total lines: 47
+2026-03-14 20:59:59,748 - INFO - syntax Correct
+2026-03-14 21:00:31,177 - INFO - Validate:
+2026-03-14 21:00:31,177 - INFO - [True, True, True, True, False, True, True, True, False, False, True, True, True]
+2026-03-14 21:00:31,177 - INFO - 
+2026-03-14 21:00:31,177 - INFO - Verify:
+2026-03-14 21:00:31,177 - INFO - []
+2026-03-14 21:00:31,177 - INFO - 
+2026-03-14 21:00:31,177 - INFO - Houdini iteration 1: Removed 3 failed invariants
+2026-03-14 21:00:31,177 - INFO -   Before: 13 invariants
+2026-03-14 21:00:31,177 - INFO -   After: 10 invariants
+2026-03-14 21:00:31,177 - INFO -   Remaining invariants:
+2026-03-14 21:00:31,177 - INFO -     [1] dm - y8pp == -21
+2026-03-14 21:00:31,177 - INFO -     [2] h3 <= y8pp
+2026-03-14 21:00:31,177 - INFO -     [3] wl >= 0
+2026-03-14 21:00:31,177 - INFO -     [4] y8pp >= 0
+2026-03-14 21:00:31,177 - INFO -     [5] wl <= y8pp
+2026-03-14 21:00:31,177 - INFO -     [6] h3 <= y8pp
+2026-03-14 21:00:31,177 - INFO -     [7] h3 + 5 <= y8pp
+2026-03-14 21:00:31,177 - INFO -     [8] dm - wl == -9
+2026-03-14 21:00:31,177 - INFO -     [9] dm < 0
+2026-03-14 21:00:31,177 - INFO -     [10] y8pp >= h3 + 5
+2026-03-14 21:00:31,417 - INFO - syntax Correct
+2026-03-14 21:01:02,595 - INFO - Validate:
+2026-03-14 21:01:02,595 - INFO - [True, True, True, True, True, True, False, False, False, True]
+2026-03-14 21:01:02,595 - INFO - 
+2026-03-14 21:01:02,595 - INFO - Verify:
+2026-03-14 21:01:02,595 - INFO - []
+2026-03-14 21:01:02,595 - INFO - 
+2026-03-14 21:01:02,595 - INFO - Houdini iteration 2: Removed 3 failed invariants
+2026-03-14 21:01:02,595 - INFO -   Before: 10 invariants
+2026-03-14 21:01:02,595 - INFO -   After: 7 invariants
+2026-03-14 21:01:02,595 - INFO -   Remaining invariants:
+2026-03-14 21:01:02,595 - INFO -     [1] dm - y8pp == -21
+2026-03-14 21:01:02,595 - INFO -     [2] h3 <= y8pp
+2026-03-14 21:01:02,595 - INFO -     [3] wl >= 0
+2026-03-14 21:01:02,595 - INFO -     [4] y8pp >= 0
+2026-03-14 21:01:02,595 - INFO -     [5] wl <= y8pp
+2026-03-14 21:01:02,595 - INFO -     [6] h3 <= y8pp
+2026-03-14 21:01:02,595 - INFO -     [7] y8pp >= h3 + 5
+2026-03-14 21:01:02,809 - INFO - syntax Correct
+2026-03-14 21:01:33,686 - INFO - Validate:
+2026-03-14 21:01:33,686 - INFO - [True, True, True, True, True, True, False]
+2026-03-14 21:01:33,686 - INFO - 
+2026-03-14 21:01:33,686 - INFO - Verify:
+2026-03-14 21:01:33,686 - INFO - []
+2026-03-14 21:01:33,686 - INFO - 
+2026-03-14 21:01:33,686 - INFO - Houdini iteration 3: Removed 1 failed invariants
+2026-03-14 21:01:33,686 - INFO -   Before: 7 invariants
+2026-03-14 21:01:33,686 - INFO -   After: 6 invariants
+2026-03-14 21:01:33,687 - INFO -   Remaining invariants:
+2026-03-14 21:01:33,687 - INFO -     [1] dm - y8pp == -21
+2026-03-14 21:01:33,687 - INFO -     [2] h3 <= y8pp
+2026-03-14 21:01:33,687 - INFO -     [3] wl >= 0
+2026-03-14 21:01:33,687 - INFO -     [4] y8pp >= 0
+2026-03-14 21:01:33,687 - INFO -     [5] wl <= y8pp
+2026-03-14 21:01:33,687 - INFO -     [6] h3 <= y8pp
+2026-03-14 21:01:33,891 - INFO - syntax Correct
+2026-03-14 21:02:04,767 - INFO - Validate:
+2026-03-14 21:02:04,767 - INFO - [True, True, True, True, True, True]
+2026-03-14 21:02:04,767 - INFO - 
+2026-03-14 21:02:04,767 - INFO - Verify:
+2026-03-14 21:02:04,767 - INFO - []
+2026-03-14 21:02:04,767 - INFO - 
+2026-03-14 21:02:04,767 - INFO - Houdini iteration 4: All invariants are valid
+2026-03-14 21:02:04,991 - INFO - syntax Correct
+2026-03-14 21:02:35,907 - INFO - Validate:
+2026-03-14 21:02:35,907 - INFO - [True, True, True, True, True, True]
+2026-03-14 21:02:35,907 - INFO - 
+2026-03-14 21:02:35,907 - INFO - Verify:
+2026-03-14 21:02:35,907 - INFO - []
+2026-03-14 21:02:35,907 - INFO - 
+2026-03-14 21:02:46,344 - INFO - Deduplicated 1 loop invariants in final code
+2026-03-14 21:02:46,558 - INFO - syntax Correct
+2026-03-14 21:03:17,493 - INFO - Validate:
+2026-03-14 21:03:17,493 - INFO - [True, True, True, True, True]
+2026-03-14 21:03:17,493 - INFO - 
+2026-03-14 21:03:17,493 - INFO - Verify:
+2026-03-14 21:03:17,493 - INFO - []
+2026-03-14 21:03:17,493 - INFO - 
+2026-03-14 21:03:17,493 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-14 21:03:17,494 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_73/1.c
+2026-03-14 21:03:17,494 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_73/1_invariants.txt
+2026-03-14 21:03:17,494 - INFO - 
 ============================================================
-2026-03-11 04:38:45,033 - INFO - Final first_pass results:
-2026-03-11 04:38:45,033 - INFO -   syntax=1
-2026-03-11 04:38:45,033 - INFO -   valid=1
-2026-03-11 04:38:45,033 - INFO -   satisfy=None
-2026-03-11 04:38:45,033 - INFO - ============================================================
-2026-03-11 04:38:45,033 - INFO - 
+2026-03-14 21:03:17,494 - INFO - Final first_pass results:
+2026-03-14 21:03:17,494 - INFO -   syntax=1
+2026-03-14 21:03:17,494 - INFO -   valid=1
+2026-03-14 21:03:17,494 - INFO -   satisfy=None
+2026-03-14 21:03:17,494 - INFO - ============================================================
+2026-03-14 21:03:17,494 - INFO - 
 ============================================================
-2026-03-11 04:38:45,033 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 04:38:45,033 - INFO -   Total API calls: 5
-2026-03-11 04:38:45,033 - INFO -   Total prompt tokens (input): 4,561
-2026-03-11 04:38:45,033 - INFO -   Total completion tokens (output): 19,841
-2026-03-11 04:38:45,033 - INFO -   Total tokens: 24,402
-2026-03-11 04:38:45,033 - INFO -   Average per call:
-2026-03-11 04:38:45,033 - INFO -     Prompt: 912.2 tokens
-2026-03-11 04:38:45,033 - INFO -     Completion: 3968.2 tokens
-2026-03-11 04:38:45,034 - INFO -     Total: 4880.4 tokens
-2026-03-11 04:38:45,034 - INFO - ============================================================
-2026-03-11 04:38:45,034 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_73/1.c
-2026-03-11 04:38:45,034 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_73/1_invariants.txt
-2026-03-11 04:39:23,794 - INFO - LLM quality-gate raw response: {
+2026-03-14 21:03:17,494 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 21:03:17,494 - INFO -   Total API calls: 49
+2026-03-14 21:03:17,494 - INFO -   Total prompt tokens (input): 69,274
+2026-03-14 21:03:17,494 - INFO -   Total completion tokens (output): 483,976
+2026-03-14 21:03:17,494 - INFO -   Total tokens: 553,250
+2026-03-14 21:03:17,494 - INFO -   Average per call:
+2026-03-14 21:03:17,494 - INFO -     Prompt: 1413.8 tokens
+2026-03-14 21:03:17,494 - INFO -     Completion: 9877.1 tokens
+2026-03-14 21:03:17,494 - INFO -     Total: 11290.8 tokens
+2026-03-14 21:03:17,494 - INFO - ============================================================
+2026-03-14 21:03:17,494 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_73/1.c
+2026-03-14 21:03:17,494 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_73/1_invariants.txt
+2026-03-14 21:03:46,212 - INFO - LLM quality-gate raw response: {
   "ok": false,
-  "reason": "fail"
+  "reason": "Second loop modifies s59 but invariants do not constrain s59 (no relation involving s59 is maintained). Therefore the invariant set does not cover all modified variables. Additionally, there is no loop_variant to establish termination bounds, and some invariants (e.g., wl <= y8pp) may be redundant, but the primary correctness gap is the missing constraint on s59."
 }
-2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
-2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
-2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
-2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
-2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
-2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
-2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
-2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

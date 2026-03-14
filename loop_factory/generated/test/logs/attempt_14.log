@@ -1,497 +1,594 @@
-2026-03-11 16:24:17,676 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 16:24:17,693 - INFO - Found 1 loops
-2026-03-11 16:24:17,696 - INFO - 
+2026-03-14 20:23:33,961 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 20:23:33,990 - INFO - Found 2 loops
+2026-03-14 20:23:34,017 - INFO - 
 ============================================================
-2026-03-11 16:24:17,696 - INFO - Main generation pass 1/1
-2026-03-11 16:24:17,696 - INFO - ============================================================
-2026-03-11 16:24:17,696 - INFO - Loaded single prompt template: simple
-2026-03-11 16:24:17,696 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 16:24:17,696 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 16:24:19,227 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:26:36,907 - INFO - 
+2026-03-14 20:23:34,017 - INFO - Main generation pass 1/1
+2026-03-14 20:23:34,017 - INFO - ============================================================
+2026-03-14 20:23:34,017 - INFO - Loaded single prompt template: simple
+2026-03-14 20:23:34,017 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 20:23:34,019 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 20:23:35,892 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:25:24,063 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>The loop updates follow a simple state progression:
-- rq, n7r, and x are all incremented by 1 each iteration (rq += 1; n7r += 1; x += 1).
-- w60j is decreased by rq if w60j > rq, otherwise it is set to 0.
-- The loop terminates when either w60j <= 0 or rq > amz.
+<reasoning>
+We need to supply inductive, verification-friendly loop invariants and precise assigns for two loops in the function main1, using only the available variables: co, cu, czj, d72, yq. The code appears to have a likely typo in the first loop body (d72 = =4;), which would not compile in C, but we are asked to add ACSL annotations without changing the code. We therefore focus on invariants that are safe, non-contradictory given the initial state patterns, and that are preserved by each loop body.
 
-A core conservation relation is that n7r - rq stays constant at 2 across iterations (initially 3 - 1 = 2, and after each iteration both n7r and rq increase by 1). This is a strong, inductive invariant that directly expresses the loop’s state progression.
+Guiding points used to craft invariants:
+- We must expose a conservative core invariants that are preserved across iterations:
+  - The first loop updates d72 to 4 every iteration and cu and czj via additive updates. A conservative invariant is that d72 never drops below 4 (d72 >= 4), which is preserved since the loop guard is d72 >= 4 and the only assignment to d72 is setting it to 4.
+  - cu is increased by fixed positive amounts (co + yq) in the first loop, given the pre-state values are positive (co, cu, yq start in {1,2} per the context). Therefore cu remains non-negative (cu >= 0) and non-decreasing (cu will not become negative).
+  - czj is updated by adding cu*d72, which is a non-negative increment provided cu and d72 stay non-negative (reasonable given the initial positivity). Hence czj can be assumed to stay >= 0.
+- For the second loop, the loop body preserves czj (czj is not updated in the loop body) and updates yq to czj, and increases d72 by cu, and cu by d72. A useful inductive invariant is that yq does not exceed czj at the loop head (yq <= czj); the loop guard is effectively ensuring yq <= czj - 1 for entering the body, which implies yq <= czj holds at the loop head after entering or after the assignment yq = czj (the relation becomes equality in the body). The invariant yq <= czj is thus consistent and preserved when the loop continues.
+- We explicitly list complete and exact loop assigns for each loop as required: the first loop modifies czj, cu, d72; the second loop modifies d72, cu, yq.
+- We avoid any use of \at(local, Pre) (not allowed for locals) and do not rely on unknown() calls, or on any non-available variables.
 
-A second, supportive invariant is that n7r - x stays constant at 3 (initially 3 - 0 = 3; it remains 3 because both n7r and x are incremented by 1 each iteration). Together, these two invariants imply rq = x + 1, a useful derived relation that helps reasoning about the relation between the loop counters and the progress variable x.
+Based on the above, I propose the following invariants:
+- Loop 0 (the d72 >= 4 loop):
+  - loop invariant d72 >= 4;
+  - loop invariant cu >= 0;
+  - loop invariant czj >= 0;
+  - loop assigns czj, cu, d72;
 
-Progress bound: use a loop variant that strictly decreases with every loop iteration. Since the loop body only executes when rq <= amz, rq increases by 1 each iteration, so amz - rq decreases by 1 each iteration. Therefore, amz - rq is a valid loop variant.
+- Loop 1 (the while (1) with break based on yq <= czj-1):
+  - loop invariant d72 >= 4;
+  - loop invariant cu >= 0;
+  - loop invariant yq <= czj;
+  - loop assigns d72, cu, yq;
 
-Assigns: the loop mutates w60j, rq, n7r, and x. amz, f, j, and the initial values are not modified in the loop.
-
-In summary, the following invariants capture the state transition, ensure induction, and support termination reasoning.
+Note: A stronger “core conservation” equality that expresses czj' - czj = cu*d72 (the exact update to czj) is the exact loop-update relation, but invariant syntax cannot refer to the next-state variables. Therefore I describe this relation in reasoning (and not as a next-state invariant). The invariants above ensure monotonic progress bounds and containment of state variables across iterations and are verification-friendly for Frama-C/WP.
 
 </reasoning>
-<code>int main1(int j,int f){
-  int amz, n7r, w60j, rq, x;
+<code>int main1(){
+  int co, d72, cu, czj, yq;
 
-  amz=(f%7)+11;
-  n7r=3;
-  w60j=10;
-  rq=1;
-  x=0;
+  co=1*2;
+  d72=co;
+  cu=co;
+  czj=0;
+  yq=co;
 
   /*@
-    loop invariant n7r - rq == 2;
-    loop invariant n7r - x == 3;
-    loop assigns w60j, rq, n7r, x;
-    loop variant amz - rq;
-  @*/
-  while (1) {
-      if (!(w60j>0&&rq<=amz)) {
+    loop invariant d72 >= 4;
+    loop invariant cu >= 0;
+    loop invariant czj >= 0;
+    loop assigns czj, cu, d72;
+  */
+while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
+  }
+
+  /*@
+    loop invariant d72 >= 4;
+    loop invariant cu >= 0;
+    loop invariant yq <= czj;
+    loop assigns d72, cu, yq;
+  */
+while (1) {
+      if (!(yq<=czj-1)) {
           break;
       }
-      if (w60j>rq) {
-          w60j = w60j - rq;
-      }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
   }
 
 }</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-11 16:26:36,907 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 16:26:36,968 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:35:43,768 - INFO - 
+2026-03-14 20:25:24,064 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 20:25:24,125 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:27:37,396 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>The loop updates four stateful variables: w60j, rq, n7r, and x. A strong, inductive invariant should relate these so it is preserved across iterations and helps verification.
+<reasoning>
+I analyzed the two loops and aimed to provide inductive, verification-friendly invariants that reflect the observed state updates without altering the original code. The goal is to express a core conservation/relational relation for each loop, give minimal helpful progress bounds, and declare complete loop assigns.
 
-Selected inductive invariants and rationale:
-- x == rq - 1: Each iteration increases both x and rq by 1, so the difference stays constant. This ties the number of iterations to the current rq value.
-- n7r == x + 3: n7r starts at 3 and is incremented by 1 each iteration, same as x; thus n7r = initial_n7r + iterations = 3 + x. This is a strong relation between n7r and x.
-- 0 <= w60j <= amz: w60j starts at 10 and, on each iteration, is either decreased by rq (if w60j > rq) or set to 0. Since amz is fixed and at least 11, w60j never becomes negative and never exceeds its initial value, hence 0 <= w60j <= amz.
-- loop assigns w60j, rq, n7r, x: these are exactly the modified variables in the loop body.
+Loop 0 (the first while): 
+- Observed updates: czj' = czj + cu*d72, cu' = cu + co + yq, d72' = 4. After entering, the loop guard is d72 >= 4, and d72 tends to become 4. A simple yet inductive invariant that captures the exact relational growth in czj relative to cu and d72 is czj <= cu * d72. This holds initially (czj=0 <= cu*d72=2*2=4) and is preserved by the updates given the non-negativity of co and yq and the fact that d72' becomes 4 (a fixed nonnegative bound) and cu grows. 
+- Additional invariant: yq == co holds throughout this loop since yq is not modified in the body and co is fixed after initialization. This gives a concise, inductive relationship tied to the known initializations.
+- Loop assigns for this loop are czj, cu, d72 (these are the variables actually assigned inside the loop body).
 
-Loop variant amz - rq is provided to aid termination reasoning: rq increases by 1 on every iteration while amz is fixed, so amz - rq strictly decreases and remains non-negative at loop head (since the loop continues only when rq <= amz).
+Loop 1 (the second while with a break): 
+- Observed updates: d72 += cu; cu = cu + d72; yq = czj. Here, d72 and cu are non-decreasing (since cu and d72 are nonnegative in the observed flow and cu is added into d72, then d72 is reused to update cu). A natural, inductive property is that d72 and cu stay nonnegative throughout the loop.
+- A straightforward inductive invariant that is preserved is d72 >= 0 and cu >= 0.
+- Loop assigns for this loop are d72, cu, yq (these are the variables actually modified; czj is read but not written inside the loop).
 
-These invariants are strong, inductive, and directly reflect the observed state updates without introducing unrelated facts. They use only available variables (including amz, which is determined from f at Pre), and do not modify other constructs. They avoid relying on the guard as an invariant and maintain a tight connection to the loop's state progression.</reasoning>
+These invariants are designed to be strong enough to help Frama-C/WP reason inductively about the loops, while keeping the annotations tight and focused on the actual state updates. They respect the requirement to avoid unrelated or tautological conditions and do not alter the program text aside from adding the annotations.
+</reasoning>
 <code>/*@
-  loop invariant x == rq - 1;
-  loop invariant n7r == x + 3;
-  loop invariant 0 <= w60j <= amz;
-  loop assigns w60j, rq, n7r, x;
-  loop variant amz - rq;
+  loop invariant czj <= cu * d72;
+  loop invariant yq == co;
+  loop assigns czj, cu, d72;
+*/
+while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
+  }
+
+/*@
+  loop invariant d72 >= 0;
+  loop invariant cu >= 0;
+  loop assigns d72, cu, yq;
 */
 while (1) {
-      if (!(w60j>0&&rq<=amz)) {
+      if (!(yq<=czj-1)) {
           break;
       }
-      if (w60j>rq) {
-          w60j = w60j - rq;
-      }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
   }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-11 16:35:43,769 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 16:35:43,855 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:38:19,843 - INFO - 
+2026-03-14 20:27:37,397 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 20:27:37,474 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:29:09,142 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>
-I analyzed the loop to identify strong, inductive invariants that hold at the start of every loop iteration and are preserved by each iteration.
+<reasoning>We need inductive, verification-friendly loop invariants for the two loops, using only the variables available in the function (co, cu, czj, d72, yq).
 
-Key observations:
-- The loop updates four stateful variables each iteration: w60j, rq, n7r, x. amz remains constant inside the loop.
-- rq is incremented by 1 every iteration, and x is also incremented by 1 every iteration. This yields a clean relational invariant rq == x + 1 that is preserved across iterations (rq' = rq + 1 and x' = x + 1 implies rq' == x' + 1).
-- n7r starts at 3 and is incremented by 1 each iteration, while x is incremented by 1 each iteration. This yields n7r == x + 3 as a preserved relation (n7r' = n7r + 1 and x' = x + 1 implies n7r' == x' + 3).
-- w60j is always non-negative after each iteration (either reduced by rq or set to 0), so w60j >= 0 is an invariant.
-- For a robust termination metric, a loop variant can be defined. Since rq increases by 1 each iteration and the loop continues only while rq <= amz, the expression amz - rq strictly decreases by 1 each iteration and remains non-negative at loop entry. Thus, loop variant amz - rq is appropriate.
+Observations:
+- First loop body:
+  - czj' = czj + cu*d72
+  - cu'  = cu + co
+  - cu'  = cu' + yq  (i.e., cu increases by co then by yq)
+  - d72' = 4
+  - co remains unchanged, yq unchanged
+  - Loop guard: d72 >= 4
 
-Thus, the loop invariants should express:
-- rq == x + 1 (core conservation/relational equality)
-- n7r == x + 3 (another core relational equality derived from initial values and per-iteration updates)
-- w60j >= 0 (non-negativity conservation)
-- loop assigns w60j, rq, n7r, x (the set of modified variables)
-- loop variant amz - rq (progress measure ensuring termination)
+From these, a straightforward, robust invariant is:
+- Non-negativity/monotonicity: co, cu, czj, d72, yq stay non-negative if they start non-negative. We can express this as simple bounds:
+  - d72 >= 4 (the guard) is preserved
+  - czj >= 0
+  - cu >= 0
+  - yq >= 0
+  - co >= 0 (though fixed, expressing it as a bound helps WP)
 
-These invariants are inductive, do not rely on Pre, and remain valid throughout the loop execution. They also align with the loop’s actual behavior and the provided loop guard conditions.
+Additionally, we should capture a core conservation/relational aspect of updates: czj grows by cu*d72 each iteration (a direct state-update relation). While invariants describe current state rather than per-iteration deltas, including the non-negativity and the explicit update pattern in natural language helps WP understand the loop behavior.
+
+For the second loop:
+- It updates d72 by adding cu, then updates cu by adding the new d72, and sets yq to czj. The exact per-iteration arithmetic is captured by the assignment set (d72, cu, yq). A simple, inductive invariant set can again be non-negativity for these variables; czj is not modified inside the loop, but it remains non-negative by initialization, so czj >= 0 is reasonable to keep as invariant as well.
+
+The chosen invariants are thus:
+- First loop: d72 >= 4; czj >= 0; cu >= 0; yq >= 0; (co >= 0 could be implied but not strictly required since co is never modified)
+- Second loop: d72 >= 0; cu >= 0; czj >= 0; yq >= 0
+
+Both loops: precise loop assigns to reflect which variables are modified in the loop body.
+- First loop assigns: czj, cu, d72
+- Second loop assigns: d72, cu, yq
+
+These invariants are inductive (preserved by iteration given the loop guards), minimal (they give a non-trivial bound without introducing unrelated facts), and alignment with the actual updates. They do not alter the program logic.
+
+Note: The first loop as coded has d72 = = 4 (a likely typo). The invariants above do not rely on the exact value of d72 after the first iteration (they only rely on d72 >= 4 as a guard and non-negativity). If the code were corrected to d72 = 4;, the invariants remain sound.
+
 </reasoning>
-<code>/* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant rq == x + 1;
-  loop invariant n7r == x + 3;
-  loop invariant w60j >= 0;
-  loop assigns w60j, rq, n7r, x;
-  loop variant amz - rq;
-*/
-while (1) {
-      if (!(w60j>0&&rq<=amz)) {
-          break;
-      }
-      if (w60j>rq) {
-          w60j = w60j - rq;
-      }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
-  }</code>
------ Candidate 3/5 raw response end -----
-2026-03-11 16:38:19,843 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 16:38:19,929 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:41:02,042 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>The loop updates a small set of state variables: w60j is decreased (or set to 0), rq is incremented, n7r is incremented, and x is incremented. A good inductive invariant should capture the tight relationships that hold across iterations and explain the loop's progress.
+<code>int main1(){
+  int co, d72, cu, czj, yq;
 
-Chosen invariants:
-- rq == x + 1: Each iteration increases x by 1 and rq by 1, starting from x=0, rq=1. This relationship is preserved at every iteration start.
-- n7r == x + 3: n7r starts at 3 and is incremented once per iteration along with x, so n7r = 3 + x holds invariantly.
-- 0 <= w60j: w60j never becomes negative since it’s either set to 0 or reduced by a positive rq, starting from 10.
+  co=1*2;
+  d72=co;
+  cu=co;
+  czj=0;
+  yq=co;
 
-Progress measure (loop variant):
-- amz - rq: rq increases by 1 every iteration, while amz is constant, so amz - rq strictly decreases and stays non-negative while the loop guard is true (rq <= amz && w60j > 0). This ensures termination progress.
+  /*@ 
+    loop invariant d72 >= 4;
+    loop invariant czj >= 0;
+    loop invariant cu >= 0;
+    loop invariant yq >= 0;
+    loop assigns czj, cu, d72;
+  @*/
+  while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
+  }
 
-Loop assigns:
-- w60j, rq, n7r, x are modified inside the loop.
-
-These invariants are inductive (hold initially and are preserved by every iteration under the loop guard) and provide a concise, non-tautological description of the loop behavior. They do not rely on non-parameter \at specs, only on the solver-visible variables. The loop guard is not claimed as an invariant; the invariants are intended to hold when the loop guard is true and are preserved by iterations. The variant amz - rq ensures a progress measure decreasing by 1 per iteration. </reasoning>
-<code>int main1(int j,int f){
-  int amz, n7r, w60j, rq, x;
-
-  amz=(f%7)+11;
-  n7r=3;
-  w60j=10;
-  rq=1;
-  x=0;
-
-  /*@
-    loop invariant rq == x + 1;
-    loop invariant n7r == x + 3;
-    loop invariant 0 <= w60j;
-    loop assigns w60j, rq, n7r, x;
-    loop variant amz - rq;
-  */
+  /*@ 
+    loop invariant d72 >= 0;
+    loop invariant cu >= 0;
+    loop invariant czj >= 0;
+    loop invariant yq >= 0;
+    loop assigns d72, cu, yq;
+  @*/
   while (1) {
-      if (!(w60j>0&&rq<=amz)) {
+      if (!(yq<=czj-1)) {
           break;
       }
-      if (w60j>rq) {
-          w60j = w60j - rq;
-      }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
   }
 
 }</code>
------ Candidate 4/5 raw response end -----
-2026-03-11 16:41:02,042 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 16:41:02,104 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 16:43:12,383 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop invariants for the given loop. Observations:
-- The loop body updates only w60j, rq, n7r, and x. amz is computed before the loop and remains constant.
-- The loop continues while w60j > 0 and rq <= amz (the break happens when this condition is false).
-- After each iteration:
-  - rq increases by 1
-  - n7r increases by 1
-  - x increases by 1
-  - w60j decreases by rq if w60j > rq, otherwise w60j becomes 0
-- A strong invariant that is easy to prove inductively is a linear relationship tying x, rq, and n7r together:
-  - rq == x + 1 (rq starts at 1, x starts at 0, both increment by 1 each iteration)
-  - n7r == x + 3 (n7r starts at 3, increments with x)
-- We can also state a simple bound on w60j: 0 <= w60j <= 10 (it starts at 10 and is non-increasing, never negative because of the 0 assignment).
-- amz >= rq is also true while the loop body is entered (the break guard ensures rq <= amz at loop entry).
-- A loop variant that strictly decreases each iteration is useful for WP: amz - rq decreases by 1 every iteration (since rq increments by 1 and amz is constant), and remains non-negative at loop entry due to rq <= amz.
+----- Candidate 3/5 raw response end -----
+2026-03-14 20:29:09,142 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 20:29:09,210 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:31:02,478 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+We need inductive, verification-friendly loop invariants for two loops in the given function, using only the available variables (co, cu, czj, d72, yq) and no new parameters. The invariants must hold before the first iteration, be preserved by each iteration, and facilitate proving post-conditions when the loop exits. We also need complete and exact loop assigns.
 
-Thus, we propose the following invariants:
-- 0 <= w60j <= 10
-- rq == x + 1
-- n7r == x + 3
-- amz >= rq
-- loop assigns w60j, rq, n7r, x
-- loop variant amz - rq
+Strategy and rationale:
+- For the first loop (while (d72 >= 4)), derive the per-iteration update relations:
+  - czj' = czj + cu * d72 (czj is updated using the current cu and d72)
+  - cu' = cu + co + yq (cu is increased by co and yq)
+  - yq' = yq (yq is not modified)
+  - d72' = 4 (the code assigns 4 to d72)
+  A robust invariant is to express czj' in terms of prior values using \old, which yields:
+  - czj == \old(czj) + \old(cu) * \old(d72)
+  and cu in terms of prior values:
+  - cu == \old(cu) + co + yq
+  Adding a non-relational but useful bound helps progress: d72 <= 4 (given the context where initial d72 <= 4 and the update sets it to 4). This makes the invariant stronger without sacrificing initialization correctness.
+  Combining these into two invariant lines (as required by the placeholder slots) yields:
+  - loop invariant czj == \old(czj) + \old(cu) * \old(d72) && d72 <= 4;
+  - loop invariant cu == \old(cu) + co + yq;
+  loop assigns czj, cu, d72;
 
-These are inductive (preserved by the body) and provide the needed relation between the state variables, while respecting the loop structure and available variables. The invariants are stronger than tautologies and avoid introducing unrelated properties. </reasoning>
-<code>int main1(int j,int f){
-  int amz, n7r, w60j, rq, x;
+- For the second loop (while (1) with an early break when !(yq <= czj-1)), derive the per-iteration updates:
+  - d72' = d72 + cu (d72 += cu)
+  - cu'  = cu + d72' (cu = cu + d72; but since d72' was computed just above, this is cu + (d72 + cu) = d72 + 2*cu)
+  - yq'  = czj (yq takes the value of czj)
+  These relations can be captured with:
+  - d72 == \old(d72) + \old(cu)
+  - cu == \old(d72) + 2 * \old(cu)
+  Note: yq is updated to czj inside the loop body, but at the head of a loop iteration the invariant should reflect relations between current and previous iterations; using only the two equations above keeps the invariant inductive and independent from a direct yq-czj relationship at the head of the loop. The loop assigns show the actual modified variables: d72, cu, yq.
+  Thus the two invariant lines for the second loop are:
+  - loop invariant d72 == \old(d72) + \old(cu) && cu == \old(d72) + 2 * \old(cu);
+  loop assigns d72, cu, yq;
 
-  amz=(f%7)+11;
-  n7r=3;
-  w60j=10;
-  rq=1;
-  x=0;
+These invariants are inductive (they relate current state to the previous state via \old), non-tautological, and do not rely on function parameters. They also stay within the allowed variables and the ACSL syntax constraints.
+</reasoning>
+<code>/*@
+  loop invariant czj == \old(czj) + \old(cu) * \old(d72) && d72 &lt;= 4;
+  loop invariant cu == \old(cu) + co + yq;
+  loop assigns czj, cu, d72;
+*/
+while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
+  }
 
   /*@
-    loop invariant 0 <= w60j <= 10;
-    loop invariant rq == x + 1;
-    loop invariant n7r == x + 3;
-    loop invariant amz >= rq;
-    loop assigns w60j, rq, n7r, x;
-    loop variant amz - rq;
+    loop invariant d72 == \old(d72) + \old(cu) && cu == \old(d72) + 2 * \old(cu);
+    loop assigns d72, cu, yq;
   */
-  while (1) {
-      if (!(w60j>0&&rq<=amz)) {
+while (1) {
+      if (!(yq<=czj-1)) {
           break;
       }
-      if (w60j>rq) {
-          w60j = w60j - rq;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
+  }</code>
+----- Candidate 4/5 raw response end -----
+2026-03-14 20:31:02,478 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 20:31:02,539 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:33:01,020 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>To provide inductive, verification-friendly loop invariants for the two loops, I focused on strong, non-tautological properties that are preserved by the loop updates and rely only on the given available variables. Since the initial state hints non-negative small values for the variables (as per the context), I enforced non-negativity invariants for all variables and introduced a simple relational bound that is preserved by the updates: czj <= czj + cu*d72, which is equivalent (under non-negativity of cu and d72) to cu*d72 >= 0. This captures a core conservation/relational idea: the increment to czj in the loop is cu*d72, so czj does not exceed czj plus that non-negative increment. Both loops modify czj, cu, and d72 (the first loop) or czj, cu, d72, yq (the second loop); hence the loop assigns lists reflect those modifications. I avoided introducing complex or unreachable invariants and did not include loop variants since termination is not guaranteed by the given code snippet (notably the second loop) and a non-strict, safe variant would be risky. The invariants are intended to be strong enough to assist WP while staying valid across all possible initial nondeterministic states described in the loop context. </reasoning>
+
+<code>int main1(){
+  int co, d72, cu, czj, yq;
+
+  co=1*2;
+  d72=co;
+  cu=co;
+  czj=0;
+  yq=co;
+
+  /*@ 
+    loop invariant 0 <= co;
+    loop invariant 0 <= d72;
+    loop invariant 0 <= cu;
+    loop invariant 0 <= czj;
+    loop invariant 0 <= yq;
+    loop invariant czj <= czj + cu*d72;
+    loop assigns czj, cu, d72;
+  */
+  while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
+  }
+
+  /*@ 
+    loop invariant 0 <= co;
+    loop invariant 0 <= d72;
+    loop invariant 0 <= cu;
+    loop invariant 0 <= czj;
+    loop invariant 0 <= yq;
+    loop invariant czj <= czj + cu*d72;
+    loop assigns czj, cu, d72, yq;
+  */
+  while (1) {
+      if (!(yq<=czj-1)) {
+          break;
       }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 16:43:12,383 - INFO - 
+2026-03-14 20:33:01,022 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int j,int f){
-  int amz, n7r, w60j, rq, x;
+int main1(){
+  int co, d72, cu, czj, yq;
 
-  amz=(f%7)+11;
-  n7r=3;
-  w60j=10;
-  rq=1;
-  x=0;
+  co=1*2;
+  d72=co;
+  cu=co;
+  czj=0;
+  yq=co;
 
   /*@
-    loop invariant n7r - rq == 2;
-    loop invariant n7r - x == 3;
-    loop assigns w60j, rq, n7r, x;
-    loop variant amz - rq;
-  @*/
-  while (1) {
-      if (!(w60j>0&&rq<=amz)) {
+    loop invariant d72 >= 4;
+    loop invariant cu >= 0;
+    loop invariant czj >= 0;
+    loop assigns czj, cu, d72;
+  */
+while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
+  }
+
+  /*@
+    loop invariant d72 >= 4;
+    loop invariant cu >= 0;
+    loop invariant yq <= czj;
+    loop assigns d72, cu, yq;
+  */
+while (1) {
+      if (!(yq<=czj-1)) {
           break;
       }
-      if (w60j>rq) {
-          w60j = w60j - rq;
-      }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-11 16:43:12,383 - INFO - 
+2026-03-14 20:33:01,022 - INFO - 
 ----- Candidate 2/5 full code begin -----
 /*@
-  loop invariant x == rq - 1;
-  loop invariant n7r == x + 3;
-  loop invariant 0 <= w60j <= amz;
-  loop assigns w60j, rq, n7r, x;
-  loop variant amz - rq;
+  loop invariant czj <= cu * d72;
+  loop invariant yq == co;
+  loop assigns czj, cu, d72;
+*/
+while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
+  }
+
+/*@
+  loop invariant d72 >= 0;
+  loop invariant cu >= 0;
+  loop assigns d72, cu, yq;
 */
 while (1) {
-      if (!(w60j>0&&rq<=amz)) {
+      if (!(yq<=czj-1)) {
           break;
       }
-      if (w60j>rq) {
-          w60j = w60j - rq;
-      }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
   }
 ----- Candidate 2/5 full code end -----
-2026-03-11 16:43:12,383 - INFO - 
+2026-03-14 20:33:01,022 - INFO - 
 ----- Candidate 3/5 full code begin -----
-/* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant rq == x + 1;
-  loop invariant n7r == x + 3;
-  loop invariant w60j >= 0;
-  loop assigns w60j, rq, n7r, x;
-  loop variant amz - rq;
-*/
-while (1) {
-      if (!(w60j>0&&rq<=amz)) {
-          break;
-      }
-      if (w60j>rq) {
-          w60j = w60j - rq;
-      }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
+int main1(){
+  int co, d72, cu, czj, yq;
+
+  co=1*2;
+  d72=co;
+  cu=co;
+  czj=0;
+  yq=co;
+
+  /*@ 
+    loop invariant d72 >= 4;
+    loop invariant czj >= 0;
+    loop invariant cu >= 0;
+    loop invariant yq >= 0;
+    loop assigns czj, cu, d72;
+  @*/
+  while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
   }
------ Candidate 3/5 full code end -----
-2026-03-11 16:43:12,383 - INFO - 
------ Candidate 4/5 full code begin -----
-int main1(int j,int f){
-  int amz, n7r, w60j, rq, x;
 
-  amz=(f%7)+11;
-  n7r=3;
-  w60j=10;
-  rq=1;
-  x=0;
-
-  /*@
-    loop invariant rq == x + 1;
-    loop invariant n7r == x + 3;
-    loop invariant 0 <= w60j;
-    loop assigns w60j, rq, n7r, x;
-    loop variant amz - rq;
-  */
+  /*@ 
+    loop invariant d72 >= 0;
+    loop invariant cu >= 0;
+    loop invariant czj >= 0;
+    loop invariant yq >= 0;
+    loop assigns d72, cu, yq;
+  @*/
   while (1) {
-      if (!(w60j>0&&rq<=amz)) {
+      if (!(yq<=czj-1)) {
           break;
       }
-      if (w60j>rq) {
-          w60j = w60j - rq;
-      }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
   }
 
 }
------ Candidate 4/5 full code end -----
-2026-03-11 16:43:12,383 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int j,int f){
-  int amz, n7r, w60j, rq, x;
-
-  amz=(f%7)+11;
-  n7r=3;
-  w60j=10;
-  rq=1;
-  x=0;
+----- Candidate 3/5 full code end -----
+2026-03-14 20:33:01,022 - INFO - 
+----- Candidate 4/5 full code begin -----
+/*@
+  loop invariant czj == \old(czj) + \old(cu) * \old(d72) && d72 &lt;= 4;
+  loop invariant cu == \old(cu) + co + yq;
+  loop assigns czj, cu, d72;
+*/
+while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
+  }
 
   /*@
-    loop invariant 0 <= w60j <= 10;
-    loop invariant rq == x + 1;
-    loop invariant n7r == x + 3;
-    loop invariant amz >= rq;
-    loop assigns w60j, rq, n7r, x;
-    loop variant amz - rq;
+    loop invariant d72 == \old(d72) + \old(cu) && cu == \old(d72) + 2 * \old(cu);
+    loop assigns d72, cu, yq;
   */
-  while (1) {
-      if (!(w60j>0&&rq<=amz)) {
+while (1) {
+      if (!(yq<=czj-1)) {
           break;
       }
-      if (w60j>rq) {
-          w60j = w60j - rq;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
+  }
+----- Candidate 4/5 full code end -----
+2026-03-14 20:33:01,022 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(){
+  int co, d72, cu, czj, yq;
+
+  co=1*2;
+  d72=co;
+  cu=co;
+  czj=0;
+  yq=co;
+
+  /*@ 
+    loop invariant 0 <= co;
+    loop invariant 0 <= d72;
+    loop invariant 0 <= cu;
+    loop invariant 0 <= czj;
+    loop invariant 0 <= yq;
+    loop invariant czj <= czj + cu*d72;
+    loop assigns czj, cu, d72;
+  */
+  while (d72>=4) {
+      czj = czj+cu*d72;
+      cu += co;
+      cu += yq;
+      d72 = =4;
+  }
+
+  /*@ 
+    loop invariant 0 <= co;
+    loop invariant 0 <= d72;
+    loop invariant 0 <= cu;
+    loop invariant 0 <= czj;
+    loop invariant 0 <= yq;
+    loop invariant czj <= czj + cu*d72;
+    loop assigns czj, cu, d72, yq;
+  */
+  while (1) {
+      if (!(yq<=czj-1)) {
+          break;
       }
-      else {
-          w60j = 0;
-      }
-      rq += 1;
-      n7r = n7r + 1;
-      x = x + 1;
+      d72 += cu;
+      cu = cu + d72;
+      yq = czj;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 16:43:12,383 - INFO - Successfully generated 5/5 candidates
-2026-03-11 16:43:12,384 - INFO - Checking 10 invariants for conflicts...
-2026-03-11 16:43:12,387 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 16:43:12,387 - INFO -   1: int main1(int j,int f){
-2026-03-11 16:43:12,387 - INFO -   2:   int amz, n7r, w60j, rq, x;
-2026-03-11 16:43:12,387 - INFO -   3: 
-2026-03-11 16:43:12,387 - INFO -   4:   amz=(f%7)+11;
-2026-03-11 16:43:12,387 - INFO -   5:   n7r=3;
-2026-03-11 16:43:12,387 - INFO -   6:   w60j=10;
-2026-03-11 16:43:12,387 - INFO -   7:   rq=1;
-2026-03-11 16:43:12,387 - INFO -   8:   x=0;
-2026-03-11 16:43:12,387 - INFO -   9: 
-2026-03-11 16:43:12,387 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 16:43:12,387 - INFO - DEBUG: Total lines: 40
-2026-03-11 16:43:12,580 - INFO - syntax Correct
-2026-03-11 16:44:13,558 - INFO - Validate:
-2026-03-11 16:44:13,558 - INFO - [True, True, True, True, False, True, True, True, False, False]
-2026-03-11 16:44:13,559 - INFO - 
-2026-03-11 16:44:13,559 - INFO - Verify:
-2026-03-11 16:44:13,559 - INFO - []
-2026-03-11 16:44:13,559 - INFO - 
-2026-03-11 16:44:13,559 - INFO - Houdini iteration 1: Removed 3 failed invariants
-2026-03-11 16:44:13,559 - INFO -   Before: 10 invariants
-2026-03-11 16:44:13,559 - INFO -   After: 7 invariants
-2026-03-11 16:44:13,559 - INFO -   Remaining invariants:
-2026-03-11 16:44:13,559 - INFO -     [1] n7r - rq == 2
-2026-03-11 16:44:13,559 - INFO -     [2] n7r - x == 3
-2026-03-11 16:44:13,559 - INFO -     [3] x == rq - 1
-2026-03-11 16:44:13,559 - INFO -     [4] n7r == x + 3
-2026-03-11 16:44:13,559 - INFO -     [5] rq == x + 1
-2026-03-11 16:44:13,559 - INFO -     [6] w60j >= 0
-2026-03-11 16:44:13,559 - INFO -     [7] 0 <= w60j
-2026-03-11 16:44:13,751 - INFO - syntax Correct
-2026-03-11 16:44:44,557 - INFO - Validate:
-2026-03-11 16:44:44,557 - INFO - [True, True, True, True, True, True, True]
-2026-03-11 16:44:44,557 - INFO - 
-2026-03-11 16:44:44,557 - INFO - Verify:
-2026-03-11 16:44:44,557 - INFO - []
-2026-03-11 16:44:44,557 - INFO - 
-2026-03-11 16:44:44,557 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-11 16:44:44,757 - INFO - syntax Correct
-2026-03-11 16:45:15,555 - INFO - Validate:
-2026-03-11 16:45:15,555 - INFO - [True, True, True, True, True, True, True]
-2026-03-11 16:45:15,555 - INFO - 
-2026-03-11 16:45:15,555 - INFO - Verify:
-2026-03-11 16:45:15,555 - INFO - []
-2026-03-11 16:45:15,555 - INFO - 
-2026-03-11 16:45:39,003 - INFO - Deduplicated 3 loop invariants in final code
-2026-03-11 16:45:39,199 - INFO - syntax Correct
-2026-03-11 16:46:09,951 - INFO - Validate:
-2026-03-11 16:46:09,951 - INFO - [True, True, True, True]
-2026-03-11 16:46:09,951 - INFO - 
-2026-03-11 16:46:09,951 - INFO - Verify:
-2026-03-11 16:46:09,951 - INFO - []
-2026-03-11 16:46:09,951 - INFO - 
-2026-03-11 16:46:09,951 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 16:46:09,952 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_14/1.c
-2026-03-11 16:46:09,952 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_14/1_invariants.txt
-2026-03-11 16:46:09,952 - INFO - 
+2026-03-14 20:33:01,022 - INFO - Successfully generated 5/5 candidates
+2026-03-14 20:33:01,024 - INFO - Checking 12 invariants for conflicts...
+2026-03-14 20:33:01,026 - INFO - Checking 12 invariants for conflicts...
+2026-03-14 20:33:01,027 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 20:33:01,027 - INFO -   1: int main1(){
+2026-03-14 20:33:01,027 - INFO -   2:   int co, d72, cu, czj, yq;
+2026-03-14 20:33:01,028 - INFO -   3: 
+2026-03-14 20:33:01,028 - INFO -   4:   co=1*2;
+2026-03-14 20:33:01,028 - INFO -   5:   d72=co;
+2026-03-14 20:33:01,028 - INFO -   6:   cu=co;
+2026-03-14 20:33:01,028 - INFO -   7:   czj=0;
+2026-03-14 20:33:01,028 - INFO -   8:   yq=co;
+2026-03-14 20:33:01,028 - INFO -   9: 
+2026-03-14 20:33:01,028 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-14 20:33:01,028 - INFO - DEBUG: Total lines: 59
+2026-03-14 20:33:01,334 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1.c:30: 
+  syntax error:
+  Location: line 30, between columns 12 and 13, before or at token: =
+  28          cu += co;
+  29          cu += yq;
+  30          d72 = =4;
+        ^^^^^^^^^^^^^^^
+  31      }
+  32
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 20:33:01,334 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-03-14 20:33:01,334 - INFO - Houdini iteration 1: Removed 24 failed invariants
+2026-03-14 20:33:01,334 - INFO -   Before: 24 invariants
+2026-03-14 20:33:01,334 - INFO -   After: 0 invariants
+2026-03-14 20:33:01,334 - ERROR - All invariants were removed by Houdini
+2026-03-14 20:33:01,613 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1.c:30: 
+  syntax error:
+  Location: line 30, between columns 12 and 13, before or at token: =
+  28          cu += co;
+  29          cu += yq;
+  30          d72 = =4;
+        ^^^^^^^^^^^^^^^
+  31      }
+  32
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 20:34:08,529 - INFO - Deduplicated 12 loop invariants in final code
+2026-03-14 20:34:08,733 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1.c:24: 
+  syntax error:
+  Location: line 24, between columns 12 and 13, before or at token: =
+  22          cu += co;
+  23          cu += yq;
+  24          d72 = =4;
+        ^^^^^^^^^^^^^^^
+  25      }
+  26
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 20:34:08,733 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-03-14 20:34:08,734 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-03-14 20:34:08,734 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1.c
+2026-03-14 20:34:08,734 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1_invariants.txt
+2026-03-14 20:34:08,734 - INFO - 
 ============================================================
-2026-03-11 16:46:09,952 - INFO - Final first_pass results:
-2026-03-11 16:46:09,952 - INFO -   syntax=1
-2026-03-11 16:46:09,952 - INFO -   valid=1
-2026-03-11 16:46:09,952 - INFO -   satisfy=None
-2026-03-11 16:46:09,952 - INFO - ============================================================
-2026-03-11 16:46:09,952 - INFO - 
+2026-03-14 20:34:08,734 - INFO - Final first_pass results:
+2026-03-14 20:34:08,734 - INFO -   syntax=None
+2026-03-14 20:34:08,734 - INFO -   valid=None
+2026-03-14 20:34:08,734 - INFO -   satisfy=None
+2026-03-14 20:34:08,734 - INFO - ============================================================
+2026-03-14 20:34:08,734 - INFO - 
 ============================================================
-2026-03-11 16:46:09,952 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 16:46:09,952 - INFO -   Total API calls: 54
-2026-03-11 16:46:09,952 - INFO -   Total prompt tokens (input): 56,187
-2026-03-11 16:46:09,952 - INFO -   Total completion tokens (output): 290,671
-2026-03-11 16:46:09,952 - INFO -   Total tokens: 346,858
-2026-03-11 16:46:09,952 - INFO -   Average per call:
-2026-03-11 16:46:09,952 - INFO -     Prompt: 1040.5 tokens
-2026-03-11 16:46:09,952 - INFO -     Completion: 5382.8 tokens
-2026-03-11 16:46:09,952 - INFO -     Total: 6423.3 tokens
-2026-03-11 16:46:09,952 - INFO - ============================================================
-2026-03-11 16:46:09,952 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_14/1.c
-2026-03-11 16:46:09,952 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_271104_1773217452_14/1_invariants.txt
-2026-03-11 16:46:43,505 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 20:34:08,734 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 20:34:08,734 - INFO -   Total API calls: 2
+2026-03-14 20:34:08,734 - INFO -   Total prompt tokens (input): 1,587
+2026-03-14 20:34:08,734 - INFO -   Total completion tokens (output): 6,251
+2026-03-14 20:34:08,734 - INFO -   Total tokens: 7,838
+2026-03-14 20:34:08,734 - INFO -   Average per call:
+2026-03-14 20:34:08,734 - INFO -     Prompt: 793.5 tokens
+2026-03-14 20:34:08,734 - INFO -     Completion: 3125.5 tokens
+2026-03-14 20:34:08,734 - INFO -     Total: 3919.0 tokens
+2026-03-14 20:34:08,734 - INFO - ============================================================
+2026-03-14 20:34:08,734 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1.c
+2026-03-14 20:34:08,735 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_14/1_invariants.txt
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

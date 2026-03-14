@@ -1,500 +1,149 @@
-2026-03-11 17:11:46,526 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 17:11:46,545 - INFO - Found 1 loops
-2026-03-11 17:11:46,546 - INFO - 
+2026-03-14 22:58:59,710 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 22:58:59,728 - INFO - Found 2 loops
+2026-03-14 22:58:59,731 - INFO - 
 ============================================================
-2026-03-11 17:11:46,546 - INFO - Main generation pass 1/1
-2026-03-11 17:11:46,546 - INFO - ============================================================
-2026-03-11 17:11:46,546 - INFO - Loaded single prompt template: simple
-2026-03-11 17:11:46,546 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 17:11:46,546 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 17:11:47,444 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:13:13,523 - INFO - 
+2026-03-14 22:58:59,731 - INFO - Main generation pass 1/1
+2026-03-14 22:58:59,731 - INFO - ============================================================
+2026-03-14 22:58:59,731 - INFO - Loaded single prompt template: simple
+2026-03-14 22:58:59,731 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 22:58:59,732 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 22:59:01,528 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:01:48,831 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. Observations:
-- kv starts at 0 and increments by 1 each iteration; loop continues while kv < v99.
-- iq is updated by crag each iteration; crag is set to -1 when iq >= 5 and set to 1 when iq <= 1; otherwise crag retains its previous value. Thus crag always stays in {1, -1}.
-- A strong, inductive invariant is to capture the evolution of kv and iq via crag, e.g., a conserved/relational property: crag ∈ {1, -1} and parity relation between iq and kv. Specifically, since iq' - kv' = (iq - kv) + (crag - 1), and crag ∈ {1, -1}, the difference iq - kv changes by 0 when crag = 1 and by -2 when crag = -1. This preserves the parity of (iq - kv) (it remains odd, starting from 1). Therefore, we can state:
-  - 0 <= kv <= v99 (progress/counter bound)
-  - crag in {1, -1} (state-bound)
-  - (iq - kv) is odd, i.e., (iq - kv) % 2 != 0 (relational/conservation property)
-  - A loop variant v99 - kv to show progress toward termination.
+<reasoning>
+Two loops are present. The goal is to provide inductive, verification-friendly ACSL loop invariants that reflect the observed state relations arising from the loop bodies while staying valid for all possible initial values of the function parameters.
 
-These invariants are inductive, use only available variables, and explain the loop updates without modifying the code. The loop assigns include all modified variables: crag, kv, iq. The variant ensures decreasing measure toward loop exit. </reasoning>
-<code>int main1(){
-  int v99, kv, iq, crag;
+Key observations to guide invariants:
+- Before both loops, w is initialized as w = e*5, t = e, rg = 0, k2 = 0.
+- In Loop 0:
+  - t does not change inside the loop; it remains equal to the initial parameter e.
+  - w is a fixed value equal to 5 times the initial e (since w is not updated inside this loop).
+  - The only nontrivial update to k2 is k2 := w-1, so after the first iteration k2 becomes w-1 and thereafter remains w-1. Thus, across loop heads, k2 can only be 0 (before the first iteration) or w-1 (before subsequent iterations).
+  - The loop assigns to e, rg, and k2.
+- For Loop 1 (the infinite-while that breaks based on rg and t):
+  - t remains the initial e, i.e., t == \at(e,Pre).
+  - w is incremented by 1 each iteration (so w >= 5 * \at(e,Pre) at all times).
+  - The loop assigns to w and rg.
+  - The loop contains a break condition rg >= t, which controls termination; however, termination reasoning is nontrivial, so the invariants kept are conservative.
 
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
+With these in mind, the following invariants are chosen:
+- Loop 0:
+  - t == \at(e,Pre) to capture that t holds the initial e.
+  - w == 5 * \at(e,Pre) to capture that w was computed from the initial e and does not change in this loop.
+  - (k2 == 0) || (k2 == w - 1) to reflect that k2 is either 0 initially or becomes w-1 and stays there on subsequent iterations.
+  - loop assigns e, rg, k2; to precisely describe the state updates performed in the loop.
+- Loop 1:
+  - t == \at(e,Pre) again to reflect that t is still the initial e.
+  - w >= 5 * \at(e,Pre) to capture that w has been incremented from its initial value and cannot go below that baseline in this loop.
+  - loop assigns w, rg; to reflect the updates performed inside this loop.
+
+Note: These invariants are intentionally conservative and avoid assumptions that could be violated by unusual initial values of e (e.g., negative values). They are designed to be inductive across loop iterations and to be verification-friendly for Frama-C/WP, while adhering to the given constraints (no modification of the code, no use of non-parameter Pre-annotations on locals, etc.).
+</reasoning>
+<code>
+int main1(int y,int e){
+  int w, k2, t, rg;
+
+  w=e*5;
+  k2=0;
+  t=e;
+  rg=0;
 
   /*@
-    loop invariant 0 <= kv <= v99;
-    loop invariant (crag == 1 || crag == -1);
-    loop invariant ((iq - kv) % 2 != 0);
-    loop variant v99 - kv;
-    loop assigns crag, kv, iq;
+    loop invariant t == \at(e, Pre);
+    loop invariant w == 5 * \at(e, Pre);
+    loop invariant (k2 == 0) || (k2 == w - 1);
+    loop assigns e, rg, k2;
   */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
-      }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
+  while (k2<=w-1) {
+      e = e + k2;
+      rg = rg+t*k2;
+      k2 = =w-1;
   }
 
-}</code>
+  /*@
+    loop invariant t == \at(e, Pre);
+    loop invariant w >= 5 * \at(e, Pre);
+    loop assigns w, rg;
+  */
+  while (1) {
+      w += 1;
+      rg++;
+      if (rg>=t) {
+          break;
+      }
+  }
+
+}
+</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-11 17:13:13,524 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 17:13:13,623 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:16:01,178 - INFO - 
+2026-03-14 23:01:48,833 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 23:01:48,917 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:03:48,882 - INFO - 
 ----- Candidate 2/5 raw response begin -----
 <reasoning>
-We need to provide inductive, verification-friendly ACSL invariants for the loop in main1. The loop updates are:
-- kv increments by 1 each iteration (kv = kv + 1).
-- iq is updated by crag (iq = iq + crag).
-- crag is set to -1 if iq >= 5, and set to 1 if iq <= 1 (the code uses !(iq > 1), i.e., iq <= 1). If neither condition holds, crag remains unchanged.
+For Loop 0:
+- The loop body updates e by adding k2 and updates rg by adding t*k2, while k2 increases toward w-1. If we assume the intended increment is k2 := k2 + 1 (a common pattern for a loop that processes k2 from 0 to w-1), then after k2 iterations:
+  - e = e0 + t * sum_{i=0}^{k2-1} i = e0 + t * (k2*(k2-1)/2), where e0 is the initial value of e.
+  - rg = t * sum_{i=0}^{k2-1} i = t * (k2*(k2-1)/2).
+  - The natural invariants capturing this state are:
+    - 0 <= k2 <= w
+    - e == \at(e, Pre) + t * (k2*(k2-1)/2)
+    - rg == t * (k2*(k2-1)/2)
+  - The loop assigns e, rg, k2.
+  - A loop variant that ensures termination is w - k2 (k2 increases toward w).
 
-From the initial state kv = 0, iq = 1, crag = 1 and v99 = 14 (1 + 13), a strong inductive invariant is:
-- kv stays within [0, v99], since kv starts at 0 and increases by 1 each iteration until reaching v99.
-- iq never exceeds 1 + kv, because iq starts at 1 and is incremented by crag ∈ { -1, 1 } each iteration, while kv increases by 1, so iq can increase by at most 1 per iteration relative to kv. Hence iq <= 1 + kv is preserved.
-- crag always remains either -1 or 1, due to its initialization to 1 and the guarded assignments to -1 or 1 (or remaining the previous value).
+For Loop 1:
+- This loop increments w and rg by 1 each iteration and breaks when rg >= t. A robust invariant here is simply that rg never decreases (rg is only incremented) and that the loop assigns w and rg. A natural termination measure is t - rg, which decreases by 1 each iteration and is nonnegative as long as the loop continues (rg < t). Thus:
+  - loop invariant 0 <= rg
+  - loop assigns w, rg
+  - loop variant t - rg
 
-These invariants are inductive:
-- Base case (loop entry): kv = 0, iq = 1, crag = 1 satisfy 0 <= kv <= v99, iq <= 1 + kv (1 <= 1), and crag ∈ { -1, 1 }.
-- Inductive step: kv' = kv + 1 and iq' = iq + crag with crag ∈ { -1, 1 } imply iq' <= 1 + kv'. The crag' update keeps crag ∈ { -1, 1 }.
-
-We also provide a loop variant to guarantee termination: v99 - kv decreases by 1 each iteration, since kv increases by 1 each time while v99 is constant.
-
-The chosen invariants are concise, focus on the core state updates, and are verification-friendly for Frama-C/WP.
+Note: The provided code contains a likely typographical bug in the first loop (k2 = =w-1;). The invariants above assume the intended increment is k2 := k2 + 1 so that k2 progresses from 0 to w-1 and the stated relations hold. If the code truly uses the exact text "k2 = =w-1;" without a valid increment, the loop would not terminate; the invariants would not be inductive under that semantics. The invariants below reflect the conventional intended semantics to make the loop inductive and verification-friendly in Frama-C/WP.
 </reasoning>
-<code>int main1(){
-  int v99, kv, iq, crag;
+<code>int main1(int y,int e){
+  int w, k2, t, rg;
 
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
+  w=e*5;
+  k2=0;
+  t=e;
+  rg=0;
 
-  /*@
-    loop invariant 0 <= kv <= v99;
-    loop invariant iq <= 1 + kv;
-    loop invariant crag == 1 || crag == -1;
-    loop assigns crag, kv, iq;
-    loop variant v99 - kv;
-  */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant 0 <= k2 <= w;
+  loop invariant e == \at(e, Pre) + t * (k2*(k2-1)/2);
+  loop invariant rg == t * (k2*(k2-1)/2);
+  loop assigns e, rg, k2;
+  loop variant w - k2;
+*/
+while (k2<=w-1) {
+      e = e + k2;
+      rg = rg+t*k2;
+      k2 = =w-1;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant 0 <= rg;
+  loop assigns w, rg;
+  loop variant t - rg;
+*/
+while (1) {
+      w += 1;
+      rg++;
+      if (rg>=t) {
+          break;
       }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
   }
 
 }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-11 17:16:01,178 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 17:16:01,237 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:19:14,825 - INFO - 
+2026-03-14 23:03:48,882 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 23:03:48,946 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 23:05:07,050 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>We need inductive loop invariants for the given loop in main1 that are verification-friendly for Frama-C/WP. Observations from the loop:
-
-- v99 is initialized to 1+13 and never changed inside the loop, so v99 remains constant at 14.
-- kv starts at 0 and increments by 1 each iteration, with the loop condition kv < v99, so kv progresses to v99 and then the loop terminates.
-- iq starts at 1 and is updated by iq := iq + crag; crag toggles between 1 and -1 depending on the current iq, preventing iq from leaving the range [1,5] across iterations.
-- crag is always either 1 or -1 (initially 1; updated to -1 if iq >= 5; updated to 1 if iq <= 1; otherwise remains).
-
-From these, we can propose a concise and inductive set of invariants that are strong, non-tautological, and sufficient for verification:
-
-- kv stays within the progress bound 0 <= kv <= v99 (progress towards termination).
-- iq stays within the observed bounds 1 <= iq <= 5 (state evolution keeps iq in this range).
-- crag is always either -1 or 1 (the update rules only assign -1 or 1).
-- v99 remains the constant 14 (initialization value preserved inside loop).
-- The loop assigns crag, kv, iq (the three mutable locals touched in the loop).
-- A loop variant v99 - kv to ensure termination.
-
-The core relational aspect is captured by the above invariants: kv progresses toward v99, iq remains within a tight bound while crag encodes the state transition that keeps iq in that bound. The combination of these invariants is inductive and suitable for WP verification.
-
-</reasoning>
-<code>int main1(){
-  int v99, kv, iq, crag;
-
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 0 <= kv <= v99;
-    loop invariant 1 <= iq <= 5;
-    loop invariant crag == -1 || crag == 1;
-    loop invariant v99 == 14;
-    loop assigns crag, kv, iq;
-    loop variant v99 - kv;
-  */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
-      }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
-  }
-
-}</code>
+<EMPTY_RESPONSE>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 17:19:14,827 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 17:19:14,894 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:22:21,581 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations that capture the loop's state progression and remain valid across iterations. The loop updates are:
-- kv := kv + 1
-- iq := iq + crag
-- crag is assigned to -1 when iq >= 5, and to 1 when iq <= 1 (via the code path after two ifs).
-
-From the updates, kv increases by 1 each iteration, while iq changes by either +crag where crag ∈ {1, -1}. This yields a robust invariant: the quantity iq - kv does not increase across iterations, because (iq' - kv') = (iq + crag) - (kv + 1) = (iq - kv) + (crag - 1), and crag - 1 ∈ {-2, 0}. Therefore iq - kv' <= iq - kv, so a strong inductive invariant iq - kv <= 1 holds throughout (initially 1 - 0 = 1). This provides a core relational conservation between the two evolving state variables.
-
-In addition, derive simple bounds that are preserved:
-- kv is non-negative and remains strictly less than v99 while the loop guard holds, i.e., 0 <= kv < v99.
-- iq stays within a small finite range given the update dynamics; empirically and from the transition rules, 1 <= iq <= 5 holds for all reachable states.
-
-Also, crag is always either -1 or 1 due to the early assignments, so crag ∈ {-1, 1} is a valid invariant.
-
-Finally, provide a loop variant to show progress toward termination: v99 - kv decreases by 1 each iteration, so loop variant v99 - kv is appropriate.
-
-Taken together, these invariants are strong, inductive, and directly reflect the loop’s state update rules. They avoid unrelated facts and do not modify the original code. They also respect the constraint that the invariant is not a guard, and the loop guard is left non-strict at exit via the standard WP treatment.
-
-</reasoning>
-<code>int main1(){
-  int v99, kv, iq, crag;
-
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
-
-  /*@
-    loop invariant 0 <= kv && kv < v99;
-    loop invariant 1 <= iq && iq <= 5;
-    loop invariant iq - kv <= 1;
-    loop invariant crag == -1 || crag == 1;
-    loop assigns crag, kv, iq;
-    loop variant v99 - kv;
-  */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
-      }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
-  }
-
-}</code>
------ Candidate 4/5 raw response end -----
-2026-03-11 17:22:21,583 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 17:22:21,643 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:24:55,703 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>
-I propose inductive invariants that capture the essential loop-state relationships without over-restricting the program or requiring quantifiers.
-
-Key observations:
-- kv is incremented by 1 each iteration and the loop continues while kv < v99. Therefore kv monotonically increases and is bounded by v99.
-- iq starts at 1 and is updated by crag each iteration. Since crag can only take values -1 or 1 (it is set to -1 when iq >= 5, set to 1 when iq <= 1, otherwise unchanged), the per-iteration change to iq is always in {-1, 1}.
-- Consequently, after k iterations, iq is within the range [1 - k, 1 + k]. This yields a tight inductive relation between iq and kv.
-
-From these, we derive robust invariants:
-- 0 <= kv <= v99: progress toward termination, and kv never exceeds the loop upper bound.
-- (1 - kv) <= iq <= (1 + kv): expresses the bound on iq relative to the number of iterations, given per-iteration change in {-1, 1}.
-- crag ∈ { -1, 1 }: crag only toggles between -1 and 1 in this loop’s logic.
-
-These invariants are inductive (preserved by each iteration) and helpful for verification with Frama-C/WP, while remaining faithful to the actual code behavior. They also serve as a strong, non-tautological invariant set and provide a minimal progress measure via the loop variant v99 - kv.
-
-The loop assigns crag, iq, kv; v99 is not modified inside the loop.
-</reasoning>
-<code>int main1(){
-  int v99, kv, iq, crag;
-
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
-
-  /*@
-    loop invariant 0 <= kv && kv <= v99;
-    loop invariant ((1 - kv) <= iq) && (iq <= (1 + kv));
-    loop invariant crag == 1 || crag == -1;
-    loop assigns crag, iq, kv;
-    loop variant v99 - kv;
-  */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
-      }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
-  }
-
-}</code>
------ Candidate 5/5 raw response end -----
-2026-03-11 17:24:55,704 - INFO - 
------ Candidate 1/5 full code begin -----
-int main1(){
-  int v99, kv, iq, crag;
-
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
-
-  /*@
-    loop invariant 0 <= kv <= v99;
-    loop invariant (crag == 1 || crag == -1);
-    loop invariant ((iq - kv) % 2 != 0);
-    loop variant v99 - kv;
-    loop assigns crag, kv, iq;
-  */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
-      }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
-  }
-
-}
------ Candidate 1/5 full code end -----
-2026-03-11 17:24:55,704 - INFO - 
------ Candidate 2/5 full code begin -----
-int main1(){
-  int v99, kv, iq, crag;
-
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
-
-  /*@
-    loop invariant 0 <= kv <= v99;
-    loop invariant iq <= 1 + kv;
-    loop invariant crag == 1 || crag == -1;
-    loop assigns crag, kv, iq;
-    loop variant v99 - kv;
-  */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
-      }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
-  }
-
-}
------ Candidate 2/5 full code end -----
-2026-03-11 17:24:55,704 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(){
-  int v99, kv, iq, crag;
-
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 0 <= kv <= v99;
-    loop invariant 1 <= iq <= 5;
-    loop invariant crag == -1 || crag == 1;
-    loop invariant v99 == 14;
-    loop assigns crag, kv, iq;
-    loop variant v99 - kv;
-  */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
-      }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
-  }
-
-}
------ Candidate 3/5 full code end -----
-2026-03-11 17:24:55,704 - INFO - 
------ Candidate 4/5 full code begin -----
-int main1(){
-  int v99, kv, iq, crag;
-
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
-
-  /*@
-    loop invariant 0 <= kv && kv < v99;
-    loop invariant 1 <= iq && iq <= 5;
-    loop invariant iq - kv <= 1;
-    loop invariant crag == -1 || crag == 1;
-    loop assigns crag, kv, iq;
-    loop variant v99 - kv;
-  */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
-      }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
-  }
-
-}
------ Candidate 4/5 full code end -----
-2026-03-11 17:24:55,704 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(){
-  int v99, kv, iq, crag;
-
-  v99=1+13;
-  kv=0;
-  iq=1;
-  crag=1;
-
-  /*@
-    loop invariant 0 <= kv && kv <= v99;
-    loop invariant ((1 - kv) <= iq) && (iq <= (1 + kv));
-    loop invariant crag == 1 || crag == -1;
-    loop assigns crag, iq, kv;
-    loop variant v99 - kv;
-  */
-  while (kv<v99) {
-      if (iq>=5) {
-          crag = -1;
-      }
-      if (!(iq>1)) {
-          crag = 1;
-      }
-      kv = kv + 1;
-      iq = iq + crag;
-  }
-
-}
------ Candidate 5/5 full code end -----
-2026-03-11 17:24:55,704 - INFO - Successfully generated 5/5 candidates
-2026-03-11 17:24:55,705 - INFO - Checking 13 invariants for conflicts...
-2026-03-11 17:24:55,707 - INFO -   Conflict detected:
-2026-03-11 17:24:55,707 - INFO -     [2] (crag == 1 || crag == -1)
-2026-03-11 17:24:55,707 - INFO -     [7] crag == -1 || crag == 1
-2026-03-11 17:24:55,709 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 17:24:55,709 - INFO -   1: int main1(){
-2026-03-11 17:24:55,709 - INFO -   2:   int v99, kv, iq, crag;
-2026-03-11 17:24:55,709 - INFO -   3: 
-2026-03-11 17:24:55,709 - INFO -   4:   v99=1+13;
-2026-03-11 17:24:55,709 - INFO -   5:   kv=0;
-2026-03-11 17:24:55,709 - INFO -   6:   iq=1;
-2026-03-11 17:24:55,709 - INFO -   7:   crag=1;
-2026-03-11 17:24:55,709 - INFO -   8: 
-2026-03-11 17:24:55,709 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 17:24:55,709 - INFO -   10: /*@
-2026-03-11 17:24:55,709 - INFO - DEBUG: Total lines: 37
-2026-03-11 17:24:55,896 - INFO - syntax Correct
-2026-03-11 17:25:26,806 - INFO - Validate:
-2026-03-11 17:25:26,806 - INFO - [True, True, True, True, True, True, True, False, True, True, True, True]
-2026-03-11 17:25:26,806 - INFO - 
-2026-03-11 17:25:26,806 - INFO - Verify:
-2026-03-11 17:25:26,806 - INFO - []
-2026-03-11 17:25:26,806 - INFO - 
-2026-03-11 17:25:26,806 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-11 17:25:26,806 - INFO -   Before: 12 invariants
-2026-03-11 17:25:26,806 - INFO -   After: 11 invariants
-2026-03-11 17:25:26,806 - INFO -   Remaining invariants:
-2026-03-11 17:25:26,806 - INFO -     [1] 0 <= kv <= v99
-2026-03-11 17:25:26,806 - INFO -     [2] (crag == 1 || crag == -1)
-2026-03-11 17:25:26,806 - INFO -     [3] ((iq - kv) % 2 != 0)
-2026-03-11 17:25:26,806 - INFO -     [4] iq <= 1 + kv
-2026-03-11 17:25:26,806 - INFO -     [5] crag == 1 || crag == -1
-2026-03-11 17:25:26,806 - INFO -     [6] 1 <= iq <= 5
-2026-03-11 17:25:26,806 - INFO -     [7] v99 == 14
-2026-03-11 17:25:26,806 - INFO -     [8] 1 <= iq && iq <= 5
-2026-03-11 17:25:26,806 - INFO -     [9] iq - kv <= 1
-2026-03-11 17:25:26,806 - INFO -     [10] 0 <= kv && kv <= v99
-2026-03-11 17:25:26,806 - INFO -     [11] ((1 - kv) <= iq) && (iq <= (1 + kv))
-2026-03-11 17:25:27,010 - INFO - syntax Correct
-2026-03-11 17:25:58,126 - INFO - Validate:
-2026-03-11 17:25:58,126 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 17:25:58,126 - INFO - 
-2026-03-11 17:25:58,126 - INFO - Verify:
-2026-03-11 17:25:58,126 - INFO - []
-2026-03-11 17:25:58,126 - INFO - 
-2026-03-11 17:25:58,126 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-11 17:25:58,341 - INFO - syntax Correct
-2026-03-11 17:26:29,472 - INFO - Validate:
-2026-03-11 17:26:29,472 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 17:26:29,472 - INFO - 
-2026-03-11 17:26:29,472 - INFO - Verify:
-2026-03-11 17:26:29,472 - INFO - []
-2026-03-11 17:26:29,472 - INFO - 
-2026-03-11 17:27:01,431 - INFO - Deduplicated 10 loop invariants in final code
-2026-03-11 17:27:01,625 - INFO - syntax Correct
-2026-03-11 17:27:32,581 - INFO - Validate:
-2026-03-11 17:27:32,581 - INFO - [True, True, True, True, True, True, True]
-2026-03-11 17:27:32,581 - INFO - 
-2026-03-11 17:27:32,581 - INFO - Verify:
-2026-03-11 17:27:32,581 - INFO - []
-2026-03-11 17:27:32,581 - INFO - 
-2026-03-11 17:27:32,582 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 17:27:32,582 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_8/1.c
-2026-03-11 17:27:32,582 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_8/1_invariants.txt
-2026-03-11 17:27:32,582 - INFO - 
-============================================================
-2026-03-11 17:27:32,582 - INFO - Final first_pass results:
-2026-03-11 17:27:32,582 - INFO -   syntax=1
-2026-03-11 17:27:32,582 - INFO -   valid=1
-2026-03-11 17:27:32,582 - INFO -   satisfy=None
-2026-03-11 17:27:32,582 - INFO - ============================================================
-2026-03-11 17:27:32,582 - INFO - 
-============================================================
-2026-03-11 17:27:32,582 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 17:27:32,582 - INFO -   Total API calls: 56
-2026-03-11 17:27:32,582 - INFO -   Total prompt tokens (input): 66,013
-2026-03-11 17:27:32,582 - INFO -   Total completion tokens (output): 488,224
-2026-03-11 17:27:32,582 - INFO -   Total tokens: 554,237
-2026-03-11 17:27:32,582 - INFO -   Average per call:
-2026-03-11 17:27:32,582 - INFO -     Prompt: 1178.8 tokens
-2026-03-11 17:27:32,582 - INFO -     Completion: 8718.3 tokens
-2026-03-11 17:27:32,582 - INFO -     Total: 9897.1 tokens
-2026-03-11 17:27:32,582 - INFO - ============================================================
-2026-03-11 17:27:32,582 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_8/1.c
-2026-03-11 17:27:32,582 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_8/1_invariants.txt
-2026-03-11 17:28:24,507 - INFO - LLM quality-gate raw response: {
-  "ok": true,
-  "reason": "pass"
-}
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 23:05:07,051 - WARNING -   Failed to extract code from candidate 3
+2026-03-14 23:05:07,052 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 23:05:07,116 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...

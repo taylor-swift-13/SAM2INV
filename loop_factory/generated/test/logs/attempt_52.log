@@ -1,539 +1,599 @@
-2026-03-11 03:52:30,138 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 03:52:30,156 - INFO - Found 2 loops
-2026-03-11 03:52:30,157 - INFO - 
+2026-03-14 20:37:25,364 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 20:37:25,379 - INFO - Found 2 loops
+2026-03-14 20:37:25,380 - INFO - 
 ============================================================
-2026-03-11 03:52:30,157 - INFO - Main generation pass 1/1
-2026-03-11 03:52:30,157 - INFO - ============================================================
-2026-03-11 03:52:30,157 - INFO - Loaded single prompt template: simple
-2026-03-11 03:52:30,157 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 03:52:30,157 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 03:52:30,173 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:54:20,832 - INFO - 
+2026-03-14 20:37:25,380 - INFO - Main generation pass 1/1
+2026-03-14 20:37:25,380 - INFO - ============================================================
+2026-03-14 20:37:25,380 - INFO - Loaded single prompt template: simple
+2026-03-14 20:37:25,380 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 20:37:25,380 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 20:37:25,438 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:39:26,523 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<EMPTY_RESPONSE>
------ Candidate 1/5 raw response end -----
-2026-03-11 03:54:20,832 - WARNING -   Failed to extract code from candidate 1
-2026-03-11 03:54:20,832 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 03:54:20,845 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:58:07,847 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>The two loops in main1 manipulate different subsets of the state. For Loop 0, a strong, inductive invariant is:
+<reasoning>
+Loop 0 (first while) insights:
+- The loop runs while m < tt. A safe, non-tautological invariant is m <= tt, which holds initially (given tt=50, m=-2) and is preserved: if m < tt then m+1 <= tt.
+- iy is updated by doubling each iteration (iy = iy * 2). Starting from -6, iy becomes -12, -24, ...; a simple invariant that is always true is iy <= -6.
+- We must also declare the loop assigns: m, u, b, iy (these are the variables actually modified inside the loop).
+- A minimal progress metric is desired. Since m increments by 1 each iteration, while the loop is guarded by m < tt, a natural loop variant is (tt - m), which decreases by 1 each iteration and remains non-negative due to m <= tt. This helps Frama-C WP reason about termination of the loop.
 
-- c7 follows a simple arithmetic law with bu: after k iterations, bu = k and c7 has been reduced by the sum 0+1+...+(k-1) = k*(k-1)/2. Since the initial c7 equals ((w%28) + 10) (with w coming from the entry value), the invariant
-  c7 == initial_c7 - bu*(bu-1)/2
-  captures the exact state update across iterations. We anchor initial_c7 using the function parameter w at entry via \at(param, Pre). This makes the invariant inductive and explicit about the loop updates. The loop assigns include the exactly updated variables: c7, bu, pf, j. A natural, terminating loop variant is (c7 - bu), which strictly decreases every iteration when the loop guard c7 > bu holds, and is nonnegative before the next iteration.
+Loop 1 (second while) insights:
+- The loop runs while tt < kh. A natural invariant is tt <= kh, which holds initially (tt=50, kh=q) for any execution that enters the loop and is preserved as tt is incremented by 1 each iteration.
+- Loop 1 modifies m, iy, r72, tt. So the assigns should be {m, iy, r72, tt}.
+- Within this loop, u does not change (no statement touches u here), and q is a parameter. Therefore, a simple, non-invasive progress metric is the loop variant (kh - tt), which decreases by 1 each iteration and remains non-negative while the loop is active.
 
-For Loop 1, we cannot reliably refer to the exact initial values of bu or w inside its invariant without introducing Pre-state dependencies on non-parameters. However we can still provide verification-friendly invariants that:
+Note: A strong relational equality that captures the exact per-iteration state update (e.g., u - q*m being invariant) would require referencing initial values of locals (which is not allowed by the constraints). The chosen invariants are inductive, non-tautological, and sufficient to support modular verification inside Frama-C/WP given the loop bodies.
+</reasoning>
+<code>int main1(int q,int b){
+  int tt, r72, u, m, iy, kh;
 
-- ensure nonnegativity of the evolving quantities (pf and bu),
-- and specify the loop’s modifications (pf, bu, w, yh) through the loop’s assigns.
+  tt=50;
+  r72=3;
+  u=0;
+  m=-2;
+  iy=-6;
+  kh=q;
 
-Additionally, a straightforward loop variant is pf, since pf strictly decreases on each iteration (pf_new = pf - bu, with bu >= 1 at the start of Loop 1, given the preceding loop’s behavior). This helps establish termination. The invariants bu >= 0 and pf >= 0 are safe and maintainable given the known updates inside the loop.
-
-Thus:
-- Loop 0: core invariant linking c7 and bu via the triangular-number relation, with a precise initial-state anchor for c7 using the parameter at function entry.
-- Loop 1: simpler invariants asserting nonnegativity and a loop variant pf; assignments include pf, bu, w, yh. A stronger, but non-anchorable, relational invariant (like pf + bu*(bu-1)/2 being constant) would require referencing initial bu/pf, which is not straightforward without \old/\at on locals.
-
-These choices keep the invariants inductive, tight, and verification-friendly for Frama-C/WP without modifying the original code beyond the annotations. </reasoning>
-<code>/*@
-  loop invariant c7 == (((\at(param, Pre) % 28) + 10) - (bu*(bu - 1))/2);
-  loop assigns c7, bu, pf, j;
-  loop variant (c7 - bu);
-*/
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant m <= tt;
+    loop invariant iy <= -6;
+    loop assigns m, u, b, iy;
+    loop variant (tt - m);
+  */
 while (1) {
-      if (!(c7>bu)) {
+      if (!(m&lt;tt)) {
           break;
       }
-      c7 = c7 - bu;
-      bu += 1;
-      pf = (wm)+(pf);
-      j += wm;
-      pf = pf*pf;
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
   }
 
-/*@
-  loop invariant bu >= 0;
-  loop invariant pf >= 0;
-  loop assigns pf, bu, w, yh;
-  loop variant pf;
-*/
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant tt <= kh;
+    loop assigns m, iy, r72, tt;
+    loop variant (kh - tt);
+  */
 while (1) {
-      if (!(pf>bu)) {
+      if (!(tt&lt;kh)) {
           break;
       }
-      pf = pf - bu;
-      bu = (1)+(bu);
-      w = w+c7-wm;
-      yh += wm;
-  }</code>
------ Candidate 2/5 raw response end -----
-2026-03-11 03:58:07,847 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 03:58:07,859 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:04:51,953 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>For Loop 0 (the first while): Update pattern is
-- c7 := c7 - bu
-- bu := bu + 1
-- pf := (wm) + pf
-- pf := pf * pf
-- j := j + wm
-The key linear-relational footprint across iterations is that j grows by a fixed amount wm each iteration while bu grows by 1. This yields the strong invariant j - wm*bu == -2 (since initial j = -2 and bu = 0, and after each iteration both sides shift consistently: j' = j + wm, bu' = bu + 1, so (j' - wm*bu') = (j - wm*bu)). To keep the invariant inductive and verification-friendly, include simple non-pathological bounds that are preserved by the updates: bu >= 0 (bu only increases from 0) and pf >= 0 (pf starts positive and pf = (pf + wm)^2 is nonnegative). The loop assigns must list all modified locals: c7, bu, pf, j. A natural loop variant is (c7 - bu), which is a nonnegative integer at the start of every iteration (guard c7 > bu) and strictly decreases after each iteration, ensuring termination.
-
-For Loop 1 (the second while): Updates are
-- pf := pf - bu
-- bu := bu + 1
-- w := w + c7 - wm
-- yh := yh + wm
-Here, pf and bu evolve with pf decreasing by the (nonnegative) bu and bu increasing by 1 each iteration. A conserved relational quantity can be observed across iterations: pf + bu*(bu-1)/2 remains invariant given bu increments by 1 each iteration and pf decreases by the current bu. This relation can help verification; however, to stay within safe invariants that do not depend on initial values of local vars, we provide simpler, robust invariants that always hold regardless of whether the loop executes: bu >= 0 and pf >= 0. The loop assigns must list pf, bu, w, yh. A natural loop variant is (pf - bu); when the loop condition pf > bu holds, (pf - bu) is positive and decreases by at least 1 each iteration, ensuring termination.
-
-These invariants are inductive (preserved by each iteration when the loop guard is true) and provide progress measures, while keeping code and behavior unchanged except for added annotations. They also respect the allowed ACSL constructs and usage rules. </reasoning>
-<code>int main1(int w){
-  int yh, wm, bu, c7, j, pf;
-
-  yh=(w%37)+6;
-  wm=yh+5;
-  bu=0;
-  c7=(w%28)+10;
-  j=-2;
-  pf=11;
-
-  /* >>> LOOP INVARIANTS FOR LOOP 0 <<< */
-  /*@
-    loop invariant (j - wm*bu) == -2;
-    loop invariant bu >= 0;
-    loop invariant pf >= 0;
-    loop assigns c7, bu, pf, j;
-    loop variant (c7 - bu);
-  @*/
-  while (1) {
-      if (!(c7>bu)) {
-          break;
-      }
-      c7 = c7 - bu;
-      bu += 1;
-      pf = (wm)+(pf);
-      j += wm;
-      pf = pf*pf;
-  }
-
-  /* >>> LOOP INVARIANTS FOR LOOP 1 <<< */
-  /*@
-    loop invariant bu >= 0;
-    loop invariant pf >= 0;
-    loop assigns pf, bu, w, yh;
-    loop variant (pf - bu);
-  @*/
-  while (1) {
-      if (!(pf>bu)) {
-          break;
-      }
-      pf = pf - bu;
-      bu = (1)+(bu);
-      w = w+c7-wm;
-      yh += wm;
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
   }
 
 }</code>
------ Candidate 3/5 raw response end -----
-2026-03-11 04:04:51,954 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 04:04:51,967 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:06:42,022 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>For Loop 0 (updates to c7, bu, pf, j):
-- We ensure basic non-negativity of key state: bu, c7, pf stay non-negative throughout the loop head (since bu and c7 participate in the guard c7 > bu, and pf is derived from non-negative operations). We also keep j bounded below by its initial value (-2) because it only increases by a positive amount (wm).
-- A simple, inductive state relationship is provided by a loop variant that strictly decreases each iteration: c7 - bu. Given the updates c7' = c7 - bu and bu' = bu + 1, the difference at the next head becomes (c7' - bu') = (c7 - bu) - (bu + 1) = (c7 - 2*bu - 1), which is strictly smaller than the previous value by at least bu + 1. Since the loop head is reached only when c7 > bu (difference > 0), the variant remains non-negative at every loop head and decreases each iteration, ensuring termination reasoning is sound.
-- The loop assigns are all variables that the loop may update: c7, bu, pf, j.
-- Pf is updated by pf = (pf + wm); pf = pf * pf; while pf stays non-negative and grows, so a safe invariant is pf >= 0.
+----- Candidate 1/5 raw response end -----
+2026-03-14 20:39:26,524 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 20:39:26,580 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:42:36,560 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>Two loops in the function update six state variables in a structured way. The goal is to provide inductive, verification-friendly invariants that reflect the state transitions and give the WP plugin something non-trivial to prove.
 
-For Loop 1 (updates to pf, bu, w, yh):
-- Similar to Loop 0, we keep basic non-negativity invariants: bu >= 0 and pf >= 0 remain true because pf > bu at loop head implies pf > 0 and pf' = pf - bu with bu >= 0 yields pf' >= 1 is possible, so pf remains non-negative, and bu increases by 1.
-- A useful invariant is 0 <= (pf - bu) at the head of the loop, since the guard pf > bu ensures pf - bu > 0 at entry. This quantity is helpful as a decreasing variant in this loop: pf' - bu' = (pf - bu) - (bu + 1) = (pf - 2*bu - 1), which decreases by at least bu + 1 and thus strictly decreases across iterations while the loop can continue.
-- The loop assigns are pf, bu, w, yh.
+Loop 0 (while (1) with guard m < tt):
+- Core conservation / relation: After one iteration, m' = m + 1 and u' = u + q. From the updates, u always equals q*(m+2) if it held before the iteration; it remains invariant across iterations because:
+  u' = u + q and m' = m + 1 imply u' - q*m' = (u + q) - q*(m + 1) = u - q*m.
+  Since initially u = q*(m+2) (with m = -2, u = 0), the invariant u - q*m == 2*q holds at loop entry and is preserved by the update. This is a clean, linear relation that is inductive and helps relate the two primary arithmetic state variables (m and u).
+- Minimal progress bound: The loop guard is m < tt, so (tt - m) decreases by 1 each iteration. A loop variant (tt - m) is appropriate and strict while m < tt.
+- Loop assigns: m, u, b, iy are modified in the loop body; reflecting the assignments in the code.
+- Notes: We avoid non-linear or non-anchored invariants for b, since b is updated by b += u (where u depends on the loop) and relating b to Pre-state would require a non-linear invariant. The chosen invariants focus on the clear, inductive relation between m and u and a straightforward progress metric.
 
-These choices keep the invariants inductive, align with the existing loop guards, and avoid introducing unrelated properties. They also comply with the restriction to not alter the code body and to use only allowed variables and operators. </reasoning>
-<code>/*@
-  loop invariant 0 &lt;= bu;
-  loop invariant 0 &lt;= c7;
-  loop invariant 0 &lt;= pf;
-  loop invariant j &gt;= -2;
-  loop assigns c7, bu, pf, j;
-  loop variant (c7 - bu);
-*/
-while (1) {
-      if (!(c7>bu)) {
+Loop 1 (while (1) with guard tt < kh):
+- Minimal progress bound: The loop increments tt by 1 each iteration, so a natural loop variant is (kh - tt) which decreases as long as the loop runs. This is a standard way to certify termination.
+- Basic bound: The loop guard ensures tt < kh; thus a simple invariant to express the non-overshoot of the termination bound is tt <= kh. This is a non-strict bound that is preserved when the loop is entered (and becomes tight at exit when tt == kh).
+- Loop assigns: m, iy, r72, tt are modified in this loop, so they are listed as the loop assigns target.
+- We avoid introducing cross-loop relations that would require anchoring to pre-state values of non-parameters (like m or iy) because such anchors are not allowed in these invariants. The chosen invariants are inductive and verify clean state evolution within the loop.
+
+Overall, these invariants provide a sound, inductive basis for verification with Frama-C WP, while avoiding overly weak or tautological constraints. They also keep the loop assignments precise and the code unchanged other than annotations. </reasoning>
+
+<code>int main1(int q,int b){
+  int tt, r72, u, m, iy, kh;
+
+  tt=50;
+  r72=3;
+  u=0;
+  m=-2;
+  iy=-6;
+  kh=q;
+
+  /*@
+    loop invariant u == q * (m + 2);
+    loop invariant m <= tt;
+    loop assigns m, u, b, iy;
+    loop variant (tt - m);
+  */
+  while (1) {
+      if (!(m<tt)) {
           break;
       }
-      c7 = c7 - bu;
-      bu += 1;
-      pf = (wm)+(pf);
-      j += wm;
-      pf = pf*pf;
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
+  }
+
+  /*@
+    loop invariant tt <= kh;
+    loop invariant // no strong cross-state invariant available for non-parameter locals;
+    loop assigns m, iy, r72, tt;
+    loop variant (kh - tt);
+  */
+  while (1) {
+      if (!(tt<kh)) {
+          break;
+      }
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
+  }
+
+}</code>
+----- Candidate 2/5 raw response end -----
+2026-03-14 20:42:36,561 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 20:42:36,620 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:45:19,826 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+For the first loop:
+- We can capture the core state-update relationship with a single inductive invariant: u == q * (m + 2).
+  - Initially m = -2 and u = 0, so 0 == q * ( -2 + 2 ) holds.
+  - Each iteration: m increments by 1 and u increments by q, so after the iteration m' = m+1 and u' = u+q. Then u' = q*(m'+2) holds if u = q*(m+2) before the iteration.
+- The loop counter decreases progress bound: tt - m strictly decreases by 1 each iteration (since m increments by 1 and tt is constant in this loop).
+- The loop assigns are exactly the variables mutated inside the loop: m, u, b, iy.
+
+For the second loop:
+- The loop updates m, iy by adding the current (constant) u, and updates r72 by q, and increments tt by 1. A safe inductive invariant is simply that the loop guard-implied bound tt <= kh holds, which remains true across iterations (tt is increased but never exceeds kh before the loop exits).
+- The loop counter progress bound can be expressed with a loop variant kh - tt, which decreases by 1 each iteration and stays non-negative while the loop can run.
+- The loop assigns are exactly the variables mutated inside the loop: m, iy, r72, tt.
+
+These invariants are inductive, non-tautological (they rely on the actual update pattern), and provide concrete loop-progress measures.
+</reasoning>
+<code>
+int main1(int q,int b){
+  int tt, r72, u, m, iy, kh;
+
+  tt=50;
+  r72=3;
+  u=0;
+  m=-2;
+  iy=-6;
+  kh=q;
+
+  /*@
+    loop invariant u == q * (m + 2);
+    loop assigns m, u, b, iy;
+    loop variant tt - m;
+  */
+  while (1) {
+      if (!(m<tt)) {
+          break;
+      }
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
+  }
+
+  /*@
+    loop invariant tt <= kh;
+    loop assigns m, iy, r72, tt;
+    loop variant kh - tt;
+  */
+  while (1) {
+      if (!(tt<kh)) {
+          break;
+      }
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
+  }
+
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-03-14 20:45:19,826 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 20:45:19,882 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:47:14,977 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>To produce inductive, verification-friendly loop annotations for Frama-C/WP, I kept invariants tight and directly tied to the concrete loop structure and guards present in the code. Since the function uses only variables from the available list and function parameters, and because strict initial-state references to local variables (like initial m or initial u) are not allowed via \at(..., Pre), I avoided invariants that relied on those initial values. Instead, I used simple, strong, non-degenerate invariants that are preserved by the loop body and align with the guards:
+
+- For Loop 0 (while (1) ... if (!(m<tt)) break; ...):
+  - Invariant: m <= tt ensures we never pass the loop exit condition within the loop body. It holds initially (given m=-2, tt=50) and is preserved because when m < tt, the body increments m by 1, preserving m <= tt (indeed m' = m+1 <= tt since m < tt).
+  - Variant: tt - m strictly decreases by 1 each iteration (since m increases by 1 and tt stays fixed), guaranteeing progress toward termination.
+
+  Assigns: m, u, b, iy (these are the locals modified in the loop body).
+
+- For Loop 1 (while (1) ... if (!(tt<kh)) break; ...):
+  - Invariant: tt <= kh ensures the loop condition tt < kh holds at the start of each iteration and remains true until termination. When the body runs, tt is incremented by 1, so the invariant tt <= kh continues to hold on the next loop head.
+  - Variant: kh - tt strictly decreases by 1 each iteration (as tt is incremented and kh is constant), ensuring progress toward termination.
+
+  Assigns: m, iy, r72, tt (these are the locals modified in the loop body).
+
+This approach provides inductive invariants that are simple, strong enough to be useful, and do not rely on inaccessible initial values of local variables. It also keeps the code unchanged except for the inserted ACSL annotations, adheres to the allowed operators, and provides explicit loop variants to help termination proving. The requested core conservation/relational equality is interpreted here as the explicit, preserved relation between the loop variables and the loop guard (m <= tt for the first loop, tt <= kh for the second loop), together with the decreasing variants that encode the loop-update dynamics (m incrementing and tt incrementing respectively). </reasoning>
+<code>/*@
+  loop invariant m <= tt;
+  loop assigns m, u, b, iy;
+  loop variant tt - m;
+*/
+while (1) {
+      if (!(m<tt)) {
+          break;
+      }
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
   }
 
 /*@
-  loop invariant 0 &lt;= bu;
-  loop invariant 0 &lt;= pf;
-  loop invariant 0 &lt;= (pf - bu);
-  loop assigns pf, bu, w, yh;
-  loop variant (pf - bu);
+  loop invariant tt <= kh;
+  loop assigns m, iy, r72, tt;
+  loop variant kh - tt;
 */
 while (1) {
-      if (!(pf>bu)) {
+      if (!(tt<kh)) {
           break;
       }
-      pf = pf - bu;
-      bu = (1)+(bu);
-      w = w+c7-wm;
-      yh += wm;
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
   }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-11 04:06:42,022 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 04:06:42,035 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:12:05,382 - INFO - 
+2026-03-14 20:47:14,977 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 20:47:15,039 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:49:19,068 - INFO - 
 ----- Candidate 5/5 raw response begin -----
-<reasoning>
-I analyzed the two loops and derived inductive, verification-friendly invariants that relate the evolving state variables in a way that is preserved by each iteration (inductiveness) and provides a small, computable progress metric (loop variant). I kept the invariants tight and directly tied to the exact state-update rules of each loop, and I ensured the loop assigns accurately reflect which variables get modified.
+<reasoning>We need inductive, verification-friendly loop invariants for two loops in main1 using Frama-C/WP ACSL.
 
-First loop (updates: c7, bu, pf, j) observations:
-- Update rules: c7' = c7 - bu; bu' = bu + 1; pf' = (pf + wm)^2; j' = j + wm.
-- A strong invariant that is preserved by the updates is:
-  - c7 + bu*(bu - 1)/2 remains constant and equals the initial c7 = (w % 28) + 10.
-    This is preserved because sum of integers updated exactly matches the triangular number growth.
-- Another clean invariant ties j to bu and wm:
-  - j == -2 + bu*wm is preserved since j increases by wm every iteration while bu increases by 1.
-- pf remains non-negative since we start with pf = 11, pf := pf + wm, then pf := pf*pf.
-- bu is non-negative because it starts at 0 and only increases.
-- A simple loop variant that decreases each iteration and is non-negative at loop entry is:
-  - (c7 - bu - 1). The loop guard guarantees c7 > bu at entry, so this quantity is >= 0, and after an iteration it decreases by at least (bu + 1).
+Loop 0 (while (1) with guard m < tt)
+- Observed updates: m++ increments by 1; u increases by q; b increases by new u; iy doubles.
+- Core conservation/relational equality chosen:
+  - u == q * (m + 2)
+  This holds initially (m = -2, u = 0) and is preserved since after each iteration m becomes m+1 and u becomes u+q, so u' = (q*(m+2)) + q = q*((m+1)+2).
+- Simple upper-bound on loop guard:
+  - m <= tt
+  The loop runs while m < tt, so before each iteration m <= tt is a safe, inductive bound.
+- Invariants together are strong and directly explain updates without referencing Pre for locals.
+- Loop assigns for this loop must include all modified locals: m, u, b, iy.
+- Added a loop variant to prove termination: (tt - m) decreases by 1 every iteration (starting from 52, ending when m reaches tt).
 
-Second loop (updates: pf, bu, w, yh) observations:
-- Update rules: pf' = pf - bu; bu' = bu + 1; w' = w + c7 - wm; yh' = yh + wm.
-- The pair (pf, bu) evolves such that pf' - bu' = (pf - bu) - bu - 1, which is strictly smaller than (pf - bu) as soon as bu >= 0. So a good loop variant is (pf - bu), which is non-negative at loop entry whenever the loop continues (pf > bu), and strictly decreases on each iteration.
-- pf remains non-negative for all iterations since it starts non-negative and we only subtract bu (non-negative) and perform a positive square step later in the first loop (which is already past).
-- bu remains non-negative (starting from 0 and incrementing).
-- We keep the assigns to reflect the actual modified variables: pf, bu, w, yh.
+Loop 1 (while (1) with guard tt < kh)
+- Observed updates: tt++ increments; m and iy are updated by adding u; r72 increments by q. The value u does not change in this loop (carried over from Loop 0).
+- Core invariants chosen:
+  - kh == q
+  - tt <= kh
+  - u == 52 * q
+  Explanation: kh is a local copy of q and remains constant; tt starts at 50 and increments while below kh, so tt <= kh is inductive; u is constant in this loop and equals its value after Loop 0, which is 52*q (since after Loop 0 m=50 and u=q*(m+2)=q*52).
+- Loop assigns: m, iy, r72, tt.
+- Loop variant: (kh - tt) which decreases by 1 each iteration as tt increments, ensuring termination when tt reaches kh.
 
-With these in mind, I filled the loop annotations as follows, ensuring they are inductive, tight, and verification-friendly for Frama-C/WP without changing the original code structure.
+These invariants are inductive, relate the main state variables, and keep the function logic verifiable by WP. They avoid using unknowns or unsupported constructs and respect the constraint on function parameters vs locals.
+
 </reasoning>
-<code>int main1(int w){
-  int yh, wm, bu, c7, j, pf;
-
-  yh=(w%37)+6;
-  wm=yh+5;
-  bu=0;
-  c7=(w%28)+10;
-  j=-2;
-  pf=11;
-
-  /*@
-    loop invariant (c7 + bu*(bu - 1)/2) == ((w % 28) + 10);
-    loop invariant (j == -2 + bu * wm);
-    loop invariant (pf >= 0);
-    loop invariant (bu >= 0);
-    loop assigns c7, bu, pf, j;
-    loop variant (c7 - bu - 1);
-  */
-  while (1) {
-      if (!(c7>bu)) {
+<code>/*@ 
+  loop invariant m &lt;= tt;
+  loop invariant u == q * (m + 2);
+  loop assigns m, u, b, iy;
+  loop variant (tt - m);
+*/
+while (1) {
+      if (!(m&lt;tt)) {
           break;
       }
-      c7 = c7 - bu;
-      bu += 1;
-      pf = (wm)+(pf);
-      j += wm;
-      pf = pf*pf;
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
   }
 
-  /*@
-    loop invariant (pf >= 0);
-    loop invariant (bu >= 0);
-    loop assigns pf, bu, w, yh;
-    loop variant (pf - bu);
+  /*@ 
+    loop invariant kh == q;
+    loop invariant tt &lt;= kh;
+    loop invariant u == 52 * q;
+    loop assigns m, iy, r72, tt;
+    loop variant (kh - tt);
   */
   while (1) {
-      if (!(pf>bu)) {
+      if (!(tt&lt;kh)) {
           break;
       }
-      pf = pf - bu;
-      bu = (1)+(bu);
-      w = w+c7-wm;
-      yh += wm;
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
   }
 
 }</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 04:12:05,382 - WARNING - Candidate 1/5 full code: <None> (failed to extract)
-2026-03-11 04:12:05,382 - INFO - 
+2026-03-14 20:49:19,068 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int q,int b){
+  int tt, r72, u, m, iy, kh;
+
+  tt=50;
+  r72=3;
+  u=0;
+  m=-2;
+  iy=-6;
+  kh=q;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant m <= tt;
+    loop invariant iy <= -6;
+    loop assigns m, u, b, iy;
+    loop variant (tt - m);
+  */
+while (1) {
+      if (!(m&lt;tt)) {
+          break;
+      }
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant tt <= kh;
+    loop assigns m, iy, r72, tt;
+    loop variant (kh - tt);
+  */
+while (1) {
+      if (!(tt&lt;kh)) {
+          break;
+      }
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-03-14 20:49:19,068 - INFO - 
 ----- Candidate 2/5 full code begin -----
-/*@
-  loop invariant c7 == (((\at(param, Pre) % 28) + 10) - (bu*(bu - 1))/2);
-  loop assigns c7, bu, pf, j;
-  loop variant (c7 - bu);
-*/
-while (1) {
-      if (!(c7>bu)) {
+int main1(int q,int b){
+  int tt, r72, u, m, iy, kh;
+
+  tt=50;
+  r72=3;
+  u=0;
+  m=-2;
+  iy=-6;
+  kh=q;
+
+  /*@
+    loop invariant u == q * (m + 2);
+    loop invariant m <= tt;
+    loop assigns m, u, b, iy;
+    loop variant (tt - m);
+  */
+  while (1) {
+      if (!(m<tt)) {
           break;
       }
-      c7 = c7 - bu;
-      bu += 1;
-      pf = (wm)+(pf);
-      j += wm;
-      pf = pf*pf;
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
   }
 
-/*@
-  loop invariant bu >= 0;
-  loop invariant pf >= 0;
-  loop assigns pf, bu, w, yh;
-  loop variant pf;
-*/
-while (1) {
-      if (!(pf>bu)) {
+  /*@
+    loop invariant tt <= kh;
+    loop invariant // no strong cross-state invariant available for non-parameter locals;
+    loop assigns m, iy, r72, tt;
+    loop variant (kh - tt);
+  */
+  while (1) {
+      if (!(tt<kh)) {
           break;
       }
-      pf = pf - bu;
-      bu = (1)+(bu);
-      w = w+c7-wm;
-      yh += wm;
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
   }
+
+}
 ----- Candidate 2/5 full code end -----
-2026-03-11 04:12:05,382 - INFO - 
+2026-03-14 20:49:19,068 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int w){
-  int yh, wm, bu, c7, j, pf;
+int main1(int q,int b){
+  int tt, r72, u, m, iy, kh;
 
-  yh=(w%37)+6;
-  wm=yh+5;
-  bu=0;
-  c7=(w%28)+10;
-  j=-2;
-  pf=11;
+  tt=50;
+  r72=3;
+  u=0;
+  m=-2;
+  iy=-6;
+  kh=q;
 
-  /* >>> LOOP INVARIANTS FOR LOOP 0 <<< */
   /*@
-    loop invariant (j - wm*bu) == -2;
-    loop invariant bu >= 0;
-    loop invariant pf >= 0;
-    loop assigns c7, bu, pf, j;
-    loop variant (c7 - bu);
-  @*/
+    loop invariant u == q * (m + 2);
+    loop assigns m, u, b, iy;
+    loop variant tt - m;
+  */
   while (1) {
-      if (!(c7>bu)) {
+      if (!(m<tt)) {
           break;
       }
-      c7 = c7 - bu;
-      bu += 1;
-      pf = (wm)+(pf);
-      j += wm;
-      pf = pf*pf;
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
   }
 
-  /* >>> LOOP INVARIANTS FOR LOOP 1 <<< */
   /*@
-    loop invariant bu >= 0;
-    loop invariant pf >= 0;
-    loop assigns pf, bu, w, yh;
-    loop variant (pf - bu);
-  @*/
+    loop invariant tt <= kh;
+    loop assigns m, iy, r72, tt;
+    loop variant kh - tt;
+  */
   while (1) {
-      if (!(pf>bu)) {
+      if (!(tt<kh)) {
           break;
       }
-      pf = pf - bu;
-      bu = (1)+(bu);
-      w = w+c7-wm;
-      yh += wm;
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-11 04:12:05,382 - INFO - 
+2026-03-14 20:49:19,069 - INFO - 
 ----- Candidate 4/5 full code begin -----
 /*@
-  loop invariant 0 &lt;= bu;
-  loop invariant 0 &lt;= c7;
-  loop invariant 0 &lt;= pf;
-  loop invariant j &gt;= -2;
-  loop assigns c7, bu, pf, j;
-  loop variant (c7 - bu);
+  loop invariant m <= tt;
+  loop assigns m, u, b, iy;
+  loop variant tt - m;
 */
 while (1) {
-      if (!(c7>bu)) {
+      if (!(m<tt)) {
           break;
       }
-      c7 = c7 - bu;
-      bu += 1;
-      pf = (wm)+(pf);
-      j += wm;
-      pf = pf*pf;
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
   }
 
 /*@
-  loop invariant 0 &lt;= bu;
-  loop invariant 0 &lt;= pf;
-  loop invariant 0 &lt;= (pf - bu);
-  loop assigns pf, bu, w, yh;
-  loop variant (pf - bu);
+  loop invariant tt <= kh;
+  loop assigns m, iy, r72, tt;
+  loop variant kh - tt;
 */
 while (1) {
-      if (!(pf>bu)) {
+      if (!(tt<kh)) {
           break;
       }
-      pf = pf - bu;
-      bu = (1)+(bu);
-      w = w+c7-wm;
-      yh += wm;
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
   }
 ----- Candidate 4/5 full code end -----
-2026-03-11 04:12:05,382 - INFO - 
+2026-03-14 20:49:19,069 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(int w){
-  int yh, wm, bu, c7, j, pf;
-
-  yh=(w%37)+6;
-  wm=yh+5;
-  bu=0;
-  c7=(w%28)+10;
-  j=-2;
-  pf=11;
-
-  /*@
-    loop invariant (c7 + bu*(bu - 1)/2) == ((w % 28) + 10);
-    loop invariant (j == -2 + bu * wm);
-    loop invariant (pf >= 0);
-    loop invariant (bu >= 0);
-    loop assigns c7, bu, pf, j;
-    loop variant (c7 - bu - 1);
-  */
-  while (1) {
-      if (!(c7>bu)) {
+/*@ 
+  loop invariant m &lt;= tt;
+  loop invariant u == q * (m + 2);
+  loop assigns m, u, b, iy;
+  loop variant (tt - m);
+*/
+while (1) {
+      if (!(m&lt;tt)) {
           break;
       }
-      c7 = c7 - bu;
-      bu += 1;
-      pf = (wm)+(pf);
-      j += wm;
-      pf = pf*pf;
+      m++;
+      u = u + q;
+      b = b + u;
+      iy = iy*2;
   }
 
-  /*@
-    loop invariant (pf >= 0);
-    loop invariant (bu >= 0);
-    loop assigns pf, bu, w, yh;
-    loop variant (pf - bu);
+  /*@ 
+    loop invariant kh == q;
+    loop invariant tt &lt;= kh;
+    loop invariant u == 52 * q;
+    loop assigns m, iy, r72, tt;
+    loop variant (kh - tt);
   */
   while (1) {
-      if (!(pf>bu)) {
+      if (!(tt&lt;kh)) {
           break;
       }
-      pf = pf - bu;
-      bu = (1)+(bu);
-      w = w+c7-wm;
-      yh += wm;
+      m = m + u;
+      iy = iy + u;
+      r72 = r72 + q;
+      tt++;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 04:12:05,382 - INFO - Successfully generated 4/5 candidates
-2026-03-11 04:12:05,382 - INFO - Checking 7 invariants for conflicts...
-2026-03-11 04:12:05,383 - INFO - Checking 4 invariants for conflicts...
-2026-03-11 04:12:05,384 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 04:12:05,384 - INFO -   1: int main1(int w){
-2026-03-11 04:12:05,384 - INFO -   2:   int yh, wm, bu, c7, j, pf;
-2026-03-11 04:12:05,384 - INFO -   3: 
-2026-03-11 04:12:05,384 - INFO -   4:   yh=(w%37)+6;
-2026-03-11 04:12:05,384 - INFO -   5:   wm=yh+5;
-2026-03-11 04:12:05,384 - INFO -   6:   bu=0;
-2026-03-11 04:12:05,384 - INFO -   7:   c7=(w%28)+10;
-2026-03-11 04:12:05,384 - INFO -   8:   j=-2;
-2026-03-11 04:12:05,384 - INFO -   9:   pf=11;
-2026-03-11 04:12:05,384 - INFO -   10: 
-2026-03-11 04:12:05,384 - INFO - DEBUG: Total lines: 52
-2026-03-11 04:12:05,609 - INFO - syntax Correct
-2026-03-11 04:12:36,728 - INFO - Validate:
-2026-03-11 04:12:36,728 - INFO - [True, True, False, True, True, True, True, True, True, True, True]
-2026-03-11 04:12:36,728 - INFO - 
-2026-03-11 04:12:36,728 - INFO - Verify:
-2026-03-11 04:12:36,728 - INFO - []
-2026-03-11 04:12:36,728 - INFO - 
-2026-03-11 04:12:36,728 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-11 04:12:36,728 - INFO -   Before: 11 invariants
-2026-03-11 04:12:36,728 - INFO -   After: 10 invariants
-2026-03-11 04:12:36,728 - INFO -   Remaining invariants:
-2026-03-11 04:12:36,728 - INFO -     [1] (j - wm*bu) == -2
-2026-03-11 04:12:36,728 - INFO -     [2] bu >= 0
-2026-03-11 04:12:36,728 - INFO -     [3] (c7 + bu*(bu - 1)/2) == ((w % 28) + 10)
-2026-03-11 04:12:36,728 - INFO -     [4] (j == -2 + bu * wm)
-2026-03-11 04:12:36,728 - INFO -     [5] (pf >= 0)
-2026-03-11 04:12:36,729 - INFO -     [6] (bu >= 0)
-2026-03-11 04:12:36,729 - INFO -     [7] bu >= 0
-2026-03-11 04:12:36,729 - INFO -     [8] pf >= 0
-2026-03-11 04:12:36,729 - INFO -     [9] (pf >= 0)
-2026-03-11 04:12:36,729 - INFO -     [10] (bu >= 0)
-2026-03-11 04:12:36,946 - INFO - syntax Correct
-2026-03-11 04:13:08,057 - INFO - Validate:
-2026-03-11 04:13:08,057 - INFO - [True, True, True, True, True, True, True, True, True, True]
-2026-03-11 04:13:08,057 - INFO - 
-2026-03-11 04:13:08,057 - INFO - Verify:
-2026-03-11 04:13:08,057 - INFO - []
-2026-03-11 04:13:08,057 - INFO - 
-2026-03-11 04:13:08,057 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-11 04:13:08,266 - INFO - syntax Correct
-2026-03-11 04:13:39,374 - INFO - Validate:
-2026-03-11 04:13:39,374 - INFO - [True, True, True, True, True, True, True, True, True, True]
-2026-03-11 04:13:39,374 - INFO - 
-2026-03-11 04:13:39,374 - INFO - Verify:
-2026-03-11 04:13:39,374 - INFO - []
-2026-03-11 04:13:39,374 - INFO - 
-2026-03-11 04:14:25,186 - INFO - Deduplicated 4 loop invariants in final code
-2026-03-11 04:14:25,386 - INFO - syntax Correct
-2026-03-11 04:14:56,356 - INFO - Validate:
-2026-03-11 04:14:56,356 - INFO - [True, True, True, True, True, True]
-2026-03-11 04:14:56,356 - INFO - 
-2026-03-11 04:14:56,356 - INFO - Verify:
-2026-03-11 04:14:56,356 - INFO - []
-2026-03-11 04:14:56,356 - INFO - 
-2026-03-11 04:14:56,356 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 04:14:56,356 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_52/1.c
-2026-03-11 04:14:56,356 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_52/1_invariants.txt
-2026-03-11 04:14:56,356 - INFO - 
+2026-03-14 20:49:19,069 - INFO - Successfully generated 5/5 candidates
+2026-03-14 20:49:19,069 - INFO - Checking 3 invariants for conflicts...
+2026-03-14 20:49:19,070 - INFO - Checking 3 invariants for conflicts...
+2026-03-14 20:49:19,071 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 20:49:19,071 - INFO -   1: int main1(int q,int b){
+2026-03-14 20:49:19,071 - INFO -   2:   int tt, r72, u, m, iy, kh;
+2026-03-14 20:49:19,071 - INFO -   3: 
+2026-03-14 20:49:19,071 - INFO -   4:   tt=50;
+2026-03-14 20:49:19,071 - INFO -   5:   r72=3;
+2026-03-14 20:49:19,071 - INFO -   6:   u=0;
+2026-03-14 20:49:19,071 - INFO -   7:   m=-2;
+2026-03-14 20:49:19,071 - INFO -   8:   iy=-6;
+2026-03-14 20:49:19,071 - INFO -   9:   kh=q;
+2026-03-14 20:49:19,071 - INFO -   10: 
+2026-03-14 20:49:19,072 - INFO - DEBUG: Total lines: 46
+2026-03-14 20:49:19,294 - INFO - syntax Correct
+2026-03-14 20:49:50,186 - INFO - Validate:
+2026-03-14 20:49:50,186 - INFO - [True, True, True, False, True, True]
+2026-03-14 20:49:50,186 - INFO - 
+2026-03-14 20:49:50,186 - INFO - Verify:
+2026-03-14 20:49:50,187 - INFO - []
+2026-03-14 20:49:50,187 - INFO - 
+2026-03-14 20:49:50,187 - INFO - Houdini iteration 1: Removed 1 failed invariants
+2026-03-14 20:49:50,187 - INFO -   Before: 6 invariants
+2026-03-14 20:49:50,187 - INFO -   After: 5 invariants
+2026-03-14 20:49:50,187 - INFO -   Remaining invariants:
+2026-03-14 20:49:50,187 - INFO -     [1] m <= tt
+2026-03-14 20:49:50,187 - INFO -     [2] iy <= -6
+2026-03-14 20:49:50,187 - INFO -     [3] u == q * (m + 2)
+2026-03-14 20:49:50,187 - INFO -     [4] kh == q
+2026-03-14 20:49:50,187 - INFO -     [5] u == 52 * q
+2026-03-14 20:49:50,388 - INFO - syntax Correct
+2026-03-14 20:50:21,146 - INFO - Validate:
+2026-03-14 20:50:21,146 - INFO - [True, True, True, True, True]
+2026-03-14 20:50:21,146 - INFO - 
+2026-03-14 20:50:21,146 - INFO - Verify:
+2026-03-14 20:50:21,146 - INFO - []
+2026-03-14 20:50:21,146 - INFO - 
+2026-03-14 20:50:21,146 - INFO - Houdini iteration 2: All invariants are valid
+2026-03-14 20:50:21,360 - INFO - syntax Correct
+2026-03-14 20:50:52,126 - INFO - Validate:
+2026-03-14 20:50:52,126 - INFO - [True, True, True, True, True]
+2026-03-14 20:50:52,126 - INFO - 
+2026-03-14 20:50:52,126 - INFO - Verify:
+2026-03-14 20:50:52,126 - INFO - []
+2026-03-14 20:50:52,126 - INFO - 
+2026-03-14 20:51:15,854 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-14 20:51:15,855 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_52/1.c
+2026-03-14 20:51:15,855 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_52/1_invariants.txt
+2026-03-14 20:51:15,855 - INFO - 
 ============================================================
-2026-03-11 04:14:56,356 - INFO - Final first_pass results:
-2026-03-11 04:14:56,356 - INFO -   syntax=1
-2026-03-11 04:14:56,356 - INFO -   valid=1
-2026-03-11 04:14:56,356 - INFO -   satisfy=None
-2026-03-11 04:14:56,356 - INFO - ============================================================
-2026-03-11 04:14:56,356 - INFO - 
+2026-03-14 20:51:15,855 - INFO - Final first_pass results:
+2026-03-14 20:51:15,855 - INFO -   syntax=1
+2026-03-14 20:51:15,855 - INFO -   valid=1
+2026-03-14 20:51:15,855 - INFO -   satisfy=None
+2026-03-14 20:51:15,855 - INFO - ============================================================
+2026-03-14 20:51:15,855 - INFO - 
 ============================================================
-2026-03-11 04:14:56,357 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 04:14:56,357 - INFO -   Total API calls: 3
-2026-03-11 04:14:56,357 - INFO -   Total prompt tokens (input): 2,321
-2026-03-11 04:14:56,357 - INFO -   Total completion tokens (output): 5,168
-2026-03-11 04:14:56,357 - INFO -   Total tokens: 7,489
-2026-03-11 04:14:56,357 - INFO -   Average per call:
-2026-03-11 04:14:56,357 - INFO -     Prompt: 773.7 tokens
-2026-03-11 04:14:56,357 - INFO -     Completion: 1722.7 tokens
-2026-03-11 04:14:56,357 - INFO -     Total: 2496.3 tokens
-2026-03-11 04:14:56,357 - INFO - ============================================================
-2026-03-11 04:14:56,357 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_52/1.c
-2026-03-11 04:14:56,357 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_52/1_invariants.txt
-2026-03-11 04:15:24,093 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
-2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
-2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
-2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
-2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
-2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
-2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
-2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
-2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 20:51:15,855 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 20:51:15,855 - INFO -   Total API calls: 1
+2026-03-14 20:51:15,855 - INFO -   Total prompt tokens (input): 744
+2026-03-14 20:51:15,855 - INFO -   Total completion tokens (output): 656
+2026-03-14 20:51:15,855 - INFO -   Total tokens: 1,400
+2026-03-14 20:51:15,855 - INFO -   Average per call:
+2026-03-14 20:51:15,855 - INFO -     Prompt: 744.0 tokens
+2026-03-14 20:51:15,855 - INFO -     Completion: 656.0 tokens
+2026-03-14 20:51:15,855 - INFO -     Total: 1400.0 tokens
+2026-03-14 20:51:15,855 - INFO - ============================================================
+2026-03-14 20:51:15,855 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_52/1.c
+2026-03-14 20:51:15,855 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_52/1_invariants.txt
+2026-03-14 20:52:02,816 - INFO - LLM quality-gate raw response: {
+  "ok": true,
+  "reason": "pass"
+}
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

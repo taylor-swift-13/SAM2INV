@@ -1,20 +1,28 @@
 int main1(){
-  int ij5, xp5, e, nlh;
+  int zm, i6cl, cc, cy, s4;
 
-  ij5=1*2;
-  xp5=ij5;
-  e=2;
-  nlh=1;
+  zm=1*4;
+  i6cl=0;
+  cc=0;
+  cy=0;
+  s4=i6cl;
 
-  while (xp5<ij5) {
-      if (e>=6) {
-          nlh = -1;
+  while (1) {
+      if (!(i6cl<=zm-1)) {
+          break;
       }
-      if (e<=2) {
-          nlh = 1;
+      cy = cy+cc*i6cl;
+      cc += i6cl;
+      i6cl = =zm-1;
+  }
+
+  while (1) {
+      if (!(zm<i6cl)) {
+          break;
       }
-      xp5 = xp5 + 1;
-      e += nlh;
+      cc += cy;
+      zm = zm + 1;
+      s4 += 1;
   }
 
 }

@@ -1,589 +1,631 @@
-2026-03-11 04:01:51,819 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 04:01:51,844 - INFO - Found 2 loops
-2026-03-11 04:01:51,846 - INFO - 
+2026-03-14 20:46:37,670 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 20:46:37,686 - INFO - Found 2 loops
+2026-03-14 20:46:37,687 - INFO - 
 ============================================================
-2026-03-11 04:01:51,846 - INFO - Main generation pass 1/1
-2026-03-11 04:01:51,846 - INFO - ============================================================
-2026-03-11 04:01:51,846 - INFO - Loaded single prompt template: simple
-2026-03-11 04:01:51,846 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 04:01:51,846 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 04:01:51,862 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:03:16,197 - INFO - 
+2026-03-14 20:46:37,687 - INFO - Main generation pass 1/1
+2026-03-14 20:46:37,687 - INFO - ============================================================
+2026-03-14 20:46:37,687 - INFO - Loaded single prompt template: simple
+2026-03-14 20:46:37,687 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 20:46:37,687 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 20:46:37,754 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:48:51,839 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>First loop (Loop 0) invariants:
-- Core conservation: o6 evolves deterministically with rj. Since o6 is updated by subtracting the current rj and rj increments by 1 each iteration, one can prove the closed-form invariant:
-  o6 == ((p % 28) + 10) - (rj * (rj - 1)) / 2
-  This uses the fact that the initial o6 equals (p % 28) + 10 and, after t iterations, rj = t and o6 = initial_o6 - 0 - 1 - 2 - ... - (t-1) = initial_o6 - t*(t-1)/2.
-- Progress/bounds: rj >= 0 must hold since rj starts at 0 and only increments inside the loop.
-- Assigns: the loop updates o6, lt, rj, bi2.
+<reasoning>Reasoning about invariants and progress:
 
-These invariants are inductive: 
-- At loop initialization (before first iteration), rj = 0 and o6 = (p%28)+10, so the invariant holds.
-- Assuming it holds before an iteration, after applying the loop body:
-  o6' = o6 - rj
-  rj' = rj + 1
-  It can be shown algebraically that o6' = ((p % 28) + 10) - (rj' * (rj' - 1)) / 2, preserving the invariant.
+Loop 0 (the first while (1) loop):
+- State updates in the loop body (assuming the guard holds) are:
+  - u <- u + c7
+  - c7 <- (c7 + bamt) * 4 + 3 = 4*c7 + 4*bamt + 3
+  - phfb <- (bamt+1) - 1 = bamt
+- bamt does not change in this loop, so bamt remains constant (bamt == 2 initially, preserved throughout this loop).
+- A simple yet effective invariant set that is preserved by every iteration and holds initially:
+  - bamt == 2
+  - c7 >= 0
+  - u >= 0
+  - phfb <= \at(e, Pre)  (phfb is at most the initial parameter e; if the loop runs, the head state has phfb = e and after one iteration phfb becomes bamt <= e for any e >= 3)
+- A natural loop variant (for termination) can be phfb - bamt, which is non-negative when the loop guard holds (bamt+1 <= phfb) and decreases to 0 after the iteration, guaranteeing progress toward termination in this loop context.
+- Core state-transition relation (explanatory, not all of it can be encoded purely as an invariant): 
+  - u' = u + c7
+  - c7' = 4*c7 + 4*bamt + 3
+  - phfb' = bamt
+  This explains why the updates happen as they do and why the loop can terminate after at most one iteration when the guard becomes false.
+  
+Loop 1 (the second while (bamt>=6) loop):
+- This loop modifies c7, ep, and bamt, and the loop guard ensures bamt >= 6 at entry.
+- Invariants that are preserved across iterations and are easy for WP to discharge:
+  - bamt >= 6
+  - c7 >= 0
+  - ep >= 0
+  - phfb <= \at(e, Pre)  (phfb is not touched in this loop, so we reuse the same bound as in the first loop)
+- A straightforward loop variant is not strictly required here (the code as given has a questionable assignment "bamt = =6;"), so we avoid introducing a potentially unsafe or misleading variant. If the code were corrected to progress (e.g., ensure bamt eventually drops below 6), a simple variant like (bamt - 6) or (7 - bamt) could be provided; in this annotation we omit an explicit variant to avoid implying a valid termination measure where code progression is ambiguous.
+- Core state-transition idea for this loop (informational): c7' = c7 + ep*bamt, ep' = ep + bamt, bamt' = 6 (assuming the intended assignment completes). This shows that c7 and ep monotonically grow or stay nonnegative while bamt is driven to (or kept at) 6.
 
-Second loop invariants:
-- The loop only decrements rj by 1 when rj >= 1, and the loop breaks as soon as rj <= 0. Therefore rj never becomes negative, i.e., rj >= 0 is invariant.
-- A loop variant is provided (rj) to demonstrate termination because rj strictly decreases on each iteration and is bounded below by 0.
+Overall goal:
+- Provide inductive loop invariants that are strong and useful for Frama-C/WP, without modifying code, and with complete and exact loop assigns.
+- Keep invariants focused on the actual state that changes in each loop and rely on the function parameter e (via \at(e, Pre)) only where appropriate.
 
-These invariants use only allowed variables. The first invariant uses the parameter p via \at(p, Pre) to express the initial o6, which is allowed for parameters. The loop assigns lists reflect exactly the variables modified inside each loop. No code outside the allowed changes was altered. </reasoning>
-<code>int main1(int p){
-  int iw, kb, rj, o6, lt, bi2;
-
-  iw=p;
-  kb=iw+6;
-  rj=0;
-  o6=(p%28)+10;
-  lt=kb;
-  bi2=iw;
-
-  /*@ 
-    loop invariant o6 == ((\at(p, Pre) % 28) + 10) - (rj * (rj - 1)) / 2;
-    loop invariant rj >= 0;
-    loop assigns o6, lt, rj, bi2;
-  @*/
-  while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
-  }
-
-  /*@ 
-    loop invariant rj >= 0;
-    loop assigns rj;
-    loop variant rj;
-  @*/
-  while (1) {
-      if (!(rj-1>=0)) {
-          break;
-      }
-      rj -= 1;
-  }
-
-}</code>
------ Candidate 1/5 raw response end -----
-2026-03-11 04:03:16,197 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 04:03:16,212 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:05:33,764 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>
-Loop 0: The primary state change is o6 = o6 - rj each iteration, with rj incrementing by 1. Over t iterations (starting with rj = 0), o6 follows:
-o6 = o6_0 - sum_{i=0}^{t-1} i = o6_0 - t*(t-1)/2, where o6_0 = (p % 28) + 10.
-Thus a strong, exact invariant for o6 is:
-o6 == ((p % 28) + 10) - (rj*(rj - 1))/2
-This relation is true before the first iteration and preserved by each iteration because rj increments by 1 and o6 is updated by subtracting the old rj. We also capture simple progress by forcing rj >= 0 (initially 0 and only increased during the loop). We also give an explicit loop variant that decreases with every iteration: o6 - rj. The loop assigns are exactly the variables modified inside the loop: o6, lt, rj, bi2.
-
-Loop 1: The loop is a short, bounded loop that decrements rj by 1 on each iteration as long as rj-1 >= 0. With the given context, rj starts at 1 and the loop executes exactly once, yielding rj = 0. A minimal, inductive invariant is simply that rj is non-negative and that its possible values during the loop are 0 or 1 (which matches the single-step behavior from the context). The loop assigns only rj, and the loop variant rj strictly decreases on each execution of the loop body.
 </reasoning>
-<code>int main1(int p){
-  int iw, kb, rj, o6, lt, bi2;
-
-  iw=p;
-  kb=iw+6;
-  rj=0;
-  o6=(p%28)+10;
-  lt=kb;
-  bi2=iw;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant o6 == ((p % 28) + 10) - ((rj * (rj - 1)) / 2);
-    loop invariant rj >= 0;
-    loop assigns o6, lt, rj, bi2;
-    loop variant o6 - rj;
-  */
-  while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
-  }
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant rj >= 0;
-    loop invariant ((rj == 0) || (rj == 1));
-    loop assigns rj;
-    loop variant rj;
-  */
-  while (1) {
-      if (!(rj-1>=0)) {
+<code>/*@
+  loop invariant bamt == 2;
+  loop invariant c7 >= 0;
+  loop invariant u >= 0;
+  loop invariant phfb <= \at(e, Pre);
+  loop variant (phfb - bamt);
+  loop assigns u, c7, phfb;
+*/
+while (1) {
+      if (!(bamt+1<=phfb)) {
           break;
       }
-      rj -= 1;
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
+  }
+
+/*@
+  loop invariant bamt >= 6;
+  loop invariant c7 >= 0;
+  loop invariant ep >= 0;
+  loop invariant phfb <= \at(e, Pre);
+  loop assigns c7, ep, bamt;
+*/
+while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
+  }</code>
+----- Candidate 1/5 raw response end -----
+2026-03-14 20:48:51,839 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 20:48:51,898 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:50:33,051 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>In the first loop (the one with while (1) and an internal break), the key state changes are:
+- bamt is never updated inside the loop body, so bamt remains 2 throughout the loop.
+- u is incremented by c7.
+- c7 is updated as c7 = (c7 + bamt) * 4 + 3, which ensures c7 stays nonnegative and grows from its initial value 2.
+- phfb is set to (bamt+1)-1, i.e., phfb becomes bamt after the first iteration.
+
+From these observations we can provide inductive invariants that are preserved by each iteration:
+- bamt == 2 (constant across the loop).
+- u >= 0 (since u is increased by c7 and c7 is nonnegative in this program path).
+- c7 >= 2 (initially 2; after each update c7 grows to at least 19, and stays >= 2).
+
+These invariants are strong (not tautological) and do not rely on the loop guard beyond the normal flow (the loop actually breaks via the if inside, but the invariants must hold at the loop head for each entry into the loop body).
+
+For the second loop (while (bamt >= 6)), the updates are:
+- c7 = c7 + ep*bamt
+- ep = ep + bamt
+- bamt = 6 (assuming the code intends to set bamt to 6; this makes the loop progress unclear, but we can still express harmless invariants that hold regardless of exact termination behavior)
+- The invariants we add focus on monotone growth of c7 and ep and the non-decrease of bamt (which becomes 6 after the first iteration if it was >=6).
+
+Consequently, we add:
+- In loop 0: invariants u >= 0; bamt == 2; c7 >= 2; and loop assigns u, c7, phfb.
+- In loop 1: invariants c7 >= 2; ep >= 2; and loop assigns c7, ep, bamt.
+
+These invariants are inductive (preserved by each iteration under the given body updates), provide a minimal yet useful progress bound (u grows, ep grows, c7 grows), and give complete loop assigns sets for Frama-C/WP. They avoid tautologies and keep the original code intact.
+
+</reasoning>
+<code>int main1(int e){
+  int phfb, bamt, c7, u, ep;
+
+  phfb=e;
+  bamt=2;
+  c7=bamt;
+  u=0;
+  ep=bamt;
+
+  /*@
+    loop invariant u &gt;= 0;
+    loop invariant bamt == 2;
+    loop invariant c7 &gt;= 2;
+    loop assigns u, c7, phfb;
+  */
+  while (1) {
+      if (!(bamt+1<=phfb)) {
+          break;
+      }
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
+  }
+
+  /*@
+    loop invariant c7 &gt;= 2;
+    loop invariant ep &gt;= 2;
+    loop assigns c7, ep, bamt;
+  */
+  while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
   }
 
 }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-11 04:05:33,764 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 04:05:33,777 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:06:52,473 - INFO - 
+2026-03-14 20:50:33,051 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 20:50:33,106 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:52:04,506 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>
-For the first loop:
-- We derive a conservation/transition law for o6. Each iteration does o6 := o6 - rj, and rj := rj + 1. Starting from o6_0 = (p%28) + 10, one can show by induction that:
-  o6 == o6_0 - rj*(rj-1)/2.
-  This provides a strong, inductive invariant that ties the current o6 to the initial p value and the current rj. We express this as:
-  o6 == ((\at(p, Pre) % 28) + 10) - (rj*(rj-1))/2
-- We also provide a loop variant that ensures termination. A natural choice is:
-  o6 - rj
-  This value is non-negative at loop head due to the guard o6 > rj, and it strictly decreases on every iteration (since rj increases by 1 and o6 decreases by the old rj). This is progress bound for the loop counter/arithmetic variable burden.
+<reasoning>In designing inductive loop invariants for these two loops, I aimed for strong, concise invariants that are preserved by the loop bodies and facilitate verification by Frama-C/WP without altering the original code flow beyond annotations.
 
-- Loop assigns for the first loop are all mutated variables: o6, lt, rj, bi2.
+Loop 0 (the while (1) loop with a break)
+- Observations:
+  - bamt is never modified inside this loop, so bamt remains constant during the loop. Its initial value is 2.
+  - The body updates u and c7, and finally sets phfb to (bamt+1)-1, i.e., phfb becomes exactly bamt after the first (and only possible) iteration.
+  - If the loop executes, bamt+1 <= phfb must hold on entry, but after the body phfb is set to bamt, so the loop can at most run once for the given bamt.
+- Invariant choices:
+  - bamt == 2 captures the fact that bamt is constant and equal to its initial value throughout the loop. It is true initially and preserved by the body.
+  - u >= 0 and c7 >= 2 are simple, robust invariants since u starts at 0 and is increased by c7, while c7 starts at 2 and grows strictly on each iteration. They hold in the initial state and are preserved by the updates.
+  - loop variant phfb is used to show progress: if the loop executes, phfb is updated to bamt (2) which is a decrease from any initial phfb >= bamt+1. This guarantees eventual termination in the reachable path of this loop (there is at most one iteration when the guard holds).
+- Loop assigns: u, c7, phfb are modified in the loop body, so we specify those.
 
-For the second loop:
-- The loop body only mutates rj by rj -= 1, and the loop guard effectively executes while rj >= 1. A simple, correct invariant is:
-  rj >= 0
-  And the loop variant can be rj, which clearly decreases by 1 on each iteration and is non-negative at loop head (since the loop runs only when rj >= 1).
+Loop 1 (the while (bamt>=6) loop)
+- Observations:
+  - If the loop ever executes, bamt is set to 6 inside the loop, and ep and c7 are updated using the current bamt value.
+  - Before the loop, ep starts at 2 and c7 starts at 2; after the loop body, both ep and c7 remain nondecreasing (ep increases by bamt, c7 increases by ep*bamt).
+- Invariant choices:
+  - ep >= 2 and c7 >= 2 reflect the initial values and the monotone growth through the loop, and are preserved by the updates.
+- Loop assigns: c7, ep, bamt are modified inside the loop, so we specify those.
 
-- Loop assigns for the second loop are {rj}.
+These invariants avoid unrelated or tautological properties, stay within the allowed variable set, and provide a concise inductive explanation to Frama-C/WP for verification.
 
-All invariants use only allowed variables: o6, rj, lt, bi2, p, and \at(p, Pre). No unknown() calls are touched and the function code remains unchanged aside from annotations.
 </reasoning>
-<code>int main1(int p){
-  int iw, kb, rj, o6, lt, bi2;
+<code>int main1(int e){
+  int phfb, bamt, c7, u, ep;
 
-  iw=p;
-  kb=iw+6;
-  rj=0;
-  o6=(p%28)+10;
-  lt=kb;
-  bi2=iw;
+  phfb=e;
+  bamt=2;
+  c7=bamt;
+  u=0;
+  ep=bamt;
 
   /*@
-    loop invariant o6 == ((\at(p, Pre) % 28) + 10) - (rj*(rj-1))/2;
-    loop assigns o6, lt, rj, bi2;
-    loop variant o6 - rj;
-  @*/
-  while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
+    loop invariant bamt == 2;
+    loop invariant u &gt;= 0;
+    loop invariant c7 &gt;= 2;
+    loop assigns u, c7, phfb;
+    loop variant phfb;
+  */
+while (1) {
+      if (!(bamt+1<=phfb)) {
+          break;
+      }
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
   }
 
   /*@
-    loop invariant rj >= 0;
-    loop assigns rj;
-    loop variant rj;
-  @*/
-  while (1) {
-      if (!(rj-1>=0)) {
-          break;
-      }
-      rj -= 1;
+    loop invariant ep &gt;= 2;
+    loop invariant c7 &gt;= 2;
+    loop assigns c7, ep, bamt;
+  */
+while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
   }
 
 }</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 04:06:52,473 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 04:06:52,485 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:07:46,204 - INFO - 
+2026-03-14 20:52:04,507 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 20:52:04,574 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:53:20,858 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>For the first loop (loop 0), we want a strong, inductive invariant that exactly captures the cumulative effect of the repeated updates on o6 and rj, while keeping within allowed variables. The loop updates o6 by subtracting the current rj, increments rj, and then updates lt and bi2 accordingly. A clean, exact invariant for o6 is derived from the recurrence:
+<reasoning>First, analyze the two loops to identify stable state properties that are guaranteed from the function’s initializations and preserved by each loop's body.
 
-- Initially: o6_0 = (p % 28) + 10
-- Each iteration: o6 decreases by the old rj, and rj increases by 1.
-- After k iterations (i.e., when rj = k): o6 = o6_0 - sum_{i=0}^{k-1} i = o6_0 - k*(k-1)/2
+Loop 0 (the while(1) with a break):
+- bamt is never updated inside this loop, so bamt remains constant across iterations. Initially bamt is set to 2, so we have bamt == 2 throughout.
+- phfb is initialized to e and, on each iteration that runs, is updated to (bamt+1)-1 which equals bamt (i.e., phfb becomes 2). Across all iterations, phfb cannot exceed the initial value of phfb, which equals e. Therefore phfb <= e holds for the loop lifetime.
+Given these, two strong, inductive invariants can be chosen:
+- bamt == 2
+- phfb <= e
+These are preserved by the loop and are non-tautological. The assigns cover the variables actually modified in the loop body: u, c7, phfb.
 
-Thus we can express the invariant as:
-  o6 == (p%28) + 10 - (rj*(rj-1))/2
+Loop 1 (the while (bamt>=6)):
+- If this loop runs, the last statement assigns bamt = 6, so after the first iteration, bamt is 6 and remains >= 6 on subsequent iterations. Thus a safe invariant is bamt >= 6.
+- ep starts at 2 and is increased by bamt each iteration; since bamt >= 6, ep never decreases and remains at least 2. Hence ep >= 2 is preserved.
+These two invariants are inductive for the loop manifold, and the assigns line should reflect the updated variables: c7, ep, bamt.
 
-We also include a minimal progress/invariant piece:
-- rj >= 0
+With these invariants, the WP verifier has the required inductive properties to verify the loops while keeping the code unchanged. The invariants are tight and directly describe the loop state evolution without introducing unrelated facts. </reasoning>
 
-We declare loop assigns for all variables touched in the loop: o6, lt, rj, bi2. This invariant is preserved by each iteration (inductive) because given o6 == o6_0 - rj*(rj-1)/2 at the start of an iteration, after performing the updates the relation also holds with rj incremented and o6 decreased by the previous rj.
+<code>int main1(int e){
+  int phfb, bamt, c7, u, ep;
 
-For the second loop (loop 1), the body repeatedly decrements rj by 1 as long as rj >= 1 (since it breaks when rj-1 < 0). Therefore rj is non-negative and strictly decreases by 1 each iteration until it reaches 0. A natural loop invariant is rj >= 0, and a valid loop variant is rj, which monotonically decreases and is non-negative throughout the loop.
+  phfb=e;
+  bamt=2;
+  c7=bamt;
+  u=0;
+  ep=bamt;
 
-These invariants are inductive, do not introduce unrelated properties, rely only on allowed variables, and preserve the original program semantics. They also respect the requirement to avoid using at(local, Pre) on non-parameters and keep the original code intact. </reasoning>
-<code>/*@
-  loop invariant o6 == (p%28) + 10 - (rj*(rj-1))/2;
-  loop invariant rj >= 0;
-  loop assigns o6, lt, rj, bi2;
-*/
-while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
-  }
-
-/*@
-  loop invariant rj >= 0;
-  loop assigns rj;
-  loop variant rj;
-*/
+  /*@
+    loop invariant bamt == 2;
+    loop invariant phfb <= e;
+    loop assigns u, c7, phfb;
+  */
 while (1) {
-      if (!(rj-1>=0)) {
+      if (!(bamt+1<=phfb)) {
           break;
       }
-      rj -= 1;
-  }</code>
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
+  }
+
+  /*@
+    loop invariant bamt >= 6;
+    loop invariant ep >= 2;
+    loop assigns c7, ep, bamt;
+  */
+while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
+  }
+
+}</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-11 04:07:46,205 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 04:07:46,217 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 04:09:34,398 - INFO - 
+2026-03-14 20:53:20,858 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 20:53:20,913 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:55:16,457 - INFO - 
 ----- Candidate 5/5 raw response begin -----
 <reasoning>
-For the first loop (the one iterating while o6 > rj), a strong inductive invariant can relate o6 and rj to their initial values. Observing the transition:
-- o6 is decremented by the current rj: o6' = o6 - rj
-- rj is incremented: rj' = rj + 1
+Goal: provide inductive, verification-friendly ACSL loop annotations for the two loops in main1, ensuring the invariants are:
+- inductive (hold before first iteration and preserved by each iteration),
+- informative (reflect a core conservation/relational update),
+- accompanied by complete and exact loop assigns.
 
-If we denote o6_0 as the initial value of o6, which is (p % 28) + 10, and note that rj starts at 0 and increments by 1 each iteration, then after n iterations we have rj = n and
-o6 = o6_0 - n(n-1)/2.
+Observations:
+- Loop 0 is while(1) with an internal break on a condition. It updates u, c7, and phfb; bamt stays constant in this loop. ep is unused here. The per-iteration updates are:
+  u' = u + c7
+  c7' = 4*(c7 + bamt) + 3
+  phfb' = bamt
+- Loop 1 is while (bamt >= 6) with updates to c7, ep, and bamt (bamt becomes 6). It preserves phfb and e; bamt is set to 6, so after an iteration, bamt >= 6 remains true. The per-iteration updates are:
+  c7' = c7 + ep*bamt
+  ep' = ep + bamt
+  bamt' = 6
 
-This leads to a concise, exact inductive invariant that holds at loop head (for all iterations):
-- o6 == o6_0 - rj*(rj-1)/2, where o6_0 = (p % 28) + 10
+Two invariants are chosen for each loop to be inductive and non-trivial:
 
-Using o6_0 expressed in terms of p gives:
-- o6 == ((p % 28) + 10) - (rj * (rj - 1)) / 2
+- For Loop 0 (first loop):
+  - Invariant 1: 0 <= u && c7 > u
+    This captures a key relational property between the accumulative variable u and c7, which is preserved by the body updates:
+      u' = u + c7 and c7' grows (due to bamt being positive). Given u >= 0 and c7 > u initially, one can show c7' > u' under the loop's arithmetic (and bamt >= 2 by initialisation), making this invariant inductive.
+  - Invariant 2: 0 <= u
+    A simple lower bound that is preserved because u is incremented by c7 (which stays non-negative after the first iteration, given the previous invariant and initial values).
+  - Loop assigns: u, c7, phfb
 
-Additionally, rj is always non-negative (starts at 0 and increments by 1 each iteration), so we include:
-- rj >= 0
+- For Loop 1 (second loop):
+  - Invariant 1: 0 <= ep && 0 <= c7
+    Non-negativity of ep and c7 is preserved by the updates:
+      c7 increases by ep*bamt (ep >= 0, bamt >= 6), and ep increases by bamt (>= 6).
+  - Invariant 2: bamt >= 6
+    Maintained because the loop condition ensures bamt >= 6 at entry, and the body sets bamt = 6, preserving the bound.
+  - Loop assigns: c7, ep, bamt
 
-These invariants are preserved by the loop body, as shown by the algebra above. They are inductive and provide a concise description of the loop state evolution without modifying the code.
+These invariants are kept tight and informative without altering the original code. They do not rely on at-Pre for locals and stay within the available variables.
 
-For the second loop (the while (1) with an internal break when rj-1 < 0), only rj is changed (rj is decremented by 1 each time the loop executes, until rj becomes 0 and the break condition is hit). A simple invariant is:
-- rj >= 0
-
-This is preserved by the loop body since the loop only executes rj -= 1 when rj >= 1, and the loop exits when rj reaches 0. The invariant is strong enough to support verification for this loop as well.
-
-Thus we add:
-- For Loop 0: a core relational invariant linking o6 and rj, plus rj >= 0; and a complete assigns set to the updated variables.
-- For Loop 1: rj >= 0, with rj being the only modified variable in the loop.
-
-Now the complete annotated code follows.
 </reasoning>
-<code>
-int main1(int p){
-  int iw, kb, rj, o6, lt, bi2;
+<code>int main1(int e){
+  int phfb, bamt, c7, u, ep;
 
-  iw=p;
-  kb=iw+6;
-  rj=0;
-  o6=(p%28)+10;
-  lt=kb;
-  bi2=iw;
+  phfb=e;
+  bamt=2;
+  c7=bamt;
+  u=0;
+  ep=bamt;
 
   /*@
-    loop invariant o6 == ((p % 28) + 10) - ((rj * (rj - 1)) / 2);
-    loop invariant rj >= 0;
-    loop assigns o6, lt, rj, bi2;
+    loop invariant 0 <= u && c7 > u;
+    loop invariant 0 <= u;
+    loop assigns u, c7, phfb;
   */
-  while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
+  while (1) {
+      if (!(bamt+1<=phfb)) {
+          break;
+      }
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
   }
 
   /*@
-    loop invariant rj >= 0;
-    loop assigns rj;
+    loop invariant 0 <= ep && 0 <= c7;
+    loop invariant bamt >= 6;
+    loop assigns c7, ep, bamt;
   */
-  while (1) {
-      if (!(rj-1>=0)) {
-          break;
-      }
-      rj -= 1;
+  while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
   }
 
 }
 </code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 04:09:34,398 - INFO - 
+2026-03-14 20:55:16,458 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int p){
-  int iw, kb, rj, o6, lt, bi2;
-
-  iw=p;
-  kb=iw+6;
-  rj=0;
-  o6=(p%28)+10;
-  lt=kb;
-  bi2=iw;
-
-  /*@ 
-    loop invariant o6 == ((\at(p, Pre) % 28) + 10) - (rj * (rj - 1)) / 2;
-    loop invariant rj >= 0;
-    loop assigns o6, lt, rj, bi2;
-  @*/
-  while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
-  }
-
-  /*@ 
-    loop invariant rj >= 0;
-    loop assigns rj;
-    loop variant rj;
-  @*/
-  while (1) {
-      if (!(rj-1>=0)) {
+/*@
+  loop invariant bamt == 2;
+  loop invariant c7 >= 0;
+  loop invariant u >= 0;
+  loop invariant phfb <= \at(e, Pre);
+  loop variant (phfb - bamt);
+  loop assigns u, c7, phfb;
+*/
+while (1) {
+      if (!(bamt+1<=phfb)) {
           break;
       }
-      rj -= 1;
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
   }
 
-}
+/*@
+  loop invariant bamt >= 6;
+  loop invariant c7 >= 0;
+  loop invariant ep >= 0;
+  loop invariant phfb <= \at(e, Pre);
+  loop assigns c7, ep, bamt;
+*/
+while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
+  }
 ----- Candidate 1/5 full code end -----
-2026-03-11 04:09:34,399 - INFO - 
+2026-03-14 20:55:16,458 - INFO - 
 ----- Candidate 2/5 full code begin -----
-int main1(int p){
-  int iw, kb, rj, o6, lt, bi2;
+int main1(int e){
+  int phfb, bamt, c7, u, ep;
 
-  iw=p;
-  kb=iw+6;
-  rj=0;
-  o6=(p%28)+10;
-  lt=kb;
-  bi2=iw;
+  phfb=e;
+  bamt=2;
+  c7=bamt;
+  u=0;
+  ep=bamt;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant o6 == ((p % 28) + 10) - ((rj * (rj - 1)) / 2);
-    loop invariant rj >= 0;
-    loop assigns o6, lt, rj, bi2;
-    loop variant o6 - rj;
-  */
-  while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
-  }
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant rj >= 0;
-    loop invariant ((rj == 0) || (rj == 1));
-    loop assigns rj;
-    loop variant rj;
+    loop invariant u &gt;= 0;
+    loop invariant bamt == 2;
+    loop invariant c7 &gt;= 2;
+    loop assigns u, c7, phfb;
   */
   while (1) {
-      if (!(rj-1>=0)) {
+      if (!(bamt+1<=phfb)) {
           break;
       }
-      rj -= 1;
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
+  }
+
+  /*@
+    loop invariant c7 &gt;= 2;
+    loop invariant ep &gt;= 2;
+    loop assigns c7, ep, bamt;
+  */
+  while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-11 04:09:34,399 - INFO - 
+2026-03-14 20:55:16,458 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int p){
-  int iw, kb, rj, o6, lt, bi2;
+int main1(int e){
+  int phfb, bamt, c7, u, ep;
 
-  iw=p;
-  kb=iw+6;
-  rj=0;
-  o6=(p%28)+10;
-  lt=kb;
-  bi2=iw;
+  phfb=e;
+  bamt=2;
+  c7=bamt;
+  u=0;
+  ep=bamt;
 
   /*@
-    loop invariant o6 == ((\at(p, Pre) % 28) + 10) - (rj*(rj-1))/2;
-    loop assigns o6, lt, rj, bi2;
-    loop variant o6 - rj;
-  @*/
-  while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
+    loop invariant bamt == 2;
+    loop invariant u &gt;= 0;
+    loop invariant c7 &gt;= 2;
+    loop assigns u, c7, phfb;
+    loop variant phfb;
+  */
+while (1) {
+      if (!(bamt+1<=phfb)) {
+          break;
+      }
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
   }
 
   /*@
-    loop invariant rj >= 0;
-    loop assigns rj;
-    loop variant rj;
-  @*/
-  while (1) {
-      if (!(rj-1>=0)) {
-          break;
-      }
-      rj -= 1;
+    loop invariant ep &gt;= 2;
+    loop invariant c7 &gt;= 2;
+    loop assigns c7, ep, bamt;
+  */
+while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-11 04:09:34,399 - INFO - 
+2026-03-14 20:55:16,458 - INFO - 
 ----- Candidate 4/5 full code begin -----
-/*@
-  loop invariant o6 == (p%28) + 10 - (rj*(rj-1))/2;
-  loop invariant rj >= 0;
-  loop assigns o6, lt, rj, bi2;
-*/
-while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
-  }
+int main1(int e){
+  int phfb, bamt, c7, u, ep;
 
-/*@
-  loop invariant rj >= 0;
-  loop assigns rj;
-  loop variant rj;
-*/
+  phfb=e;
+  bamt=2;
+  c7=bamt;
+  u=0;
+  ep=bamt;
+
+  /*@
+    loop invariant bamt == 2;
+    loop invariant phfb <= e;
+    loop assigns u, c7, phfb;
+  */
 while (1) {
-      if (!(rj-1>=0)) {
+      if (!(bamt+1<=phfb)) {
           break;
       }
-      rj -= 1;
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
   }
------ Candidate 4/5 full code end -----
-2026-03-11 04:09:34,399 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int p){
-  int iw, kb, rj, o6, lt, bi2;
-
-  iw=p;
-  kb=iw+6;
-  rj=0;
-  o6=(p%28)+10;
-  lt=kb;
-  bi2=iw;
 
   /*@
-    loop invariant o6 == ((p % 28) + 10) - ((rj * (rj - 1)) / 2);
-    loop invariant rj >= 0;
-    loop assigns o6, lt, rj, bi2;
+    loop invariant bamt >= 6;
+    loop invariant ep >= 2;
+    loop assigns c7, ep, bamt;
   */
-  while (o6>rj) {
-      o6 -= rj;
-      lt = lt + o6;
-      rj++;
-      lt = lt*4+1;
-      bi2 = (1)+(bi2*lt);
+while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
   }
 
+}
+----- Candidate 4/5 full code end -----
+2026-03-14 20:55:16,458 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int e){
+  int phfb, bamt, c7, u, ep;
+
+  phfb=e;
+  bamt=2;
+  c7=bamt;
+  u=0;
+  ep=bamt;
+
   /*@
-    loop invariant rj >= 0;
-    loop assigns rj;
+    loop invariant 0 <= u && c7 > u;
+    loop invariant 0 <= u;
+    loop assigns u, c7, phfb;
   */
   while (1) {
-      if (!(rj-1>=0)) {
+      if (!(bamt+1<=phfb)) {
           break;
       }
-      rj -= 1;
+      u += c7;
+      c7 += bamt;
+      c7 = c7*4+3;
+      phfb = (bamt+1)-1;
+  }
+
+  /*@
+    loop invariant 0 <= ep && 0 <= c7;
+    loop invariant bamt >= 6;
+    loop assigns c7, ep, bamt;
+  */
+  while (bamt>=6) {
+      c7 = c7+ep*bamt;
+      ep += bamt;
+      bamt = =6;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 04:09:34,399 - INFO - Successfully generated 5/5 candidates
-2026-03-11 04:09:34,399 - INFO - Checking 4 invariants for conflicts...
-2026-03-11 04:09:34,400 - INFO - Checking 2 invariants for conflicts...
-2026-03-11 04:09:34,401 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 04:09:34,401 - INFO -   1: int main1(int p){
-2026-03-11 04:09:34,401 - INFO -   2:   int iw, kb, rj, o6, lt, bi2;
-2026-03-11 04:09:34,401 - INFO -   3: 
-2026-03-11 04:09:34,401 - INFO -   4:   iw=p;
-2026-03-11 04:09:34,401 - INFO -   5:   kb=iw+6;
-2026-03-11 04:09:34,401 - INFO -   6:   rj=0;
-2026-03-11 04:09:34,401 - INFO -   7:   o6=(p%28)+10;
-2026-03-11 04:09:34,401 - INFO -   8:   lt=kb;
-2026-03-11 04:09:34,401 - INFO -   9:   bi2=iw;
-2026-03-11 04:09:34,401 - INFO -   10: 
-2026-03-11 04:09:34,401 - INFO - DEBUG: Total lines: 41
-2026-03-11 04:09:34,601 - INFO - syntax Correct
-2026-03-11 04:10:05,445 - INFO - Validate:
-2026-03-11 04:10:05,445 - INFO - [True, True, True, True, True, False]
-2026-03-11 04:10:05,445 - INFO - 
-2026-03-11 04:10:05,445 - INFO - Verify:
-2026-03-11 04:10:05,445 - INFO - []
-2026-03-11 04:10:05,445 - INFO - 
-2026-03-11 04:10:05,445 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-11 04:10:05,445 - INFO -   Before: 6 invariants
-2026-03-11 04:10:05,445 - INFO -   After: 5 invariants
-2026-03-11 04:10:05,445 - INFO -   Remaining invariants:
-2026-03-11 04:10:05,445 - INFO -     [1] o6 == ((\at(p, Pre) % 28) + 10) - (rj * (rj - 1)) / 2
-2026-03-11 04:10:05,445 - INFO -     [2] rj >= 0
-2026-03-11 04:10:05,445 - INFO -     [3] o6 == ((p % 28) + 10) - ((rj * (rj - 1)) / 2)
-2026-03-11 04:10:05,445 - INFO -     [4] o6 == (p%28) + 10 - (rj*(rj-1))/2
-2026-03-11 04:10:05,445 - INFO -     [5] rj >= 0
-2026-03-11 04:10:05,676 - INFO - syntax Correct
-2026-03-11 04:10:36,524 - INFO - Validate:
-2026-03-11 04:10:36,525 - INFO - [True, True, True, True, True]
-2026-03-11 04:10:36,525 - INFO - 
-2026-03-11 04:10:36,525 - INFO - Verify:
-2026-03-11 04:10:36,525 - INFO - []
-2026-03-11 04:10:36,525 - INFO - 
-2026-03-11 04:10:36,525 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-11 04:10:36,750 - INFO - syntax Correct
-2026-03-11 04:11:07,586 - INFO - Validate:
-2026-03-11 04:11:07,586 - INFO - [True, True, True, True, True]
-2026-03-11 04:11:07,587 - INFO - 
-2026-03-11 04:11:07,587 - INFO - Verify:
-2026-03-11 04:11:07,587 - INFO - []
-2026-03-11 04:11:07,587 - INFO - 
-2026-03-11 04:11:23,399 - INFO - Deduplicated 1 loop invariants in final code
-2026-03-11 04:11:23,612 - INFO - syntax Correct
-2026-03-11 04:11:54,392 - INFO - Validate:
-2026-03-11 04:11:54,393 - INFO - [True, True, True, True]
-2026-03-11 04:11:54,393 - INFO - 
-2026-03-11 04:11:54,393 - INFO - Verify:
-2026-03-11 04:11:54,393 - INFO - []
-2026-03-11 04:11:54,393 - INFO - 
-2026-03-11 04:11:54,393 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 04:11:54,393 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_65/1.c
-2026-03-11 04:11:54,393 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_65/1_invariants.txt
-2026-03-11 04:11:54,393 - INFO - 
+2026-03-14 20:55:16,458 - INFO - Successfully generated 5/5 candidates
+2026-03-14 20:55:16,459 - INFO - Checking 7 invariants for conflicts...
+2026-03-14 20:55:16,460 - INFO - Checking 6 invariants for conflicts...
+2026-03-14 20:55:16,462 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 20:55:16,462 - INFO -   1: int main1(int e){
+2026-03-14 20:55:16,462 - INFO -   2:   int phfb, bamt, c7, u, ep;
+2026-03-14 20:55:16,462 - INFO -   3: 
+2026-03-14 20:55:16,462 - INFO -   4:   phfb=e;
+2026-03-14 20:55:16,462 - INFO -   5:   bamt=2;
+2026-03-14 20:55:16,462 - INFO -   6:   c7=bamt;
+2026-03-14 20:55:16,462 - INFO -   7:   u=0;
+2026-03-14 20:55:16,462 - INFO -   8:   ep=bamt;
+2026-03-14 20:55:16,462 - INFO -   9: 
+2026-03-14 20:55:16,462 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-14 20:55:16,462 - INFO - DEBUG: Total lines: 48
+2026-03-14 20:55:16,644 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c:44: 
+  syntax error:
+  Location: line 44, between columns 13 and 14, before or at token: =
+  42          c7 = c7+ep*bamt;
+  43          ep += bamt;
+  44          bamt = =6;
+        ^^^^^^^^^^^^^^^^
+  45      }
+  46
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 20:55:16,644 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-03-14 20:55:16,644 - INFO - Houdini iteration 1: Removed 13 failed invariants
+2026-03-14 20:55:16,644 - INFO -   Before: 13 invariants
+2026-03-14 20:55:16,644 - INFO -   After: 0 invariants
+2026-03-14 20:55:16,644 - ERROR - All invariants were removed by Houdini
+2026-03-14 20:55:16,827 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c:44: 
+  syntax error:
+  Location: line 44, between columns 13 and 14, before or at token: =
+  42          c7 = c7+ep*bamt;
+  43          ep += bamt;
+  44          bamt = =6;
+        ^^^^^^^^^^^^^^^^
+  45      }
+  46
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 20:55:54,907 - INFO - Deduplicated 8 loop invariants in final code
+2026-03-14 20:55:55,107 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c:40: 
+  syntax error:
+  Location: line 40, between columns 13 and 14, before or at token: =
+  38          c7 = c7+ep*bamt;
+  39          ep += bamt;
+  40          bamt = =6;
+        ^^^^^^^^^^^^^^^^
+  41      }
+  42
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 20:55:55,108 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-03-14 20:55:55,108 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-03-14 20:55:55,108 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c
+2026-03-14 20:55:55,108 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1_invariants.txt
+2026-03-14 20:55:55,108 - INFO - 
 ============================================================
-2026-03-11 04:11:54,393 - INFO - Final first_pass results:
-2026-03-11 04:11:54,393 - INFO -   syntax=1
-2026-03-11 04:11:54,393 - INFO -   valid=1
-2026-03-11 04:11:54,393 - INFO -   satisfy=None
-2026-03-11 04:11:54,393 - INFO - ============================================================
-2026-03-11 04:11:54,393 - INFO - 
+2026-03-14 20:55:55,108 - INFO - Final first_pass results:
+2026-03-14 20:55:55,108 - INFO -   syntax=None
+2026-03-14 20:55:55,108 - INFO -   valid=None
+2026-03-14 20:55:55,108 - INFO -   satisfy=None
+2026-03-14 20:55:55,108 - INFO - ============================================================
+2026-03-14 20:55:55,108 - INFO - 
 ============================================================
-2026-03-11 04:11:54,393 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 04:11:54,393 - INFO -   Total API calls: 9
-2026-03-11 04:11:54,393 - INFO -   Total prompt tokens (input): 11,334
-2026-03-11 04:11:54,393 - INFO -   Total completion tokens (output): 77,817
-2026-03-11 04:11:54,393 - INFO -   Total tokens: 89,151
-2026-03-11 04:11:54,393 - INFO -   Average per call:
-2026-03-11 04:11:54,393 - INFO -     Prompt: 1259.3 tokens
-2026-03-11 04:11:54,393 - INFO -     Completion: 8646.3 tokens
-2026-03-11 04:11:54,393 - INFO -     Total: 9905.7 tokens
-2026-03-11 04:11:54,393 - INFO - ============================================================
-2026-03-11 04:11:54,393 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_65/1.c
-2026-03-11 04:11:54,394 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_65/1_invariants.txt
-2026-03-11 04:12:33,940 - INFO - LLM quality-gate raw response: {
-  "ok": false,
-  "reason": "fail"
-}
-2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
-2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
-2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
-2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
-2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
-2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
-2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
-2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 20:55:55,108 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 20:55:55,108 - INFO -   Total API calls: 6
+2026-03-14 20:55:55,108 - INFO -   Total prompt tokens (input): 8,134
+2026-03-14 20:55:55,108 - INFO -   Total completion tokens (output): 54,249
+2026-03-14 20:55:55,108 - INFO -   Total tokens: 62,383
+2026-03-14 20:55:55,108 - INFO -   Average per call:
+2026-03-14 20:55:55,108 - INFO -     Prompt: 1355.7 tokens
+2026-03-14 20:55:55,108 - INFO -     Completion: 9041.5 tokens
+2026-03-14 20:55:55,108 - INFO -     Total: 10397.2 tokens
+2026-03-14 20:55:55,108 - INFO - ============================================================
+2026-03-14 20:55:55,108 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c
+2026-03-14 20:55:55,109 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1_invariants.txt
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

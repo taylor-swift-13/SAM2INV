@@ -1,20 +1,18 @@
-int main1(int g){
-  int f, w, zv, p1;
+int main1(){
+  int uqpq, jz, z51b, nrq;
 
-  f=g;
-  w=f;
-  zv=0;
-  p1=1;
+  uqpq=70;
+  jz=0;
+  z51b=20;
+  nrq=1;
 
-  while (w<=f-1) {
-      if (!(zv<4)) {
-          p1 = -1;
-      }
-      if (zv<=0) {
-          p1 = 1;
-      }
-      w += 1;
-      zv = zv + p1;
+  while (jz<=uqpq-8) {
+      nrq = nrq+z51b*jz;
+      jz = =uqpq-8;
+  }
+
+  while (z51b-1>=0) {
+      z51b -= 1;
   }
 
 }

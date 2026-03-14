@@ -1,633 +1,547 @@
-2026-03-11 03:35:39,975 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 03:35:39,999 - INFO - Found 2 loops
-2026-03-11 03:35:40,001 - INFO - 
+2026-03-14 20:33:35,849 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 20:33:35,875 - INFO - Found 2 loops
+2026-03-14 20:33:35,876 - INFO - 
 ============================================================
-2026-03-11 03:35:40,001 - INFO - Main generation pass 1/1
-2026-03-11 03:35:40,001 - INFO - ============================================================
-2026-03-11 03:35:40,001 - INFO - Loaded single prompt template: simple
-2026-03-11 03:35:40,001 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 03:35:40,001 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 03:35:40,018 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:37:17,286 - INFO - 
+2026-03-14 20:33:35,876 - INFO - Main generation pass 1/1
+2026-03-14 20:33:35,876 - INFO - ============================================================
+2026-03-14 20:33:35,876 - INFO - Loaded single prompt template: simple
+2026-03-14 20:33:35,876 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 20:33:35,876 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 20:33:35,945 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:34:55,938 - INFO - 
 ----- Candidate 1/5 raw response begin -----
 <reasoning>
-For the first loop (loop 0), I aimed to derive strong, inductive invariants that capture the exact state evolution caused by the loop body. Key observations:
-- q is incremented by 3 every iteration, while phv is incremented by 1 and v is decremented by the previous phv.
-- Over t iterations, phv = t and q increases by 3t, so a precise relation holds: q = q0 + 3*phv, where q0 is the initial value of q. This is a clean, exact conservation/relational equality explaining updates.
-- v starts at v0 = (q0 % 28) + 10 and, at iteration t, becomes v0 - sum_{i=0}^{t-1} i = v0 - t*(t-1)/2. Thus a precise invariant is v = v0 - phv*(phv-1)/2, with v0 referenced via the initial value of q: v = ((q0 % 28) + 10) - phv*(phv-1)/2, expressed as v == ((\at(q, Pre) % 28) + 10) - phv*(phv - 1)/2.
-- These invariants are inductive: if they hold before an iteration, they hold after, because q' = q + 3 and phv' = phv + 1 imply q' = q0 + 3*phv' and v' = v0 - phv'*(phv'-1)/2.
-- The loop assigns set for loop 0 includes all variables that are mutated in the loop: q, v, phv, j, zd4.
+Planned invariants aim to be inductive and verification-friendly while explaining the loop updates.
 
-For the second loop (loop 1), the body only updates djyx by dividing by 2 while maintaining the loop guard (djyx > 0). A simple, valid loop variant is djyx itself, since djyx strictly decreases when djyx > 0 by the division operation, and remains non-negative. A minimal invariant is djyx >= 0, which is preserved by djyx = djyx/2. The loop assigns for loop 1 is just djyx.
+Key observations:
+- First loop updates: u := u + g; u817 := u817 + 1; xax := xax + 1; g := g + (xax % 7) with xax already incremented for the modulo.
+- After k iterations of the first loop (xax = k), g can be expressed exactly in terms of the initial g (let g0 = \at(g, Pre)):
+  g = g0 + 21*(k/7) + ( (k%7) * ((k%7) + 1) ) / 2
+  This comes from the sum of residues (1,2,3,4,5,6,0, ...), whose cycle sum is 21.
+- A strong, inductive invariant is thus:
+  g == \at(g, Pre) + 21*(xax/7) + ((xax%7)*((xax%7)+1))/2
+- The first loop also increments u817 and xax together by 1 each iteration, so:
+  u817 == xax
+- Basic progress bounds for the loop counter are useful:
+  0 <= xax and xax <= id
+- For the second loop, since it starts with id < xax and increments id by 1 each iteration while xax stays constant, a natural loop variant is xax - id. A corresponding invariant is 0 <= xax - id.
 
-Additionally, I used \at(q, Pre) to refer to the initial value of q, as allowed for function parameters, to express the exact initial conditions in the invariants.
+- The second loop does not modify g, cr6 is updated, and id/u817/cr6 are the modified variables. The same g-invariant can be kept for the second loop because xax is constant during that loop (and g does not change there).
 
-I avoided introducing any unrelated invariants or modifying the function body apart from replacing the placeholders with these invariants. No unknown() or unknownN() calls were touched and the loop guard handling adheres to the guidance (the loop invariants themselves are independent of the guard). The invariants are strong and inductive, and the loop assigns precisely reflect all updated variables.
+With these, we provide:
+- A strong, exact invariant tying g and xax (via \at(g, Pre)).
+- A simple invariant tying u817 and xax.
+- Simple progress bounds for xax and the id/xax difference.
+- Precise loop assigns for each loop.
+
+These invariants are inductive (hold initially and preserved by each iteration) and help Frama-C/WP verify the loops without modifying the original code logic.
 </reasoning>
+<code>int main1(int g){
+  int id, cr6, u, xax, u817;
 
-<code>
-int main1(int q){
-  int djyx, phv, v, j, zd4;
-
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
+  id=25;
+  cr6=2;
+  u=0;
+  xax=0;
+  u817=0;
 
   /*@
-    loop invariant q == \at(q, Pre) + 3 * phv;
-    loop invariant v == ((\at(q, Pre) % 28) + 10) - phv*(phv - 1)/2;
-    loop assigns q, v, phv, j, zd4;
-  */
-  while (v>phv) {
-      v -= phv;
-      phv++;
-      zd4 = zd4+(phv%6);
-      q = q + 3;
-      j = j*2;
+      loop invariant g == \at(g, Pre) + 21*(xax/7) + ((xax%7)*((xax%7)+1))/2;
+      loop invariant u817 == xax;
+      loop invariant 0 &lt;= xax;
+      loop invariant xax &lt;= id;
+      loop assigns g, u, u817, xax;
+      loop variant id - xax;
+  @*/
+  while (xax&lt;id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
   }
 
   /*@
-    loop invariant djyx >= 0;
-    loop assigns djyx;
-    loop variant djyx;
-  */
-  while (djyx>0) {
-      djyx = djyx/2;
+      loop invariant g == \at(g, Pre) + 21*(xax/7) + ((xax%7)*((xax%7)+1))/2;
+      loop invariant 0 &lt;= xax - id;
+      loop assigns cr6, id, u817;
+      loop variant xax - id;
+  @*/
+  while (id&lt;xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
   }
 
-}
-</code>
+}</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-11 03:37:17,286 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 03:37:17,302 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:38:39,797 - INFO - 
+2026-03-14 20:34:55,938 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 20:34:56,001 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:36:47,284 - INFO - 
 ----- Candidate 2/5 raw response begin -----
-<reasoning>
-For the first loop, I derive inductive relations from the per-iteration updates:
-- q increases by 3 each iteration, starting from its pre-entry value q0. Therefore, q == q0 + 3*phv, i.e. q - 3*phv == \at(q, Pre).
-- phv starts at 0 and increments by 1 each iteration; let n = phv be the number of iterations so far. The initial v value is v0 = (q0 % 28) + 10, and v is decreased by the then-current phv each iteration: v := v - phv_old. After n iterations, v = v0 - sum_{i=0}^{n-1} i = v0 - n(n-1)/2. Since v0 = (\at(q, Pre) % 28) + 10, we get v == ((\at(q, Pre) % 28) + 10) - phv*(phv - 1)/2.
-- zd4 starts at q0 and on each iteration adds (phv_new % 6) with phv_new = phv_old + 1. With phv starting at 0, the total added value after n iterations is S(n) = 15*(n/6) + (r*(r+1))/2 where r = n % 6. Therefore zd4 == \at(q, Pre) + 15*(phv/6) + ((phv%6)*((phv%6)+1))/2.
-These provide a strong, inductive set of equalities tying the evolving state (q, v, zd4) to the iteration counter phv and the initial q via \at(q, Pre). The loop guard is v > phv; to prove termination, I use the classic variant D = v - phv, which strictly decreases each iteration and is positive before entry.
+<reasoning>For the given two loops, I aimed for inductive, verification-friendly invariants that are tight and explain the state updates, while keeping the code unchanged other than annotations.
 
-For the second loop, the only state is djyx being halved each iteration while q remains unchanged. A simple, valid invariant is q == \at(q, Pre) (the parameter q is not modified in this loop) together with a non-negativity invariant on djyx and a termination variant:
-- djyx >= 0
-- q == \at(q, Pre)
-- loop variant djyx
+Loop 0 (while (xax < id)):
+- A core relational invariant: u817 == xax, since u817 is incremented once per iteration and xax is also incremented once per iteration.
+- A tight bound on the loop counter: 0 <= xax <= id, which is preserved because the loop only runs while xax < id and xax is incremented by 1 each iteration.
+- A precise relation for g, which is updated by g := g + (xax+1)%7 each iteration. Since the increment depends only on xax, g can be expressed as g0 + S(xax) where g0 is the initial g (\at(g, Pre)) and S(xax) = 21*(xax/7) + ((xax%7)*((xax%7)+1))/2. This invariant captures the exact cumulative effect of the per-iteration updates to g.
+- Loop assigns: u, u817, xax, g (these are the variables modified inside the loop).
+- Loop variant: id - xax, which decreases by 1 each iteration and remains non-negative as long as the loop guard holds.
 
-These invariants are inductive and verification-friendly for Frama-C/WP; they respect the available variables and the constraints about function parameters.
+Loop 1 (while (id < xax)):
+- A minimal non-negativity invariant tied to the loop guard: 0 <= xax - id, which is equivalent to id <= xax; refines to the fact that when the loop condition id < xax holds, this difference is positive and decreases as iterations proceed (since id is incremented each iteration and xax stays constant in this loop).
+- Loop assigns: cr6, id, u817 (these are the variables updated inside the loop).
+- Loop variant: xax - id, which decreases by 1 each iteration and remains non-negative while the loop guard id < xax holds.
+
+These invariants are inductive (held initially, preserved by each iteration), and together with the loop guards, they provide verification-friendly conditions for Frama-C/WP. They do not modify the program logic, only annotations, and they use only allowed variables (including \at(g, Pre) for the initial value of g in the first loop).
 
 </reasoning>
-<code>int main1(int q){
-  int djyx, phv, v, j, zd4;
+<code>int main1(int g){
+  int id, cr6, u, xax, u817;
 
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
+  id=25;
+  cr6=2;
+  u=0;
+  xax=0;
+  u817=0;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant q == \at(q, Pre) + 3 * phv;
-    loop invariant v == ((\at(q, Pre) % 28) + 10) - phv * (phv - 1) / 2;
-    loop invariant zd4 == \at(q, Pre) + 15 * (phv / 6) + ((phv % 6) * ((phv % 6) + 1)) / 2;
-    loop assigns v, phv, zd4, q, j;
-    loop variant (v - phv);
+    loop invariant u817 == xax;
+    loop invariant 0 <= xax <= id;
+    loop invariant g == \at(g, Pre) + 21*(xax/7) + ((xax%7)*((xax%7)+1))/2;
+    loop assigns u, u817, xax, g;
+    loop variant id - xax;
   */
-  while (v>phv) {
-        v -= phv;
-        phv++;
-        zd4 = zd4+(phv%6);
-        q = q + 3;
-        j = j*2;
+  while (xax<id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
   }
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant q == \at(q, Pre);
-    loop invariant djyx >= 0;
-    loop assigns djyx;
-    loop variant djyx;
+    loop invariant 0 <= xax - id;
+    loop assigns cr6, id, u817;
+    loop variant xax - id;
   */
-  while (djyx>0) {
-        djyx = djyx/2;
+  while (id<xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
   }
 
 }</code>
 ----- Candidate 2/5 raw response end -----
-2026-03-11 03:38:39,797 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 03:38:39,809 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:40:17,371 - INFO - 
+2026-03-14 20:36:47,284 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 20:36:47,339 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:38:46,069 - INFO - 
 ----- Candidate 3/5 raw response begin -----
-<reasoning>
-For the two loops in main1, we need inductive, verification-friendly loop invariants and a complete loop assigns clause for Frama-C/WP.
+<reasoning>For Loop 0 (while (xax < id)):
+- We want an inductive core relation that captures the loop updates. Since xax and u817 both increment by 1 per iteration, a strong, simple invariant is u817 == xax. This directly explains the state update and is preserved by each iteration.
+- A minimal but useful bound on the loop counters is 0 <= xax <= id, which is preserved: xax starts at 0, and id never changes in this loop, so xax cannot exceed id; also xax is nonnegative.
+- Since g is updated by adding (xax_before+1) % 7 each iteration, g is nondecreasing across iterations. We capture this with g >= \at(g,Pre), i.e., g never goes below its initial value (and, by the loop updates, it only increases or stays the same). Here g is a function parameter, so using \at(g,Pre) is allowed.
+- Progress: loop variant id - xax provides a decreasing measure (it starts positive when entering the loop and decreases by 1 each iteration).
 
-Loop 0 (the v/phv/zd4/q/j loop):
-- We derive a core conservation relation: the quantity v plus the accumulated sum of the previous phv values remains the initial v, which is initial_v = (\at(q, Pre) % 28) + 10. This is v + phv*(phv-1)/2 == initial_v.
-- Since q is incremented by 3 every iteration, after k iterations q == initial_q + 3*phv, i.e., q == \at(q, Pre) + 3*phv.
-- The relation for zd4 can be expressed exactly as the cumulative sum of (phv_i+1)%6 over iterations, which evaluates to: initial_zd4 + 15*(phv/6) + ((phv%6)*(phv%6 + 1))/2; since initial_zd4 == \at(q, Pre), this yields zd4 == \at(q, Pre) + 15*(phv/6) + ((phv%6)*(phv%6 + 1))/2.
-- djyx remains constant during this loop, so djyx == \at(q, Pre). phv is nonnegative.
-- The loop assigns the same set of variables that it mutates: v, phv, q, zd4, j.
+For Loop 1 (while (id < xax)):
+- In this loop, g is not modified, and cr6, id, u817 are modified. A simple, useful invariant is id <= xax, which holds before every iteration (the guard is id < xax) and stays true as id increments by 1 while xax stays fixed.
+- Additionally, since the loop reduces the remaining iterations by one each time, the difference xax - id is a natural loop variant; it remains nonnegative and strictly decreases by 1 per iteration.
+- We also specify the precise modified variables to be assigned within this loop: cr6, id, u817.
 
-Loop 1 (the djyx loop):
-- The loop only mutates djyx by djyx = djyx/2; q stays equal to its initial value; thus we can express q == \at(q, Pre) as an invariant, and djyx monotonically decreases toward 0. A simple bound is djyx >= 0 and djyx <= \at(q, Pre).
-- The loop assigns only djyx.
+These invariants are inductive with respect to the given transition relations and provide strong, verification-friendly predicates without altering the original code or relying on non-parameter locals. They also satisfy the requirement of a core conservation/relational equality for the first loop (u817 == xax). </reasoning>
+<code>int main1(int g){
+  int id, cr6, u, xax, u817;
 
-We keep the invariants strong and strictly related to the loop updates, avoiding any unrelated facts. We do not modify the function’s behavior or any unknown() calls. We do not use at-Pre on non-parameters. The invariants are written as separate loop invariant lines, and the assigns clauses enumerate all modified variables for each loop.
-</reasoning>
-<code>int main1(int q){
-  int djyx, phv, v, j, zd4;
-
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
+  id=25;
+  cr6=2;
+  u=0;
+  xax=0;
+  u817=0;
 
   /*@
-    loop invariant v + phv*(phv - 1)/2 == (\at(q, Pre) % 28) + 10;
-    loop invariant q == \at(q, Pre) + 3*phv;
-    loop invariant zd4 == \at(q, Pre) + 15*(phv/6) + ((phv%6) * (phv%6 + 1)) / 2;
-    loop invariant djyx == \at(q, Pre);
-    loop invariant phv >= 0;
-    loop assigns v, phv, q, zd4, j;
+    loop invariant 0 <= xax <= id;
+    loop invariant u817 == xax;
+    loop invariant g >= \at(g,Pre);
+    loop assigns g, u, u817, xax;
+    loop variant id - xax;
   */
-  while (v>phv) {
-      v -= phv;
-      phv++;
-      zd4 = zd4+(phv%6);
-      q = q + 3;
-      j = j*2;
+  while (xax<id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
   }
 
   /*@
-    loop invariant q == \at(q, Pre);
-    loop invariant djyx >= 0;
-    loop invariant djyx <= \at(q, Pre);
-    loop assigns djyx;
+    loop invariant id <= xax;
+    loop invariant 0 <= xax - id;
+    loop assigns cr6, id, u817;
+    loop variant xax - id;
   */
-  while (djyx>0) {
-      djyx = djyx/2;
-  }
-
-}
------ Candidate 3/5 raw response end -----
-2026-03-11 03:40:17,371 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 03:40:17,387 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:41:52,715 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>The first loop updates several state variables (v, phv, zd4, q, j) and preserves djyx and the initial condition of q and v through a simple arithmetic progression. A strong inductive invariant can capture the exact relationship between q, v, phv and the initial value of q. Specifically, since phv starts at 0 and increments by 1 each iteration, we have:
-- q increases by 3 each iteration, so q = q0 + 3*phv, where q0 is the initial value of q at loop entry = \at(q, Pre).
-- v decreases by the current phv (before increment), and phv increases by 1 after the decrement; overall after k iterations, phv = k and v = v0 - k*(k-1)/2, where v0 = (\at(q, Pre) % 28) + 10. Hence v = ((\at(q, Pre) % 28) + 10) - phv*(phv-1)/2.
-- phv is non-negative.
-
-We also include a loop variant to prove progress: (v - phv) strictly decreases by 1 each iteration (since v' = v - phv and phv' = phv + 1, so (v' - phv') = (v - phv) - 1). We avoid asserting any impossible-to-maintain precise relation for zd4, since it depends on phv%6 and is captured indirectly through the other invariants.
-
-For the second loop, only djyx is modified (by dividing by 2). A minimal yet inductive invariant is to keep track that djyx stays non-negative, with a loop variant equal to djyx itself, which strictly decreases for all positive djyx when the guard holds (djyx > 0 implies djyx/2 < djyx). This keeps the loop termination reasoning sound while remaining within the allowed variable scope (djyx and q are the variables we may reference in this loop’s invariants).
-
-Thus:
-- Loop 0 invariants: express q in terms of its Pre value and phv; express v similarly via the initial v0 derived from \at(q, Pre); require phv >= 0; provide a loop variant (v - phv); and assignable set {v, phv, q, zd4, j}.
-- Loop 1 invariants: require djyx >= 0; provide a loop variant djyx; and assignable set {djyx}.
-
-Now the code with the proposed invariants follows. These invariants are inductive, exact enough to guide the WP prover, and do not modify the original code beyond annotations. They respect the constraint of not using \at on local variables and only referencing the function parameter q with \at(q, Pre) where needed.]
-
-
-<code>int main1(int q){
-  int djyx, phv, v, j, zd4;
-
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-  loop invariant q == \at(q, Pre) + 3*phv;
-  loop invariant v == ((\at(q, Pre) % 28) + 10) - phv*(phv - 1)/2;
-  loop invariant phv >= 0;
-  loop assigns v, phv, q, zd4, j;
-  loop variant (v - phv);
- */
-while (v>phv) {
-      v -= phv;
-      phv++;
-      zd4 = zd4+(phv%6);
-      q = q + 3;
-      j = j*2;
-  }
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-  loop invariant djyx >= 0;
-  loop assigns djyx;
-  loop variant djyx;
- */
-while (djyx>0) {
-      djyx = djyx/2;
+  while (id<xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
   }
 
 }</code>
------ Candidate 4/5 raw response end -----
-2026-03-11 03:41:52,715 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 03:41:52,730 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 03:45:11,219 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>
-I analyzed the two loops and designed inductive, verification-friendly invariants that are strong, preserveable, and only refer to allowed variables.
+----- Candidate 3/5 raw response end -----
+2026-03-14 20:38:46,070 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 20:38:46,132 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:40:24,623 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>For the two loops in main1, I designed inductive invariants that are strong, relevant to the state updates, and verification-friendly for Frama-C/WP.
 
-Loop 0 (modifies v, phv, q, zd4, j):
-- A core conserved relation for the arithmetic progression update v <- v - phv and phv <- phv + 1 is:
-  v + phv*(phv - 1)/2 remains constant. With initial phv = 0, this equals the initial v, which is (q0 % 28) + 10 where q0 is the initial value of q. Using \at(q, Pre) to refer to the initial q, the invariant becomes:
-  v + phv*(phv - 1)/2 == (\at(q, Pre) % 28) + 10
-  This is preserved by the transition: (v', phv') = (v - phv, phv + 1).
+Loop 0 (while (xax < id)):
+- A strong, exact relation that is preserved by each iteration is u817 == xax, since both are incremented by exactly 1 each iteration.
+- A simple relationship that holds throughout the loop is xax <= id; given the guard xax < id, this remains true at all loop heads and after each iteration (the head of the next iteration sees id unchanged and xax incremented, preserving the bound).
+- A termination-progress measure is provided with loop variant id - xax, which decreases by 1 on every iteration and stays non-negative while the loop guard holds.
 
-- Since q is incremented by 3 each iteration, (q - \at(q, Pre)) is always a multiple of 3:
-  (q - \at(q, Pre)) % 3 == 0
+Loop 1 (while (id < xax)):
+- The natural invariant id <= xax (equivalently xax - id >= 0) is preserved: each iteration increases id by 1 while xax stays fixed; thus the difference cannot become negative and the loop exits when id reaches xax.
+- A loop variant xax - id decreases by 1 every iteration (since id increments and xax stays constant), ensuring termination reasoning for the second loop.
 
-- q never decreases and is at least its initial value:
-  (q >= \at(q, Pre))
+Assignments:
+- Loop 0 writes g, u, u817, xax.
+- Loop 1 writes cr6, id, u817.
 
-- phv is non-negative as it starts at 0 and is incremented each iteration:
-  (phv >= 0)
-
-- j starts at 8 and doubles each iteration; it stays at least 8:
-  (j >= 8)
-
-- The loop assigns should include all modified variables: v, phv, q, zd4, j.
-
-Loop 1 (modifies djyx only):
-- djyx is not modified inside the loop body, so it stays equal to its initial value. The invariant:
-  djyx == \at(q, Pre)
-  is preserved because the loop body performs only djyx = djyx/2, and the guard ensures djyx > 0 at entry.
-
-- A minimal bound for termination can be expressed through a simple invariant, e.g., 0 <= djyx, but since the guard already enforces djyx > 0 at loop entry, a direct equality to its initial value is both strong and precise for Loop 1.
-
-- The loop assigns should include only djyx, as it is the only modified variable in this loop.
-
-These invariants are inductive (preserved by each iteration) and work with Frama-C/WP to establish correctness without modifying the original code or relying on unknown() calls. They also respect the constraint that loop guards are not invariants and Pre-aware values are used only for the function parameter q via \at(q, Pre).
+These invariants avoid referencing non-parameter locals via \at(...,Pre) and remain faithful to the available-variable restrictions. They are not tautological and help the WP prover reason about the loop transitions and termination.
 
 </reasoning>
-<code>
-int main1(int q){
-  int djyx, phv, v, j, zd4;
+<code>/*@
+  loop invariant xax <= id;
+  loop invariant u817 == xax;
+  loop assigns g, u, u817, xax;
+  loop variant id - xax;
+*/
+while (xax&lt;id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
+  }
 
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
+/*@
+  loop invariant id &lt;= xax;
+  loop assigns cr6, id, u817;
+  loop variant xax - id;
+*/
+while (id&lt;xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
+  }</code>
+----- Candidate 4/5 raw response end -----
+2026-03-14 20:40:24,623 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 20:40:24,690 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 20:42:29,915 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>For Loop 0, I aimed for a strong, inductive invariant that directly captures the state updates of the loop variables (u, u817, xax, g) and expresses a precise relation between g, xax, and the initial value of g. A robust invariant is:
+- u817 == xax (both start at 0 and are incremented by 1 each iteration)
+- 0 <= xax and xax <= id (non-decreasing xax bounded by id)
+- g's evolution is captured by a closed-form relation in terms of the initial g value: g == initial_g + 21*(xax/7) + ((xax%7) * ((xax%7) + 1)) / 2
+  where initial_g is \at(g, Pre). This sums the per-iteration increments (which follow the pattern (i+1) % 7 for i = 0..xax-1) exactly, since every 7 iterations the total added is 21, and the remaining terms sum to rem*(rem+1)/2 with rem = xax % 7.
+
+- For loop progress, a non-negative loop variant is used: id - xax, which strictly decreases as long as the loop guard xax < id holds.
+
+Loop 1 (the second loop) only changes cr6, id, and u817, with g and xax fixed during the loop. A simple, inductive invariant that is guaranteed to hold is:
+- 0 <= xax - id
+which is true when entering the loop (id < xax implies xax - id > 0) and is preserved because id is incremented by 1 on each iteration while xax stays constant. A loop variant (xax - id) ensures termination of Loop 1.
+
+These invariants are inductive, non-tautological, and use only available variables (including the function parameter g via \at(g, Pre) for Loop 0). They also respect the constraint of not modifying the code, except for inserting loop annotations, and do not rely on forbidden constructs.
+
+</reasoning>
+<code>int main1(int g){
+  int id, cr6, u, xax, u817;
+
+  id=25;
+  cr6=2;
+  u=0;
+  xax=0;
+  u817=0;
 
   /*@
-    loop invariant v + phv*(phv - 1)/2 == ((\at(q, Pre) % 28) + 10);
-    loop invariant (q - \at(q, Pre)) % 3 == 0;
-    loop invariant (q >= \at(q, Pre));
-    loop invariant (phv >= 0);
-    loop invariant (j >= 8);
-    loop assigns v, phv, q, zd4, j;
+    loop invariant 0 <= xax;
+    loop invariant xax <= id;
+    loop invariant u817 == xax;
+    loop invariant g == \at(g, Pre) + 21 * (xax / 7) + ((xax % 7) * ((xax % 7) + 1)) / 2;
+    loop assigns u, u817, xax, g;
+    loop variant (id - xax);
   */
-  while (v>phv) {
-      v -= phv;
-      phv++;
-      zd4 = zd4+(phv%6);
-      q = q + 3;
-      j = j*2;
+  while (xax<id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
   }
 
   /*@
-    loop invariant djyx == \at(q, Pre);
-    loop invariant djyx > 0;
-    loop assigns djyx;
+    loop invariant 0 <= xax - id;
+    loop assigns cr6, id, u817;
+    loop variant (xax - id);
   */
-  while (djyx>0) {
-      djyx = djyx/2;
+  while (id<xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
   }
 
-}
-</code>
+}</code>
 ----- Candidate 5/5 raw response end -----
-2026-03-11 03:45:11,219 - INFO - 
+2026-03-14 20:42:29,915 - INFO - 
 ----- Candidate 1/5 full code begin -----
-int main1(int q){
-  int djyx, phv, v, j, zd4;
+int main1(int g){
+  int id, cr6, u, xax, u817;
 
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
+  id=25;
+  cr6=2;
+  u=0;
+  xax=0;
+  u817=0;
 
   /*@
-    loop invariant q == \at(q, Pre) + 3 * phv;
-    loop invariant v == ((\at(q, Pre) % 28) + 10) - phv*(phv - 1)/2;
-    loop assigns q, v, phv, j, zd4;
-  */
-  while (v>phv) {
-      v -= phv;
-      phv++;
-      zd4 = zd4+(phv%6);
-      q = q + 3;
-      j = j*2;
+      loop invariant g == \at(g, Pre) + 21*(xax/7) + ((xax%7)*((xax%7)+1))/2;
+      loop invariant u817 == xax;
+      loop invariant 0 &lt;= xax;
+      loop invariant xax &lt;= id;
+      loop assigns g, u, u817, xax;
+      loop variant id - xax;
+  @*/
+  while (xax&lt;id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
   }
 
   /*@
-    loop invariant djyx >= 0;
-    loop assigns djyx;
-    loop variant djyx;
-  */
-  while (djyx>0) {
-      djyx = djyx/2;
+      loop invariant g == \at(g, Pre) + 21*(xax/7) + ((xax%7)*((xax%7)+1))/2;
+      loop invariant 0 &lt;= xax - id;
+      loop assigns cr6, id, u817;
+      loop variant xax - id;
+  @*/
+  while (id&lt;xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-11 03:45:11,219 - INFO - 
+2026-03-14 20:42:29,915 - INFO - 
 ----- Candidate 2/5 full code begin -----
-int main1(int q){
-  int djyx, phv, v, j, zd4;
+int main1(int g){
+  int id, cr6, u, xax, u817;
 
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
+  id=25;
+  cr6=2;
+  u=0;
+  xax=0;
+  u817=0;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant q == \at(q, Pre) + 3 * phv;
-    loop invariant v == ((\at(q, Pre) % 28) + 10) - phv * (phv - 1) / 2;
-    loop invariant zd4 == \at(q, Pre) + 15 * (phv / 6) + ((phv % 6) * ((phv % 6) + 1)) / 2;
-    loop assigns v, phv, zd4, q, j;
-    loop variant (v - phv);
+    loop invariant u817 == xax;
+    loop invariant 0 <= xax <= id;
+    loop invariant g == \at(g, Pre) + 21*(xax/7) + ((xax%7)*((xax%7)+1))/2;
+    loop assigns u, u817, xax, g;
+    loop variant id - xax;
   */
-  while (v>phv) {
-        v -= phv;
-        phv++;
-        zd4 = zd4+(phv%6);
-        q = q + 3;
-        j = j*2;
+  while (xax<id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
   }
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant q == \at(q, Pre);
-    loop invariant djyx >= 0;
-    loop assigns djyx;
-    loop variant djyx;
+    loop invariant 0 <= xax - id;
+    loop assigns cr6, id, u817;
+    loop variant xax - id;
   */
-  while (djyx>0) {
-        djyx = djyx/2;
+  while (id<xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-11 03:45:11,219 - INFO - 
+2026-03-14 20:42:29,915 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int q){
-  int djyx, phv, v, j, zd4;
+int main1(int g){
+  int id, cr6, u, xax, u817;
 
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
+  id=25;
+  cr6=2;
+  u=0;
+  xax=0;
+  u817=0;
 
   /*@
-    loop invariant v + phv*(phv - 1)/2 == (\at(q, Pre) % 28) + 10;
-    loop invariant q == \at(q, Pre) + 3*phv;
-    loop invariant zd4 == \at(q, Pre) + 15*(phv/6) + ((phv%6) * (phv%6 + 1)) / 2;
-    loop invariant djyx == \at(q, Pre);
-    loop invariant phv >= 0;
-    loop assigns v, phv, q, zd4, j;
+    loop invariant 0 <= xax <= id;
+    loop invariant u817 == xax;
+    loop invariant g >= \at(g,Pre);
+    loop assigns g, u, u817, xax;
+    loop variant id - xax;
   */
-  while (v>phv) {
-      v -= phv;
-      phv++;
-      zd4 = zd4+(phv%6);
-      q = q + 3;
-      j = j*2;
+  while (xax<id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
   }
 
   /*@
-    loop invariant q == \at(q, Pre);
-    loop invariant djyx >= 0;
-    loop invariant djyx <= \at(q, Pre);
-    loop assigns djyx;
+    loop invariant id <= xax;
+    loop invariant 0 <= xax - id;
+    loop assigns cr6, id, u817;
+    loop variant xax - id;
   */
-  while (djyx>0) {
-      djyx = djyx/2;
+  while (id<xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-11 03:45:11,219 - INFO - 
+2026-03-14 20:42:29,915 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(int q){
-  int djyx, phv, v, j, zd4;
-
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-  loop invariant q == \at(q, Pre) + 3*phv;
-  loop invariant v == ((\at(q, Pre) % 28) + 10) - phv*(phv - 1)/2;
-  loop invariant phv >= 0;
-  loop assigns v, phv, q, zd4, j;
-  loop variant (v - phv);
- */
-while (v>phv) {
-      v -= phv;
-      phv++;
-      zd4 = zd4+(phv%6);
-      q = q + 3;
-      j = j*2;
+/*@
+  loop invariant xax <= id;
+  loop invariant u817 == xax;
+  loop assigns g, u, u817, xax;
+  loop variant id - xax;
+*/
+while (xax&lt;id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
   }
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-  loop invariant djyx >= 0;
-  loop assigns djyx;
-  loop variant djyx;
- */
-while (djyx>0) {
-      djyx = djyx/2;
+/*@
+  loop invariant id &lt;= xax;
+  loop assigns cr6, id, u817;
+  loop variant xax - id;
+*/
+while (id&lt;xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
   }
-
-}
 ----- Candidate 4/5 full code end -----
-2026-03-11 03:45:11,219 - INFO - 
+2026-03-14 20:42:29,915 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(int q){
-  int djyx, phv, v, j, zd4;
+int main1(int g){
+  int id, cr6, u, xax, u817;
 
-  djyx=q;
-  phv=0;
-  v=(q%28)+10;
-  j=8;
-  zd4=q;
+  id=25;
+  cr6=2;
+  u=0;
+  xax=0;
+  u817=0;
 
   /*@
-    loop invariant v + phv*(phv - 1)/2 == ((\at(q, Pre) % 28) + 10);
-    loop invariant (q - \at(q, Pre)) % 3 == 0;
-    loop invariant (q >= \at(q, Pre));
-    loop invariant (phv >= 0);
-    loop invariant (j >= 8);
-    loop assigns v, phv, q, zd4, j;
+    loop invariant 0 <= xax;
+    loop invariant xax <= id;
+    loop invariant u817 == xax;
+    loop invariant g == \at(g, Pre) + 21 * (xax / 7) + ((xax % 7) * ((xax % 7) + 1)) / 2;
+    loop assigns u, u817, xax, g;
+    loop variant (id - xax);
   */
-  while (v>phv) {
-      v -= phv;
-      phv++;
-      zd4 = zd4+(phv%6);
-      q = q + 3;
-      j = j*2;
+  while (xax<id) {
+      u = u + g;
+      u817++;
+      xax++;
+      g = g+(xax%7);
   }
 
   /*@
-    loop invariant djyx == \at(q, Pre);
-    loop invariant djyx > 0;
-    loop assigns djyx;
+    loop invariant 0 <= xax - id;
+    loop assigns cr6, id, u817;
+    loop variant (xax - id);
   */
-  while (djyx>0) {
-      djyx = djyx/2;
+  while (id<xax) {
+      u817 = u817 + g;
+      id++;
+      cr6 = cr6 + u817;
+      cr6 = cr6*2;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-11 03:45:11,219 - INFO - Successfully generated 5/5 candidates
-2026-03-11 03:45:11,220 - INFO - Checking 12 invariants for conflicts...
-2026-03-11 03:45:11,223 - INFO - Checking 5 invariants for conflicts...
-2026-03-11 03:45:11,224 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 03:45:11,224 - INFO -   1: int main1(int q){
-2026-03-11 03:45:11,224 - INFO -   2:   int djyx, phv, v, j, zd4;
-2026-03-11 03:45:11,224 - INFO -   3: 
-2026-03-11 03:45:11,224 - INFO -   4:   djyx=q;
-2026-03-11 03:45:11,224 - INFO -   5:   phv=0;
-2026-03-11 03:45:11,224 - INFO -   6:   v=(q%28)+10;
-2026-03-11 03:45:11,224 - INFO -   7:   j=8;
-2026-03-11 03:45:11,224 - INFO -   8:   zd4=q;
-2026-03-11 03:45:11,224 - INFO -   9: 
-2026-03-11 03:45:11,224 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 03:45:11,225 - INFO - DEBUG: Total lines: 48
-2026-03-11 03:45:11,428 - INFO - syntax Correct
-2026-03-11 03:45:42,664 - INFO - Validate:
-2026-03-11 03:45:42,664 - INFO - [True, True, False, True, True, True, True, True, True, True, True, True, False, False, True, True, True]
-2026-03-11 03:45:42,664 - INFO - 
-2026-03-11 03:45:42,664 - INFO - Verify:
-2026-03-11 03:45:42,664 - INFO - []
-2026-03-11 03:45:42,664 - INFO - 
-2026-03-11 03:45:42,665 - INFO - Houdini iteration 1: Removed 3 failed invariants
-2026-03-11 03:45:42,665 - INFO -   Before: 17 invariants
-2026-03-11 03:45:42,665 - INFO -   After: 14 invariants
-2026-03-11 03:45:42,665 - INFO -   Remaining invariants:
-2026-03-11 03:45:42,665 - INFO -     [1] q == \at(q, Pre) + 3 * phv
-2026-03-11 03:45:42,665 - INFO -     [2] v == ((\at(q, Pre) % 28) + 10) - phv*(phv - 1)/2
-2026-03-11 03:45:42,665 - INFO -     [3] v + phv*(phv - 1)/2 == (\at(q, Pre) % 28) + 10
-2026-03-11 03:45:42,665 - INFO -     [4] zd4 == \at(q, Pre) + 15*(phv/6) + ((phv%6) * (phv%6 + 1)) / 2
-2026-03-11 03:45:42,665 - INFO -     [5] djyx == \at(q, Pre)
-2026-03-11 03:45:42,665 - INFO -     [6] phv >= 0
-2026-03-11 03:45:42,665 - INFO -     [7] v + phv*(phv - 1)/2 == ((\at(q, Pre) % 28) + 10)
-2026-03-11 03:45:42,665 - INFO -     [8] (q - \at(q, Pre)) % 3 == 0
-2026-03-11 03:45:42,665 - INFO -     [9] (q >= \at(q, Pre))
-2026-03-11 03:45:42,665 - INFO -     [10] (phv >= 0)
-2026-03-11 03:45:42,665 - INFO -     [11] (j >= 8)
-2026-03-11 03:45:42,665 - INFO -     [12] djyx <= \at(q, Pre)
-2026-03-11 03:45:42,665 - INFO -     [13] djyx == \at(q, Pre)
-2026-03-11 03:45:42,665 - INFO -     [14] djyx > 0
-2026-03-11 03:45:42,875 - INFO - syntax Correct
-2026-03-11 03:46:14,180 - INFO - Validate:
-2026-03-11 03:46:14,180 - INFO - [True, True, True, False, True, True, True, True, True, True, True, True, False, False]
-2026-03-11 03:46:14,180 - INFO - 
-2026-03-11 03:46:14,181 - INFO - Verify:
-2026-03-11 03:46:14,181 - INFO - []
-2026-03-11 03:46:14,181 - INFO - 
-2026-03-11 03:46:14,181 - INFO - Houdini iteration 2: Removed 3 failed invariants
-2026-03-11 03:46:14,181 - INFO -   Before: 14 invariants
-2026-03-11 03:46:14,181 - INFO -   After: 11 invariants
-2026-03-11 03:46:14,181 - INFO -   Remaining invariants:
-2026-03-11 03:46:14,181 - INFO -     [1] q == \at(q, Pre) + 3 * phv
-2026-03-11 03:46:14,181 - INFO -     [2] v == ((\at(q, Pre) % 28) + 10) - phv*(phv - 1)/2
-2026-03-11 03:46:14,181 - INFO -     [3] v + phv*(phv - 1)/2 == (\at(q, Pre) % 28) + 10
-2026-03-11 03:46:14,181 - INFO -     [4] djyx == \at(q, Pre)
-2026-03-11 03:46:14,181 - INFO -     [5] phv >= 0
-2026-03-11 03:46:14,181 - INFO -     [6] v + phv*(phv - 1)/2 == ((\at(q, Pre) % 28) + 10)
-2026-03-11 03:46:14,181 - INFO -     [7] (q - \at(q, Pre)) % 3 == 0
-2026-03-11 03:46:14,181 - INFO -     [8] (q >= \at(q, Pre))
-2026-03-11 03:46:14,181 - INFO -     [9] (phv >= 0)
-2026-03-11 03:46:14,181 - INFO -     [10] (j >= 8)
-2026-03-11 03:46:14,181 - INFO -     [11] djyx <= \at(q, Pre)
-2026-03-11 03:46:14,386 - INFO - syntax Correct
-2026-03-11 03:46:45,411 - INFO - Validate:
-2026-03-11 03:46:45,411 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 03:46:45,411 - INFO - 
-2026-03-11 03:46:45,411 - INFO - Verify:
-2026-03-11 03:46:45,411 - INFO - []
-2026-03-11 03:46:45,411 - INFO - 
-2026-03-11 03:46:45,411 - INFO - Houdini iteration 3: All invariants are valid
-2026-03-11 03:46:45,614 - INFO - syntax Correct
-2026-03-11 03:47:16,627 - INFO - Validate:
-2026-03-11 03:47:16,628 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-11 03:47:16,628 - INFO - 
-2026-03-11 03:47:16,628 - INFO - Verify:
-2026-03-11 03:47:16,628 - INFO - []
-2026-03-11 03:47:16,628 - INFO - 
-2026-03-11 03:47:49,245 - INFO - Deduplicated 5 loop invariants in final code
-2026-03-11 03:47:49,434 - INFO - syntax Correct
-2026-03-11 03:48:20,261 - INFO - Validate:
-2026-03-11 03:48:20,262 - INFO - [True, True, True, True, True, True]
-2026-03-11 03:48:20,262 - INFO - 
-2026-03-11 03:48:20,262 - INFO - Verify:
-2026-03-11 03:48:20,262 - INFO - []
-2026-03-11 03:48:20,262 - INFO - 
-2026-03-11 03:48:20,262 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 03:48:20,262 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_32/1.c
-2026-03-11 03:48:20,262 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_32/1_invariants.txt
-2026-03-11 03:48:20,262 - INFO - 
+2026-03-14 20:42:29,915 - INFO - Successfully generated 5/5 candidates
+2026-03-14 20:42:29,916 - INFO - Checking 6 invariants for conflicts...
+2026-03-14 20:42:29,918 - INFO - Checking 3 invariants for conflicts...
+2026-03-14 20:42:29,920 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 20:42:29,920 - INFO -   1: int main1(int g){
+2026-03-14 20:42:29,920 - INFO -   2:   int id, cr6, u, xax, u817;
+2026-03-14 20:42:29,920 - INFO -   3: 
+2026-03-14 20:42:29,920 - INFO -   4:   id=25;
+2026-03-14 20:42:29,920 - INFO -   5:   cr6=2;
+2026-03-14 20:42:29,920 - INFO -   6:   u=0;
+2026-03-14 20:42:29,920 - INFO -   7:   xax=0;
+2026-03-14 20:42:29,920 - INFO -   8:   u817=0;
+2026-03-14 20:42:29,920 - INFO -   9: 
+2026-03-14 20:42:29,920 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-14 20:42:29,920 - INFO - DEBUG: Total lines: 42
+2026-03-14 20:42:30,113 - INFO - syntax Correct
+2026-03-14 20:43:01,044 - INFO - Validate:
+2026-03-14 20:43:01,045 - INFO - [True, True, True, True, True, True, True, True, True]
+2026-03-14 20:43:01,045 - INFO - 
+2026-03-14 20:43:01,045 - INFO - Verify:
+2026-03-14 20:43:01,045 - INFO - []
+2026-03-14 20:43:01,045 - INFO - 
+2026-03-14 20:43:01,045 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-14 20:43:01,262 - INFO - syntax Correct
+2026-03-14 20:43:32,212 - INFO - Validate:
+2026-03-14 20:43:32,212 - INFO - [True, True, True, True, True, True, True, True, True]
+2026-03-14 20:43:32,212 - INFO - 
+2026-03-14 20:43:32,212 - INFO - Verify:
+2026-03-14 20:43:32,212 - INFO - []
+2026-03-14 20:43:32,212 - INFO - 
+2026-03-14 20:43:55,186 - INFO - Deduplicated 4 loop invariants in final code
+2026-03-14 20:43:55,381 - INFO - syntax Correct
+2026-03-14 20:44:26,185 - INFO - Validate:
+2026-03-14 20:44:26,185 - INFO - [False, True, True, True, True]
+2026-03-14 20:44:26,185 - INFO - 
+2026-03-14 20:44:26,185 - INFO - Verify:
+2026-03-14 20:44:26,185 - INFO - []
+2026-03-14 20:44:26,185 - INFO - 
+2026-03-14 20:44:26,185 - WARNING - Dedup result failed verification, keeping original final code: syntax=True, valid=False, satisfy=False, has_assert=False
+2026-03-14 20:44:26,185 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-14 20:44:26,185 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_32/1.c
+2026-03-14 20:44:26,185 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_32/1_invariants.txt
+2026-03-14 20:44:26,185 - INFO - 
 ============================================================
-2026-03-11 03:48:20,262 - INFO - Final first_pass results:
-2026-03-11 03:48:20,262 - INFO -   syntax=1
-2026-03-11 03:48:20,262 - INFO -   valid=1
-2026-03-11 03:48:20,262 - INFO -   satisfy=None
-2026-03-11 03:48:20,262 - INFO - ============================================================
-2026-03-11 03:48:20,262 - INFO - 
+2026-03-14 20:44:26,185 - INFO - Final first_pass results:
+2026-03-14 20:44:26,185 - INFO -   syntax=1
+2026-03-14 20:44:26,185 - INFO -   valid=1
+2026-03-14 20:44:26,185 - INFO -   satisfy=None
+2026-03-14 20:44:26,185 - INFO - ============================================================
+2026-03-14 20:44:26,185 - INFO - 
 ============================================================
-2026-03-11 03:48:20,262 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 03:48:20,262 - INFO -   Total API calls: 5
-2026-03-11 03:48:20,262 - INFO -   Total prompt tokens (input): 8,088
-2026-03-11 03:48:20,262 - INFO -   Total completion tokens (output): 64,110
-2026-03-11 03:48:20,262 - INFO -   Total tokens: 72,198
-2026-03-11 03:48:20,262 - INFO -   Average per call:
-2026-03-11 03:48:20,262 - INFO -     Prompt: 1617.6 tokens
-2026-03-11 03:48:20,262 - INFO -     Completion: 12822.0 tokens
-2026-03-11 03:48:20,262 - INFO -     Total: 14439.6 tokens
-2026-03-11 03:48:20,262 - INFO - ============================================================
-2026-03-11 03:48:20,263 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_32/1.c
-2026-03-11 03:48:20,263 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_534693_1773170367_32/1_invariants.txt
-2026-03-11 03:49:38,611 - INFO - LLM quality-gate raw response: {
-  "ok": false,
-  "reason": "Invariant set does not cover all loop-modified variables: first loop updates zd4 but invariants lack a relation for zd4 (missing completeness). Invariants include q, v, phv, j but not zd4; Additionally, loop termination lacks an explicit loop_variant; some invariants (e.g., j >= 8) are weak/redundant and don't strongly reflect state progression."
+2026-03-14 20:44:26,185 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 20:44:26,185 - INFO -   Total API calls: 0
+2026-03-14 20:44:26,185 - INFO -   Total prompt tokens (input): 0
+2026-03-14 20:44:26,185 - INFO -   Total completion tokens (output): 0
+2026-03-14 20:44:26,185 - INFO -   Total tokens: 0
+2026-03-14 20:44:26,186 - INFO - ============================================================
+2026-03-14 20:44:26,186 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_32/1.c
+2026-03-14 20:44:26,186 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_32/1_invariants.txt
+2026-03-14 20:45:55,240 - INFO - LLM quality-gate raw response: {
+  "ok": true,
+  "reason": "pass"
 }
-2026-03-11 15:04:17 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=250, dedup inside)...
-2026-03-11 15:06:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-11 15:06:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 9 unique dpo_aug.rejected code pieces (existing=1149)...
-2026-03-11 15:12:03 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 15:33:01 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=253, dedup inside)...
-2026-03-11 15:37:12 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 15:37:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 17 unique dpo_aug.rejected code pieces (existing=1158)...
-2026-03-11 15:48:20 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:20:42 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=258, dedup inside)...
-2026-03-11 16:21:56 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
-2026-03-11 16:21:56 - INFO - COT Phase#2: generating rejected reverse-COTs for 6 unique dpo_aug.rejected code pieces (existing=1175)...
-2026-03-11 16:24:07 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 16:51:58 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=260, dedup inside)...
-2026-03-11 16:56:16 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-11 16:56:16 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=1181)...
-2026-03-11 17:11:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

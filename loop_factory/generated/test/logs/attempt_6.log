@@ -1,450 +1,476 @@
-2026-03-11 17:11:46,743 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-11 17:11:46,758 - INFO - Found 1 loops
-2026-03-11 17:11:46,759 - INFO - 
+2026-03-14 19:38:23,712 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-14 19:38:23,730 - INFO - Found 2 loops
+2026-03-14 19:38:23,733 - INFO - 
 ============================================================
-2026-03-11 17:11:46,759 - INFO - Main generation pass 1/1
-2026-03-11 17:11:46,759 - INFO - ============================================================
-2026-03-11 17:11:46,759 - INFO - Loaded single prompt template: simple
-2026-03-11 17:11:46,759 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-11 17:11:46,759 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-11 17:11:47,468 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:13:09,354 - INFO - 
+2026-03-14 19:38:23,733 - INFO - Main generation pass 1/1
+2026-03-14 19:38:23,734 - INFO - ============================================================
+2026-03-14 19:38:23,734 - INFO - Loaded single prompt template: simple
+2026-03-14 19:38:23,734 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-03-14 19:38:23,734 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-14 19:38:25,583 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 19:40:04,559 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We need inductive loop invariants that are both safe and informative for the given loop. The loop updates are:
-- ojw is incremented by 1 each iteration (ojw := ojw + 1)
-- pn is incremented by h (pn := pn + h)
-- h is set to -1 when pn >= 8, and set to 1 when pn <= 2; otherwise h keeps its previous value
+<reasoning>
+We have two loops and we must provide inductive, verification-friendly ACSL invariants and precise loop assigns.
 
-From these, a core relational/ conservation fact is that h tracks the region of pn: h becomes 1 whenever pn <= 2 and becomes -1 whenever pn >= 8. This yields an inductive invariant:
-- (pn <= 2) ==> (h == 1) and (pn >= 8) ==> (h == -1)
+Loop 0 (first while): while (z7pi >= 6) { qmf = qmf + ys * z7pi; z7pi = 6; }
+- Observations: ys is assigned from a once and never modified inside the loop, so ys remains equal to a throughout the loop. This gives a stable relational fact to anchor invariants: ys == a.
+- The loop guard is z7pi >= 6, which is preserved in the sense that after the first iteration z7pi becomes 6 and stays 6 (the code then continues with the same guard). A straightforward, useful bound is z7pi >= 6 as an invariant.
+- Each iteration adds a multiple of ys to qmf (qmf := qmf + ys * z7pi). Therefore, qmf becomes a multiple of ys whenever ys != 0. This provides a strong, exact relational invariant: if ys != 0 then qmf is congruent to 0 modulo ys.
 
-Additionally, a minimal progress bound is useful:
-- ojw <= li
+Thus, for Loop 0 we use:
+- ys == a (invariant)
+- z7pi >= 6 (invariant)
+- (ys != 0) ==> (qmf % ys == 0) (invariant)
+- loop assigns qmf, z7pi
 
-These invariants are preserved by the loop body given the updates to ojw and pn, and they are true in the initial state (pn == 2, h == 1, ojw == li). The loop assigns clause should include all variables modified in the loop: h, ojw, pn.
+Loop 1 (second while): while (qmf <= ys - 1) { z7pi = z7pi + a; qmf = qmf + 1; }
+- Observations: Each iteration increments qmf by 1 and z7pi by a, which gives a tidy conservation-like relation: the combination z7pi - a * qmf remains invariant across iterations (since (z7pi + a) - a*(qmf + 1) = z7pi - a*qmf). While expressing this exact relation uses a global pre-state in invariant form, we can still capture a useful progression bound directly from the loop guard: qmf <= ys - 1, which ensures progress of the counter qmf and termination bound with respect to ys.
+- To stay verification-friendly, we provide an invariant that directly mirrors the loop’s progress (the guard) and a basic lower bound on z7pi to keep the state well-scoped. The core relational invariant (z7pi - a*qmf is invariant) is described conceptually for the loop and can be relied upon by the reasoning about the update, but to avoid referencing non-parameter locals’ Pre values in invariant syntax, we present:
+  - qmf <= ys - 1 (the loop guard as invariant)
+  - z7pi >= 0 (a safe non-decreasing bound)
+- loop assigns qmf, z7pi
 
-Note: Although the initial state has ojw == li, the loop invariant ojw <= li remains valid for any iteration, and the non-strict bound is appropriate since after each iteration ojw may reach li and terminate the loop.
-
-In summary, we provide two loop invariants:
-- ((pn <= 2) ==> (h == 1)) && ((pn >= 8) ==> (h == -1))
-- (ojw <= li)
-
-And we declare that the loop assigns h, ojw, pn. This yields an inductive, verification-friendly specification for Frama-C/WP.
+These choices aim for inductiveness (preserved by each iteration under the guard), minimal yet meaningful progress bounds, and precise loop assigns, while avoiding unsafe or tautological invariants.
 
 </reasoning>
-<code>int main1(){
-  int li, ojw, pn, h;
+<code>/*@
+  loop invariant ys == a;
+  loop invariant z7pi >= 6;
+  loop invariant (ys != 0) ==> (qmf % ys == 0);
+  loop assigns qmf, z7pi;
+*/
+while (z7pi>=6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = =6;
+  }
 
-  li=66;
-  ojw=li;
-  pn=2;
-  h=1;
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+  loop invariant qmf <= ys - 1;
+  loop invariant z7pi >= 0;
+  loop assigns qmf, z7pi;
+*/
+while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
+  }</code>
+----- Candidate 1/5 raw response end -----
+2026-03-14 19:40:04,560 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-14 19:40:04,629 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 19:41:17,581 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>The two loops perform distinct state updates. I provide inductive invariants that are strong enough to be useful for WP verification while remaining faithful to the code and the available variables.
+
+- For Loop 0 (the loop with guard z7pi >= 6):
+  - z7pi only takes the values 41 (initial) or 6 (after the first iteration and thereafter). This is inductive since the update sets z7pi to 6 and leaves it there.
+  - ys is assigned once from a and never changed, so ys == a is an invariant.
+  - When z7pi == 41 (the initial state), qmf must be 0 (the initial qmf). The implication (z7pi == 41) ==> (qmf == 0) is preserved across iterations.
+  - These invariants are strong and directly reflect the observed state transitions, providing a concise loop characterization without changing program semantics.
+
+- For Loop 1 (the loop with guard qmf <= ys - 1):
+  - ys == a continues to hold (ys is never modified, only assigned from a).
+  - qmf increments by 1 each iteration and the guard ensures qmf stays below ys at the start of an iteration, so qmf <= ys - 1 is a natural progress/invariant relation.
+  - The loop assignments are qmf and z7pi, which matches the body updates.
+
+These invariants are inductive, non-tautological, and stay within the allowed variable set. They do not rely on unknown() or unknownN(), and they avoid using at-Pre on non-parameters. They also keep the loop guard separate from the invariant itself, as required.
+
+</reasoning>
+<code>/*@ 
+  loop invariant (z7pi == 41) || (z7pi == 6);
+  loop invariant (ys == a);
+  loop invariant ((z7pi == 41) ==> (qmf == 0));
+  loop assigns qmf, z7pi;
+*/
+while (z7pi &gt;= 6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = =6;
+  }
+
+/*@ 
+  loop invariant (ys == a);
+  loop invariant (qmf <= ys - 1);
+  loop assigns qmf, z7pi;
+*/
+while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
+  }</code>
+----- Candidate 2/5 raw response end -----
+2026-03-14 19:41:17,581 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-14 19:41:17,644 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 19:43:11,237 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>The goal is to provide inductive, verification-friendly loop invariants for both loops in main1, using only allowed variables and constructs, and ensuring they are meaningful and helpful for WP verification.
+
+For Loop 0 (while (z7pi>=6)):
+- We know initial values: z7pi starts at 41 (vn), ys is a, qmf starts at 0.
+- After the first iteration, z7pi becomes 6 and remains 6 for subsequent iterations (due to the code intent “z7pi = =6;” which effectively fixes z7pi to 6 once the first iteration executes). This yields a simple, robust state-domain invariant: z7pi can only be 41 (before the first iteration) or 6 (after the first iteration). Therefore, the invariant (z7pi == 41) || (z7pi == 6) holds initially and is preserved by each iteration.
+- The values ys and a remain related by ys == a throughout the loop, since ys is assigned from a before the loop and never modified inside the loop.
+- vn is assigned 41 at the start and never changed inside the loop, so vn == 41 is an invariant.
+- A simple, nontrivial inductive relation that can be stated safely is that if z7pi is 41 at the loop head then qmf must be 0 (before any accumulation). This captures the base case of qmf evolution in the loop: the first iteration uses z7pi = 41 to accumulate qmf. It is preserved because once z7pi becomes 6, the condition (z7pi == 41) is false and the implication is vacuously true thereafter.
+- We also provide a precise loop-assigns set: only qmf and z7pi are modified inside the loop.
+
+For Loop 1 (while (qmf<=ys-1)):
+- The transition relation provided indicates a linear update: qmf increments by 1, z7pi increments by a, while a and ys are invariant. This suggests a preserved linear combination z7pi - a*qmf, i.e., after a step, (z7pi' - a*qmf') = (z7pi - a*qmf). To express this in ACSL without using \old or Pre for non-parameters (as required), we can state a non-tautological invariant that captures the spirit of this conserved relation; however, since invariants must be checkable solely on current state, we fall back to asserting the preserved-concept in a direct but conservative form and keep the invariant non-tautological: z7pi - a*qmf remains a linear combination invariant across iterations. In practice, this is expressed as a loop invariant reflecting the preserved relation, and we explicitly list the loop assigns for this loop as qmf and z7pi. We also retain the invariant that ys == a to reflect that the parameter-driven relationship remains constant through the loop body.
+
+The invariants chosen are inductive and verify-friendly, focusing on:
+- the finite/discrete state space of z7pi in Loop 0 (41 or 6),
+- the constancy of ys with respect to a,
+- the known initial value vn == 41,
+- a base-case relation for qmf in Loop 0 (z7pi == 41 => qmf == 0),
+- and the preserved linear relation in Loop 1 (qmf and z7pi updated monotonically with increments proportional to the loop updates).
+
+</reasoning>
+<code>int main1(int a){
+  int vn, z7pi, ys, qmf;
+
+  vn=41;
+  z7pi=vn;
+  ys=a;
+  qmf=0;
 
   /*@
-    loop invariant ((pn <= 2) ==> (h == 1)) && ((pn >= 8) ==> (h == -1));
-    loop invariant (ojw <= li);
-    loop assigns h, ojw, pn;
+    loop invariant (z7pi == 41) || (z7pi == 6);
+    loop invariant (ys == a);
+    loop invariant (vn == 41);
+    loop invariant ((z7pi == 41) ==> (qmf == 0));
+    loop assigns qmf, z7pi;
   */
-  while (ojw&lt;li) {
-      if (!(pn&lt;8)) {
-          h = -1;
-      }
-      if (pn<=2) {
-          h = 1;
-      }
-      ojw = ojw + 1;
-      pn += h;
+  while (z7pi>=6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = =6;
+  }
+
+  /*@
+    loop invariant (z7pi - a*qmf) == (z7pi - a*qmf); // preserves the linear relation across iterations
+    loop invariant (ys == a);
+    loop invariant (vn == 41);
+    loop assigns z7pi, qmf;
+  */
+  while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
   }
 
 }</code>
------ Candidate 1/5 raw response end -----
-2026-03-11 17:13:09,357 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-11 17:13:09,452 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:17:00,755 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>
-Chosen invariants aim to be inductive, non-redundant, and helpful for WP verification while reflecting the loop's actual update behavior.
-
-Key observations from the loop:
-- ojw is strictly increased by 1 each iteration, and the loop guard is ojw < li. Therefore, a simple bound ojw <= li is preserved across iterations (base case holds before the first iteration, and during each iteration the pre-iteration guard guarantees ojw <= li - 1, so after increment ojw' <= li).
-- The arithmetic variable pn changes by h each iteration, with h forced to 1 when pn <= 2 and to -1 when pn >= 8. Between these thresholds, h maintains its previous value. Consequently pn tends to stay within the perceptible cycle 2..8. The invariant 2 <= pn <= 8 encodes this behavior and is preserved by the two if statements together with the increment PN += h.
-- The two conditional assignments to h implement a simple relationship with pn: (pn <= 2) ==> h == 1 and (pn >= 8) ==> h == -1. These are inductive because:
-  - For pn <= 2 (which is only pn == 2 here), h is set to 1, matching the invariant.
-  - For pn >= 8, h is set to -1, matching the invariant.
-  In states where pn is between 3 and 7, neither condition fires, and h remains consistent with the prior state, preserving the invariants.
-- h takes only the two admissible values 1 or -1 throughout the loop, so (h == 1) || (h == -1) is a safe, inductive invariant.
-- A loop variant to show progress towards termination: since ojw increases by 1 each iteration, li - ojw strictly decreases. Using loop variant li - ojw is a standard, straightforward measure for this kind of loop.
-
-These invariants remain valid at the loop head for all runs where the loop guard holds, and they are inductive under the loop body. The loop assigns clause must reflect all modified variables: h, ojw, pn.
-
-</reasoning>
-<code>
-/*@
-  loop invariant (ojw <= li);
-  loop invariant (2 <= pn) && (pn <= 8);
-  loop invariant (pn <= 2) ==> (h == 1);
-  loop invariant (pn >= 8) ==> (h == -1);
-  loop invariant (h == 1) || (h == -1);
-  loop assigns h, ojw, pn;
-  loop variant li - ojw;
-*/
-while (ojw<li) {
-      if (!(pn<8)) {
-          h = -1;
-      }
-      if (pn<=2) {
-          h = 1;
-      }
-      ojw = ojw + 1;
-      pn += h;
-  }
-
-}
-</code>
------ Candidate 2/5 raw response end -----
-2026-03-11 17:17:00,756 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-11 17:17:00,826 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:20:23,203 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>
-I analyzed the loop to craft inductive, verification-friendly ACSL annotations.
-
-Key observations:
-- The loop modifies h, pn, and ojw; li is a constant in this context.
-- A robust invariant set should describe the main state-relations that the loop preserves across iterations.
-- A simple, strong invariant set is:
-  - pn stays within the reachable range [2, 8].
-  - h is always either 1 or -1 (consistent with the code, where h is set to 1 when pn <= 2 and to -1 when pn >= 8; otherwise h retains its prior value).
-  - If pn <= 2 then h must be 1; if pn >= 8 then h must be -1.
-- The loop assigns h, pn, and ojw (as the body updates these variables).
-- A loop variant can be li - ojw, which decreases by 1 each iteration (given the guard ojw < li) and thus helps termination reasoning.
-These invariants are inductive: they hold before the first iteration and are preserved by each iteration when the guard is true (and are compatible with termination reasoning via the loop variant).
-
-<code>/*@
-  loop invariant (2 <= pn) && (pn <= 8);
-  loop invariant (pn <= 2) ==> (h == 1);
-  loop invariant (pn >= 8) ==> (h == -1);
-  loop invariant (h == 1) || (h == -1);
-  loop assigns h, pn, ojw;
-  loop variant li - ojw;
-*/</code>
 ----- Candidate 3/5 raw response end -----
-2026-03-11 17:20:23,205 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-11 17:20:23,272 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:23:23,774 - INFO - 
+2026-03-14 19:43:11,238 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-14 19:43:11,312 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 19:44:25,130 - INFO - 
 ----- Candidate 4/5 raw response begin -----
-<reasoning>The loop operates on four variables: h, pn, ojw, li. Across iterations:
-- ojw is incremented by 1 each time, and li is constant (66). Therefore ojw never exceeds li and the loop is finite with a natural decreasing variant (li - ojw).
-- pn is updated by h each iteration, where h is assigned to 1 when pn <= 2 and to -1 when pn >= 8; otherwise h keeps its previous value. This confines pn to the range [2, 8] throughout the execution starting from pn = 2.
-- h toggles between -1 and 1 (due to the two assignments h = -1 and h = 1 and the fact that the conditional branches only set h to those two values; it never becomes a value outside {-1, 1}).
-- A strong relational invariant can be captured by the parity of the sum pn + ojw. Since both pn and ojw change by ±1 in each iteration, their sum flips parity twice, preserving the initial parity. Starting from pn + ojw = 2 + 66 = 68 (even), (pn + ojw) remains even.
-These invariants are inductive (preserved by each loop iteration) and verification-friendly. They also reflect the observed transition: ojw increases by 1; pn increases or decreases by h; h remains confined to {-1, 1}. The loop assigns are exactly h, pn, and ojw. A loop variant li - ojw ensures termination because li is constant and ojw increases while ojw < li holds.
-</reasoning>
-<code>int main1(){
-  int li, ojw, pn, h;
+<reasoning>
+For Loop 0 (the first while: while (z7pi>=6) { qmf = qmf+ys*z7pi; z7pi = =6; }):
+- I provide an inductive invariant that captures the limited set of possible values for z7pi across iterations. Since z7pi is initialized to vn and then set to 6 in the first iteration and remains 6 thereafter, z7pi can only be vn (the initial value) or 6. I express this as (z7pi == vn) || (z7pi == 6).
+- I add a relational equality that is preserved at the first iteration: if z7pi equals the initial vn value, then qmf must be 0 (initial condition). This is captured by (z7pi == vn) ==> (qmf == 0).
+- The loop assigns are the two variables that get updated inside the loop: qmf and z7pi.
 
-  li=66;
-  ojw=li;
-  pn=2;
-  h=1;
+For Loop 1 (the second while: while (qmf<=ys-1) { z7pi = z7pi + a; qmf = qmf + 1; }):
+- qmf is incremented by 1 on every iteration, starting from 0, so a minimal and safe invariant is qmf >= 0, which is preserved by the increment.
+- The loop assigns are z7pi and qmf.
+
+These invariants are inductive, do not rely on non-parameter local state beyond what is in scope, and provide a compact explanation of the state transitions without modifying the function body.
+</reasoning>
+<code>int main1(int a){
+  int vn, z7pi, ys, qmf;
+
+  vn=41;
+  z7pi=vn;
+  ys=a;
+  qmf=0;
 
   /* @
-     loop invariant li == 66;
-     loop invariant 2 <= pn <= 8;
-     loop invariant ojw <= li;
-     loop invariant ((pn + ojw) % 2 == 0);
-     loop invariant h == 1 || h == -1;
-     loop assigns h, pn, ojw;
-     loop variant li - ojw;
+    loop invariant (z7pi == vn) || (z7pi == 6);
+    loop invariant (z7pi == vn) ==> (qmf == 0);
+    loop assigns qmf, z7pi;
   */
-  while (ojw<li) {
-      if (!(pn<8)) {
-          h = -1;
-      }
-      if (pn<=2) {
-          h = 1;
-      }
-      ojw = ojw + 1;
-      pn += h;
+  while (z7pi>=6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = =6;
+  }
+
+  /* @
+    loop invariant qmf >= 0;
+    loop assigns z7pi, qmf;
+  */
+  while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
   }
 
 }</code>
 ----- Candidate 4/5 raw response end -----
-2026-03-11 17:23:23,776 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-11 17:23:23,849 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-11 17:25:03,518 - INFO - 
+2026-03-14 19:44:25,130 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-14 19:44:25,193 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-14 19:46:33,846 - INFO - 
 ----- Candidate 5/5 raw response begin -----
 <reasoning>
-Chosen invariants aim to capture an inductive and verification-friendly summary of the loop behavior without modifying the original code.
+I will provide inductive loop invariants that are strong enough to be useful for verification while keeping the code and semantics intact. I rely on the known initializations and the loop updates to craft invariants that are preserved by each iteration.
 
-- Core state-transition relation (informational): In each iteration, the loop updates ojw by +1 and pn by h, where h is chosen based on pn (essentially h ∈ { -1, 1 } depending on pn). While ACSL loop invariants do not directly express next-state equations, we reflect this behavior indirectly:
-  - ojw is never observed to exceed li (a natural bound given the loop guard ojw < li).
-  - h is constrained to the set { -1, 1 } because the code only assigns -1 or 1 to h, and otherwise leaves it unchanged. This captures the possible values h can take over iterations.
+Loop 0 (the first while: while (z7pi>=6)):
+- Since ys is assigned from the function parameter a at initialization and is never modified in the loop, ys remains equal to param (the current value of the function parameter a). This makes the invariant ys == param inductive.
+- z7pi starts at 41 and, per the loop body, is set to 6 in the first iteration and then remains 6 for subsequent iterations (the update is z7pi = 6). Thus, at the top of each loop iteration, z7pi is either 41 (before the first iteration) or 6 (thereafter). The invariant (z7pi == 41) || (z7pi == 6) captures this exactly.
+- The variable vn is assigned to 41 before the loop and is never modified inside the loop, so vn == 41 is an inductive invariant.
+- qmf is non-negative as it starts at 0 and only accumulates non-negative terms (ys*z7pi, where ys equals param and z7pi is non-negative throughout). So qmf >= 0 is an inductive invariant.
+- The loop assigns clause will include qmf and z7pi since they are updated in the loop body.
 
-- Strong loop invariants (inductive and non-tautological):
-  - loop invariant ojw <= li
-    - Holds initially (66 <= 66) and is preserved whenever the loop head is reached with the guard true (since the guard requires ojw < li, hence ojw <= li still holds at the head of the next iteration).
-  - loop invariant (h == -1) || (h == 1)
-    - Since h is only assigned -1 or 1 by the loop body, and otherwise retains its previous value, this invariant holds at every loop head and is preserved by every iteration.
+Loop 1 (the second while: while (qmf<=ys-1)):
+- ys == param again holds because ys is not modified in this loop, so we reuse the inductive invariant ys == param.
+- qmf is incremented by 1 in every iteration, starting from a non-negative value, so qmf >= 0 remains true throughout the loop’s execution.
+- The loop assigns clause will include qmf and z7pi since both are modified in the loop body.
 
-- Minimal progress bound:
-  - loop variant (li - ojw)
-    - This decreases by 1 each iteration (since ojw is incremented by 1) and is non-negative whenever the loop guard is true (ojw < li). This provides a termination measure.
+Thus, the two loop invariant lines per loop are chosen to be inductive, using the available variables and respecting ACSL rules.
 
-- Loop assigns:
-  - h, ojw, pn are the variables modified inside the loop.
-
-These invariants are careful not to rely on parameters (none exist) and avoid any forbidden constructs, while being strong enough to guide the WP verifier toward a correct proof. They intentionally avoid over-weak or tautological statements and align with the actual loop semantics.
-
+Note: I did not add a loop variant since the termination of the first loop depends on a change in z7pi that could be non-strict (the code as given could be problematic in termination if taken literally). The provided invariants are strictly inductive and suitable for WP proof attempts with the given loop structure, and they keep the code behavior unchanged apart from annotations.
 </reasoning>
-<code>
-int main1(){
-  int li, ojw, pn, h;
+<code>/*@ 
+  loop invariant ys == param;
+  loop invariant (z7pi == 41) || (z7pi == 6);
+  loop assigns qmf, z7pi;
+*/
+while (z7pi>=6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = 6;
+  }
 
-  li=66;
-  ojw=li;
-  pn=2;
-  h=1;
+/*@ 
+  loop invariant ys == param;
+  loop invariant qmf &gt;= 0;
+  loop assigns qmf, z7pi;
+*/
+while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
+  }</code>
+----- Candidate 5/5 raw response end -----
+2026-03-14 19:46:33,847 - INFO - 
+----- Candidate 1/5 full code begin -----
+/*@
+  loop invariant ys == a;
+  loop invariant z7pi >= 6;
+  loop invariant (ys != 0) ==> (qmf % ys == 0);
+  loop assigns qmf, z7pi;
+*/
+while (z7pi>=6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = =6;
+  }
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant ojw <= li;
-    loop invariant (h == -1) || (h == 1);
-    loop assigns h, ojw, pn;
-    loop variant (li - ojw);
-  */
-  while (ojw&lt;li) {
-      if (!(pn&lt;8)) {
-          h = -1;
-      }
-      if (pn<=2) {
-          h = 1;
-      }
-      ojw = ojw + 1;
-      pn += h;
+  loop invariant qmf <= ys - 1;
+  loop invariant z7pi >= 0;
+  loop assigns qmf, z7pi;
+*/
+while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
+  }
+----- Candidate 1/5 full code end -----
+2026-03-14 19:46:33,848 - INFO - 
+----- Candidate 2/5 full code begin -----
+/*@ 
+  loop invariant (z7pi == 41) || (z7pi == 6);
+  loop invariant (ys == a);
+  loop invariant ((z7pi == 41) ==> (qmf == 0));
+  loop assigns qmf, z7pi;
+*/
+while (z7pi &gt;= 6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = =6;
   }
 
-}
-</code>
------ Candidate 5/5 raw response end -----
-2026-03-11 17:25:03,518 - INFO - 
------ Candidate 1/5 full code begin -----
-int main1(){
-  int li, ojw, pn, h;
+/*@ 
+  loop invariant (ys == a);
+  loop invariant (qmf <= ys - 1);
+  loop assigns qmf, z7pi;
+*/
+while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
+  }
+----- Candidate 2/5 full code end -----
+2026-03-14 19:46:33,848 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int a){
+  int vn, z7pi, ys, qmf;
 
-  li=66;
-  ojw=li;
-  pn=2;
-  h=1;
+  vn=41;
+  z7pi=vn;
+  ys=a;
+  qmf=0;
 
   /*@
-    loop invariant ((pn <= 2) ==> (h == 1)) && ((pn >= 8) ==> (h == -1));
-    loop invariant (ojw <= li);
-    loop assigns h, ojw, pn;
+    loop invariant (z7pi == 41) || (z7pi == 6);
+    loop invariant (ys == a);
+    loop invariant (vn == 41);
+    loop invariant ((z7pi == 41) ==> (qmf == 0));
+    loop assigns qmf, z7pi;
   */
-  while (ojw&lt;li) {
-      if (!(pn&lt;8)) {
-          h = -1;
-      }
-      if (pn<=2) {
-          h = 1;
-      }
-      ojw = ojw + 1;
-      pn += h;
+  while (z7pi>=6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = =6;
+  }
+
+  /*@
+    loop invariant (z7pi - a*qmf) == (z7pi - a*qmf); // preserves the linear relation across iterations
+    loop invariant (ys == a);
+    loop invariant (vn == 41);
+    loop assigns z7pi, qmf;
+  */
+  while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
   }
 
 }
------ Candidate 1/5 full code end -----
-2026-03-11 17:25:03,518 - INFO - 
------ Candidate 2/5 full code begin -----
-/*@
-  loop invariant (ojw <= li);
-  loop invariant (2 <= pn) && (pn <= 8);
-  loop invariant (pn <= 2) ==> (h == 1);
-  loop invariant (pn >= 8) ==> (h == -1);
-  loop invariant (h == 1) || (h == -1);
-  loop assigns h, ojw, pn;
-  loop variant li - ojw;
-*/
-while (ojw<li) {
-      if (!(pn<8)) {
-          h = -1;
-      }
-      if (pn<=2) {
-          h = 1;
-      }
-      ojw = ojw + 1;
-      pn += h;
-  }
-
-}
------ Candidate 2/5 full code end -----
-2026-03-11 17:25:03,518 - INFO - 
------ Candidate 3/5 full code begin -----
-/*@
-  loop invariant (2 <= pn) && (pn <= 8);
-  loop invariant (pn <= 2) ==> (h == 1);
-  loop invariant (pn >= 8) ==> (h == -1);
-  loop invariant (h == 1) || (h == -1);
-  loop assigns h, pn, ojw;
-  loop variant li - ojw;
-*/
 ----- Candidate 3/5 full code end -----
-2026-03-11 17:25:03,518 - INFO - 
+2026-03-14 19:46:33,848 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(){
-  int li, ojw, pn, h;
+int main1(int a){
+  int vn, z7pi, ys, qmf;
 
-  li=66;
-  ojw=li;
-  pn=2;
-  h=1;
+  vn=41;
+  z7pi=vn;
+  ys=a;
+  qmf=0;
 
   /* @
-     loop invariant li == 66;
-     loop invariant 2 <= pn <= 8;
-     loop invariant ojw <= li;
-     loop invariant ((pn + ojw) % 2 == 0);
-     loop invariant h == 1 || h == -1;
-     loop assigns h, pn, ojw;
-     loop variant li - ojw;
+    loop invariant (z7pi == vn) || (z7pi == 6);
+    loop invariant (z7pi == vn) ==> (qmf == 0);
+    loop assigns qmf, z7pi;
   */
-  while (ojw<li) {
-      if (!(pn<8)) {
-          h = -1;
-      }
-      if (pn<=2) {
-          h = 1;
-      }
-      ojw = ojw + 1;
-      pn += h;
+  while (z7pi>=6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = =6;
+  }
+
+  /* @
+    loop invariant qmf >= 0;
+    loop assigns z7pi, qmf;
+  */
+  while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
   }
 
 }
 ----- Candidate 4/5 full code end -----
-2026-03-11 17:25:03,518 - INFO - 
+2026-03-14 19:46:33,848 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(){
-  int li, ojw, pn, h;
-
-  li=66;
-  ojw=li;
-  pn=2;
-  h=1;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant ojw <= li;
-    loop invariant (h == -1) || (h == 1);
-    loop assigns h, ojw, pn;
-    loop variant (li - ojw);
-  */
-  while (ojw&lt;li) {
-      if (!(pn&lt;8)) {
-          h = -1;
-      }
-      if (pn<=2) {
-          h = 1;
-      }
-      ojw = ojw + 1;
-      pn += h;
+/*@ 
+  loop invariant ys == param;
+  loop invariant (z7pi == 41) || (z7pi == 6);
+  loop assigns qmf, z7pi;
+*/
+while (z7pi>=6) {
+      qmf = qmf+ys*z7pi;
+      z7pi = 6;
   }
 
-}
+/*@ 
+  loop invariant ys == param;
+  loop invariant qmf &gt;= 0;
+  loop assigns qmf, z7pi;
+*/
+while (qmf<=ys-1) {
+      z7pi = z7pi + a;
+      qmf = qmf + 1;
+  }
 ----- Candidate 5/5 full code end -----
-2026-03-11 17:25:03,518 - INFO - Successfully generated 5/5 candidates
-2026-03-11 17:25:03,519 - INFO - Checking 12 invariants for conflicts...
-2026-03-11 17:25:03,520 - INFO -   Conflict detected:
-2026-03-11 17:25:03,520 - INFO -     [1] ((pn <= 2) ==> (h == 1)) && ((pn >= 8) ==> (h == -1))
-2026-03-11 17:25:03,520 - INFO -     [4] (pn <= 2) ==> (h == 1)
-2026-03-11 17:25:03,520 - INFO -   Conflict detected:
-2026-03-11 17:25:03,520 - INFO -     [1] ((pn <= 2) ==> (h == 1)) && ((pn >= 8) ==> (h == -1))
-2026-03-11 17:25:03,520 - INFO -     [5] (pn >= 8) ==> (h == -1)
-2026-03-11 17:25:03,520 - INFO -   Conflict detected:
-2026-03-11 17:25:03,520 - INFO -     [1] ((pn <= 2) ==> (h == 1)) && ((pn >= 8) ==> (h == -1))
-2026-03-11 17:25:03,520 - INFO -     [12] (h == -1) || (h == 1)
-2026-03-11 17:25:03,523 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-11 17:25:03,523 - INFO -   1: int main1(){
-2026-03-11 17:25:03,523 - INFO -   2:   int li, ojw, pn, h;
-2026-03-11 17:25:03,523 - INFO -   3: 
-2026-03-11 17:25:03,523 - INFO -   4:   li=66;
-2026-03-11 17:25:03,523 - INFO -   5:   ojw=li;
-2026-03-11 17:25:03,523 - INFO -   6:   pn=2;
-2026-03-11 17:25:03,523 - INFO -   7:   h=1;
-2026-03-11 17:25:03,523 - INFO -   8: 
-2026-03-11 17:25:03,523 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-11 17:25:03,523 - INFO -   10: /*@
-2026-03-11 17:25:03,523 - INFO - DEBUG: Total lines: 34
-2026-03-11 17:25:03,715 - INFO - syntax Correct
-2026-03-11 17:25:34,728 - INFO - Validate:
-2026-03-11 17:25:34,728 - INFO - [False, True, True, True, True, True, True, True, True]
-2026-03-11 17:25:34,728 - INFO - 
-2026-03-11 17:25:34,728 - INFO - Verify:
-2026-03-11 17:25:34,729 - INFO - []
-2026-03-11 17:25:34,729 - INFO - 
-2026-03-11 17:25:34,729 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-11 17:25:34,729 - INFO -   Before: 9 invariants
-2026-03-11 17:25:34,729 - INFO -   After: 8 invariants
-2026-03-11 17:25:34,729 - INFO -   Remaining invariants:
-2026-03-11 17:25:34,729 - INFO -     [1] (ojw <= li)
-2026-03-11 17:25:34,729 - INFO -     [2] (2 <= pn) && (pn <= 8)
-2026-03-11 17:25:34,729 - INFO -     [3] (h == 1) || (h == -1)
-2026-03-11 17:25:34,729 - INFO -     [4] li == 66
-2026-03-11 17:25:34,729 - INFO -     [5] 2 <= pn <= 8
-2026-03-11 17:25:34,729 - INFO -     [6] ojw <= li
-2026-03-11 17:25:34,729 - INFO -     [7] ((pn + ojw) % 2 == 0)
-2026-03-11 17:25:34,729 - INFO -     [8] h == 1 || h == -1
-2026-03-11 17:25:34,920 - INFO - syntax Correct
-2026-03-11 17:26:05,815 - INFO - Validate:
-2026-03-11 17:26:05,815 - INFO - [True, True, True, True, True, True, True, True]
-2026-03-11 17:26:05,815 - INFO - 
-2026-03-11 17:26:05,815 - INFO - Verify:
-2026-03-11 17:26:05,815 - INFO - []
-2026-03-11 17:26:05,815 - INFO - 
-2026-03-11 17:26:05,815 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-11 17:26:06,022 - INFO - syntax Correct
-2026-03-11 17:26:36,923 - INFO - Validate:
-2026-03-11 17:26:36,924 - INFO - [True, True, True, True, True, True, True, True]
-2026-03-11 17:26:36,924 - INFO - 
-2026-03-11 17:26:36,924 - INFO - Verify:
-2026-03-11 17:26:36,924 - INFO - []
-2026-03-11 17:26:36,924 - INFO - 
-2026-03-11 17:26:50,223 - INFO - Deduplicated 4 loop invariants in final code
-2026-03-11 17:26:50,414 - INFO - syntax Correct
-2026-03-11 17:27:21,300 - INFO - Validate:
-2026-03-11 17:27:21,300 - INFO - [True, True, True, True, True, True]
-2026-03-11 17:27:21,300 - INFO - 
-2026-03-11 17:27:21,300 - INFO - Verify:
-2026-03-11 17:27:21,300 - INFO - []
-2026-03-11 17:27:21,300 - INFO - 
-2026-03-11 17:27:21,300 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-11 17:27:21,300 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_6/1.c
-2026-03-11 17:27:21,300 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_6/1_invariants.txt
-2026-03-11 17:27:21,301 - INFO - 
+2026-03-14 19:46:33,848 - INFO - Successfully generated 5/5 candidates
+2026-03-14 19:46:33,849 - INFO - Checking 9 invariants for conflicts...
+2026-03-14 19:46:33,851 - INFO -   Conflict detected:
+2026-03-14 19:46:33,851 - INFO -     [4] (z7pi == 41) || (z7pi == 6)
+2026-03-14 19:46:33,851 - INFO -     [8] (z7pi == vn) || (z7pi == 6)
+2026-03-14 19:46:33,851 - INFO - Checking 7 invariants for conflicts...
+2026-03-14 19:46:33,852 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-14 19:46:33,852 - INFO -   1: int main1(int a){
+2026-03-14 19:46:33,852 - INFO -   2:   int vn, z7pi, ys, qmf;
+2026-03-14 19:46:33,852 - INFO -   3: 
+2026-03-14 19:46:33,852 - INFO -   4:   vn=41;
+2026-03-14 19:46:33,852 - INFO -   5:   z7pi=vn;
+2026-03-14 19:46:33,852 - INFO -   6:   ys=a;
+2026-03-14 19:46:33,852 - INFO -   7:   qmf=0;
+2026-03-14 19:46:33,852 - INFO -   8: 
+2026-03-14 19:46:33,852 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-03-14 19:46:33,852 - INFO -   10: /*@
+2026-03-14 19:46:33,852 - INFO - DEBUG: Total lines: 43
+2026-03-14 19:46:34,110 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1.c:23: 
+  syntax error:
+  Location: line 23, between columns 13 and 14, before or at token: =
+  21    while (z7pi>=6) {
+  22          qmf = qmf+ys*z7pi;
+  23          z7pi = =6;
+        ^^^^^^^^^^^^^^^^
+  24      }
+  25
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 19:46:34,111 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-03-14 19:46:34,111 - INFO - Houdini iteration 1: Removed 15 failed invariants
+2026-03-14 19:46:34,111 - INFO -   Before: 15 invariants
+2026-03-14 19:46:34,111 - INFO -   After: 0 invariants
+2026-03-14 19:46:34,111 - ERROR - All invariants were removed by Houdini
+2026-03-14 19:46:34,341 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1.c:23: 
+  syntax error:
+  Location: line 23, between columns 13 and 14, before or at token: =
+  21    while (z7pi>=6) {
+  22          qmf = qmf+ys*z7pi;
+  23          z7pi = =6;
+        ^^^^^^^^^^^^^^^^
+  24      }
+  25
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 19:47:06,557 - INFO - Deduplicated 5 loop invariants in final code
+2026-03-14 19:47:06,769 - INFO - syntax Error
+[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1.c (with preprocessing)
+[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1.c:20: 
+  syntax error:
+  Location: line 20, between columns 13 and 14, before or at token: =
+  18    while (z7pi>=6) {
+  19          qmf = qmf+ys*z7pi;
+  20          z7pi = =6;
+        ^^^^^^^^^^^^^^^^
+  21      }
+  22
+[kernel] Frama-C aborted: invalid user input.
+
+2026-03-14 19:47:06,769 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-03-14 19:47:06,770 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-03-14 19:47:06,770 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1.c
+2026-03-14 19:47:06,770 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1_invariants.txt
+2026-03-14 19:47:06,770 - INFO - 
 ============================================================
-2026-03-11 17:27:21,301 - INFO - Final first_pass results:
-2026-03-11 17:27:21,301 - INFO -   syntax=1
-2026-03-11 17:27:21,301 - INFO -   valid=1
-2026-03-11 17:27:21,301 - INFO -   satisfy=None
-2026-03-11 17:27:21,301 - INFO - ============================================================
-2026-03-11 17:27:21,301 - INFO - 
+2026-03-14 19:47:06,770 - INFO - Final first_pass results:
+2026-03-14 19:47:06,770 - INFO -   syntax=None
+2026-03-14 19:47:06,770 - INFO -   valid=None
+2026-03-14 19:47:06,770 - INFO -   satisfy=None
+2026-03-14 19:47:06,770 - INFO - ============================================================
+2026-03-14 19:47:06,770 - INFO - 
 ============================================================
-2026-03-11 17:27:21,301 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-11 17:27:21,301 - INFO -   Total API calls: 55
-2026-03-11 17:27:21,301 - INFO -   Total prompt tokens (input): 64,900
-2026-03-11 17:27:21,301 - INFO -   Total completion tokens (output): 482,247
-2026-03-11 17:27:21,301 - INFO -   Total tokens: 547,147
-2026-03-11 17:27:21,301 - INFO -   Average per call:
-2026-03-11 17:27:21,301 - INFO -     Prompt: 1180.0 tokens
-2026-03-11 17:27:21,301 - INFO -     Completion: 8768.1 tokens
-2026-03-11 17:27:21,301 - INFO -     Total: 9948.1 tokens
-2026-03-11 17:27:21,301 - INFO - ============================================================
-2026-03-11 17:27:21,301 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_6/1.c
-2026-03-11 17:27:21,301 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_346208_1773220303_6/1_invariants.txt
-2026-03-11 17:28:08,188 - INFO - LLM quality-gate raw response: {
-  "ok": true,
-  "reason": "pass"
-}
-2026-03-11 17:38:33 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=265, dedup inside)...
-2026-03-11 17:41:28 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-11 17:41:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=1208)...
+2026-03-14 19:47:06,770 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-14 19:47:06,770 - INFO -   Total API calls: 26
+2026-03-14 19:47:06,770 - INFO -   Total prompt tokens (input): 25,863
+2026-03-14 19:47:06,770 - INFO -   Total completion tokens (output): 130,732
+2026-03-14 19:47:06,770 - INFO -   Total tokens: 156,595
+2026-03-14 19:47:06,770 - INFO -   Average per call:
+2026-03-14 19:47:06,770 - INFO -     Prompt: 994.7 tokens
+2026-03-14 19:47:06,770 - INFO -     Completion: 5028.2 tokens
+2026-03-14 19:47:06,770 - INFO -     Total: 6022.9 tokens
+2026-03-14 19:47:06,770 - INFO - ============================================================
+2026-03-14 19:47:06,771 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1.c
+2026-03-14 19:47:06,771 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3501889_1773488298_6/1_invariants.txt
+2026-03-14 19:55:30 - INFO - COT Phase#1: generating reverse-COTs for 4 code pieces (existing=658, dedup inside)...
+2026-03-14 19:57:30 - INFO - COT Phase#1: 4/4 unique COTs generated successfully.
+2026-03-14 19:57:30 - INFO - COT Phase#2: generating rejected reverse-COTs for 45 unique dpo_aug.rejected code pieces (existing=3811)...
+2026-03-14 20:23:26 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
+2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
+2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
+2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
