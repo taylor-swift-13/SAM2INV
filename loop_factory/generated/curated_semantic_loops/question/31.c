@@ -23,6 +23,17 @@ while (1) {
   assert (t == 3 + 4*j);
 */
 
-  int __aux_1=0;
-  while (__aux_1 < 3) { __aux_1 = __aux_1 + 1; }
+  while (t > c) {
+      if (j > 0 && t - j >= c) {
+          t = t - j;
+          j = j / 2;
+      } else {
+          t = t - 1;
+      }
+      e = e + 1;
+  }
+/*@
+  assert !(t > c) &&
+         (t == c);
+*/
 }

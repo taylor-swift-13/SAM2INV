@@ -28,6 +28,19 @@ while (mn>0) {
 */
 
 
-  int __aux_6=0;
-  while (__aux_6 < 2) { __aux_6 = __aux_6 + 1; }
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant mr >= mn;
+  loop invariant mn == 0;
+  loop invariant g >= 0;
+  loop assigns mr, g;
+*/
+  while (mr > mn) {
+      mr = mr - 1;
+      g = g + 1;
+  }
+/*@
+  assert !(mr > mn) &&
+         (mr == mn);
+*/
 }

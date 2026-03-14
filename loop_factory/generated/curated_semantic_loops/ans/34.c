@@ -40,6 +40,19 @@ while (1) {
 
 
 
-  int __aux_5=0;
-  while (__aux_5 < 4) { __aux_5 = __aux_5 + 1; }
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant q <= v;
+  loop invariant q >= 0;
+  loop invariant y >= 0;
+  loop assigns q, y;
+*/
+  while (q < v) {
+      q = q + 1;
+      y = y + 1;
+  }
+/*@
+  assert !(q < v) &&
+         (q == v);
+*/
 }

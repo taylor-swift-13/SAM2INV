@@ -39,6 +39,19 @@ while (1) {
 
 
 
-  int __aux_3=0;
-  while (__aux_3 < 2) { __aux_3 = __aux_3 + 1; }
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant v >= r;
+  loop invariant z >= 0;
+  loop invariant r == \at(q, Pre);
+  loop assigns v, z;
+*/
+  while (v > r) {
+      v = v - 1;
+      z = z + 1;
+  }
+/*@
+  assert !(v > r) &&
+         (v == r);
+*/
 }

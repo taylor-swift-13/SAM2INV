@@ -41,6 +41,21 @@ while (x<b) {
 
 
 
-  int __aux_0=0;
-  while (__aux_0 < 2) { __aux_0 = __aux_0 + 1; }
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant x >= b;
+  loop invariant b == 19;
+  loop invariant n >= 0;
+  loop invariant m == \at(m, Pre);
+  loop invariant p == \at(p, Pre);
+  loop assigns x, n;
+*/
+  while (x > b) {
+      n = n + (x - b);
+      x = b + (x - b) / 2;
+  }
+/*@
+  assert !(x > b) &&
+         (x == b);
+*/
 }

@@ -41,6 +41,19 @@ while (1) {
 
 
 
-  int __aux_2=0;
-  while (__aux_2 < 4) { __aux_2 = __aux_2 + 1; }
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant y <= 0;
+  loop invariant v >= r;
+  loop invariant r == 30;
+  loop assigns y, v;
+*/
+  while (y < 0) {
+      y = y + 1;
+      v = v + 1;
+  }
+/*@
+  assert !(y < 0) &&
+         (y == 0);
+*/
 }

@@ -22,6 +22,12 @@ while (1) {
   assert (o == 0);
 */
 
-  int __aux_5=0;
-  while (__aux_5 < 4) { __aux_5 = __aux_5 + 1; }
+  while (q < v) {
+      q = q + 1;
+      y = y + 1;
+  }
+/*@
+  assert !(q < v) &&
+         (q == v);
+*/
 }

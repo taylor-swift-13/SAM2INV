@@ -23,6 +23,12 @@ while (1) {
   assert (g == 0);
 */
 
-  int __aux_3=0;
-  while (__aux_3 < 2) { __aux_3 = __aux_3 + 1; }
+  while (v > r) {
+      v = v - 1;
+      z = z + 1;
+  }
+/*@
+  assert !(v > r) &&
+         (v == r);
+*/
 }

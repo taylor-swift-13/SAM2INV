@@ -32,6 +32,17 @@ while (e5<pj) {
          (i0bs + jb9j + g + e9r5 == e5);
 */
 
-  int __aux_11=0;
-  while (__aux_11 < 4) { __aux_11 = __aux_11 + 1; }
+  while (g > 0) {
+      if (g >= 2) {
+          g = g - 2;
+          jb9j = jb9j + 2;
+      } else {
+          g = g - 1;
+          jb9j = jb9j + 1;
+      }
+  }
+/*@
+  assert !(g > 0) &&
+         (i0bs + jb9j + g + e9r5 == e5);
+*/
 }

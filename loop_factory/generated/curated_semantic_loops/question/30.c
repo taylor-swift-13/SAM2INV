@@ -23,6 +23,12 @@ while (x<b) {
          (x % 6 == 5);
 */
 
-  int __aux_0=0;
-  while (__aux_0 < 2) { __aux_0 = __aux_0 + 1; }
+  while (x > b) {
+      n = n + (x - b);
+      x = b + (x - b) / 2;
+  }
+/*@
+  assert !(x > b) &&
+         (x == b);
+*/
 }

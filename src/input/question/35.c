@@ -19,6 +19,12 @@ while (mn>0) {
          (g == mn);
 */
 
-  int __aux_6=0;
-  while (__aux_6 < 2) { __aux_6 = __aux_6 + 1; }
+  while (mr > mn) {
+      mr = mr - 1;
+      g = g + 1;
+  }
+/*@
+  assert !(mr > mn) &&
+         (mr == mn);
+*/
 }
