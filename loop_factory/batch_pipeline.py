@@ -680,6 +680,8 @@ def _loop_factory_base_cmd(hp: Dict[str, object], force_core: Optional[str] = No
     allowed_templates = str(hp.get("allowed_templates", "") or "").strip()
     if allowed_templates:
         cmd.extend(["--allowed-templates", allowed_templates])
+    if bool(hp.get("llm_core_gen", False)):
+        cmd.append("--llm-core-gen")
     if force_core:
         cmd.extend(["--force-core", force_core])
     return cmd
@@ -776,6 +778,7 @@ def loop_factory_hyperparams(seed: int, out_dir: Path, overrides: Dict[str, obje
         "nonlinear_strength": 0.82,
         "p_semantic_core": 0.88,
         "allowed_templates": "",
+        "llm_core_gen": False,
     }
     if overrides:
         for k, v in overrides.items():
@@ -968,6 +971,14 @@ def main() -> None:
     parser.add_argument("--p-nonlinear", "--lf-p-nonlinear", dest="p_nonlinear", type=float, default=float(_lf_cfg("p_nonlinear", 0.75)), help="Loop-factory nonlinear family probability.")
     parser.add_argument("--p-semantic-core", "--lf-p-semantic-core", dest="p_semantic_core", type=float, default=float(_lf_cfg("p_semantic_core", 0.88)), help="Loop-factory semantic core probability.")
     parser.add_argument(
+        "--llm-core-gen",
+        "--lf-llm-core-gen",
+        dest="llm_core_gen",
+        action=argparse.BooleanOptionalAction,
+        default=bool(_lf_cfg("llm_core_gen", False)),
+        help="Use LLM-guided generation for selected semantic cores inside loop_factory.",
+    )
+    parser.add_argument(
         "--allowed-templates",
         "--lf-allowed-templates",
         dest="allowed_templates",
@@ -1025,6 +1036,7 @@ def main() -> None:
         "p_nonlinear": args.p_nonlinear,
         "p_semantic_core": args.p_semantic_core,
         "allowed_templates": args.allowed_templates,
+        "llm_core_gen": args.llm_core_gen,
     }
 
     # Build in-memory skeleton-count index from existing corpus.

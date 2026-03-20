@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import logging
 import random
 import re
 import json
@@ -125,6 +126,96 @@ CORE_NATIVE_EXTENSION_STYLE: Dict[str, str] = {
     "nondeterministic_multi_decrement": "state",
     "L1_trivial": "linear",
     "L2_trivial": "linear",
+}
+
+CORE_LLM_REQUIREMENTS: Dict[str, str] = {
+    "L1_trivial": "Semantics: minimal linear progress only. Must still have a meaningful progress variable and avoid dead-state noise.",
+    "L2_trivial": "Semantics: minimal guarded progress only. Must remain simple but not degenerate into unrelated updates.",
+    "accumulate_family": "Semantics: simple accumulation driven by progress or another live state. Must update an accumulator meaningfully.",
+    "affine_chain": "Semantics: chained affine recurrence across multiple variables. Must preserve a clear dependency chain.",
+    "alternating_series_accumulator": "Semantics: alternating-sign or alternating-phase accumulation. Must include a phase or sign state that affects accumulation.",
+    "alternating_swap_transfer": "Semantics: alternating transfer or swap-like state exchange across iterations. Must include turn-dependent transfer.",
+    "binary_toggle": "Semantics: binary or two-state toggle. Must switch between a small number of discrete states with clear control meaning.",
+    "bouncing_counter": "Semantics: counter moves between bounds and changes direction or mode near boundaries.",
+    "bresenham_line_step": "Semantics: Bresenham-style decision-variable update. Must maintain a step counter and an error or decision state.",
+    "cache_coherence": "Semantics: two related resource states stay coherent under transfer or rebalance.",
+    "carry_pair_counter": "Semantics: radix carry pair with quotient-remainder style relation. Must maintain bounded remainder behavior.",
+    "cauchy_schwarz_triple": "Semantics: triple accumulation over square and cross terms. Must update at least three coupled accumulators.",
+    "complement_step": "Semantics: one variable complements another under progress, such as y = n - x style evolution.",
+    "cond_fixed": "Semantics: branch-controlled multiplicative or fixed-step updates. Must include a meaningful conditional that changes state evolution.",
+    "countdown_triple": "Semantics: three counters progress together, typically with coordinated decreases or offset motion.",
+    "counter_decomp": "Semantics: a counter is decomposed into multiple live components or derived running parts.",
+    "cumulative_double_sum": "Semantics: cumulative summation where one accumulator feeds another.",
+    "decaying_stride": "Semantics: stride or step size changes over time, usually shrinking while progress continues.",
+    "equal_pair_piecewise_increment": "Semantics: two states receive equal or mirrored updates under piecewise conditions.",
+    "euclid_coupled_accumulator": "Semantics: Euclid-like reduction plus another coupled accumulator that tracks the reduction process.",
+    "euclid_matrix": "Semantics: Euclid-like coupled reduction or affine-coupled convergence. Must update at least two coupled states and preserve convergence flavor.",
+    "fixed_point_root_refinement": "Semantics: iterative refinement toward an integer root or fixed point. Must monotonically reduce approximation error or residual.",
+    "gap_drift_piecewise": "Semantics: update depends on the gap between states and uses piecewise drift rules.",
+    "gcd_compare": "Semantics: compare-driven dual-state convergence, similar to gcd-style reduction.",
+    "geometric_doubling_bound": "Semantics: repeated doubling or geometric growth until a bound or threshold is approached.",
+    "ghost_sync_pair": "Semantics: a shadow-like state remains synchronized with another live state under progress.",
+    "half_split_balance": "Semantics: first half and second half of execution apply opposite or balancing updates.",
+    "int_sqrt_sieve": "Semantics: integer square-root style reduction using odd steps or residual subtraction.",
+    "linear_conservation_family": "Semantics: conservation or lockstep relation across variables. Must preserve a sum, difference, or exact relational law.",
+    "min_update_guarded_bound": "Semantics: bounded progress with guarded min-style tracking or monotone tightening.",
+    "mod_bucket_cascade": "Semantics: modular bucket or divisibility cascade with several residue-driven states.",
+    "modular_equality_race": "Semantics: modular equality or residue race between two states.",
+    "monotone_bound": "Semantics: monotone variable evolves toward or against an explicit bound.",
+    "mul_affine_param_pair": "Semantics: multiplicative-affine pair of states, often parameterized. Must include a multiplicative relation.",
+    "multi_branch_swap_recurrence": "Semantics: multi-branch recurrence with swaps or role changes across branches.",
+    "multi_countdown_parallel": "Semantics: several countdown-like states progress in parallel under one loop.",
+    "multiplicative_shadow_progress": "Semantics: product-like main state with another shadow state tracking progress or approximation.",
+    "negative_cross_progress": "Semantics: a negative state crosses a threshold through coupled progress with another variable.",
+    "nested_block_drain": "Semantics: nested loop drains or consumes block-local work in bounded chunks.",
+    "nested_block_staircase": "Semantics: nested staircase pattern where inner work changes systematically with outer progress.",
+    "nested_grid_checkerboard": "Semantics: nested grid traversal with parity or checkerboard-dependent updates.",
+    "nested_grid_rowcol_sum": "Semantics: nested row and column traversal with row or column accumulators or counters.",
+    "nested_guarded_transitions": "Semantics: nested or multi-phase guarded state transitions. Must include meaningful branch or state-machine behavior.",
+    "nested_triangular_accumulate": "Semantics: nested triangular accumulation over outer and inner counters.",
+    "nested_triangular_balance": "Semantics: nested triangular traversal maintaining two balanced accumulators or coupled states.",
+    "newton_sqrt_convergence": "Semantics: Newton-style integer square-root refinement. Must preserve clear convergence semantics.",
+    "nondeterministic_multi_decrement": "Semantics: several guarded decrements compete or fire under different conditions.",
+    "odd_step_accumulator": "Semantics: accumulation over an odd-step ladder or increment sequence.",
+    "parity_alternating": "Semantics: parity or a flag determines alternating behavior across iterations.",
+    "parity_decomposition_product": "Semantics: parity-guided multiplicative decomposition, such as product or multiply-by-doubling logic.",
+    "partial_product_conservation": "Semantics: conservation law over partial products or bilinear forms.",
+    "phase_switch": "Semantics: execution switches between phases with distinct update rules.",
+    "piecewise_recurrence": "Semantics: recurrence law changes by branch or phase. Must preserve interpretable piecewise semantics.",
+    "power_accumulate": "Semantics: accumulate powers, higher-order terms, or polynomial-growth quantities.",
+    "power_sum_series": "Semantics: running sum of polynomial or power-series-like terms.",
+    "prefix_sum_family": "Semantics: progress counter plus at least one meaningful accumulator. Must update a progress variable and an accumulator tied to progress.",
+    "product_reduction_walk": "Semantics: reduce a product-related quantity while another factor walks toward termination.",
+    "qr_countdown_bucket": "Semantics: quotient-remainder countdown with bucketized carry or rollover behavior.",
+    "qr_division_step": "Semantics: quotient-remainder style reduction. Must contain quotient or remainder-like roles and clear progress.",
+    "quadratic_form_triplet": "Semantics: three-way quadratic-form accumulation with coupled polynomial terms.",
+    "ramped_transfer_conservation": "Semantics: transfer between states with a ramping or capped step size while preserving a relation.",
+    "random_walk_bounded": "Semantics: bounded random-walk-like drift with an explicit progress or safety bound.",
+    "remainder_buckets": "Semantics: classify or count progress into remainder buckets under modular arithmetic.",
+    "residual_branch_walk": "Semantics: residual or error state walks differently depending on branch outcomes.",
+    "russian_multiply": "Semantics: multiplication decomposition via doubling, halving, and parity accumulation. Must preserve decomposition meaning.",
+    "saturation": "Semantics: growth or drift saturates at a threshold or switches to capped behavior.",
+    "sawtooth_modular_counter": "Semantics: modular counter repeatedly rises and wraps in a sawtooth pattern.",
+    "scaling_pair": "Semantics: one state scales while another tracks or compensates the scaling.",
+    "scheduled_queue_occupancy": "Semantics: queue or occupancy state changes by scheduled pushes and pops.",
+    "snapshot_family": "Semantics: snapshot or shadow tracking with delayed synchronization. Must relate a current value and a lagging shadow value.",
+    "square_sync_progress": "Semantics: one state tracks a square or synchronized quadratic relation with progress.",
+    "stride_family": "Semantics: fixed or proportional stride progression. Must preserve clear stride-based movement.",
+    "threshold_tail_accumulate": "Semantics: accumulation only activates after crossing a threshold or in the tail region.",
+    "transfer_conservation": "Semantics: quantity transfers from one state to another while preserving a total or exact relation.",
+    "triple_decrease": "Semantics: three related states decrease together under guard conditions.",
+    "triple_recurrence_inc": "Semantics: three-state recurrence with explicit monotone progress variable.",
+    "triple_recurrence_step": "Semantics: chained three-state recurrence where each iteration advances the recurrence.",
+    "triplet_lockstep_stride": "Semantics: three states move in lockstep with the same stride or synchronized update.",
+    "turn_based_state_machine": "Semantics: a turn or phase variable controls a small state machine with different updates per turn.",
+    "while_one_break_counter": "Semantics: canonical while(1)+break counter loop with explicit break condition and meaningful state progress.",
+    "while_one_min_break": "Semantics: while(1) loop with min-style tracking and explicit break on reaching a bound.",
+    "while_one_mul_break": "Semantics: while(1) loop with multiplicative-affine updates and break-triggered termination.",
+    "while_one_qr_break": "Semantics: while(1) loop implementing quotient-remainder style updates until the break condition holds.",
+    "while_one_recurrence_break": "Semantics: while(1) loop running a recurrence until an explicit threshold triggers break.",
+    "x17_harmonic_step_reduction": "Semantics: denominator-ladder or harmonic-style reduction with shrinking effective steps.",
+    "x19_rolling_sum_window": "Semantics: rolling window sum where entering and leaving contributions are updated incrementally.",
+    "x1_geometric_growth_bound": "Semantics: geometric growth until crossing a bound, maintaining a simple bound witness.",
 }
 
 
@@ -503,6 +594,20 @@ def _load_user_cfg() -> Dict[str, object]:
 USER_CFG = _load_user_cfg()
 
 
+def _load_llm_runtime():
+    """Best-effort import of src/llm.py runtime."""
+    src_dir = (Path(__file__).resolve().parent / "../src").resolve()
+    if not src_dir.exists():
+        return None, None
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+    try:
+        from llm import LLMConfig, Chatbot  # type: ignore
+        return LLMConfig, Chatbot
+    except Exception:
+        return None, None
+
+
 def _cfg_or_default(name: str, default: float) -> float:
     if name in USER_CFG:
         return float(USER_CFG[name])
@@ -529,6 +634,17 @@ def _cfg_list(name: str) -> List[str]:
                 out.append(s)
         return out
     return []
+
+
+def _cfg_bool(name: str, default: bool = False) -> bool:
+    raw = USER_CFG.get(name, USER_CFG.get(f"lf_{name}", default))
+    if isinstance(raw, bool):
+        return raw
+    if isinstance(raw, (int, float)):
+        return bool(raw)
+    if isinstance(raw, str):
+        return raw.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(default)
 
 
 def _resolve_allowed_cores(items: Sequence[str]) -> Set[str]:
@@ -583,6 +699,7 @@ class HyperParams:
     w_core_qr_division: float = DEFAULT_CORE_KNOBS["w_core_qr_division"]
     w_core_euclid_matrix: float = DEFAULT_CORE_KNOBS["w_core_euclid_matrix"]
     allowed_cores: Tuple[str, ...] = ()
+    llm_core_gen: bool = False
 
 
 class Stmt:
@@ -1445,6 +1562,260 @@ class ProbabilisticLoopFactory:
 
         return body
 
+    def _llm_supported_core(self, core_name: str) -> bool:
+        return core_name in CORE_LLM_REQUIREMENTS
+
+    def _extract_first_json_object(self, text: str) -> Optional[Dict[str, object]]:
+        s = (text or "").strip()
+        if not s:
+            return None
+        try:
+            obj = json.loads(s)
+            return obj if isinstance(obj, dict) else None
+        except json.JSONDecodeError:
+            pass
+        m = re.search(r"\{[\s\S]*\}", s)
+        if not m:
+            return None
+        try:
+            obj = json.loads(m.group(0))
+            return obj if isinstance(obj, dict) else None
+        except json.JSONDecodeError:
+            return None
+
+    def _build_llm_core_prompt(
+        self,
+        core_name: str,
+        ctr: str,
+        lim: str,
+        state_vars: Sequence[str],
+        params: Sequence[str],
+        if_budget: int,
+        assign_total: int,
+        nla_family: bool,
+    ) -> str:
+        allowed_vars = [ctr, lim] + list(state_vars) + list(params)
+        family = "nla" if nla_family else "linear"
+        role_text = CORE_LLM_REQUIREMENTS.get(core_name, "Preserve the named semantic core faithfully.")
+        return (
+            "You generate ONLY strict JSON for a numeric C loop fragment. No markdown. No explanation.\n"
+            f"Target semantic core: {core_name}\n"
+            f"Family: {family}\n"
+            f"Semantic requirements: {role_text}\n"
+            f"Available variables only: {json.dumps(allowed_vars)}\n"
+            f"Counter variable: {ctr}\n"
+            f"Limit/bound variable: {lim}\n"
+            f"State variables: {json.dumps(list(state_vars))}\n"
+            f"Function parameters: {json.dumps(list(params))}\n"
+            f"Max assignment statements in body: {assign_total}\n"
+            f"Max if/if-else statements in body: {if_budget}\n"
+            "Rules:\n"
+            "- Use only the provided variables.\n"
+            "- Return a loop fragment, not a full function.\n"
+            "- Ensure there is clear loop progress.\n"
+            "- Do not declare variables or call functions.\n"
+            "- Keep expressions C-compatible.\n"
+            "- Prefer meaningful semantics over superficial randomness.\n"
+            "- Body statements allowed types: assign, if_only, if_else.\n"
+            "Return strict JSON with this schema:\n"
+            "{\n"
+            "  \"guard\": \"...\",\n"
+            "  \"init_overrides\": {\"var\": \"expr\"},\n"
+            "  \"body\": [\n"
+            "    {\"type\": \"assign\", \"target\": \"x\", \"expr\": \"x+1\"},\n"
+            "    {\"type\": \"if_only\", \"cond\": \"...\", \"then\": [assign statements only]},\n"
+            "    {\"type\": \"if_else\", \"cond\": \"...\", \"then\": [assign statements only], \"else\": [assign statements only]}\n"
+            "  ],\n"
+            "  \"semantic_summary\": \"one short sentence\"\n"
+            "}\n"
+        )
+
+    def _expr_uses_only_allowed_vars(self, expr: str, allowed_vars: Set[str]) -> bool:
+        toks = re.findall(r"\b([A-Za-z_]\w*)\b", expr or "")
+        reserved = {"int", "if", "else", "while", "for", "break", "return"}
+        return all(tok in allowed_vars or tok in reserved for tok in toks)
+
+    def _llm_json_to_stmt_list(self, items: Sequence[object]) -> Optional[List[Stmt]]:
+        out: List[Stmt] = []
+        for item in items:
+            if not isinstance(item, dict):
+                return None
+            kind = str(item.get("type", "") or "").strip()
+            if kind == "assign":
+                target = str(item.get("target", "") or "").strip()
+                expr = str(item.get("expr", "") or "").strip()
+                if not target or not expr:
+                    return None
+                out.append(Assign(target, expr))
+            elif kind == "if_only":
+                cond = str(item.get("cond", "") or "").strip()
+                then_raw = item.get("then", [])
+                if not cond or not isinstance(then_raw, list):
+                    return None
+                then_body = self._llm_json_to_stmt_list(then_raw)
+                if then_body is None or any(not isinstance(x, Assign) for x in then_body):
+                    return None
+                out.append(IfOnly(cond=cond, then_body=then_body))
+            elif kind == "if_else":
+                cond = str(item.get("cond", "") or "").strip()
+                then_raw = item.get("then", [])
+                else_raw = item.get("else", [])
+                if not cond or not isinstance(then_raw, list) or not isinstance(else_raw, list):
+                    return None
+                then_body = self._llm_json_to_stmt_list(then_raw)
+                else_body = self._llm_json_to_stmt_list(else_raw)
+                if (
+                    then_body is None or else_body is None
+                    or any(not isinstance(x, Assign) for x in then_body)
+                    or any(not isinstance(x, Assign) for x in else_body)
+                ):
+                    return None
+                out.append(IfElse(cond=cond, then_body=then_body, else_body=else_body))
+            else:
+                return None
+        return out
+
+    def _validate_llm_core_payload(
+        self,
+        core_name: str,
+        payload: Dict[str, object],
+        ctr: str,
+        lim: str,
+        state_vars: Sequence[str],
+        params: Sequence[str],
+        if_budget: int,
+        assign_total: int,
+    ) -> Optional[Tuple[str, Dict[str, str], List[Stmt], str]]:
+        guard = str(payload.get("guard", "") or "").strip()
+        if not guard:
+            return None
+        init_raw = payload.get("init_overrides", {})
+        body_raw = payload.get("body", [])
+        summary = str(payload.get("semantic_summary", "") or "").strip()
+        if not isinstance(init_raw, dict) or not isinstance(body_raw, list):
+            return None
+        body = self._llm_json_to_stmt_list(body_raw)
+        if body is None or not body:
+            return None
+        assign_count = sum(1 for st in body if isinstance(st, Assign))
+        if_count = sum(1 for st in body if isinstance(st, (IfOnly, IfElse)))
+        if assign_count > assign_total or if_count > if_budget:
+            return None
+
+        allowed_vars = set([ctr, lim] + list(state_vars) + list(params))
+        if not self._expr_uses_only_allowed_vars(guard, allowed_vars):
+            return None
+
+        init_overrides: Dict[str, str] = {}
+        for key, value in init_raw.items():
+            k = str(key or "").strip()
+            v = str(value or "").strip()
+            if not k or not v or k not in allowed_vars or not self._expr_uses_only_allowed_vars(v, allowed_vars):
+                return None
+            init_overrides[k] = v
+
+        written: Set[str] = set()
+        expr_texts: List[str] = [guard]
+        for st in body:
+            if isinstance(st, Assign):
+                if st.target not in allowed_vars or not self._expr_uses_only_allowed_vars(st.expr, allowed_vars):
+                    return None
+                written.add(st.target)
+                expr_texts.append(st.expr)
+            elif isinstance(st, IfOnly):
+                if not self._expr_uses_only_allowed_vars(st.cond, allowed_vars):
+                    return None
+                expr_texts.append(st.cond)
+                for sub in st.then_body:
+                    if sub.target not in allowed_vars or not self._expr_uses_only_allowed_vars(sub.expr, allowed_vars):
+                        return None
+                    written.add(sub.target)
+                    expr_texts.append(sub.expr)
+            elif isinstance(st, IfElse):
+                if not self._expr_uses_only_allowed_vars(st.cond, allowed_vars):
+                    return None
+                expr_texts.append(st.cond)
+                for sub in st.then_body + st.else_body:
+                    if sub.target not in allowed_vars or not self._expr_uses_only_allowed_vars(sub.expr, allowed_vars):
+                        return None
+                    written.add(sub.target)
+                    expr_texts.append(sub.expr)
+
+        if ctr not in written and ctr not in " ".join(expr_texts):
+            return None
+
+        text_blob = " ".join(expr_texts)
+        if core_name == "prefix_sum_family":
+            non_ctr_written = [v for v in written if v != ctr]
+            if ctr not in written or not non_ctr_written:
+                return None
+        elif core_name == "snapshot_family":
+            if len(written & set(state_vars)) < 2:
+                return None
+        elif core_name == "qr_division_step":
+            if not any(sym in text_blob for sym in ["/", "%", "-", "+1", "-1"]):
+                return None
+            if len(written & set(state_vars)) < 2:
+                return None
+        elif core_name == "euclid_matrix":
+            if len(written & set(state_vars)) < 2:
+                return None
+        elif core_name == "russian_multiply":
+            if not any(sym in text_blob for sym in ["%2", "/2", "*2"]):
+                return None
+
+        return guard, init_overrides, body, summary
+
+    def _generate_core_loop_with_llm(
+        self,
+        core_name: str,
+        ctr: str,
+        lim: str,
+        state_vars: Sequence[str],
+        params: Sequence[str],
+        if_budget: int,
+        assign_total: int,
+        nla_family: bool,
+    ) -> Optional[Tuple[str, Dict[str, str], List[Stmt], str]]:
+        if not self.hp.llm_core_gen or not self._llm_supported_core(core_name):
+            return None
+        LLMConfig, Chatbot = _load_llm_runtime()
+        if LLMConfig is None or Chatbot is None:
+            return None
+        try:
+            cfg = LLMConfig()
+            if hasattr(cfg, "api_temperature"):
+                cfg.api_temperature = 0.7
+            bot = Chatbot(cfg)
+            resp = bot.chat(
+                self._build_llm_core_prompt(
+                    core_name=core_name,
+                    ctr=ctr,
+                    lim=lim,
+                    state_vars=state_vars,
+                    params=params,
+                    if_budget=if_budget,
+                    assign_total=assign_total,
+                    nla_family=nla_family,
+                )
+            )
+            payload = self._extract_first_json_object(resp or "")
+            if not payload:
+                return None
+            return self._validate_llm_core_payload(
+                core_name=core_name,
+                payload=payload,
+                ctr=ctr,
+                lim=lim,
+                state_vars=state_vars,
+                params=params,
+                if_budget=if_budget,
+                assign_total=assign_total,
+            )
+        except Exception:
+            logging.getLogger(__name__).debug("LLM core generation failed for %s", core_name, exc_info=True)
+            return None
+
     def _inject_multivar_extension(
         self,
         body: List[Stmt],
@@ -1820,7 +2191,29 @@ class ProbabilisticLoopFactory:
 
                 chosen = self.rng.choices(candidates, weights=weights, k=1)[0] if candidates else ""
 
-            if chosen == "cond_fixed":
+            llm_generated = self._generate_core_loop_with_llm(
+                core_name=chosen,
+                ctr=ctr,
+                lim=lim,
+                state_vars=state_vars,
+                params=params,
+                if_budget=if_budget,
+                assign_total=assign_total,
+                nla_family=nla_family,
+            ) if chosen else None
+            if llm_generated is not None:
+                llm_guard, llm_init_overrides, llm_body, _llm_summary = llm_generated
+                for name, expr in llm_init_overrides.items():
+                    set_init(name, expr)
+                guard = llm_guard
+                body.extend(llm_body)
+                used_if = sum(1 for st in llm_body if isinstance(st, (IfOnly, IfElse)))
+                used_assign = sum(1 for st in llm_body if isinstance(st, Assign))
+                core_applied = True
+
+            if core_applied:
+                pass
+            elif chosen == "cond_fixed":
                 # Branch updates + fixed updates outside branch.
                 set_init(a, f"({src}%20)+1")
                 set_init(b, f"({src}%25)+1")
@@ -3875,6 +4268,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--p-multi-semantic", type=float, default=0.75, help="Probability that a multi-loop program uses an ML-series semantic pairing")
     parser.add_argument("--allowed-templates", type=str, default="", help="Comma-separated whitelist of template names and/or core names. Empty means all templates.")
     parser.add_argument("--force-core", type=str, default="", help="Force semantic core for loop 0 (single-loop generation is recommended).")
+    parser.add_argument(
+        "--llm-core-gen",
+        action="store_true",
+        default=_cfg_bool("llm_core_gen", False),
+        help="Use LLM-guided loop generation for selected semantic cores before falling back to DSL.",
+    )
     parser.add_argument("--print-usable-cores-json", action="store_true", help="Print usable semantic cores as JSON and exit.")
     parser.add_argument("--probe-max-resample", type=int, default=128, help="Max resamples per core when probing usable semantic cores.")
     parser.add_argument(
@@ -3937,6 +4336,13 @@ def _declared_core_min_state_vars() -> Dict[str, int]:
 
 
 CORE_MIN_STATE_VARS = _declared_core_min_state_vars()
+_DECLARED_LLM_CORES = set(_declared_semantic_cores()) - {"core"}
+_MISSING_LLM_REQS = _DECLARED_LLM_CORES - set(CORE_LLM_REQUIREMENTS)
+if _MISSING_LLM_REQS:
+    raise RuntimeError(
+        "Missing LLM prompt requirements for semantic cores: "
+        + ", ".join(sorted(_MISSING_LLM_REQS))
+    )
 
 
 def _count_assigns_in_loop(loop_stmt: Stmt) -> int:
@@ -4132,6 +4538,7 @@ def main() -> None:
         w_core_qr_division=DEFAULT_CORE_KNOBS["w_core_qr_division"],
         w_core_euclid_matrix=DEFAULT_CORE_KNOBS["w_core_euclid_matrix"],
         allowed_cores=allowed_cores,
+        llm_core_gen=bool(args.llm_core_gen),
     )
 
     if args.print_usable_cores_json:
@@ -4172,6 +4579,7 @@ def main() -> None:
                 "selected_cores": program.selected_cores,
                 "selected_core_primary": primary_core,
                 "loop_count": len(program.selected_cores),
+                "llm_core_gen": bool(args.llm_core_gen),
             }
         )
 
