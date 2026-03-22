@@ -1,542 +1,1057 @@
-2026-03-14 20:32:24,681 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-14 20:32:24,703 - INFO - Found 2 loops
-2026-03-14 20:32:24,705 - INFO - 
+2026-03-22 12:22:51,113 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-22 12:22:51,126 - INFO - Found 1 loops
+2026-03-22 12:22:51,127 - INFO - 
 ============================================================
-2026-03-14 20:32:24,705 - INFO - Main generation pass 1/1
-2026-03-14 20:32:24,705 - INFO - ============================================================
-2026-03-14 20:32:24,705 - INFO - Loaded single prompt template: simple
-2026-03-14 20:32:24,705 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-14 20:32:24,705 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-14 20:32:24,786 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:34:11,161 - INFO - 
------ Candidate 1/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants for two loops. The code updates are:
+2026-03-22 12:22:51,127 - INFO - Main generation pass 1/1
+2026-03-22 12:22:51,127 - INFO - ============================================================
+2026-03-22 12:22:51,127 - INFO - Loaded single prompt template: simple
+2026-03-22 12:22:51,127 - INFO - Generating 8 candidate invariant sets with temperature=1.0
+2026-03-22 12:22:51,127 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-22 12:22:51,149 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 12:24:04,983 - INFO - 
+----- Candidate 1/8 raw response begin -----
+<reasoning>The loop progresses purely by incrementing byx9 (the loop counter surrogate) until it reaches u0, with x also increasing by 1 per iteration. This makes simple linear relations between several variables inductive and verifiable.
 
-- Loop 0 (the infinite-while with an internal break when kn0 < rqd no longer holds):
-  - k += f
-  - kn0++
-  - qt = qt * 2
-  - f = f + (rqd - bb)
+Core invariant ideas (inductive and cheap to verify):
+- x tracks the number of iterations so far: x == byx9 - 2, starting from 0 when byx9 = 2.
+- s accumulates 2 per iteration: s == 2*byx9 - 4 (consistent with s starting at 0 when byx9 = 2).
+- b2 changes linearly with byx9: b2 - 3*byx9 remains constant and equals 4*w - 6 (since initially b2 = 4*w and byx9 = 2).
+- ix accumulates the sequence of x values: ix == -8 + x*(x+1)/2 holds by induction given ix += x after x is incremented.
 
-- Loop 1 (while (qt < kn0)):
-  - qt++
-  - k += f
-  - f = f + kn0 - bb
-  - f += bb
+Additionally, bounds on byx9 relative to the loop bound u0 ensure progress:
+- byx9 is always in 2 .. u0 during loop iterations (the loop guard enforces byx9 < u0 before entering the body, and byx9 only increases inside).
 
-Key observations to guide invariants:
-- bb is not changed by either loop; it remains as the initial value (often 0 here). We can safely include invariants that bb == 0 to reflect this conservation.
-- For Loop 0, kn0 is increased by 1 each iteration and the loop exits when kn0 >= rqd. Hence a simple, inductive bound kn0 <= rqd (and in practice kn0 < rqd while the loop body executes) is robust. qt is monotonically increasing (doubling each iteration) and starts at 12, so qt >= 12 holds throughout the loop; k and f do change, but without strong initial-value knowledge of f, we avoid asserting tight equalities that involve the prior value of f or k.
-- A termination argument: in Loop 0, rqd - kn0 decreases by 1 each iteration, so using loop variant rqd - kn0 is appropriate.
-- For Loop 1, the loop does not modify kn0 or bb; kn0 is the same as at loop entry (which, after Loop 0, equals rqd). A strong invariant that helps verification is kn0 == rqd, which will hold at the entry of Loop 1 and be preserved by its body (since kn0 is not modified). We can also keep bb == 0 and qt, k, f as part of the loop’s assigns. There is no need (and it would be risky) to introduce a loop variant for Loop 1 unless we can guarantee a meaningful decreasing measure; since the loop may not execute at all, omitting variant is acceptable.
+Loop assigns must reflect every variable that can be changed inside the body:
+- au, x, ka, byx9, h, s, b2, ix, xy6, cv.
 
-Planned invariants:
-- Loop 0:
-  - kn0 <= rqd
-  - qt >= 12
-  - bb == 0
-  - k, f, qt, kn0 are assigned by the loop (loop assigns k, kn0, qt, f)
-  - loop variant: rqd - kn0
+Loop variant is chosen to prove termination:
+- u0 - byx9 decreases by 1 each iteration, hence is a valid loop variant.
 
-- Loop 1:
-  - kn0 == rqd (state reached after Loop 0)
-  - bb == 0
-  - loop assigns k, f, qt
-  - (no loop variant required)
-
-These invariants are inductive given the code, do not rely on unknown initial values of non-parameters, and keep the code logically unchanged. They provide a straightforward inductive reasoning path for Frama-C/WP without introducing problematic overflow-sensitive constraints.
+These invariants are strong and avoid relying on properties of h, xy6, or cv other than their bounded updates, while still being inductive and verification-friendly for Frama-C/WP. The exact equalities are designed to be preserved by the corresponding updates in the loop body.
 
 </reasoning>
-<code>/*@
-  loop invariant kn0 <= rqd;
-  loop invariant qt >= 12;
-  loop invariant bb == 0;
-  loop assigns k, kn0, qt, f;
-  loop variant rqd - kn0;
-*/
-while (1) {
-      if (!(kn0<rqd)) {
-          break;
-      }
-      k += f;
-      kn0++;
-      qt = qt*2;
-      f = f+rqd-bb;
-  }
+<code>int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
 
   /*@
-    loop invariant kn0 == rqd;
-    loop invariant bb == 0;
-    loop assigns k, f, qt;
-  */
-while (qt<kn0) {
-      qt++;
-      k += f;
-      f = f+kn0-bb;
-      f += bb;
-  }</code>
------ Candidate 1/5 raw response end -----
-2026-03-14 20:34:11,161 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-14 20:34:11,232 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:36:28,687 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>For the first loop, I derive a strong inductive invariant that captures the exact state transition seen in the loop body. Observations:
-- Each iteration updates: k <- k + f, kn0 <- kn0 + 1, qt <- qt * 2, f <- f + rqd - bb.
-- rqd and bb are constants within the loop (rqd = 38, bb = 0) and f evolves as f_{i+1} = f_i + 38.
-- Therefore f at iteration i is f_0 + i*38, where f_0 is the initial value of f before the loop (which is \at(f,Pre)).
-- The update of k over i iterations is k_i = k_0 + sum_{j=0}^{i-1} f_j = k_0 + i*f_0 + 19*i*(i-1) (since sum of arithmetic progression with step 38 is i*f_0 + 38*i*(i-1)/2, and 38/2 = 19).
-- If we denote the current kn0 as i, and initial f as \at(f,Pre), then k = kn0 * \at(f,Pre) + 19 * kn0 * (kn0 - 1) is an exact invariant that holds before every iteration and is preserved by the transition.
-
-I also add bounds to help termination reasoning and non-modified variables to reflect the loop assigns. For the second loop, given the actual program state after the first loop, kn0 equals rqd (38) and the loop guard (qt < kn0) is not satisfied (qt grows by doubling in the first loop), so the loop body is not entered in the given context; I still provide a minimal invariant indicating that kn0 remains constant and non-negative to keep the invariant coherent with the transition relation.
-
-Hence:
-- Loop 0 invariant: k == kn0 * \at(f,Pre) + 19 * kn0 * (kn0 - 1); 0 <= kn0 <= 38; 0 <= qt.
-- Loop 1 invariant: kn0 == 38; 0 <= qt; and the loop assigns k, f, qt.
-
-These are inductive (initialization holds, preserved by each iteration) and provide a concrete state-transition explanation for the updates. They avoid rewriting any unknown() or unknownN() calls and respect the allowed ACSL constructs and operators. </reasoning>
-<code>int main1(int f,int c){
-  int rqd, bb, k, kn0, qt;
-
-  rqd=38;
-  bb=0;
-  k=0;
-  kn0=0;
-  qt=12;
-
-  /*@
-    loop invariant k == kn0 * \at(f,Pre) + 19 * kn0 * (kn0 - 1);
-    loop invariant 0 <= kn0;
-    loop invariant 0 <= kn0 <= 38;
-    loop invariant 0 <= qt;
-    loop assigns k, kn0, qt, f;
+    loop invariant byx9 <= u0;
+    loop invariant byx9 >= 2;
+    loop invariant x == byx9 - 2;
+    loop invariant s == 2*byx9 - 4;
+    loop invariant b2 - 3*byx9 == 4*w - 6;
+    loop invariant ix == -8 + x*(x+1)/2;
+    loop invariant 2 <= byx9 <= u0;
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+    loop variant u0 - byx9;
   */
   while (1) {
-      if (!(kn0<rqd)) {
+      if (!(byx9<u0)) {
           break;
       }
-      k += f;
-      kn0++;
-      qt = qt*2;
-      f = f+rqd-bb;
-  }
-
-  /*@
-    loop invariant kn0 == 38;
-    loop invariant 0 <= qt;
-    loop assigns k, f, qt;
-  */
-  while (qt<kn0) {
-      qt++;
-      k += f;
-      f = f+kn0-bb;
-      f += bb;
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
   }
 
 }</code>
------ Candidate 2/5 raw response end -----
-2026-03-14 20:36:28,687 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-14 20:36:28,749 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:39:10,025 - INFO - 
------ Candidate 3/5 raw response begin -----
-<EMPTY_RESPONSE>
------ Candidate 3/5 raw response end -----
-2026-03-14 20:39:10,025 - WARNING -   Failed to extract code from candidate 3
-2026-03-14 20:39:10,026 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-14 20:39:10,086 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:42:20,281 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>For the first loop, I derived a strong inductive invariant that expresses k purely in terms of the loop counter kn0, the initial function parameter f (via \at(f,Pre)), and the known constants rqd and bb. Because k is updated by adding the current f and f itself is updated by a constant d = (rqd - bb), the closed-form update over kn0 iterations is:
-k = kn0 * f0 + (kn0*(kn0-1)/2) * d, where f0 = \at(f,Pre) and d = (rqd - bb).
-This invariant holds initially (kn0 = 0, k = 0) and is preserved by each iteration of the first loop (kn0 increments by 1 and f increases by d). I also add a minimal progress bound invariant 0 <= kn0 <= rqd and specify the loop variant rqd - kn0 for termination reasoning. The loop assigns k, kn0, qt, f.
-
-For the second loop, kn0 and bb do not change, so a simple invariant kn0 == rqd and qt <= kn0 ensures the loop state remains within bounds as qt increments. The loop variant kn0 - qt is a natural decreasing measure since qt increments by 1 each iteration while kn0 stays fixed. The loop assigns k, f, qt. This provides an inductive, verification-friendly specification without introducing disallowed constructs.
-
-These invariants are inductive, use only allowed variables, and stay faithful to the code semantics. They avoid modifying the original code except for the insertion of ACSL loop annotations. They also avoid using \at on non-parameters. The non-strict exit condition is respected by using non-strict bounds in the end of loops. </reasoning>
-
-<code>int main1(int f,int c){
-  int rqd, bb, k, kn0, qt;
-
-  rqd=38;
-  bb=0;
-  k=0;
-  kn0=0;
-  qt=12;
-
-  /*@
-     loop invariant k == kn0 * \at(f,Pre) + (kn0 * (kn0 - 1) / 2) * (rqd - bb);
-     loop invariant 0 <= kn0 <= rqd;
-     loop assigns k, kn0, qt, f;
-     loop variant rqd - kn0;
-  @*/
-  while (1) {
-      if (!(kn0<rqd)) {
-          break;
-      }
-      k += f;
-      kn0++;
-      qt = qt*2;
-      f = f+rqd-bb;
-  }
-
-  /*@
-     loop invariant kn0 == rqd;
-     loop invariant qt <= kn0;
-     loop assigns k, f, qt;
-     loop variant kn0 - qt;
-  @*/
-  while (qt<kn0) {
-      qt++;
-      k += f;
-      f = f+kn0-bb;
-      f += bb;
-  }
-
-}</code>
------ Candidate 4/5 raw response end -----
-2026-03-14 20:42:20,281 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-14 20:42:20,340 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:42:59,815 - INFO - 
------ Candidate 5/5 raw response begin -----
+----- Candidate 1/8 raw response end -----
+2026-03-22 12:24:04,984 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-22 12:24:04,996 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 12:24:35,342 - INFO - 
+----- Candidate 2/8 raw response begin -----
 <reasoning>
-For each loop I chose invariants that are (a) inductive, (b) explain the state transition in a compact algebraic form, and (c) give simple, precise bounds and an explicit termination variant.
+I produced invariants that are inductive, explain the loop state transitions, and give useful bounds and progress measures for WP.
 
-Loop 0 (the first while(1) with the kn0<rqd break):
-- Core conservation laws:
-  - f increases by a fixed amount (rqd - bb) each iteration, so f = f_initial + kn0*(rqd - bb). f_initial is the function parameter \at(f, Pre).
-  - k is the arithmetic sum of the sequence of f values encountered: sum_{i=0..kn0-1} (f_initial + i*(rqd-bb)) = kn0*f_initial + (rqd-bb)*kn0*(kn0-1)/2. This exactly characterizes k after kn0 iterations and is strong (inductive).
-  - qt doubles each iteration starting from 12, so I use qt == 12 * (1 << kn0). Using the left-shift expresses 2^{kn0} compactly in integer arithmetic; this form is both precise and inductive with the body (qt <- qt*2).
-- Bounds and progress:
-  - 0 <= kn0 <= rqd confines the loop count and matches the break condition.
-  - The loop variant rqd - kn0 decreases by 1 each iteration and is non-negative, ensuring termination.
+Key choices and justifications:
+- Core relational equality: x == (byx9 - 2). x starts at 0 while byx9 starts at 2 and both are incremented exactly once per iteration, so this equality is preserved and explains the synchronized advancement of the simple loop counter x and byx9.
+- Arithmetic conservation for the modulo-6 counter: 6*ka + au == 22 + x. Initially 6*3 + 4 == 22 and au/ka implement a base-6 carry: each iteration increases the combined quantity by 1. This invariant is strong and inductive and makes ka/au behavior precise.
+- Linear accumulation invariants: s == 2*x and b2 == 4*w + 3*x reflect exact per-iteration increments and are preserved.
+- Quadratic closed form for ix: ix == -8 + (x*(x+1))/2. ix accumulates successive x values; the triangular-number formula is exact and inductive.
+- Bounds and domains: 0 <= au <= 5 captures the modulo-6 canonical range after reduction; byx9 >= 2 && byx9 <= u0 states the monotonic bounds of byx9 (it starts at 2 and never exceeds u0 because the loop breaks when byx9 >= u0); xy6 >= u0 is a simple monotonic lower bound (xy6 starts at u0 and increases by xy6*2+2).
+- Loop variant: u0 - byx9 is a natural decreasing non-negative integer measure: every executed iteration increments byx9 by 1, so the variant strictly decreases and ensures termination.
+- loop assigns lists exactly the variables written in the body: au, x, ka, byx9, h, s, b2, ix, xy6, cv.
 
-Loop 1 (while (qt<kn0)):
-- This loop increments qt by 1 and increases f by kn0 each step (net effect). kn0 is unchanged.
-- I reuse the exact summary produced by the first loop as a baseline: the value of f at the entry of loop 1 is \at(f,Pre) + kn0*(rqd - bb), and the qt at entry of loop 1 is 12 * (1 << kn0). So the evolution in loop 1 can be expressed relative to these fixed baselines:
-  - f = baseline_f + (qt - baseline_qt) * kn0. This is exact and explains the per-iteration +kn0 update.
-  - k = baseline_k + sum of the terms added during loop 1; the formula is the baseline_k plus the arithmetic series for the added f-values. It is written in closed form as the sum of an arithmetic progression and is inductive.
-- Bounds and progress:
-  - qt <= kn0 (qt increases to reach kn0) and kn0 >= 0.
-  - Variant kn0 - qt decreases by 1 each iteration and is non-negative, ensuring termination.
-- Assigns lists:
-  - For each loop I listed exactly the variables modified in the body.
-
-I avoided any \at(...) on local variables (only \at(f, Pre) is used, which is allowed because f is a parameter). No quantifiers, no user-defined logics, and no rewrites of code were performed. Parentheses are used to keep arithmetic clear. These invariants are strong, inductive, and should be amenable to WP verification.
+I avoided quantifiers, new logic/predicate declarations, and any use of \at on local variables. The invariants are all inductive and hold initially with the given initializations.
 </reasoning>
 <code>
-int main1(int f,int c){
-  int rqd, bb, k, kn0, qt;
+int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
 
-  rqd=38;
-  bb=0;
-  k=0;
-  kn0=0;
-  qt=12;
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 0 <= kn0 && kn0 <= rqd;
-    loop invariant f == (\at(f, Pre) + kn0 * (rqd - bb));
-    loop invariant k == (kn0 * \at(f, Pre) + (rqd - bb) * (kn0 * (kn0 - 1) / 2));
-    loop invariant qt == (12 * (1 << kn0));
-    loop assigns k, kn0, qt, f;
-    loop variant (rqd - kn0);
+    loop invariant x == (byx9 - 2);
+    loop invariant 0 <= au && au <= 5;
+    loop invariant 6*ka + au == 22 + x;
+    loop invariant s == 2*x;
+    loop invariant b2 == 4*w + 3*x;
+    loop invariant ix == -8 + (x*(x + 1))/2;
+    loop invariant byx9 >= 2 && byx9 <= u0;
+    loop invariant xy6 >= u0;
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+    loop variant u0 - byx9;
   */
   while (1) {
-      if (!(kn0<rqd)) {
+      if (!(byx9<u0)) {
           break;
       }
-      k += f;
-      kn0++;
-      qt = qt*2;
-      f = f+rqd-bb;
-  }
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 0 <= kn0;
-    loop invariant qt <= kn0;
-    loop invariant f == (\at(f, Pre) + kn0 * (rqd - bb) + (qt - (12 * (1 << kn0))) * kn0);
-    loop invariant k == ( kn0 * \at(f, Pre)
-                         + (rqd - bb) * (kn0 * (kn0 - 1) / 2)
-                         + (qt - (12 * (1 << kn0))) * (\at(f, Pre) + kn0 * (rqd - bb))
-                         + kn0 * ((qt - (12 * (1 << kn0))) * ( (qt - (12 * (1 << kn0))) - 1 ) / 2)
-                       );
-    loop assigns qt, k, f;
-    loop variant (kn0 - qt);
-  */
-  while (qt<kn0) {
-      qt++;
-      k += f;
-      f = f+kn0-bb;
-      f += bb;
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
   }
 
 }
 </code>
------ Candidate 5/5 raw response end -----
-2026-03-14 20:42:59,815 - INFO - 
------ Candidate 1/5 full code begin -----
-/*@
-  loop invariant kn0 <= rqd;
-  loop invariant qt >= 12;
-  loop invariant bb == 0;
-  loop assigns k, kn0, qt, f;
-  loop variant rqd - kn0;
+----- Candidate 2/8 raw response end -----
+2026-03-22 12:24:35,343 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-22 12:24:35,362 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 12:25:58,525 - INFO - 
+----- Candidate 3/8 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop invariants that capture the essential state transitions of the loop without modifying the original code. Key observations:
+
+- The loop body updates au, x, ka, byx9, h, s, b2, ix, xy6, cv. So the loop assigns should list exactly these.
+- The update pattern for au/ka is a wrap-around every 6 on au, with ka incremented on wrap. If we track N = 6*ka + au, N increases by 1 each iteration (first au increments, and when au hits 6 it wraps to 0 and ka increases, preserving N' = N+1). Since the initial values are ka=3, au=4, we have N0 = 6*3 + 4 = 22. Also, s increases by 2 each iteration, so s/2 equals the number of iterations performed (an integer count).
+- Therefore a strong invariant is 6*ka + au = 22 + s/2, which is preserved per iteration.
+- For ix and x, x increments by 1 each iteration and ix accumulates that x value: ix += x after x has been incremented. Starting from x=0 and ix=-8, the closed form after n iterations is ix = -8 + n(n+1)/2. Since x = n, this yields ix = -8 + x*(x+1)/2. This invariant is also preserved each iteration.
+- A loop variant that guarantees termination is useful: the loop guard is byx9 < u0, and byx9 increments by 1 each iteration while u0 is fixed, so u0 - byx9 strictly decreases and remains non-negative until termination.
+- Therefore we provide two strong loop invariants, a loop assigns list, and a loop variant. We also ensure the invariants refer only to allowed variables and use a constant 22 derived from the known initial values (ka=3, au=4).
+
+</reasoning>
+<code>/*@
+  loop invariant (6*ka + au) == 22 + (s/2);
+  loop invariant ix == -8 + (x*(x+1)/2);
+  loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+  loop variant (u0 - byx9);
 */
 while (1) {
-      if (!(kn0<rqd)) {
+      if (!(byx9<u0)) {
           break;
       }
-      k += f;
-      kn0++;
-      qt = qt*2;
-      f = f+rqd-bb;
-  }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
+  }</code>
+----- Candidate 3/8 raw response end -----
+2026-03-22 12:25:58,525 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-22 12:25:58,538 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 12:28:16,136 - INFO - 
+----- Candidate 4/8 raw response begin -----
+<reasoning>The loop executes a fixed number of times: starting with byx9 = 2 and continuing while byx9 < u0, where u0 = (w%40)+16. Hence the iteration count t equals u0 - 2 and decreases the loop variant (u0 - byx9) by 1 per iteration, guaranteeing termination.
+
+I propose inductive invariants that are preserved by each iteration and are expressive enough to be useful for WP verification, while keeping them tight and aligned with the actual state updates:
+
+- byx9 - x == 2: both byx9 and x increase by 1 each iteration, starting at 2 and 0, respectively.
+- s == 2*x: s is incremented by 2 every iteration and x increments by 1, starting from 0.
+- b2 == 4*w + 3*(byx9 - 2): b2 starts at w*4 and increments by 3 each iteration; t = byx9 - 2 is the iteration count.
+- au + 6*ka == byx9 + 20: a conserved linear relation that adjusts with every overflow of au into [0..5] and ka increments on overflow.
+- ix == -8 + ((byx9 - 2) * (byx9 - 1)) / 2: closed-form for the cumulative sum ix = -8 + sum_{i=1..t} i, with t = byx9 - 2.
+
+A loop variant (u0 - byx9) provides a well-founded measure that decreases each iteration and proves termination. The loop assigns clause must cover all variables whose values may be modified inside the loop: au, x, ka, byx9, h, s, b2, ix, xy6, cv.
+
+These invariants are strong, exact (where possible), and directly tied to the loop's updates, aiding WP verification without altering the original code. They also respect the constraint of not using Pre after function entry except for parameters, and avoid introducing unrelated or tautological properties.
+
+</reasoning>
+<code>/*@
+  loop invariant byx9 - x == 2;
+  loop invariant s == 2*x;
+  loop invariant b2 == 4*w + 3*(byx9 - 2);
+  loop invariant au + 6*ka == byx9 + 20;
+  loop invariant ix == -8 + ((byx9 - 2) * (byx9 - 1)) / 2;
+  loop variant (u0 - byx9);
+  loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+*/
+while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
+  }</code>
+----- Candidate 4/8 raw response end -----
+2026-03-22 12:28:16,137 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-22 12:28:16,150 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 12:31:04,428 - INFO - 
+----- Candidate 5/8 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop invariants that explain the loop’s state updates and enable WP to discharge the verification.
+
+Observations about the loop:
+- The loop continues while byx9 < u0, with byx9 starting at 2 and increasing by 1 each iteration.
+- x starts at 0 and increments by 1 each iteration. Hence, a simple and strong invariant is byx9 == x + 2.
+- Several other variables are updated linearly with the iteration counter x:
+  - s is incremented by 2 per iteration -> s == 2*x.
+  - b2 starts at w*4 and increments by 3 per iteration -> b2 == w*4 + 3*x.
+  - ix starts at -8 and accumulates the sum of 1..x -> ix == -8 + x*(x+1)/2.
+  - au increments by 1 each iteration and wraps modulo 6 when it reaches 6; ka increments accordingly. This yields:
+    - au == (4 + x) % 6
+    - ka == 3 + ((4 + x) / 6)  (integer division)
+- These relations are preserved by the loop body:
+  - x and byx9 increment together, keeping byx9 == x + 2.
+  - s, b2, ix change exactly as required by their recurrence relations since they depend on x.
+  - au and ka follow the described modulo and division behavior with x.
+- A robust, termination-friendly loop variant is u0 - byx9, which decreases by 1 each iteration (since byx9 increases by 1 while u0 is fixed) and remains non-negative while the loop guard holds.
+
+Loop assigns must include all variables modified inside the loop. The loop modifies au, x, ka, byx9, h, s, b2, ix, xy6, cv. We provide invariants that are purely arithmetic relations in terms of x, w, and the loop variables above.
+
+Using these invariants provides a concise, strong inductive set that is verification-friendly and does not rely on weak or tautological properties. The invariant set also remains valid regardless of the occasional update to h (which is independent of these relations).
+
+Now we provide the annotated code with the described invariants, assignments, and a loop variant. </reasoning>
+<code>int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
 
   /*@
-    loop invariant kn0 == rqd;
-    loop invariant bb == 0;
-    loop assigns k, f, qt;
-  */
-while (qt<kn0) {
-      qt++;
-      k += f;
-      f = f+kn0-bb;
-      f += bb;
-  }
------ Candidate 1/5 full code end -----
-2026-03-14 20:42:59,815 - INFO - 
------ Candidate 2/5 full code begin -----
-int main1(int f,int c){
-  int rqd, bb, k, kn0, qt;
-
-  rqd=38;
-  bb=0;
-  k=0;
-  kn0=0;
-  qt=12;
-
-  /*@
-    loop invariant k == kn0 * \at(f,Pre) + 19 * kn0 * (kn0 - 1);
-    loop invariant 0 <= kn0;
-    loop invariant 0 <= kn0 <= 38;
-    loop invariant 0 <= qt;
-    loop assigns k, kn0, qt, f;
+    loop invariant byx9 == x + 2;
+    loop invariant s == 2 * x;
+    loop invariant b2 == w * 4 + 3 * x;
+    loop invariant ix == -8 + x * (x + 1) / 2;
+    loop invariant ka == 3 + ((4 + x) / 6);
+    loop invariant au == (4 + x) % 6;
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+    loop variant u0 - byx9;
   */
   while (1) {
-      if (!(kn0<rqd)) {
+      if (!(byx9<u0)) {
           break;
       }
-      k += f;
-      kn0++;
-      qt = qt*2;
-      f = f+rqd-bb;
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
   }
 
-  /*@
-    loop invariant kn0 == 38;
-    loop invariant 0 <= qt;
-    loop assigns k, f, qt;
-  */
-  while (qt<kn0) {
-      qt++;
-      k += f;
-      f = f+kn0-bb;
-      f += bb;
-  }
+}</code>
+----- Candidate 5/8 raw response end -----
+2026-03-22 12:31:04,428 - INFO -   Candidate 6 selected prompt: simple_cot.txt
+2026-03-22 12:31:04,461 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 12:34:01,609 - INFO - 
+----- Candidate 6/8 raw response begin -----
+<reasoning>The loop runs while byx9 < u0, incrementing by 1 each iteration and performing several linear state updates. A strong, inductive invariant should relate the arithmetic variables that progress deterministically each iteration. Observing the updates:
 
-}
------ Candidate 2/5 full code end -----
-2026-03-14 20:42:59,815 - WARNING - Candidate 3/5 full code: <None> (failed to extract)
-2026-03-14 20:42:59,815 - INFO - 
------ Candidate 4/5 full code begin -----
-int main1(int f,int c){
-  int rqd, bb, k, kn0, qt;
+- x increments by 1 each iteration; initial x = 0.
+- byx9 increments by 1 each iteration; initial byx9 = 2.
+- Therefore byx9 - x remains constant at 2 across iterations.
+- s increments by 2 each iteration; initial s = 0; thus s = 2*x.
+- b2 increments by 3 each iteration; initial b2 = w*4; thus b2 = w*4 + 3*x.
+- ix increments by the new x value each iteration (ix += x after x = x+1); starting at -8, this yields ix = -8 + x*(x+1)/2.
+- The loop head invariant should also capture progress bounds: 0 <= x <= u0 - 2 and 2 <= byx9 <= u0 (the latter follows from byx9 = x + 2 and the termination condition byx9 < u0).
 
-  rqd=38;
-  bb=0;
-  k=0;
-  kn0=0;
-  qt=12;
+These invariants are inductive (preserved by each iteration) and allow reasoning about the loop state without modifying the code. A loop variant (u0 - 2 - x) provides a well-founded decrease, ensuring termination: it starts positive (since u0 >= 16) and decreases by 1 each iteration until 0 when the loop exits. The loop assigns must cover all variables that are written inside the loop body: au, x, ka, byx9, h, s, b2, ix, xy6, cv.
 
-  /*@
-     loop invariant k == kn0 * \at(f,Pre) + (kn0 * (kn0 - 1) / 2) * (rqd - bb);
-     loop invariant 0 <= kn0 <= rqd;
-     loop assigns k, kn0, qt, f;
-     loop variant rqd - kn0;
+We avoid extraneous invariants and keep the relations precise and non-tautological. The invariant set is sufficient for inductive verification with Frama-C WP given the code structure. </reasoning>
+<code>int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
+
+  /*@ 
+    loop invariant byx9 - x == 2;
+    loop invariant s == 2*x;
+    loop invariant b2 == w*4 + 3*x;
+    loop invariant ix == -8 + (x*(x+1))/2;
+    loop invariant 0 <= x <= u0 - 2;
+    loop invariant 2 <= byx9 <= u0;
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+    loop variant (u0 - 2 - x);
   @*/
   while (1) {
-      if (!(kn0<rqd)) {
+      if (!(byx9<u0)) {
           break;
       }
-      k += f;
-      kn0++;
-      qt = qt*2;
-      f = f+rqd-bb;
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
   }
+
+}</code>
+----- Candidate 6/8 raw response end -----
+2026-03-22 12:34:01,611 - INFO -   Candidate 7 selected prompt: simple_cot.txt
+2026-03-22 12:34:01,627 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 12:37:01,133 - INFO - 
+----- Candidate 7/8 raw response begin -----
+<reasoning>The loop progresses by incrementing byx9 (and correspondingly x), with the termination condition being byx9 < u0. The clean, inductive invariant capturing the core state progression is the arithmetic relation x == byx9 - 2, which holds initially (x=0, byx9=2) and is preserved each iteration since both x and byx9 are incremented by 1. This gives a tight, useful invariant that ties together the loop counter and the counted variable without depending on non-deterministic effects.
+
+Using that core relation, we also add:
+- byx9 <= u0 to reflect the loop bound on the counter.
+- s == 2*x to relate s to the number of iterations (each iteration adds 2 to s).
+- ka >= 3 to express that ka starts at 3 and only increases (a monotone non-decreasing property).
+- A loop variant (u0 - byx9) to ensure termination of the loop as byx9 monotonically increases toward u0.
+
+The loop assigns clause must include all variables that the loop can modify, which are au, x, ka, byx9, h, s, b2, ix, xy6, cv. This ensures the verifier tracks all modifications properly. The invariant set is kept non-tautological and tightly aligned with the actual loop updates, while not using any \at(...) on locals. The annotations do not modify the original code otherwise. </reasoning>
+<code>int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
 
   /*@
-     loop invariant kn0 == rqd;
-     loop invariant qt <= kn0;
-     loop assigns k, f, qt;
-     loop variant kn0 - qt;
-  @*/
-  while (qt<kn0) {
-      qt++;
-      k += f;
-      f = f+kn0-bb;
-      f += bb;
+    loop invariant byx9 <= u0;
+    loop invariant x == byx9 - 2;
+    loop invariant s == 2*x;
+    loop invariant ka >= 3;
+    loop variant (u0 - byx9);
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+  */
+while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
   }
 
-}
------ Candidate 4/5 full code end -----
-2026-03-14 20:42:59,815 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int f,int c){
-  int rqd, bb, k, kn0, qt;
+}</code>
+----- Candidate 7/8 raw response end -----
+2026-03-22 12:37:01,133 - INFO -   Candidate 8 selected prompt: simple_cot.txt
+2026-03-22 12:37:01,152 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 12:38:53,931 - INFO - 
+----- Candidate 8/8 raw response begin -----
+<code>int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
 
-  rqd=38;
-  bb=0;
-  k=0;
-  kn0=0;
-  qt=12;
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 0 <= kn0 && kn0 <= rqd;
-    loop invariant f == (\at(f, Pre) + kn0 * (rqd - bb));
-    loop invariant k == (kn0 * \at(f, Pre) + (rqd - bb) * (kn0 * (kn0 - 1) / 2));
-    loop invariant qt == (12 * (1 << kn0));
-    loop assigns k, kn0, qt, f;
-    loop variant (rqd - kn0);
+    loop invariant x == byx9 - 2;
+    loop invariant s == 2*(byx9 - 2);
+    loop invariant b2 - 3*byx9 == w*4 - 6;
+    loop invariant ix == -8 + x*(x+1)/2;
+    loop assigns byx9, au, x, ka, h, s, b2, ix, xy6, cv;
+    loop variant u0 - byx9;
   */
   while (1) {
-      if (!(kn0<rqd)) {
+      if (!(byx9<u0)) {
           break;
       }
-      k += f;
-      kn0++;
-      qt = qt*2;
-      f = f+rqd-bb;
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
   }
+
+}</code>
+----- Candidate 8/8 raw response end -----
+2026-03-22 12:38:53,931 - INFO - 
+----- Candidate 1/8 full code begin -----
+int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
+
+  /*@
+    loop invariant byx9 <= u0;
+    loop invariant byx9 >= 2;
+    loop invariant x == byx9 - 2;
+    loop invariant s == 2*byx9 - 4;
+    loop invariant b2 - 3*byx9 == 4*w - 6;
+    loop invariant ix == -8 + x*(x+1)/2;
+    loop invariant 2 <= byx9 <= u0;
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+    loop variant u0 - byx9;
+  */
+  while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
+  }
+
+}
+----- Candidate 1/8 full code end -----
+2026-03-22 12:38:53,931 - INFO - 
+----- Candidate 2/8 full code begin -----
+int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
+
+  /*@
+    loop invariant x == (byx9 - 2);
+    loop invariant 0 <= au && au <= 5;
+    loop invariant 6*ka + au == 22 + x;
+    loop invariant s == 2*x;
+    loop invariant b2 == 4*w + 3*x;
+    loop invariant ix == -8 + (x*(x + 1))/2;
+    loop invariant byx9 >= 2 && byx9 <= u0;
+    loop invariant xy6 >= u0;
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+    loop variant u0 - byx9;
+  */
+  while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
+  }
+
+}
+----- Candidate 2/8 full code end -----
+2026-03-22 12:38:53,931 - INFO - 
+----- Candidate 3/8 full code begin -----
+/*@
+  loop invariant (6*ka + au) == 22 + (s/2);
+  loop invariant ix == -8 + (x*(x+1)/2);
+  loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+  loop variant (u0 - byx9);
+*/
+while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
+  }
+----- Candidate 3/8 full code end -----
+2026-03-22 12:38:53,931 - INFO - 
+----- Candidate 4/8 full code begin -----
+/*@
+  loop invariant byx9 - x == 2;
+  loop invariant s == 2*x;
+  loop invariant b2 == 4*w + 3*(byx9 - 2);
+  loop invariant au + 6*ka == byx9 + 20;
+  loop invariant ix == -8 + ((byx9 - 2) * (byx9 - 1)) / 2;
+  loop variant (u0 - byx9);
+  loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+*/
+while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
+  }
+----- Candidate 4/8 full code end -----
+2026-03-22 12:38:53,931 - INFO - 
+----- Candidate 5/8 full code begin -----
+int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
+
+  /*@
+    loop invariant byx9 == x + 2;
+    loop invariant s == 2 * x;
+    loop invariant b2 == w * 4 + 3 * x;
+    loop invariant ix == -8 + x * (x + 1) / 2;
+    loop invariant ka == 3 + ((4 + x) / 6);
+    loop invariant au == (4 + x) % 6;
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+    loop variant u0 - byx9;
+  */
+  while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
+  }
+
+}
+----- Candidate 5/8 full code end -----
+2026-03-22 12:38:53,931 - INFO - 
+----- Candidate 6/8 full code begin -----
+int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
+
+  /*@ 
+    loop invariant byx9 - x == 2;
+    loop invariant s == 2*x;
+    loop invariant b2 == w*4 + 3*x;
+    loop invariant ix == -8 + (x*(x+1))/2;
+    loop invariant 0 <= x <= u0 - 2;
+    loop invariant 2 <= byx9 <= u0;
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+    loop variant (u0 - 2 - x);
+  @*/
+  while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
+  }
+
+}
+----- Candidate 6/8 full code end -----
+2026-03-22 12:38:53,931 - INFO - 
+----- Candidate 7/8 full code begin -----
+int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
+
+  /*@
+    loop invariant byx9 <= u0;
+    loop invariant x == byx9 - 2;
+    loop invariant s == 2*x;
+    loop invariant ka >= 3;
+    loop variant (u0 - byx9);
+    loop assigns au, x, ka, byx9, h, s, b2, ix, xy6, cv;
+  */
+while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
+  }
+
+}
+----- Candidate 7/8 full code end -----
+2026-03-22 12:38:53,931 - INFO - 
+----- Candidate 8/8 full code begin -----
+int main1(int h,int w){
+  int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+
+  u0=(w%40)+16;
+  byx9=2;
+  ka=3;
+  au=4;
+  x=0;
+  xy6=u0;
+  cv=-6;
+  b2=w*4;
+  ix=-8;
+  s=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 0 <= kn0;
-    loop invariant qt <= kn0;
-    loop invariant f == (\at(f, Pre) + kn0 * (rqd - bb) + (qt - (12 * (1 << kn0))) * kn0);
-    loop invariant k == ( kn0 * \at(f, Pre)
-                         + (rqd - bb) * (kn0 * (kn0 - 1) / 2)
-                         + (qt - (12 * (1 << kn0))) * (\at(f, Pre) + kn0 * (rqd - bb))
-                         + kn0 * ((qt - (12 * (1 << kn0))) * ( (qt - (12 * (1 << kn0))) - 1 ) / 2)
-                       );
-    loop assigns qt, k, f;
-    loop variant (kn0 - qt);
+    loop invariant x == byx9 - 2;
+    loop invariant s == 2*(byx9 - 2);
+    loop invariant b2 - 3*byx9 == w*4 - 6;
+    loop invariant ix == -8 + x*(x+1)/2;
+    loop assigns byx9, au, x, ka, h, s, b2, ix, xy6, cv;
+    loop variant u0 - byx9;
   */
-  while (qt<kn0) {
-      qt++;
-      k += f;
-      f = f+kn0-bb;
-      f += bb;
+  while (1) {
+      if (!(byx9<u0)) {
+          break;
+      }
+      au++;
+      x = x + 1;
+      if (au>=6) {
+          au -= 6;
+          ka = ka + 1;
+      }
+      byx9 = byx9 + 1;
+      if ((byx9%7)==0) {
+          h = h%2;
+      }
+      s += 2;
+      b2 = b2 + 3;
+      ix += x;
+      xy6 = xy6*2+2;
+      cv = cv*xy6+2;
   }
 
 }
------ Candidate 5/5 full code end -----
-2026-03-14 20:42:59,815 - INFO - Successfully generated 4/5 candidates
-2026-03-14 20:42:59,817 - INFO - Checking 12 invariants for conflicts...
-2026-03-14 20:42:59,820 - INFO - Checking 6 invariants for conflicts...
-2026-03-14 20:42:59,823 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-14 20:42:59,823 - INFO -   1: int main1(int f,int c){
-2026-03-14 20:42:59,824 - INFO -   2:   int rqd, bb, k, kn0, qt;
-2026-03-14 20:42:59,824 - INFO -   3: 
-2026-03-14 20:42:59,824 - INFO -   4:   rqd=38;
-2026-03-14 20:42:59,824 - INFO -   5:   bb=0;
-2026-03-14 20:42:59,824 - INFO -   6:   k=0;
-2026-03-14 20:42:59,824 - INFO -   7:   kn0=0;
-2026-03-14 20:42:59,824 - INFO -   8:   qt=12;
-2026-03-14 20:42:59,824 - INFO -   9: 
-2026-03-14 20:42:59,824 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-14 20:42:59,824 - INFO - DEBUG: Total lines: 54
-2026-03-14 20:43:00,036 - INFO - syntax Correct
-2026-03-14 20:43:31,242 - INFO - Validate:
-2026-03-14 20:43:31,242 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True]
-2026-03-14 20:43:31,242 - INFO - 
-2026-03-14 20:43:31,242 - INFO - Verify:
-2026-03-14 20:43:31,242 - INFO - []
-2026-03-14 20:43:31,242 - INFO - 
-2026-03-14 20:43:31,242 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-14 20:43:31,242 - INFO -   Before: 18 invariants
-2026-03-14 20:43:31,242 - INFO -   After: 17 invariants
-2026-03-14 20:43:31,242 - INFO -   Remaining invariants:
-2026-03-14 20:43:31,242 - INFO -     [1] kn0 <= rqd
-2026-03-14 20:43:31,242 - INFO -     [2] qt >= 12
-2026-03-14 20:43:31,242 - INFO -     [3] bb == 0
-2026-03-14 20:43:31,242 - INFO -     [4] k == kn0 * \at(f,Pre) + 19 * kn0 * (kn0 - 1)
-2026-03-14 20:43:31,242 - INFO -     [5] 0 <= kn0
-2026-03-14 20:43:31,242 - INFO -     [6] 0 <= kn0 <= 38
-2026-03-14 20:43:31,242 - INFO -     [7] 0 <= qt
-2026-03-14 20:43:31,242 - INFO -     [8] k == kn0 * \at(f,Pre) + (kn0 * (kn0 - 1) / 2) * (rqd - bb)
-2026-03-14 20:43:31,242 - INFO -     [9] 0 <= kn0 <= rqd
-2026-03-14 20:43:31,242 - INFO -     [10] 0 <= kn0 && kn0 <= rqd
-2026-03-14 20:43:31,242 - INFO -     [11] f == (\at(f, Pre) + kn0 * (rqd - bb))
-2026-03-14 20:43:31,242 - INFO -     [12] k == (kn0 * \at(f, Pre) + (rqd - bb) * (kn0 * (kn0 - 1) / 2))
-2026-03-14 20:43:31,242 - INFO -     [13] kn0 == rqd
-2026-03-14 20:43:31,242 - INFO -     [14] bb == 0
-2026-03-14 20:43:31,242 - INFO -     [15] kn0 == 38
-2026-03-14 20:43:31,242 - INFO -     [16] 0 <= qt
-2026-03-14 20:43:31,242 - INFO -     [17] 0 <= kn0
-2026-03-14 20:43:31,457 - INFO - syntax Correct
-2026-03-14 20:44:02,648 - INFO - Validate:
-2026-03-14 20:44:02,648 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-14 20:44:02,648 - INFO - 
-2026-03-14 20:44:02,648 - INFO - Verify:
-2026-03-14 20:44:02,648 - INFO - []
-2026-03-14 20:44:02,648 - INFO - 
-2026-03-14 20:44:02,648 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-14 20:44:02,870 - INFO - syntax Correct
-2026-03-14 20:44:34,046 - INFO - Validate:
-2026-03-14 20:44:34,046 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-14 20:44:34,046 - INFO - 
-2026-03-14 20:44:34,046 - INFO - Verify:
-2026-03-14 20:44:34,046 - INFO - []
-2026-03-14 20:44:34,046 - INFO - 
-2026-03-14 20:45:51,290 - INFO - Deduplicated 8 loop invariants in final code
-2026-03-14 20:45:51,495 - INFO - syntax Correct
-2026-03-14 20:46:22,539 - INFO - Validate:
-2026-03-14 20:46:22,539 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-14 20:46:22,539 - INFO - 
-2026-03-14 20:46:22,539 - INFO - Verify:
-2026-03-14 20:46:22,539 - INFO - []
-2026-03-14 20:46:22,539 - INFO - 
-2026-03-14 20:46:22,540 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-14 20:46:22,540 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_29/1.c
-2026-03-14 20:46:22,540 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_29/1_invariants.txt
-2026-03-14 20:46:22,540 - INFO - 
+----- Candidate 8/8 full code end -----
+2026-03-22 12:38:53,931 - INFO - Successfully generated 8/8 candidates
+2026-03-22 12:38:53,932 - INFO - Checking 29 invariants for conflicts...
+2026-03-22 12:38:53,933 - INFO -   Conflict detected:
+2026-03-22 12:38:53,933 - INFO -     [1] byx9 <= u0
+2026-03-22 12:38:53,933 - INFO -     [15] xy6 >= u0
+2026-03-22 12:38:53,939 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-22 12:38:53,939 - INFO -   1: int main1(int h,int w){
+2026-03-22 12:38:53,939 - INFO -   2:   int u0, byx9, ka, au, x, xy6, cv, b2, ix, s;
+2026-03-22 12:38:53,939 - INFO -   3: 
+2026-03-22 12:38:53,939 - INFO -   4:   u0=(w%40)+16;
+2026-03-22 12:38:53,939 - INFO -   5:   byx9=2;
+2026-03-22 12:38:53,939 - INFO -   6:   ka=3;
+2026-03-22 12:38:53,939 - INFO -   7:   au=4;
+2026-03-22 12:38:53,939 - INFO -   8:   x=0;
+2026-03-22 12:38:53,939 - INFO -   9:   xy6=u0;
+2026-03-22 12:38:53,939 - INFO -   10:   cv=-6;
+2026-03-22 12:38:53,939 - INFO - DEBUG: Total lines: 69
+2026-03-22 12:38:54,144 - INFO - syntax Correct
+2026-03-22 12:39:26,350 - INFO - Validate:
+2026-03-22 12:39:26,350 - INFO - [False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 12:39:26,350 - INFO - 
+2026-03-22 12:39:26,350 - INFO - Verify:
+2026-03-22 12:39:26,350 - INFO - []
+2026-03-22 12:39:26,350 - INFO - 
+2026-03-22 12:39:26,350 - INFO - Houdini iteration 1: Removed 1 failed invariants
+2026-03-22 12:39:26,351 - INFO -   Before: 28 invariants
+2026-03-22 12:39:26,351 - INFO -   After: 27 invariants
+2026-03-22 12:39:26,351 - INFO -   Remaining invariants:
+2026-03-22 12:39:26,351 - INFO -     [1] byx9 >= 2
+2026-03-22 12:39:26,351 - INFO -     [2] x == byx9 - 2
+2026-03-22 12:39:26,351 - INFO -     [3] s == 2*byx9 - 4
+2026-03-22 12:39:26,351 - INFO -     [4] b2 - 3*byx9 == 4*w - 6
+2026-03-22 12:39:26,351 - INFO -     [5] ix == -8 + x*(x+1)/2
+2026-03-22 12:39:26,351 - INFO -     [6] 2 <= byx9 <= u0
+2026-03-22 12:39:26,351 - INFO -     [7] x == (byx9 - 2)
+2026-03-22 12:39:26,351 - INFO -     [8] 0 <= au && au <= 5
+2026-03-22 12:39:26,351 - INFO -     [9] 6*ka + au == 22 + x
+2026-03-22 12:39:26,351 - INFO -     [10] s == 2*x
+2026-03-22 12:39:26,351 - INFO -     [11] b2 == 4*w + 3*x
+2026-03-22 12:39:26,351 - INFO -     [12] ix == -8 + (x*(x + 1))/2
+2026-03-22 12:39:26,351 - INFO -     [13] byx9 >= 2 && byx9 <= u0
+2026-03-22 12:39:26,351 - INFO -     [14] (6*ka + au) == 22 + (s/2)
+2026-03-22 12:39:26,351 - INFO -     [15] ix == -8 + (x*(x+1)/2)
+2026-03-22 12:39:26,351 - INFO -     [16] byx9 - x == 2
+2026-03-22 12:39:26,351 - INFO -     [17] b2 == 4*w + 3*(byx9 - 2)
+2026-03-22 12:39:26,351 - INFO -     [18] au + 6*ka == byx9 + 20
+2026-03-22 12:39:26,351 - INFO -     [19] ix == -8 + ((byx9 - 2) * (byx9 - 1)) / 2
+2026-03-22 12:39:26,351 - INFO -     [20] byx9 == x + 2
+2026-03-22 12:39:26,351 - INFO -     [21] b2 == w * 4 + 3 * x
+2026-03-22 12:39:26,351 - INFO -     [22] ka == 3 + ((4 + x) / 6)
+2026-03-22 12:39:26,351 - INFO -     [23] au == (4 + x) % 6
+2026-03-22 12:39:26,351 - INFO -     [24] 0 <= x <= u0 - 2
+2026-03-22 12:39:26,351 - INFO -     [25] ka >= 3
+2026-03-22 12:39:26,351 - INFO -     [26] s == 2*(byx9 - 2)
+2026-03-22 12:39:26,351 - INFO -     [27] b2 - 3*byx9 == w*4 - 6
+2026-03-22 12:39:26,563 - INFO - syntax Correct
+2026-03-22 12:39:58,751 - INFO - Validate:
+2026-03-22 12:39:58,751 - INFO - [True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 12:39:58,751 - INFO - 
+2026-03-22 12:39:58,751 - INFO - Verify:
+2026-03-22 12:39:58,752 - INFO - []
+2026-03-22 12:39:58,752 - INFO - 
+2026-03-22 12:39:58,752 - INFO - Houdini iteration 2: Removed 1 failed invariants
+2026-03-22 12:39:58,752 - INFO -   Before: 27 invariants
+2026-03-22 12:39:58,752 - INFO -   After: 26 invariants
+2026-03-22 12:39:58,752 - INFO -   Remaining invariants:
+2026-03-22 12:39:58,752 - INFO -     [1] byx9 >= 2
+2026-03-22 12:39:58,752 - INFO -     [2] x == byx9 - 2
+2026-03-22 12:39:58,752 - INFO -     [3] s == 2*byx9 - 4
+2026-03-22 12:39:58,752 - INFO -     [4] b2 - 3*byx9 == 4*w - 6
+2026-03-22 12:39:58,752 - INFO -     [5] ix == -8 + x*(x+1)/2
+2026-03-22 12:39:58,752 - INFO -     [6] x == (byx9 - 2)
+2026-03-22 12:39:58,752 - INFO -     [7] 0 <= au && au <= 5
+2026-03-22 12:39:58,752 - INFO -     [8] 6*ka + au == 22 + x
+2026-03-22 12:39:58,752 - INFO -     [9] s == 2*x
+2026-03-22 12:39:58,752 - INFO -     [10] b2 == 4*w + 3*x
+2026-03-22 12:39:58,752 - INFO -     [11] ix == -8 + (x*(x + 1))/2
+2026-03-22 12:39:58,752 - INFO -     [12] byx9 >= 2 && byx9 <= u0
+2026-03-22 12:39:58,752 - INFO -     [13] (6*ka + au) == 22 + (s/2)
+2026-03-22 12:39:58,752 - INFO -     [14] ix == -8 + (x*(x+1)/2)
+2026-03-22 12:39:58,752 - INFO -     [15] byx9 - x == 2
+2026-03-22 12:39:58,752 - INFO -     [16] b2 == 4*w + 3*(byx9 - 2)
+2026-03-22 12:39:58,752 - INFO -     [17] au + 6*ka == byx9 + 20
+2026-03-22 12:39:58,752 - INFO -     [18] ix == -8 + ((byx9 - 2) * (byx9 - 1)) / 2
+2026-03-22 12:39:58,752 - INFO -     [19] byx9 == x + 2
+2026-03-22 12:39:58,752 - INFO -     [20] b2 == w * 4 + 3 * x
+2026-03-22 12:39:58,752 - INFO -     [21] ka == 3 + ((4 + x) / 6)
+2026-03-22 12:39:58,752 - INFO -     [22] au == (4 + x) % 6
+2026-03-22 12:39:58,752 - INFO -     [23] 0 <= x <= u0 - 2
+2026-03-22 12:39:58,752 - INFO -     [24] ka >= 3
+2026-03-22 12:39:58,752 - INFO -     [25] s == 2*(byx9 - 2)
+2026-03-22 12:39:58,752 - INFO -     [26] b2 - 3*byx9 == w*4 - 6
+2026-03-22 12:39:58,964 - INFO - syntax Correct
+2026-03-22 12:40:31,061 - INFO - Validate:
+2026-03-22 12:40:31,061 - INFO - [True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 12:40:31,061 - INFO - 
+2026-03-22 12:40:31,061 - INFO - Verify:
+2026-03-22 12:40:31,061 - INFO - []
+2026-03-22 12:40:31,061 - INFO - 
+2026-03-22 12:40:31,062 - INFO - Houdini iteration 3: Removed 1 failed invariants
+2026-03-22 12:40:31,062 - INFO -   Before: 26 invariants
+2026-03-22 12:40:31,062 - INFO -   After: 25 invariants
+2026-03-22 12:40:31,062 - INFO -   Remaining invariants:
+2026-03-22 12:40:31,062 - INFO -     [1] byx9 >= 2
+2026-03-22 12:40:31,062 - INFO -     [2] x == byx9 - 2
+2026-03-22 12:40:31,062 - INFO -     [3] s == 2*byx9 - 4
+2026-03-22 12:40:31,062 - INFO -     [4] b2 - 3*byx9 == 4*w - 6
+2026-03-22 12:40:31,062 - INFO -     [5] ix == -8 + x*(x+1)/2
+2026-03-22 12:40:31,062 - INFO -     [6] x == (byx9 - 2)
+2026-03-22 12:40:31,062 - INFO -     [7] 0 <= au && au <= 5
+2026-03-22 12:40:31,062 - INFO -     [8] 6*ka + au == 22 + x
+2026-03-22 12:40:31,062 - INFO -     [9] s == 2*x
+2026-03-22 12:40:31,062 - INFO -     [10] b2 == 4*w + 3*x
+2026-03-22 12:40:31,062 - INFO -     [11] ix == -8 + (x*(x + 1))/2
+2026-03-22 12:40:31,062 - INFO -     [12] (6*ka + au) == 22 + (s/2)
+2026-03-22 12:40:31,062 - INFO -     [13] ix == -8 + (x*(x+1)/2)
+2026-03-22 12:40:31,062 - INFO -     [14] byx9 - x == 2
+2026-03-22 12:40:31,062 - INFO -     [15] b2 == 4*w + 3*(byx9 - 2)
+2026-03-22 12:40:31,062 - INFO -     [16] au + 6*ka == byx9 + 20
+2026-03-22 12:40:31,062 - INFO -     [17] ix == -8 + ((byx9 - 2) * (byx9 - 1)) / 2
+2026-03-22 12:40:31,062 - INFO -     [18] byx9 == x + 2
+2026-03-22 12:40:31,062 - INFO -     [19] b2 == w * 4 + 3 * x
+2026-03-22 12:40:31,062 - INFO -     [20] ka == 3 + ((4 + x) / 6)
+2026-03-22 12:40:31,062 - INFO -     [21] au == (4 + x) % 6
+2026-03-22 12:40:31,062 - INFO -     [22] 0 <= x <= u0 - 2
+2026-03-22 12:40:31,062 - INFO -     [23] ka >= 3
+2026-03-22 12:40:31,062 - INFO -     [24] s == 2*(byx9 - 2)
+2026-03-22 12:40:31,062 - INFO -     [25] b2 - 3*byx9 == w*4 - 6
+2026-03-22 12:40:31,451 - INFO - syntax Correct
+2026-03-22 12:41:04,136 - INFO - Validate:
+2026-03-22 12:41:04,136 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True]
+2026-03-22 12:41:04,136 - INFO - 
+2026-03-22 12:41:04,136 - INFO - Verify:
+2026-03-22 12:41:04,136 - INFO - []
+2026-03-22 12:41:04,136 - INFO - 
+2026-03-22 12:41:04,137 - INFO - Houdini iteration 4: Removed 1 failed invariants
+2026-03-22 12:41:04,137 - INFO -   Before: 25 invariants
+2026-03-22 12:41:04,137 - INFO -   After: 24 invariants
+2026-03-22 12:41:04,137 - INFO -   Remaining invariants:
+2026-03-22 12:41:04,137 - INFO -     [1] byx9 >= 2
+2026-03-22 12:41:04,137 - INFO -     [2] x == byx9 - 2
+2026-03-22 12:41:04,137 - INFO -     [3] s == 2*byx9 - 4
+2026-03-22 12:41:04,137 - INFO -     [4] b2 - 3*byx9 == 4*w - 6
+2026-03-22 12:41:04,137 - INFO -     [5] ix == -8 + x*(x+1)/2
+2026-03-22 12:41:04,137 - INFO -     [6] x == (byx9 - 2)
+2026-03-22 12:41:04,137 - INFO -     [7] 0 <= au && au <= 5
+2026-03-22 12:41:04,137 - INFO -     [8] 6*ka + au == 22 + x
+2026-03-22 12:41:04,137 - INFO -     [9] s == 2*x
+2026-03-22 12:41:04,137 - INFO -     [10] b2 == 4*w + 3*x
+2026-03-22 12:41:04,137 - INFO -     [11] ix == -8 + (x*(x + 1))/2
+2026-03-22 12:41:04,137 - INFO -     [12] (6*ka + au) == 22 + (s/2)
+2026-03-22 12:41:04,137 - INFO -     [13] ix == -8 + (x*(x+1)/2)
+2026-03-22 12:41:04,137 - INFO -     [14] byx9 - x == 2
+2026-03-22 12:41:04,137 - INFO -     [15] b2 == 4*w + 3*(byx9 - 2)
+2026-03-22 12:41:04,137 - INFO -     [16] au + 6*ka == byx9 + 20
+2026-03-22 12:41:04,137 - INFO -     [17] ix == -8 + ((byx9 - 2) * (byx9 - 1)) / 2
+2026-03-22 12:41:04,137 - INFO -     [18] byx9 == x + 2
+2026-03-22 12:41:04,137 - INFO -     [19] b2 == w * 4 + 3 * x
+2026-03-22 12:41:04,137 - INFO -     [20] ka == 3 + ((4 + x) / 6)
+2026-03-22 12:41:04,137 - INFO -     [21] au == (4 + x) % 6
+2026-03-22 12:41:04,137 - INFO -     [22] ka >= 3
+2026-03-22 12:41:04,137 - INFO -     [23] s == 2*(byx9 - 2)
+2026-03-22 12:41:04,137 - INFO -     [24] b2 - 3*byx9 == w*4 - 6
+2026-03-22 12:41:04,571 - INFO - syntax Correct
+2026-03-22 12:41:37,195 - INFO - Validate:
+2026-03-22 12:41:37,196 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 12:41:37,196 - INFO - 
+2026-03-22 12:41:37,196 - INFO - Verify:
+2026-03-22 12:41:37,196 - INFO - []
+2026-03-22 12:41:37,196 - INFO - 
+2026-03-22 12:41:37,196 - INFO - Houdini iteration 5: All invariants are valid
+2026-03-22 12:41:37,416 - INFO - syntax Correct
+2026-03-22 12:42:09,264 - INFO - Validate:
+2026-03-22 12:42:09,264 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 12:42:09,264 - INFO - 
+2026-03-22 12:42:09,264 - INFO - Verify:
+2026-03-22 12:42:09,264 - INFO - []
+2026-03-22 12:42:09,264 - INFO - 
+2026-03-22 12:43:05,514 - INFO - Deduplicated 14 loop invariants in final code
+2026-03-22 12:43:05,733 - INFO - syntax Correct
+2026-03-22 12:43:37,026 - INFO - Validate:
+2026-03-22 12:43:37,026 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 12:43:37,026 - INFO - 
+2026-03-22 12:43:37,026 - INFO - Verify:
+2026-03-22 12:43:37,027 - INFO - []
+2026-03-22 12:43:37,027 - INFO - 
+2026-03-22 12:43:37,027 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-22 12:43:37,027 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_29/1.c
+2026-03-22 12:43:37,027 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_29/1_invariants.txt
+2026-03-22 12:43:37,027 - INFO - 
 ============================================================
-2026-03-14 20:46:22,540 - INFO - Final first_pass results:
-2026-03-14 20:46:22,540 - INFO -   syntax=1
-2026-03-14 20:46:22,540 - INFO -   valid=1
-2026-03-14 20:46:22,540 - INFO -   satisfy=None
-2026-03-14 20:46:22,540 - INFO - ============================================================
-2026-03-14 20:46:22,540 - INFO - 
+2026-03-22 12:43:37,027 - INFO - Final first_pass results:
+2026-03-22 12:43:37,027 - INFO -   syntax=1
+2026-03-22 12:43:37,027 - INFO -   valid=1
+2026-03-22 12:43:37,027 - INFO -   satisfy=None
+2026-03-22 12:43:37,027 - INFO - ============================================================
+2026-03-22 12:43:37,027 - INFO - 
 ============================================================
-2026-03-14 20:46:22,540 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-14 20:46:22,540 - INFO -   Total API calls: 1
-2026-03-14 20:46:22,540 - INFO -   Total prompt tokens (input): 1,302
-2026-03-14 20:46:22,540 - INFO -   Total completion tokens (output): 14,188
-2026-03-14 20:46:22,540 - INFO -   Total tokens: 15,490
-2026-03-14 20:46:22,540 - INFO -   Average per call:
-2026-03-14 20:46:22,540 - INFO -     Prompt: 1302.0 tokens
-2026-03-14 20:46:22,540 - INFO -     Completion: 14188.0 tokens
-2026-03-14 20:46:22,540 - INFO -     Total: 15490.0 tokens
-2026-03-14 20:46:22,540 - INFO - ============================================================
-2026-03-14 20:46:22,540 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_29/1.c
-2026-03-14 20:46:22,540 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_29/1_invariants.txt
-2026-03-14 20:47:22,340 - INFO - LLM quality-gate raw response: {
-  "ok": true,
-  "reason": "The invariants are inductive and non-trivial: they correctly capture the exact update law for the first loop (k equals kn0 * f0 + 19 * kn0 * (kn0 - 1); f equals f0 + kn0 * (rqd - bb)), with f referring to the initial parameter via \\at(f,Pre). They also bound kn0: 0 <= kn0 <= 38 (and 0 <= kn0 <= rqd), ensuring a termination argument. The qt invariant (qt >= 12) and the bb invariant (bb == 0) are stable. For the second loop, kn0 == rqd (i.e., 38) and kn0 == 38, plus 0 <= qt, are inductive; loop assigns cover k, f, qt. All variables modified inside loops are covered by invariants. There is some redundancy (e.g., two equalities for k, and both 0 <= kn0 <= 38 and 0 <= kn0 <= rqd), but it does not affect verification."
+2026-03-22 12:43:37,027 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-22 12:43:37,027 - INFO -   Total API calls: 3
+2026-03-22 12:43:37,027 - INFO -   Total prompt tokens (input): 3,713
+2026-03-22 12:43:37,027 - INFO -   Total completion tokens (output): 20,003
+2026-03-22 12:43:37,027 - INFO -   Total tokens: 23,716
+2026-03-22 12:43:37,027 - INFO -   Average per call:
+2026-03-22 12:43:37,027 - INFO -     Prompt: 1237.7 tokens
+2026-03-22 12:43:37,027 - INFO -     Completion: 6667.7 tokens
+2026-03-22 12:43:37,027 - INFO -     Total: 7905.3 tokens
+2026-03-22 12:43:37,027 - INFO - ============================================================
+2026-03-22 12:43:37,027 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_29/1.c
+2026-03-22 12:43:37,028 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_29/1_invariants.txt
+2026-03-22 12:44:25,705 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "Invariant set is strong for byx9, x, s, b2, ix, au, ka, etc., but it fails completeness: xy6 and cv (which are modified in the loop) do not appear in any loop invariant, so not all modified state is covered. There is no loop variant provided to prove termination of the while(1) loop; therefore inductiveness and termination cannot be fully established. Additionally, h is modified inside; invariants do not constrain h, though that's not fatal by itself but could complicate reasoning."
 }
-2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
-2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
-2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
-2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
+2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
+2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...

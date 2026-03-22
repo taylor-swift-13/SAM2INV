@@ -1,21 +1,19 @@
-int main1(int a,int k){
-  int r, u, i, o, v;
+int main1(int a,int b){
+  int p, i, e;
 
-  r=(k%8)+14;
-  u=r;
-  i=r;
-  o=-5;
-  v=3;
+  p=(a%14)+4;
+  i=p+4;
+  e=-5;
 
 
-while (u>0) {
-      i = i+2;
-      o = o+i;
-      u = u-1;
+while (i>=p+1) {
+      e = e*2;
+      e = e*e+e;
+      i = i-3;
   }
 /*@
-  assert !(u>0) &&
-         (i == 3*r - 2*u);
+  assert !(i>=p+1) &&
+         (a == \at(a, Pre));
 */
 
 }

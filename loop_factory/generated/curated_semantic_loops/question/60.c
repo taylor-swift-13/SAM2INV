@@ -1,23 +1,23 @@
-int main1(int n){
-  int r, j, v;
+int main1(int a,int m){
+  int x, j, i, b;
 
-  r=n;
-  j=4;
-  v=n;
+  x=35;
+  j=x;
+  i=5;
+  b=3;
 
 
-while (j<r) {
-      if ((j%9)==0) {
-          v = v-v;
+while (j-4>=0) {
+      if (i+6<=x) {
+          i = i+6;
       }
       else {
-          v = v+1;
+          i = x;
       }
-      j = j+1;
   }
 /*@
-  assert !(j<r) &&
-         (j >= 4);
+  assert !(j-4>=0) &&
+         (m == \at(m, Pre));
 */
 
 }

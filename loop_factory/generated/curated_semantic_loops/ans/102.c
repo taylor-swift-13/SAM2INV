@@ -1,37 +1,42 @@
-int main1(int m,int p){
-  int n, l, x;
+int main1(int a,int m,int q){
+  int w, s, u, v, t;
 
-  n=22;
-  l=0;
-  x=n;
+  w=51;
+  s=0;
+  u=0;
+  v=0;
+  t=a;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
+  loop invariant a == \at(a, Pre);
   loop invariant m == \at(m, Pre);
-  loop invariant p == \at(p, Pre);
-  loop invariant n == 22;
-  loop invariant l >= 0;
-  loop invariant l <= n - 2;
-  loop invariant x % 2 == 0;
-  loop invariant l == 0;
-  loop invariant x >= n;
-  loop invariant (x - n) % 2 == 0;
-  loop invariant (l <= n - 3);
-  loop invariant (x >= n);
-  loop invariant (x % 2 == 0);
-  loop invariant l <= n - 3;
-  loop invariant 0 <= l <= n - 3;
-  loop assigns x;
+  loop invariant q == \at(q, Pre);
+  loop invariant 0 <= u <= w;
+  loop invariant u % 3 == 0;
+  loop invariant v % 3 == 0;
+  loop invariant -u <= v <= u;
+  loop invariant -3*(u/3) <= v <= 3*(u/3);
+  loop invariant -3*u <= v;
+  loop invariant v <= 3*u;
+  loop invariant 0 <= u;
+  loop invariant u <= w;
+  loop invariant (u <= 27 ==> v == u) && (u > 27 ==> v == 54 - u) && w == 51;
+  loop assigns u, v;
 */
-while (l<=n-3) {
-      x = x+2;
-      if (x+4<n) {
-          x = x+x;
+while (u<w) {
+      if (u<w/2) {
+          v = v+3;
       }
+      else {
+          v = v-3;
+      }
+      u = u+1;
+      u = u+2;
   }
 /*@
-  assert !(l<=n-3) &&
-         (m == \at(m, Pre));
+  assert !(u<w) &&
+         (a == \at(a, Pre));
 */
 
 

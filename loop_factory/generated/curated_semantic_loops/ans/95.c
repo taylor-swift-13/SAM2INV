@@ -1,48 +1,41 @@
-int main1(int m,int p){
-  int b, u, x, n;
+int main1(int a,int b,int n,int q){
+  int f, m, p, r, c, v, z;
 
-  b=19;
-  u=0;
-  x=5;
-  n=u;
+  f=80;
+  m=0;
+  p=0;
+  r=4;
+  c=q;
+  v=m;
+  z=a;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant x % 6 == 5;
-  loop invariant x >= 5;
-  loop invariant x <= b + 5;
-  loop invariant n <= x;
-  loop invariant n >= 0;
-  loop invariant m == \at(m, Pre);
-  loop invariant (x - 5) % 6 == 0;
-  loop invariant n == 3 * ((x - 5) / 6) + 5 * (((x - 5) / 6) % 2);
-  loop invariant b == 19;
-
-  loop invariant p == \at(p, Pre);
-
-  loop invariant n >= -3;
-  loop assigns x, n;
+  loop invariant p == 0;
+  loop invariant r == 4;
+  loop invariant m <= f;
+  loop invariant m >= 0;
+  loop invariant (m == 0) ==> (c == q);
+  loop invariant (m > 0) ==> (c == q % 7);
+  loop invariant a == \at(a, Pre);
+  loop invariant b == \at(b, Pre);
+  loop invariant q == \at(q, Pre);
+  loop invariant n == \at(n, Pre);
+  loop invariant (m == 0) ==> (c == q) && (m >= 1) ==> (c == q % 7);
+  loop invariant m == 0 ==> c == \at(q, Pre);
+  loop invariant m > 0 ==> c == \at(q, Pre) % 7;
+  loop assigns p, r, c, m;
 */
-while (x<b) {
-      if (x<b) {
-          x = x+1;
-      }
-      x = x+5;
-      n = n+2;
-      if (p<p+5) {
-          n = n+1;
-      }
-      n = x-n;
+while (m<f) {
+      p = p*2;
+      r = r+p;
+      c = c%7;
+      m = m+1;
   }
 /*@
-  assert !(x<b) &&
-         (x % 6 == 5);
+  assert !(m<f) &&
+         (p == 0);
 */
 
 
-
-  int __dedup_1 = 0;
-  while (__dedup_1 < 3) {
-      __dedup_1 = __dedup_1 + 1;
-  }
 }

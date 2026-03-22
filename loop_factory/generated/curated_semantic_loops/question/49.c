@@ -1,18 +1,24 @@
-int main1(int n){
-  int r, q, z, s;
+int main1(int k){
+  int b, y, v, j;
 
-  r=(n%11)+17;
-  q=r;
-  z=8;
-  s=r;
+  b=63;
+  y=3;
+  v=y;
+  j=y;
 
 
-while (q-1>=0) {
-      q = q-1;
+while (y+3<=b) {
+      if (v+4<=b) {
+          v = v+4;
+      }
+      else {
+          v = b;
+      }
+      v = v+j+j;
   }
 /*@
-  assert !(q-1>=0) &&
-         (n == \at(n, Pre));
+  assert !(y+3<=b) &&
+         (j == 3);
 */
 
 }

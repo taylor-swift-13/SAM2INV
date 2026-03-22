@@ -1,20 +1,22 @@
-int main1(int k,int m){
-  int l, r, i;
+int main1(int k,int n){
+  int r, w, b, y, x, v;
 
-  l=10;
-  r=l;
-  i=-5;
+  r=(k%12)+11;
+  w=0;
+  b=-2;
+  y=4;
+  x=k;
+  v=w;
 
 
-while (r>=1) {
-      if ((r%9)==0) {
-          i = i+i;
-      }
-      r = r-1;
+while (w<r) {
+      v = b+y+x;
+      b = b+1;
+      w = w+1;
   }
 /*@
-  assert !(r>=1) &&
-         (l == 10);
+  assert !(w<r) &&
+         (w <= r);
 */
 
 }

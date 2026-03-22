@@ -1,34 +1,33 @@
-int main1(int k,int p){
-  int r, c, v, y, l, s;
+int main1(int k,int n,int p){
+  int l, y, v, q, o, g;
 
-  r=30;
-  c=r+3;
-  v=r;
-  y=-8;
-  l=k;
-  s=r;
+  l=(n%7)+20;
+  y=0;
+  v=n;
+  q=8;
+  o=y;
+  g=p;
 
 
 while (1) {
-      if (v>=r) {
+      if (v>=l) {
           break;
       }
-      if (l<=y) {
-          y = l;
+      if (o<=q) {
+          q = o;
       }
       v = v+1;
-      v = v+c;
   }
 /*@
-  assert (r == 30);
+  assert (o == 0);
 */
 
-  while (y < 0) {
+  while (q < v) {
+      q = q + 1;
       y = y + 1;
-      v = v + 1;
   }
 /*@
-  assert !(y < 0) &&
-         (y == 0);
+  assert !(q < v) &&
+         (q == v);
 */
 }

@@ -1,28 +1,21 @@
 int main(int n) {
   /*@ requires 0 <= n <= 100; */
   if (n < 0) n = 0;
-  int i = 0, j;
-  int cells = 0;
-  int odd_hits = 0;
-/*@ loop invariant 0 <= i <= n;
-      loop invariant \true;
-      loop assigns i, j, cells, odd_hits;
+  int i, j;
+  int even = 0;
+  /*@ loop invariant 0 <= i <= n;
+      loop assigns i, j, even;
       loop variant n - i;
   */
-  while (i < n) {
-    j = 0;
-    /*@ loop invariant 0 <= j <= n;
-        loop invariant \true;
-        loop assigns j, cells, odd_hits;
+  for (i = 0; i < n; ++i) {
+    /*@ loop invariant \true;
+        loop assigns j, even;
         loop variant n - j;
     */
-    while (j < n) {
-      cells += 1;
-      if (((i + j) % 2) != 0) odd_hits += 1;
-      j++;
+    for (j = 0; j < n; ++j) {
+      if (((i + j) % 2) == 0) even += 1;
     }
-    i++;
   }
   /*@ assert i == n; */
-  return cells + odd_hits;
+  return even;
 }

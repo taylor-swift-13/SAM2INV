@@ -1,44 +1,34 @@
-int main1(int n,int q){
-  int m, k, x, v;
+int main1(int b,int m){
+  int r, u, v;
 
-  m=(q%6)+4;
-  k=0;
-  x=k;
-  v=8;
+  r=(b%30)+15;
+  u=0;
+  v=-5;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant k == 0;
-  loop invariant m == ((\at(q, Pre) % 6) + 4);
-  loop invariant x >= 0;
-  loop invariant v >= 8;
-  loop invariant v >= x;
+  loop invariant r == (b % 30) + 15;
+  loop invariant u >= 0;
+  loop invariant (u <= r) || (r < 0);
+  loop invariant v % 5 == 0;
+  loop invariant v <= -5;
+  loop invariant b == \at(b, Pre);
+  loop invariant m == \at(m, Pre);
+  loop invariant r == ((\at(b, Pre) % 30) + 15);
+  loop invariant 0 <= u;
 
-  loop invariant m == (\at(q, Pre) % 6) + 4;
-  loop invariant q == \at(q, Pre);
-  loop invariant n == \at(n, Pre);
-
-  loop invariant m == (q % 6) + 4;
-  loop invariant v >= x + 2;
-
-  loop invariant m == \at(q, Pre) % 6 + 4;
-  loop invariant (x + v) % 2 == 0;
-  loop assigns x, v;
+  loop invariant u <= 44;
+  loop assigns u, v;
 */
-while (k+3<=m) {
-      if (k<m/2) {
-          x = x+v;
+while (u<r) {
+      if ((u%5)==0) {
+          v = v+v;
       }
-      else {
-          x = x+1;
-      }
-      v = v+v;
-      v = v+x;
-      x = x+2;
+      u = u+1;
   }
 /*@
-  assert !(k+3<=m) &&
-         (k == 0);
+  assert !(u<r) &&
+         (r == (b % 30) + 15);
 */
 
 

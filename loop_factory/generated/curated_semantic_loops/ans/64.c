@@ -1,42 +1,42 @@
-int main1(int n,int q){
-  int l, i, u, v;
+int main1(int k,int n){
+  int r, w, b, y;
 
-  l=51;
-  i=l;
-  u=0;
-  v=q;
+  r=(k%21)+13;
+  w=1;
+  b=-2;
+  y=4;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant u + i == l;
-  loop invariant i % 4 == l % 4;
-  loop invariant i >= 0;
-  loop invariant u >= 0;
-  loop invariant i + u == l;
-  loop invariant i >= 3;
-  loop invariant 0 <= u;
-  loop invariant u <= l;
-  loop invariant q == \at(q, Pre);
-  loop invariant i % 4 == 3;
+  loop invariant y >= 4;
+  loop invariant (y - 4) % 3 == 0;
+  loop invariant w == 1;
+  loop invariant r == (\at(k, Pre) % 21) + 13;
+  loop invariant k == \at(k, Pre);
   loop invariant n == \at(n, Pre);
-  loop invariant (i + u == l);
-  loop invariant (u >= 0);
-  loop invariant (i % 4 == 3);
-  loop invariant (l == 51);
-  loop invariant (i <= l);
-  loop invariant (i + u) == 51;
-  loop invariant (0 <= u);
-  loop invariant (u <= 48);
-  loop invariant ((i % 4) == 3);
-  loop assigns i, u;
+  loop invariant (w < r/2) ==> (6*b == y*y + 7*y - 56);
+  loop invariant (w >= r/2) ==> (b == 2*y - 10);
+  loop invariant y % 3 == 1;
+  loop invariant b >= -2;
+
+  loop invariant r == \at(k, Pre) % 21 + 13;
+  loop invariant b - 2*y >= -10;
+
+  loop assigns b, y;
 */
-while (i>3) {
-      u = u+4;
-      i = i-4;
+while (w<=r-1) {
+      if (w<r/2) {
+          b = b+y;
+      }
+      else {
+          b = b+1;
+      }
+      b = b+5;
+      y = y+3;
   }
 /*@
-  assert !(i>3) &&
-         (u + i == l);
+  assert !(w<=r-1) &&
+         (y >= 4);
 */
 
 

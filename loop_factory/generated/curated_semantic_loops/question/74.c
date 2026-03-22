@@ -1,24 +1,19 @@
-int main1(int n,int q){
-  int m, k, x, v;
+int main1(int a,int k){
+  int r, g, d;
 
-  m=(q%6)+4;
-  k=0;
-  x=k;
-  v=8;
+  r=(k%14)+14;
+  g=r;
+  d=k;
 
 
-while (k+3<=m) {
-      if (k<m/2) {
-          x = x+v;
-      }
-      else {
-          x = x+1;
-      }
-      v = v+v;
+while (g>0) {
+      d = d*2;
+      d = d*d;
+      g = g-1;
   }
 /*@
-  assert !(k+3<=m) &&
-         (k == 0);
+  assert !(g>0) &&
+         (r == (\at(k, Pre) % 14) + 14);
 */
 
 }

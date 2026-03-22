@@ -1,34 +1,38 @@
-int main1(int b,int m){
-  int r, u, v;
+int main1(int b,int n){
+  int j, a, e, f;
 
-  r=(b%30)+15;
-  u=0;
-  v=-5;
+  j=(b%11)+11;
+  a=j;
+  e=a;
+  f=n;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == (b % 30) + 15;
-  loop invariant u >= 0;
-  loop invariant (u <= r) || (r < 0);
-  loop invariant v % 5 == 0;
-  loop invariant v <= -5;
+  loop invariant e + f == ((b % 11) + 11) + n;
+  loop invariant a >= 0 && a <= ((b % 11) + 11) && j == ((b % 11) + 11) && f <= n;
+  loop invariant a >= 0;
+  loop invariant a <= ((b % 11) + 11);
   loop invariant b == \at(b, Pre);
-  loop invariant m == \at(m, Pre);
-  loop invariant r == ((\at(b, Pre) % 30) + 15);
-  loop invariant 0 <= u;
-
-  loop invariant u <= 44;
-  loop assigns u, v;
+  loop invariant n == \at(n, Pre);
+  loop invariant e >= a;
+  loop invariant e + a == 2 * j;
+  loop invariant f - a == n - j;
+  loop invariant a <= j;
+  loop invariant j == ((\at(b, Pre)) % 11) + 11;
+  loop invariant e == 2*j - a;
+  loop invariant f == n - j + a;
+  loop invariant a + e == 2 * j;
+  loop invariant j == (b % 11) + 11;
+  loop assigns a, e, f;
 */
-while (u<r) {
-      if ((u%5)==0) {
-          v = v+v;
-      }
-      u = u+1;
+while (a>0) {
+      e = e+1;
+      f = f-1;
+      a = a-1;
   }
 /*@
-  assert !(u<r) &&
-         (r == (b % 30) + 15);
+  assert !(a>0) &&
+         (e + f == ((b % 11) + 11) + n);
 */
 
 

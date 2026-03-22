@@ -1,17 +1,21 @@
-int main1(int m){
-  int l, r, j;
+int main1(int a,int k){
+  int r, u, i, o, v;
 
-  l=47;
-  r=l;
-  j=-4;
+  r=(k%8)+14;
+  u=r;
+  i=r;
+  o=-5;
+  v=3;
 
 
-while (r-4>=0) {
-      r = r-4;
+while (u>0) {
+      i = i+2;
+      o = o+i;
+      u = u-1;
   }
 /*@
-  assert !(r-4>=0) &&
-         (l == 47);
+  assert !(u>0) &&
+         (i == 3*r - 2*u);
 */
 
 }

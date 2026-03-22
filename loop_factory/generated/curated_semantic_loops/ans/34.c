@@ -1,58 +1,67 @@
-int main1(int k,int n,int p){
-  int l, y, v, q, o, g;
+int main1(int b){
+  int pj, e5, e9r5, g, jb9j, i0bs;
+  pj=b;
+  e5=0;
+  e9r5=0;
+  g=0;
+  jb9j=0;
+  i0bs=0;
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant i0bs + jb9j + g + e9r5 == e5;
+  loop invariant b >= \at(b, Pre);
+  loop invariant i0bs >= 0;
+  loop invariant jb9j >= 0;
+  loop invariant g >= 0;
+  loop invariant e9r5 >= 0;
+  loop invariant pj == \at(b, Pre);
+  loop invariant (pj >= 0) ==> (e5 <= pj);
+  loop assigns b, e5, i0bs, jb9j, g, e9r5;
+*/
+while (e5<pj) {
+      if (e5%11==0) {
+          i0bs = i0bs + 1;
+      }
+      else {
+          if (e5%9==0) {
+              jb9j++;
+          }
+          else {
+              if (e5%3==0) {
+                  g++;
+              }
+              else {
+                  e9r5++;
+              }
+          }
+      }
+      e5++;
+      b = b + e9r5;
+  }
+/*@
+  assert !(e5<pj) &&
+         (i0bs + jb9j + g + e9r5 == e5);
+*/
 
-  l=(n%7)+20;
-  y=0;
-  v=n;
-  q=8;
-  o=y;
-  g=p;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant o == 0;
-  loop invariant v >= \at(n, Pre);
-  loop invariant l == (\at(n, Pre) % 7) + 20;
-  loop invariant (q == 8) || (q == o);
-  loop invariant k == \at(k, Pre);
-  loop invariant n == \at(n, Pre);
-  loop invariant p == \at(p, Pre);
-  loop invariant l == (n % 7) + 20;
-  loop invariant v >= n;
-  loop invariant q == o || q == 8;
-  loop invariant q == 8 || q == 0;
-
-  loop invariant (v == n && q == 8) || (v > n && q == 0);
-  loop assigns v, q;
+  loop invariant g >= 0;
+  loop invariant jb9j >= 0;
+  loop invariant i0bs + jb9j + g + e9r5 == e5;
+  loop assigns g, jb9j;
 */
-while (1) {
-      if (v>=l) {
-          break;
+  while (g > 0) {
+      if (g >= 2) {
+          g = g - 2;
+          jb9j = jb9j + 2;
+      } else {
+          g = g - 1;
+          jb9j = jb9j + 1;
       }
-      if (o<=q) {
-          q = o;
-      }
-      v = v+1;
   }
 /*@
-  assert (o == 0);
-*/
-
-
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant q <= v;
-  loop invariant q >= 0;
-  loop invariant y >= 0;
-  loop assigns q, y;
-*/
-  while (q < v) {
-      q = q + 1;
-      y = y + 1;
-  }
-/*@
-  assert !(q < v) &&
-         (q == v);
+  assert !(g > 0) &&
+         (i0bs + jb9j + g + e9r5 == e5);
 */
 }

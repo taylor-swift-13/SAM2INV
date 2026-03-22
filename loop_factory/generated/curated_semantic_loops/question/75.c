@@ -1,21 +1,22 @@
-int main1(int b,int k){
-  int d, m, p, s;
+int main1(int k,int p){
+  int d, i, v;
 
-  d=k;
-  m=2;
-  p=k;
-  s=b;
+  d=p+3;
+  i=2;
+  v=-8;
 
 
-while (p<d) {
-      if (p<d) {
-          p = p+1;
+while (i+2<=d) {
+      v = v+1;
+      v = v+2;
+      if (v+7<d) {
+          v = v+1;
       }
-      p = p+1;
+      i = i+2;
   }
 /*@
-  assert !(p<d) &&
-         (d == k);
+  assert !(i+2<=d) &&
+         (d == p + 3);
 */
 
 }

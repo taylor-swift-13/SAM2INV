@@ -1,23 +1,21 @@
-int main1(int m,int q){
-  int i, e, o;
+int main1(int m,int n){
+  int z, u, w, r;
 
-  i=(q%17)+16;
-  e=0;
-  o=-8;
+  z=8;
+  u=z+6;
+  w=u;
+  r=z;
 
 
-while (e+2<=i) {
-      if (o+1<i) {
-          o = o%9;
-      }
-      e = e+2;
+while (u>=z+1) {
+      w = w*2;
+      r = r+w;
+      r = r%2;
+      u = u-2;
   }
 /*@
-  assert (i == (\at(q, Pre) % 17) + 16) &&
-         (0 <= e) &&
-         (e <= i) &&
-         (e + 2 > i) &&
-         (e % 2 == 0);
+  assert !(u>=z+1) &&
+         (z == 8);
 */
 
 }

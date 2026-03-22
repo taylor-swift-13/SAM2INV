@@ -1,25 +1,21 @@
 int main(int n) {
+  /*@ requires 0 <= n <= 100; */
   if (n < 0) n = 0;
   int i, j;
-  int bands = 0;
+  int slots = 0;
   /*@ loop invariant 0 <= i <= n;
-      loop invariant i * n <= bands <= 2 * i * n;
-      loop assigns i, j, bands;
-      loop variant n - i;
+      loop assigns i, j, slots;
+      loop variant i;
   */
-  for (i = 0; i < n; ++i) {
-    j = 0;
-    /*@ loop invariant 0 <= j <= n;
-        loop invariant i * n + j <= bands <= 2 * i * n + 2 * j;
-        loop assigns j, bands;
-        loop variant n - j;
+  for (i = n; i > 0; --i) {
+    /*@ loop invariant \true;
+        loop assigns j, slots;
+        loop variant j + 1;
     */
-    while (j < n) {
-      if (j <= i / 2) bands += 2;
-      else bands += 1;
-      j++;
+    for (j = i - 1; j >= 0; j -= 2) {
+      slots += 1;
     }
   }
-  /*@ assert (n == 0 || bands >= n * n) && bands <= 2 * n * n; */
-  return bands;
+  /*@ assert i == 0; */
+  return slots;
 }

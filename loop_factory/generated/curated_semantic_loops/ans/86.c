@@ -1,41 +1,39 @@
-int main1(int a,int b){
-  int p, i, e;
+int main1(int b,int k){
+  int y, u, x, r;
 
-  p=(a%14)+4;
-  i=p+4;
-  e=-5;
+  y=61;
+  u=0;
+  x=0;
+  r=u;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant a == \at(a, Pre);
+  loop invariant u <= y - 2;
+  loop invariant x <= y;
+  loop invariant (x == y) || (x % 3 == 0);
+  loop invariant u == 0;
+  loop invariant y == 61;
   loop invariant b == \at(b, Pre);
-  loop invariant p == (\at(a, Pre) % 14) + 4;
-  loop invariant (i - p - 1) % 3 == 0;
-  loop invariant p - 2 <= i;
-  loop invariant i <= p + 4;
-  loop invariant i >= p - 2;
-
-  loop invariant e >= -5;
-  loop invariant p == (a % 14) + 4;
-  loop invariant a == \at(a, Pre) &&
-                 b == \at(b, Pre) &&
-                 p == (a % 14) + 4 &&
-                 i >= p - 2 &&
-                 i <= p + 4 &&
-                 (e == -5 || e == 90 || e == 32580);
-  loop invariant ((i - (p + 4)) % 3) == 0;
-  loop invariant e % 5 == 0;
-  loop invariant (e == -5) || (e % 10 == 0);
-  loop assigns e, i;
+  loop invariant k == \at(k, Pre);
+  loop invariant 0 <= u;
+  loop invariant (x % 3 == 0) || (x == y);
+  loop invariant 0 <= x;
+  loop invariant (x == y) || (x % 3 == 0 && x <= 60);
+  loop invariant 0 <= x <= y;
+  loop invariant u <= y - 1;
+  loop assigns x;
 */
-while (i>=p+1) {
-      e = e*2;
-      e = e*e+e;
-      i = i-3;
+while (u<=y-2) {
+      if (x+3<=y) {
+          x = x+3;
+      }
+      else {
+          x = y;
+      }
   }
 /*@
-  assert !(i>=p+1) &&
-         (a == \at(a, Pre));
+  assert !(u<=y-2) &&
+         (u <= y - 2);
 */
 
 

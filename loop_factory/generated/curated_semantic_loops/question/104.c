@@ -1,26 +1,21 @@
-int main1(int p,int q){
-  int r, t, e, v;
+int main1(int a,int b){
+  int v, t, y;
 
-  r=(q%6)+8;
-  t=1;
-  e=r;
-  v=t;
+  v=62;
+  t=0;
+  y=b;
 
 
-while (t<=r-1) {
-      e = e+3;
-      v = v+2;
-      if (t<e+5) {
-          v = v+1;
+while (t<v) {
+      y = y+t;
+      if (t+4<=a+v) {
+          y = y+1;
       }
-      else {
-          v = v+r;
-      }
-      t = t+1;
+      t = t+4;
   }
 /*@
-  assert !(t<=r-1) &&
-         (r == (\at(q,Pre) % 6) + 8);
+  assert !(t<v) &&
+         (v == 62 && t % 4 == 0 && 0 <= t);
 */
 
 }

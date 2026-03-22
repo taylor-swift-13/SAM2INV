@@ -1,34 +1,30 @@
-int main1(int a,int b,int q){
-  int r, z, v, m, g, l;
+int main1(){
+  int mn, mr, g;
+  mn=(1%20)+5;
+  mr=(1%20)+5;
+  g=(1%20)+5;
 
-  r=q;
-  z=0;
-  v=8;
-  m=b;
-  g=0;
-  l=q;
-
-
-while (1) {
-      if (v>=r) {
-          break;
+while (mn>0) {
+      if (mr>0) {
+          if (g>0) {
+              mn--;
+              mr -= 1;
+              g -= 1;
+          }
       }
-      if (g<=m) {
-          m = g;
-      }
-      v = v+1;
-      v = v*2;
+      mr = mr + 5;
   }
 /*@
-  assert (g == 0);
+  assert !(mn>0) &&
+         (g == mn);
 */
 
-  while (v > r) {
-      v = v - 1;
-      z = z + 1;
+  while (mr > mn) {
+      mr = mr - 1;
+      g = g + 1;
   }
 /*@
-  assert !(v > r) &&
-         (v == r);
+  assert !(mr > mn) &&
+         (mr == mn);
 */
 }

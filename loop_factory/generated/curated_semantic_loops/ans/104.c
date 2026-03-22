@@ -1,39 +1,33 @@
-int main1(int p,int q){
-  int r, t, e, v;
+int main1(int a,int b){
+  int v, t, y;
 
-  r=(q%6)+8;
-  t=1;
-  e=r;
-  v=t;
+  v=62;
+  t=0;
+  y=b;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == (\at(q,Pre) % 6) + 8;
-  loop invariant 1 <= t <= r;
-  loop invariant e == r + 3*(t - 1);
-  loop invariant v == 3*t - 2;
-  loop invariant p == \at(p,Pre);
-  loop invariant q == \at(q,Pre);
-  loop invariant t >= 1;
-  loop invariant t <= r;
-  loop invariant 1 <= t;
-  loop invariant r == (q % 6) + 8;
-  loop assigns e, v, t;
+  loop invariant v == 62 && t % 4 == 0 && 0 <= t;
+  loop invariant y >= b;
+  loop invariant t % 4 == 0;
+  loop invariant t >= 0;
+  loop invariant a == \at(a, Pre) && b == \at(b, Pre) && v == 62;
+  loop invariant (0 <= t) && (t <= 64);
+  loop invariant a == \at(a, Pre);
+  loop invariant b == \at(b, Pre);
+  loop invariant 0 <= t && v == 62 && y >= \at(b, Pre);
+  loop assigns y, t;
 */
-while (t<=r-1) {
-      e = e+3;
-      v = v+2;
-      if (t<e+5) {
-          v = v+1;
+while (t<v) {
+      y = y+t;
+      if (t+4<=a+v) {
+          y = y+1;
       }
-      else {
-          v = v+r;
-      }
-      t = t+1;
+      t = t+4;
   }
 /*@
-  assert !(t<=r-1) &&
-         (r == (\at(q,Pre) % 6) + 8);
+  assert !(t<v) &&
+         (v == 62 && t % 4 == 0 && 0 <= t);
 */
 
 

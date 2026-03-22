@@ -1,36 +1,35 @@
-int main1(int a,int p){
-  int m, y, b;
+int main1(int b,int k){
+  int a, s, c, n;
 
-  m=26;
-  y=m;
-  b=y;
+  a=80;
+  s=0;
+  c=-17823;
+  n=2;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant y >= 1;
-  loop invariant m == y;
-  loop invariant b >= y;
-  loop invariant (b - y) % (4 + y) == 0;
-  loop invariant a == \at(a, Pre);
-  loop invariant p == \at(p, Pre);
-  loop invariant m == 26;
-  loop invariant y == m;
-  loop invariant (b - 26) % 30 == 0;
-  loop invariant y < m + 5;
-  loop invariant y == 26;
-  loop invariant b >= 26;
-  loop invariant b % 30 == 26;
-  loop assigns b;
+  loop invariant 4*(c + 17823) == (n - 2)*(n - 2);
+  loop invariant b == \at(b, Pre);
+  loop invariant k == \at(k, Pre);
+  loop invariant a == 80;
+  loop invariant n >= 2;
+  loop invariant n % 2 == 0;
+  loop invariant c == -17823 + ((n - 2)/2) * ((n - 2)/2);
+  loop invariant ((n - 2) % 2) == 0;
+  loop invariant c >= -17823;
+  loop invariant 4*c - (n - 2) * (n - 2) == -71292;
+  loop invariant 4*(c + 17823) == (n - 2) * (n - 2) && a == 80;
+  loop invariant b == \at(b, Pre) && k == \at(k, Pre) && n >= 2 && n % 2 == 0;
+  loop invariant n % 2 == 0 ==> c == -17823 + ((n - 2) / 2) * ((n - 2) / 2);
+  loop assigns c, n;
 */
-while (y>=1) {
-      b = b+4;
-      if (y<m+5) {
-          b = b+y;
-      }
+while (c<=-3) {
+      c = c+n-1;
+      n = n+2;
   }
 /*@
-  assert !(y>=1) &&
-         (y >= 1);
+  assert !(c<=-3) &&
+         (4*(c + 17823) == (n - 2)*(n - 2));
 */
 
 

@@ -1,19 +1,20 @@
-int main1(int b,int n){
-  int m, s, k, v;
+int main1(int a,int q){
+  int c, t, d;
 
-  m=(b%7)+6;
-  s=0;
-  k=n;
-  v=-4;
+  c=36;
+  t=0;
+  d=c;
 
 
-while (s<=m-1) {
-      k = k*2;
-      s = s+1;
+while (t<c) {
+      d = d+4;
+      if ((t%4)==0) {
+          d = d+1;
+      }
   }
 /*@
-  assert !(s<=m-1) &&
-         (s >= 0);
+  assert !(t<c) &&
+         (t == 0);
 */
 
 }

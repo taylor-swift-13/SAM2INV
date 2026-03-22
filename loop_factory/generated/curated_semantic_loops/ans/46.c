@@ -1,23 +1,35 @@
-int main(int n) {
-  /*@ requires 0 <= n <= 100; */
-  if (n < 0) n = 0;
-  int i = 0, j;
-  int z = 0;
-  /*@ loop invariant 0 <= i <= n;
-      loop assigns i, j, z;
-      loop variant n - i;
-  */
-  while (i < n) {
-    /*@ loop invariant \true;
-        loop assigns j, z;
-        loop variant i - j;
-    */
-    for (j = 0; j < i; ++j) {
-      z += 2;
-    }
-    z += 2 * i;
-    i++;
+int main1(int a){
+  int y, h, v;
+
+  y=(a%7)+18;
+  h=0;
+  v=-5;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant a == \at(a, Pre);
+  loop invariant y == (a % 7) + 18;
+  loop invariant h % 5 == 0;
+  loop invariant h >= 0;
+  loop invariant v <= -5;
+  loop invariant y == ((\at(a, Pre)) % 7) + 18;
+  loop invariant h <= y + 4;
+  loop invariant v % 5 == 0;
+  loop invariant y == (\at(a, Pre) % 7) + 18;
+  loop invariant 0 <= h;
+
+  loop invariant v < 0;
+  loop invariant y == \at(a, Pre) % 7 + 18;
+  loop assigns h, v;
+*/
+while (h<y) {
+      v = v+v;
+      h = h+5;
   }
-  /*@ assert i == n; */
-  return z;
+/*@
+  assert !(h<y) &&
+         (a == \at(a, Pre));
+*/
+
+
 }

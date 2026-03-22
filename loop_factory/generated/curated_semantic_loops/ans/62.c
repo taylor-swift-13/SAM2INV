@@ -1,41 +1,34 @@
-int main1(int b,int k){
-  int y, j, n, q, v;
+int main1(int n,int p){
+  int x, u, w;
 
-  y=40;
-  j=0;
-  n=j;
-  q=4;
-  v=-4;
+  x=65;
+  u=x;
+  w=p;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant j % 5 == 0;
-  loop invariant 0 <= j;
-  loop invariant j <= y;
-  loop invariant q == 4 - j/5 && ((q % 2 == 0) ==> n == 0) && ((q % 2 != 0) ==> n == -5) && b == \at(b,Pre) && k == \at(k,Pre);
-  loop invariant 5*q + j == 20;
-  loop invariant n == 0 || n == -5;
-  loop invariant b == \at(b, Pre);
-  loop invariant k == \at(k, Pre);
-  loop invariant v == -4;
-  loop invariant 0 <= j <= y;
-  loop invariant n == 0 || n == v - 1;
-  loop invariant q >= -4;
-  loop invariant q <= 4;
-  loop invariant q == 4 - (j/5);
-  loop invariant ((j/5) % 2 == 0) ==> (n == 0);
-  loop invariant y == 40;
-  loop assigns n, q, j;
+  loop invariant u == 65;
+  loop invariant x == 65;
+  loop invariant n == \at(n, Pre);
+  loop invariant p == \at(p, Pre);
+  loop invariant (u+2 <= n+x) ==> ((w - \at(p, Pre)) % 8 == 0);
+  loop invariant (u+2 > n+x) ==> ((w - \at(p, Pre)) % 3 == 0);
+  loop invariant u == x;
+  loop invariant w >= \at(p, Pre);
+  loop invariant u >= 0;
+  loop invariant u <= 65;
+  loop invariant (n >= 2) ==> ((w - \at(p, Pre)) % 8 == 0);
+  loop assigns w;
 */
-while (j<=y-5) {
-      n = n+1;
-      q = q-1;
-      n = v-n;
-      j = j+5;
+while (u>0) {
+      w = w+3;
+      if (u+2<=n+x) {
+          w = w+5;
+      }
   }
 /*@
-  assert !(j<=y-5) &&
-         (j % 5 == 0);
+  assert !(u>0) &&
+         (u == 65);
 */
 
 

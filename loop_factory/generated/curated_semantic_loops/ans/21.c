@@ -1,56 +1,43 @@
-int main1(int b,int m){
-  int l, s, k;
-
-  l=35;
-  s=0;
-  k=-6;
-
+int main1(){
+  int se5, h4d, khd, nh, vo, f;
+  se5=1+8;
+  h4d=se5;
+  khd=5;
+  nh=0;
+  vo=se5;
+  f=h4d;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant l == 35;
-  loop invariant b == \at(b, Pre);
-  loop invariant m == \at(m, Pre);
-  loop invariant s <= l;
-  loop invariant k <= -3;
-  loop invariant 0 <= s;
-  loop invariant k == -6 || k == -3;
-  loop invariant (b == \at(b, Pre) && m == \at(m, Pre) && l == 35 && s <= l && ((s == 0) ==> (k == -6)) && ((s > 0) ==> (k == -3)));
-  loop invariant (b == \at(b, Pre) && m == \at(m, Pre) && l == 35 && s >= 0);
-  loop invariant s >= 0;
-  loop invariant s <= l && (k == -6 || k == -3) && l == 35 && b == \at(b, Pre) && m == \at(m, Pre);
-  loop assigns k, s;
+  loop invariant 0 <= nh;
+  loop invariant nh <= se5;
+  loop invariant khd == 5 + nh;
+  loop invariant f == h4d * (nh + 1);
+  loop invariant h4d == se5;
+  loop invariant vo >= se5;
+  loop invariant vo <= se5 + 8 * nh;
+  loop invariant ((vo - se5 - (nh * 5 + (nh * (nh + 1)) / 2)) % 9) == 0;
+  loop assigns khd, nh, f, vo;
 */
-while (s<l) {
-      k = k-k;
-      k = k+(-3);
-      s = s+1;
+while (nh<=se5-1) {
+      khd += 1;
+      nh++;
+      f += h4d;
+      vo = vo+(khd%9);
   }
-
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (s % 3) == (l % 3);
-  loop invariant (b == \at(b, Pre) && m == \at(m, Pre) && l == 35 && s <= l);
-
-  loop assigns s;
+  loop invariant f >= h4d;
+  loop invariant h4d > 0;
+  loop invariant f % h4d == 0;
+  loop assigns f, vo;
 */
-while (s>=3) {
-      s = s-3;
-  }
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant k == -3;
-  loop invariant (b == \at(b, Pre) && m == \at(m, Pre) && l == 35);
-
-  loop assigns s;
-*/
-while (s<=k-1) {
-      s = s+1;
+while (se5*2<=vo) {
+      f += h4d;
+      vo = (se5*2)-1;
   }
 /*@
-  assert !(s<=k-1) &&
-         (l == 35);
+  assert !(se5*2<=vo) &&
+         (0 <= nh);
 */
-
 
 }

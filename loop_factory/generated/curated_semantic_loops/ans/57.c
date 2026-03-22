@@ -1,38 +1,40 @@
-int main1(int k){
-  int b, y, v, j;
+int main1(int b,int m){
+  int a, i, v;
 
-  b=63;
-  y=3;
-  v=y;
-  j=y;
+  a=m;
+  i=a;
+  v=a;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant j == 3;
-  loop invariant y == 3;
-  loop invariant b == 63;
-  loop invariant k == \at(k, Pre);
-  loop invariant ((v % 10 == 3 && v <= b) || v == b + 6);
-  loop invariant v <= b + j + j;
-  loop invariant v >= y;
-  loop invariant j == y;
-  loop invariant v <= 69;
-  loop invariant (v - y) % 2 == 0;
-  loop invariant v >= 3 && v <= b + 2*j && (v == b + 2*j || v % 10 == 3);
-  loop assigns v;
+  loop invariant m == \at(m, Pre);
+  loop invariant b == \at(b, Pre);
+  loop invariant i <= a;
+  loop invariant (v == i) || (v == i + 2);
+  loop invariant v <= a;
+  loop invariant a == \at(m, Pre);
+  loop invariant i % 2 == a % 2;
+  loop invariant v == i || v == i + 2;
+
+  loop invariant a == m;
+  loop invariant v >= i;
+  loop invariant i % 2 == v % 2;
+  loop invariant v <= i + 2;
+  loop assigns v, i;
 */
-while (y+3<=b) {
-      if (v+4<=b) {
-          v = v+4;
+while (i>=2) {
+      if (i+4<=v+a) {
+          v = v+v;
       }
       else {
-          v = b;
+          v = v+i;
       }
-      v = v+j+j;
+      v = i;
+      i = i-2;
   }
 /*@
-  assert !(y+3<=b) &&
-         (j == 3);
+  assert !(i>=2) &&
+         (m == \at(m, Pre));
 */
 
 

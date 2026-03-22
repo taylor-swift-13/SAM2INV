@@ -1,57 +1,46 @@
-int main1(int a,int b,int q){
-  int r, z, v, m, g, l;
-
-  r=q;
-  z=0;
-  v=8;
-  m=b;
-  g=0;
-  l=q;
-
+int main1(){
+  int mn, mr, g;
+  mn=(1%20)+5;
+  mr=(1%20)+5;
+  g=(1%20)+5;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant g == 0;
-  loop invariant r == q;
-
-  loop invariant (\at(b, Pre) < 0) ==> (m == \at(b, Pre));
-  loop invariant v >= 8;
-  loop invariant r == \at(q, Pre);
-  loop invariant v % 2 == 0;
-  loop invariant m <= \at(b,Pre);
-  loop invariant a == \at(a, Pre);
-  loop invariant b == \at(b, Pre);
-  loop invariant q == \at(q, Pre);
-  loop assigns m, v;
+  loop invariant g == mn;
+  loop invariant mr - 4*mn - g >= -24;
+  loop invariant 0 <= mn <= 6;
+  loop invariant 0 <= g <= 6;
+  loop invariant mr >= 5;
+  loop assigns mn, mr, g;
 */
-while (1) {
-      if (v>=r) {
-          break;
+while (mn>0) {
+      if (mr>0) {
+          if (g>0) {
+              mn--;
+              mr -= 1;
+              g -= 1;
+          }
       }
-      if (g<=m) {
-          m = g;
-      }
-      v = v+1;
-      v = v*2;
+      mr = mr + 5;
   }
 /*@
-  assert (g == 0);
+  assert !(mn>0) &&
+         (g == mn);
 */
-
 
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant v >= r;
-  loop invariant z >= 0;
-  loop invariant r == \at(q, Pre);
-  loop assigns v, z;
+  loop invariant mr >= mn;
+  loop invariant mn == 0;
+  loop invariant g >= 0;
+  loop assigns mr, g;
 */
-  while (v > r) {
-      v = v - 1;
-      z = z + 1;
+  while (mr > mn) {
+      mr = mr - 1;
+      g = g + 1;
   }
 /*@
-  assert !(v > r) &&
-         (v == r);
+  assert !(mr > mn) &&
+         (mr == mn);
 */
 }

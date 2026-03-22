@@ -1,59 +1,58 @@
-int main1(int k,int p){
-  int r, c, v, y, l, s;
+int main1(int k,int n,int p){
+  int l, y, v, q, o, g;
 
-  r=30;
-  c=r+3;
-  v=r;
-  y=-8;
-  l=k;
-  s=r;
+  l=(n%7)+20;
+  y=0;
+  v=n;
+  q=8;
+  o=y;
+  g=p;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == 30;
-  loop invariant c == r + 3;
-  loop invariant l == k;
-  loop invariant v <= r;
-  loop invariant y == -8 || y == k;
-  loop invariant (v - r) % (c + 1) == 0;
-  loop invariant v - y >= 38;
-  loop invariant v >= r;
-  loop invariant (y == -8) || (y == l);
-  loop invariant (c == r + 3);
-  loop invariant ((v - r) % 34 == 0);
-  loop invariant y == -8 || y == l;
+  loop invariant o == 0;
+  loop invariant v >= \at(n, Pre);
+  loop invariant l == (\at(n, Pre) % 7) + 20;
+  loop invariant (q == 8) || (q == o);
   loop invariant k == \at(k, Pre);
-  loop assigns y, v;
+  loop invariant n == \at(n, Pre);
+  loop invariant p == \at(p, Pre);
+  loop invariant l == (n % 7) + 20;
+  loop invariant v >= n;
+  loop invariant q == o || q == 8;
+  loop invariant q == 8 || q == 0;
+
+  loop invariant (v == n && q == 8) || (v > n && q == 0);
+  loop assigns v, q;
 */
 while (1) {
-      if (v>=r) {
+      if (v>=l) {
           break;
       }
-      if (l<=y) {
-          y = l;
+      if (o<=q) {
+          q = o;
       }
       v = v+1;
-      v = v+c;
   }
 /*@
-  assert (r == 30);
+  assert (o == 0);
 */
 
 
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant y <= 0;
-  loop invariant v >= r;
-  loop invariant r == 30;
-  loop assigns y, v;
+  loop invariant q <= v;
+  loop invariant q >= 0;
+  loop invariant y >= 0;
+  loop assigns q, y;
 */
-  while (y < 0) {
+  while (q < v) {
+      q = q + 1;
       y = y + 1;
-      v = v + 1;
   }
 /*@
-  assert !(y < 0) &&
-         (y == 0);
+  assert !(q < v) &&
+         (q == v);
 */
 }

@@ -1,15 +1,18 @@
-int main(int n) {
-  if (n < 0) n = 0;
-  int i, j;
-  int t = 0;
-  
-  for (i = 0; i < n; ++i) {
-    
-    for (j = 0; j < n; ++j) {
-      t += 1;
-    }
-    t -= (n - 1);
+int main1(int n,int q){
+  int m, d, a, b;
+
+  m=(n%28)+10;
+  d=m;
+  a=m;
+  b=0;
+
+
+while (d>=1) {
+      d = d/2;
   }
-  /*@ assert t == n; */
-  return t;
+/*@
+  assert !(d>=1) &&
+         (m == (\at(n, Pre) % 28) + 10);
+*/
+
 }

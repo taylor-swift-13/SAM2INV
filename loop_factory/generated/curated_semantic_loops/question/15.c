@@ -1,26 +1,26 @@
-int main1(int a,int q){
-  int c, j, t, e;
+int main1(int k,int p){
+  int r, c, v, y, l, s;
 
-  c=20;
-  j=0;
-  t=3;
-  e=q;
+  r=30;
+  c=r+3;
+  v=r;
+  y=-8;
+  l=k;
+  s=r;
 
 
 while (1) {
-      if (j>=c) {
+      if (v>=r) {
           break;
       }
-      t = t+3;
-      j = j+1;
-      t = t+1;
-      e = e-1;
-      if ((j%5)==0) {
-          e = e+1;
+      if (l<=y) {
+          y = l;
       }
+      v = v+1;
+      v = v+c;
   }
 /*@
-  assert (t == 3 + 4*j);
+  assert (r == 30);
 */
 
 }

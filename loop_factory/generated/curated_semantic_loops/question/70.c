@@ -1,18 +1,23 @@
-int main1(int n,int p){
-  int m, j, q;
+int main1(int k,int m){
+  int f, x, v, q;
 
-  m=34;
-  j=m;
-  q=m;
+  f=33;
+  x=f;
+  v=x;
+  q=f;
 
 
-while (j>2) {
-      q = q+q;
-      j = j-3;
+while (v!=0&&q!=0) {
+      if (v>q) {
+          v = v-q;
+      }
+      else {
+          q = q-v;
+      }
   }
 /*@
-  assert !(j>2) &&
-         (m == 34);
+  assert !(v!=0&&q!=0) &&
+         (v > 0);
 */
 
 }

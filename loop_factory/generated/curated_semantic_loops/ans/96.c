@@ -1,40 +1,44 @@
-int main1(int b,int k){
-  int p, q, v, r;
+int main1(int a,int n){
+  int u, c, f, v;
 
-  p=(k%7)+8;
-  q=0;
-  v=p;
-  r=q;
+  u=(a%23)+12;
+  c=0;
+  f=0;
+  v=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant k == \at(k, Pre);
-  loop invariant b == \at(b, Pre);
-  loop invariant p == (\at(k, Pre) % 7) + 8;
 
-  loop invariant p <= 14;
-  loop invariant p == (k % 7) + 8;
-  loop invariant v <= p;
-  loop invariant r >= 0;
+  loop invariant a == \at(a, Pre);
+  loop invariant n == \at(n, Pre);
+  loop invariant f <= u/2 ==> v == f*(f+3)/2;
+
+  loop invariant (f <= u/2) ==> (v - f*(f - 1)/2 == 2*f);
+
+  loop invariant u == (a % 23) + 12;
+  loop invariant 0 <= f;
+
   loop invariant v >= 0;
-  loop invariant v == p;
-  loop invariant r == 0;
-  loop invariant r <= p + 1;
-  loop assigns v, r;
+  loop invariant v >= f*(f-1)/2;
+  loop invariant u == (\at(a, Pre) % 23) + 12;
+
+  loop invariant v >= (f * (f - 1)) / 2;
+  loop invariant v <= (f * (f + 3)) / 2;
+  loop assigns v, f;
 */
-while (v<p) {
-      if (v<p) {
+while (f<u) {
+      if (f<u/2) {
           v = v+1;
       }
-      r = r+r;
-      r = r+v;
-      v = v+1;
-      v = v+r;
-      r = v-r;
+      else {
+          v = v-1;
+      }
+      f = f+1;
+      v = v+f;
   }
 /*@
-  assert !(v<p) &&
-         (k == \at(k, Pre));
+  assert !(f<u) &&
+         (a == \at(a, Pre));
 */
 
 

@@ -1,35 +1,36 @@
-int main1(int k,int q){
-  int h, j, t;
+int main1(int b,int n){
+  int k, v, z, s;
 
-  h=64;
-  j=0;
-  t=h;
+  k=21;
+  v=0;
+  z=k;
+  s=k;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant h == 64 && j <= h && (t == 0 || t == 64) && t % 8 == 0;
-  loop invariant k == \at(k, Pre);
-  loop invariant q == \at(q, Pre);
-  loop invariant j >= 0;
-  loop invariant 0 <= j;
-  loop invariant j <= h;
-  loop invariant t % 8 == 0;
-  loop invariant h == 64;
-  loop invariant (k == \at(k, Pre));
-  loop invariant (q == \at(q, Pre));
-  loop invariant (j > 0) ==> t == 0;
-  loop invariant 0 <= j <= h;
-  loop invariant (j >= 1) ==> t == 0;
-  loop assigns t, j;
+  loop invariant k == 21;
+  loop invariant z >= 0;
+  loop invariant s >= 0;
+  loop invariant z <= k;
+  loop invariant b == \at(b, Pre);
+  loop invariant n == \at(n, Pre);
+  loop invariant z <= 21 && ((z == 21) ==> (s == 21 || s == 0));
+  loop invariant z % 21 == 0;
+  loop invariant s % 21 == 0;
+  loop assigns z, s;
 */
-while (j<=h-1) {
-      t = t*2;
-      t = t%8;
-      j = j+1;
+while (z!=0&&s!=0) {
+      if (z>s) {
+          z = z-s;
+      }
+      else {
+          s = s-z;
+      }
+      s = s+s;
   }
 /*@
-  assert !(j<=h-1) &&
-         (h == 64 && j <= h && (t == 0 || t == 64) && t % 8 == 0);
+  assert !(z!=0&&s!=0) &&
+         (k == 21);
 */
 
 

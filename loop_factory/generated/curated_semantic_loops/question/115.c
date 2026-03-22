@@ -1,21 +1,20 @@
 int main1(int p,int q){
-  int r, t, e, v;
+  int s, m, u, v;
 
-  r=(q%6)+8;
-  t=1;
-  e=r;
-  v=t;
+  s=p;
+  m=0;
+  u=s;
+  v=s;
 
 
-while (t<=r-1) {
-      e = e+1;
-      v = v-1;
-      v = v+3;
-      t = t+1;
+while (m+1<=s) {
+      u = u*3;
+      v = v/3;
+      m = m+1;
   }
 /*@
-  assert !(t<=r-1) &&
-         (p == \at(p, Pre) && q == \at(q, Pre) && r == (\at(q, Pre) % 6) + 8);
+  assert !(m+1<=s) &&
+         (p == \at(p, Pre) && q == \at(q, Pre) && s == \at(p, Pre));
 */
 
 }

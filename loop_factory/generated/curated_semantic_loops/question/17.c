@@ -1,26 +1,25 @@
-int main1(int a,int b,int q){
-  int r, z, v, m, g, l;
+int main1(int k,int n,int p){
+  int l, y, v, q, o, g;
 
-  r=q;
-  z=0;
-  v=8;
-  m=b;
-  g=0;
-  l=q;
+  l=(n%7)+20;
+  y=0;
+  v=n;
+  q=8;
+  o=y;
+  g=p;
 
 
 while (1) {
-      if (v>=r) {
+      if (v>=l) {
           break;
       }
-      if (g<=m) {
-          m = g;
+      if (o<=q) {
+          q = o;
       }
       v = v+1;
-      v = v*2;
   }
 /*@
-  assert (g == 0);
+  assert (o == 0);
 */
 
 }

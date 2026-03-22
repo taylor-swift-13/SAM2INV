@@ -1,35 +1,39 @@
-int main1(){
-  int xo4, bazd, z, w;
-  xo4=1+5;
-  bazd=2;
-  z=1;
-  w=0;
+int main1(int t,int d){
+  int vw, u, sw, m, mrq;
+  vw=143;
+  u=-4;
+  sw=0;
+  m=0;
+  mrq=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 2 <= bazd <= xo4;
-  loop assigns bazd;
+  loop invariant m == sw*(sw - 1)/2;
+  loop invariant d == \at(d,Pre) + sw * u;
+  loop invariant 0 <= sw <= vw;
+  loop invariant u == -4;
+  loop invariant vw == 143;
+  loop invariant t == \at(t, Pre);
+  loop assigns m, d, sw;
 */
-while (bazd<xo4) {
-      bazd = bazd + 1;
+while (sw<vw) {
+      m += sw;
+      d = d + u;
+      sw = sw + 1;
   }
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= w;
-  loop invariant w <= z;
-  loop invariant z == 1;
-  loop assigns w;
+  loop invariant u <= mrq;
+  loop invariant mrq == 0;
+  loop assigns u;
 */
 while (1) {
-      w += 1;
-      if (w>=z) {
+      u = u + 1;
+      if (u>=mrq) {
           break;
       }
   }
 /*@
-  assert bazd == xo4;
-*/
-/*@
-  assert w >= z && z == 1;
+  assert (m == sw*(sw - 1)/2);
 */
 
 }

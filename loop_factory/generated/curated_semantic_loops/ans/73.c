@@ -1,38 +1,39 @@
-int main1(int b,int k){
-  int n, j, s, w;
+int main1(int p,int q){
+  int r, t, e, v;
 
-  n=(k%25)+11;
-  j=n;
-  s=n;
-  w=j;
+  r=(q%6)+8;
+  t=1;
+  e=r;
+  v=t;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant n == (\at(k, Pre) % 25) + 11;
-  loop invariant k == \at(k, Pre);
-  loop invariant b == \at(b, Pre);
-
-  loop invariant s == n || s >= n*(n+1);
-  loop invariant n == \at(k, Pre) % 25 + 11;
-  loop invariant s <= n;
-  loop invariant s >= \at(k, Pre) % 25 + 11;
-  loop invariant b == \at(b, Pre) &&
-                   k == \at(k, Pre) &&
-                   n == (\at(k, Pre) % 25) + 11 &&
-                   s <= n;
-  loop invariant n == (k % 25) + 11;
-
-  loop assigns s;
+  loop invariant r == (\at(q,Pre) % 6) + 8;
+  loop invariant 1 <= t <= r;
+  loop invariant e == r + 3*(t - 1);
+  loop invariant v == 3*t - 2;
+  loop invariant p == \at(p,Pre);
+  loop invariant q == \at(q,Pre);
+  loop invariant t >= 1;
+  loop invariant t <= r;
+  loop invariant 1 <= t;
+  loop invariant r == (q % 6) + 8;
+  loop assigns e, v, t;
 */
-while (s<n) {
-      if (s<n) {
-          s = s+1;
+while (t<=r-1) {
+      e = e+3;
+      v = v+2;
+      if (t<e+5) {
+          v = v+1;
       }
-      s = s*s+s;
+      else {
+          v = v+r;
+      }
+      t = t+1;
   }
 /*@
-  assert !(s<n) &&
-         (n == (\at(k, Pre) % 25) + 11);
+  assert !(t<=r-1) &&
+         (r == (\at(q,Pre) % 6) + 8);
 */
 
 

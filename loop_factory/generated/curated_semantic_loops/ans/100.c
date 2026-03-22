@@ -1,35 +1,47 @@
-int main1(int p,int q){
-  int t, g, v;
+int main1(int k,int p){
+  int l, c, a, u;
 
-  t=q;
-  g=0;
-  v=2;
+  l=57;
+  c=0;
+  a=0;
+  u=l;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant t == \at(q, Pre);
-  loop invariant g == 0;
-  loop invariant v % 2 == 0;
+  loop invariant k == \at(k, Pre);
   loop invariant p == \at(p, Pre);
-  loop invariant v >= 0;
-  loop invariant t == q;
-  loop invariant q == \at(q,Pre);
-  loop invariant 0 <= v <= 2;
-  loop invariant (v == 2) || (v == 0);
-  loop invariant g % 3 != 0 ==> (v % 4 == 2);
+  loop invariant (a == 0) ==> (u == l);
 
-  loop invariant v == 2 || v == 0;
-  loop assigns v;
+  loop invariant (a == 0) || (a == l);
+  loop invariant c <= l - 1;
+  loop invariant c == 0;
+  loop invariant 0 <= a;
+  loop invariant a <= l;
+  loop invariant -1 <= u;
+  loop invariant u <= l + 2;
+  loop invariant (a == l) || (a == 0 && u == l);
+  loop invariant l == 57;
+  loop invariant u >= 0;
+  loop invariant 0 <= c;
+  loop invariant c <= l;
+  loop invariant c == 0 && a <= l && (a == 0 || a == 57) && u >= 0;
+  loop assigns a, u;
 */
-while (g+5<=t) {
-      v = v+4;
-      if ((g%3)==0) {
-          v = v-v;
+while (c+1<=l) {
+      u = l-a;
+      a = a+1;
+      u = u-1;
+      if ((c%9)==0) {
+          a = a-c;
+      }
+      a = a+u;
+      if ((c%9)==0) {
+          u = u+3;
       }
   }
 /*@
-  assert !(g+5<=t) &&
-         (t == \at(q, Pre));
+  assert !(c+1<=l) &&
+         (k == \at(k, Pre));
 */
 
 

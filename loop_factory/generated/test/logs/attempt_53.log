@@ -1,576 +1,876 @@
-2026-03-14 20:37:30,804 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-14 20:37:30,829 - INFO - Found 2 loops
-2026-03-14 20:37:30,830 - INFO - 
+2026-03-22 13:34:25,288 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-22 13:34:25,317 - INFO - Found 1 loops
+2026-03-22 13:34:25,319 - INFO - 
 ============================================================
-2026-03-14 20:37:30,830 - INFO - Main generation pass 1/1
-2026-03-14 20:37:30,830 - INFO - ============================================================
-2026-03-14 20:37:30,830 - INFO - Loaded single prompt template: simple
-2026-03-14 20:37:30,830 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-14 20:37:30,831 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-14 20:37:30,889 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:39:41,765 - INFO - 
------ Candidate 1/5 raw response begin -----
+2026-03-22 13:34:25,319 - INFO - Main generation pass 1/1
+2026-03-22 13:34:25,319 - INFO - ============================================================
+2026-03-22 13:34:25,319 - INFO - Loaded single prompt template: simple
+2026-03-22 13:34:25,319 - INFO - Generating 8 candidate invariant sets with temperature=1.0
+2026-03-22 13:34:25,319 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-22 13:34:25,333 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:35:20,451 - INFO - 
+----- Candidate 1/8 raw response begin -----
 <reasoning>
-Loop 0 (the first while rm < bjj) is effectively a one-shot loop in this particular code path: rm starts at 0, and inside the body rm is set to bjj, so the next loop head will fail (rm < bjj becomes false). A robust inductive invariant should capture the constrained state that can hold at the loop head and be preserved by the body, while remaining simple enough for the WP prover.
+I selected a small set of strong, inductive invariants that are true in the given initial state and preserved by the loop body.
 
-Key observations for Loop 0:
-- rm can only be 0 at the loop head (initial state) or bjj after the body; thus rm ∈ {0, bjj} is an inductive property.
-- If rm == 0 holds at a loop head, then the body leaves c45, p, ls unchanged (since rm == 0 implies c45' = c45, p' = p, ls' = ls). In the given initialization, c45 == 0, p == 1, ls == 3. We can express this as (rm == 0) ==> (c45 == 0 && p == 1 && ls == 3), which is preserved because after the body, rm becomes bjj and the antecedent rm == 0 no longer holds.
-- bjj is a constant computed before the loops ((1%13) + 9); we can reflect that by a simple invariant bjj == (1%13) + 9.
-- To ensure termination-friendly progress, use a loop variant that decreases with each iteration. A natural choice here is (bjj - rm): it starts at bjj (when rm == 0) and becomes 0 after the first iteration (when rm becomes bjj).
+Core relational equalities:
+- fd == 4 + qdf5 is a simple conservation law: qdf5 is incremented by 1 and fd is incremented by 1 in the same iteration, so their difference stays 4. This explains the deterministic relationship between fd and the loop counter qdf5 and is easy for WP to check.
+- jq == \at(i, Pre) + 4*qdf5 + (qdf5*(qdf5+1))/2 is a closed-form expression for jq after qdf5 iterations: each iteration adds the new fd (which equals 4 + current qdf5) to jq. This equality is precise and inductive (it holds initially and the algebra matches the update jq += fd after fd++).
 
-Loop 1 (the second while p < bjj) has a straightforward progressive bound: p is incremented by 1 each iteration, and the loop exits when p reaches bjj. Therefore:
-- bjj remains constant (not modified inside the loop).
-- p increases monotonically until it reaches bjj, so (bjj - p) decreases by 1 each iteration, suitable as a loop variant.
-- rm is updated heavily, but a simple invariant rm >= 0 is reasonable and preserved by the arithmetic in the loop.
-- A modest invariant p <= bjj captures that p never exceeds bjj during the loop, which is consistent with the loop guard.
+Progress / bounds and simple preserved facts:
+- qdf5 >= 0: qdf5 starts at 0 and only increases by 1 per iteration.
+- dwe == \at(i, Pre) - 9: dwe is initialized once before the loop and never modified, so it is convenient to record its relation to the function parameter.
+- v == 0: v is initialized to 0 and never modified.
+- d <= 0: d starts at 0 and can only be assigned to jq when jq <= d, so d is non-increasing and thus remains <= 0.
+- dosg >= 0: dosg starts at 0 and each iteration adds (qdf5+1 - d). Since qdf5 >= 0 and d <= 0, (qdf5+1 - d) >= 1, so dosg remains non-negative.
 
-The chosen invariants are inductive (preserved by each loop body under the loop guard) and provide enough structure to help Frama-C WP verify the loops without modifying the program logic. They also include complete/accurate loop assigns and sensible loop variants to help termination reasoning.
+Loop assigns:
+I listed exactly the variables that the loop body modifies: qdf5, d, j, c23, dosg, i, fd, jq.
+
+Variant:
+I provided the natural decreasing variant dwe - qdf5. Under the loop guard qdf5 <= dwe-1 this expression is a non-negative integer and it strictly decreases on each iteration (because qdf5 is incremented by 1).
+
+These invariants are minimal, strong, and directly follow the update patterns of the loop; they are verification-friendly for Frama-C/WP (algebraic equalities and simple inequalities).
 </reasoning>
-
 <code>
-/*@
-  loop invariant (rm == 0) ==> (c45 == 0 && p == 1 && ls == 3);
-  loop invariant rm == 0 || rm == bjj;
-  loop invariant bjj == (1%13) + 9;
-  loop assigns c45, ls, p, rm;
-  loop variant (bjj - rm);
-*/
-while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /*@
+    loop invariant fd == 4 + qdf5;
+    loop invariant jq == \at(i, Pre) + 4 * qdf5 + (qdf5 * (qdf5 + 1)) / 2;
+    loop invariant v == 0;
+    loop invariant qdf5 >= 0;
+    loop invariant dwe == \at(i, Pre) - 9;
+    loop invariant d <= 0;
+    loop invariant dosg >= 0;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+    loop variant dwe - qdf5;
+  */
+  while (qdf5<=dwe-1) {
+        qdf5 += 1;
+        if (jq<=d) {
+            d = jq;
+        }
+        if (dwe<dwe+1) {
+            j += v;
+        }
+        c23 = c23+qdf5-d;
+        dosg = dosg+qdf5-d;
+        i += d;
+        fd++;
+        jq += fd;
+        j = j + jq;
+        c23 += j;
+    }
+
+}
+</code>
+----- Candidate 1/8 raw response end -----
+2026-03-22 13:35:20,451 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-22 13:35:20,465 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:36:03,553 - INFO - 
+----- Candidate 2/8 raw response begin -----
+<reasoning>
+I chose invariants that are inductive, verification-friendly, and explain the key state transitions observed in the loop:
+
+- qdf5 >= 0 : qdf5 is initialized to 0 and only ever incremented, so it is always non-negative (progress bound).
+- (dwe >= 0) ==> (qdf5 <= dwe) : case-split upper bound on the loop counter. If dwe >= 0 the counter stays <= dwe (the loop guard is qdf5 <= dwe-1 and each step increases qdf5 by 1); if dwe < 0 the implication is vacuously true (no iterations). This avoids asserting an upper bound that would be false at loop entry when dwe < 0.
+- fd == 4 + qdf5 : core conservation equality (state transition law). fd starts at 4 and is incremented exactly once per loop iteration while qdf5 is incremented exactly once, so fd equals 4 + qdf5 at every loop point. This is the main relational invariant that captures the regular update pattern for fd.
+- jq == \at(i, Pre) + 4*qdf5 + (qdf5*(qdf5+1))/2 : closed-form relation for jq derived from its repeated increments by fd (and fd = 4 + iteration index). This is a precise arithmetic invariant that is inductive and useful for reasoning about jq.
+- jq >= \at(i, Pre) : jq never decreases (fd increments are non-negative), so it stays at least its initial value (useful to reason about branches that compare jq).
+- d <= 0 : d is initialized to 0 and only ever set to jq when jq <= d, so d never becomes positive.
+- i <= \at(i, Pre) : i is incremented by d on each iteration, and since d <= 0, i never grows beyond its initial value.
+
+The loop assigns clause exactly lists the variables that the loop modifies (qdf5, d, j, c23, dosg, i, fd, jq). I omitted a variant because a universally non-negative variant that is valid at entry would require case-splitting on dwe; the (dwe >= 0 ==> qdf5 <= dwe) invariant is sufficient to reason about loop progress for verification and avoids unsound variant expressions when dwe < 0.
+
+All invariants avoid quantifiers and \at on locals; \at(i, Pre) is used only for the function parameter initial value as allowed.
+</reasoning>
+<code>
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant qdf5 >= 0;
+    loop invariant (dwe >= 0) ==> (qdf5 <= dwe);
+    loop invariant fd == 4 + qdf5;
+    loop invariant jq == \at(i, Pre) + 4*qdf5 + (qdf5*(qdf5+1))/2;
+    loop invariant jq >= \at(i, Pre);
+    loop invariant d <= 0;
+    loop invariant i <= \at(i, Pre);
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  */
+  while (qdf5<=dwe-1) {
+        qdf5 += 1;
+        if (jq<=d) {
+            d = jq;
+        }
+        if (dwe<dwe+1) {
+            j += v;
+        }
+        c23 = c23+qdf5-d;
+        dosg = dosg+qdf5-d;
+        i += d;
+        fd++;
+        jq += fd;
+        j = j + jq;
+        c23 += j;
+    }
+
+}
+</code>
+----- Candidate 2/8 raw response end -----
+2026-03-22 13:36:03,554 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-22 13:36:03,566 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:37:17,800 - INFO - 
+----- Candidate 3/8 raw response begin -----
+<reasoning>We need inductive loop invariants that are helpful for Frama-C WP verification and reflect the actual loop state updates without modifying the code.
+
+Key observations:
+- qdf5 starts at 0 and is incremented by 1 each loop iteration; the loop guard is qdf5 <= dwe - 1. Therefore, 0 <= qdf5 holds throughout and is a natural progress bound.
+- fd starts at 4 and is incremented by 1 each iteration (fd++). At the same time, qdf5 is incremented by 1 early in the loop. By induction, after k iterations, qdf5 = k and fd = 4 + k. Therefore, the exact relationship fd == 4 + qdf5 holds at the loop head (and is preserved across iterations).
+- dwe is assigned once at function start to dwe = i - 9 and never modified later. The initial value of i is given by the function parameter at entry, i0 = \at(i, Pre). Thus dwe always equals i0 - 9. A concise and verifiable invariant is dwe == \at(i, Pre) - 9.
+- The loop assigns a number of variables (qdf5, d, j, c23, dosg, i, fd, jq). We explicitly specify the exact set of assigned variables to be precise.
+
+Chosen inductive invariants (all hold at the loop head before each iteration):
+- 0 <= qdf5 (progress bound)
+- fd == 4 + qdf5 (core conservation/evolution relation between fd and qdf5)
+- dwe == \at(i, Pre) - 9 (conservation of dwe with respect to the initial value of i)
+Additionally, we specify the exact loop assigns: qdf5, d, j, c23, dosg, i, fd, jq.
+
+These invariants are strong and directly reflect the observed state updates, while remaining inductive and verification-friendly for Frama-C/WP. They do not require any changes to the loop body or to the surrounding code, and they use only allowed variables (including the initial value of i via \at(i, Pre)).</reasoning>
+<code>int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /*@
+    loop invariant 0 <= qdf5;
+    loop invariant fd == 4 + qdf5;
+    loop invariant dwe == \at(i, Pre) - 9;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  */
+  while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
   }
 
-/*@
-  loop invariant bjj == (1%13) + 9;
-  loop invariant p <= bjj;
-  loop invariant rm >= 0;
-  loop assigns p, rm;
-  loop variant (bjj - p);
+}</code>
+----- Candidate 3/8 raw response end -----
+2026-03-22 13:37:17,800 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-22 13:37:17,815 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:37:55,805 - INFO - 
+----- Candidate 4/8 raw response begin -----
+<reasoning>
+I chose invariants that are strong, inductive, and directly explain the arithmetic state changes observed in the loop, while keeping to available variables and the ACSL constraints.
+
+Core conservation / relational equalities
+- fd == 4 + qdf5: fd is initialized to 4 and incremented once per iteration; qdf5 counts the number of iterations, so fd grows exactly as 4 + qdf5. This equality is easy to check for initialization and preserved by the body (fd++ and qdf5++ in the same iteration).
+- jq == \at(i, Pre) + 4*qdf5 + ((qdf5*(qdf5+1))/2): jq starts at the initial function parameter value (\at(i, Pre)) and each iteration adds the current incremented fd (i.e. 4 + t for the t-th iteration). Summing these gives the polynomial expression in qdf5; this equality is inductive using the fd equality and the order of updates (fd++ then jq += fd).
+
+Loop counters / progress
+- 0 <= qdf5 ensures qdf5 is a non-negative iteration counter.
+- (dwe >= 0) ==> (qdf5 <= dwe) states the useful upper bound maintained while iterations can actually happen (dwe is unchanged across iterations). This formulation avoids requiring qdf5 <= dwe when dwe is negative (in which case the loop does not run).
+
+Other helpful facts
+- dwe == \at(i, Pre) - 9 records that dwe is a constant computed from the function parameter and is unchanged by the loop; using \at(i, Pre) is allowed (parameter). This helps relate the loop bound to the initial parameter.
+- v == 0 since v is initialized to 0 and never modified; making this explicit simplifies reasoning about j (the j += v branch).
+These are all expressible with available variables and are preserved by the loop.
+
+Assigns
+- The loop clearly modifies exactly: qdf5, d, j, c23, dosg, i, fd, jq. I list them exactly in loop assigns.
+
+Variant
+- I add the natural variant (dwe - qdf5). When the guard is true (qdf5 <= dwe-1), this variant is a non-negative integer and strictly decreases each iteration because qdf5 increments by 1.
+
+I avoided quantifiers, logic/axiomatic declarations, and any \at() on local variables; I only used \at(i, Pre) for the function parameter. The invariants are not tautological and directly reflect the loop's transition relation, making them verification-friendly for Frama-C WP.
+</reasoning>
+<code>
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /*@
+    loop invariant 0 <= qdf5;
+    loop invariant (dwe >= 0) ==> (qdf5 <= dwe);
+    loop invariant fd == 4 + qdf5;
+    loop invariant jq == \at(i, Pre) + 4*qdf5 + ((qdf5*(qdf5+1))/2);
+    loop invariant dwe == \at(i, Pre) - 9;
+    loop invariant v == 0;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+    loop variant (dwe - qdf5);
+  */
+  while (qdf5<=dwe-1) {
+        qdf5 += 1;
+        if (jq<=d) {
+            d = jq;
+        }
+        if (dwe<dwe+1) {
+            j += v;
+        }
+        c23 = c23+qdf5-d;
+        dosg = dosg+qdf5-d;
+        i += d;
+        fd++;
+        jq += fd;
+        j = j + jq;
+        c23 += j;
+    }
+
+}
+</code>
+----- Candidate 4/8 raw response end -----
+2026-03-22 13:37:55,806 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-22 13:37:55,821 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:39:55,819 - INFO - 
+----- Candidate 5/8 raw response begin -----
+<reasoning>Reasoning about invariants:
+- A strong, inductive invariant is fd == qdf5 + 4. This is true initially (fd=4, qdf5=0) and, since every iteration increments both qdf5 and fd by 1, the relation remains preserved across iterations. This provides a compact state-conservation relation describing the loop progression.
+- The loop variable qdf5 starts at 0 and is incremented by 1 each iteration, and the loop guard is qdf5 <= dwe-1. Therefore, 0 <= qdf5 <= dwe is a safe, inductive bound (interpreted with care: the guard ensures the loop continues only while qdf5 <= dwe-1; when the next iteration is not possible, the invariant need not hold for a non-existent next header, but it does hold for all reachable loop headers).
+- v is never modified inside the loop, so v == 0 is a valid invariant.
+- The loop assigns clause must cover all variables that may be assigned inside the loop body. The loop assigns qdf5, d, j, c23, dosg, i, fd, jq.
+- Loop variant dwe - qdf5 is a natural decreasing measure: as qdf5 increases by 1 each iteration, dwe - qdf5 decreases by 1, ensuring termination given the guard condition.
+Overall, these invariants are inductive, concise, and verification-friendly for Frama-C/WP, and they do not modify the original code behavior or require any at-Pre use on locals. The chosen invariants provide a core conservation/relational insight (fd and qdf5 progress) and a minimal, robust bound (qdf5), plus a simple constant invariant (v==0).
+</reasoning>
+<code>/*@
+  loop invariant 0 <= qdf5 <= dwe;
+  loop invariant fd == qdf5 + 4;
+  loop invariant v == 0;
+  loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  loop variant dwe - qdf5;
 */
-while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
+while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
+  }</code>
+----- Candidate 5/8 raw response end -----
+2026-03-22 13:39:55,820 - INFO -   Candidate 6 selected prompt: simple_cot.txt
+2026-03-22 13:39:55,835 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:40:41,687 - INFO - 
+----- Candidate 6/8 raw response begin -----
+<reasoning>
+I chose invariants that are (1) true before the first loop iteration, (2) preserved by the loop body, and (3) explain the main state transitions used in the loop so WP can discharge arithmetic facts.
+
+Core conservation / relational equalities
+- fd == 4 + qdf5: qdf5 is incremented by 1 and fd is incremented by 1 in every iteration (in that order inside the loop), so fd always equals initial 4 plus the number of iterations performed. This is simple, exact, and inductive.
+- 2*(jq - \at(i, Pre)) == qdf5*(qdf5 + 9): from the initial values (jq == \at(i, Pre), qdf5 == 0, fd == 4) and the update "fd++ ; jq += fd" one derives the closed form relation. Using the form with a factor 2 avoids fractional divisions and keeps the arithmetic exact on integers; it is inductive (after one iteration jq increases by the new fd and qdf5 increments by 1 so the polynomial relation holds).
+
+Minimal progress / bounds and preservation facts
+- qdf5 >= 0: qdf5 starts at 0 and is always incremented by 1, so it stays non-negative.
+- fd >= 4: follows from fd == 4 + qdf5.
+- jq >= \at(i, Pre): jq starts equal to \at(i, Pre) and only increases (we add fd >= 5 in each iteration), so it remains >= initial value.
+- dwe == \at(i, Pre) - 9 and v == 0: these variables are initialized before the loop and never modified inside the loop; exposing them as invariants makes reasoning about expressions that mix them with other invariants easier.
+
+Loop assigns
+- The loop body modifies exactly: qdf5, d, j, c23, dosg, i, fd, jq. I list them precisely in loop assigns.
+
+I avoided making speculative invariants about d, i, c23 or dosg sums because their precise closed forms depend on branching and would be nontrivial to express without quantified sums or additional logic; instead I provided the strong, exact relations for fd and jq which characterize the structured part of the updates and are enough to help WP reason about termination and arithmetic over jq/fd. All invariants are expressible with the available variables and only use \at(i, Pre) on the function parameter as allowed.
+</reasoning>
+<code>
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /*@
+    loop invariant fd == 4 + qdf5;
+    loop invariant 2 * (jq - \at(i, Pre)) == qdf5 * (qdf5 + 9);
+    loop invariant qdf5 >= 0;
+    loop invariant fd >= 4;
+    loop invariant jq >= \at(i, Pre);
+    loop invariant v == 0;
+    loop invariant dwe == \at(i, Pre) - 9;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  */
+  while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
   }
 
 }
 </code>
------ Candidate 1/5 raw response end -----
-2026-03-14 20:39:41,765 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-14 20:39:41,822 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:41:03,202 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>For Loop 0 (rm < bjj):
-- We want inductive invariants that hold before the first iteration and are preserved by each iteration.
-- Observations: bjj is constant inside the loop; rm starts at 0 and is set to bjj in the loop body, so 0 <= rm <= bjj is preserved; p starts at 1 and only increases (via p += c45); since c45 is nonnegative, p stays >= 1; c45 starts at 0 and accumulates nonnegative amounts, so c45 >= 0; ls starts at 3 and increases by (c45 % 6) which is >= 0, so ls >= 3.
-- A loop variant to prove termination: bjj - rm strictly decreases because rm updates to bjj on the iteration, and the guard rm < bjj guarantees a positive initial variant. These invariants are strong enough to be inductive without being tautological.
-- For Loop 1 (p < bjj):
-- Observations: bjj is constant; initial p = 1 and increases by 1 each iteration; the guard ensures p <= bjj, so the invariant 0 <= p && p <= bjj is preserved; rm starts at bjj and grows strictly (positive) due to the updates, so rm > 0 persists. A loop variant bjj - p decreases by 1 each iteration, ensuring termination.
-- The chosen invariants are simple, non-tautological, and tightly connected to the observed state transitions, helping the WP verifier with inductiveness and progress reasoning.</reasoning>
-<code>int main1(){
-  int bjj, rm, p, c45, ls;
+----- Candidate 6/8 raw response end -----
+2026-03-22 13:40:41,687 - INFO -   Candidate 7 selected prompt: simple_cot.txt
+2026-03-22 13:40:41,701 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:42:28,269 - INFO - 
+----- Candidate 7/8 raw response begin -----
+<reasoning>The loop updates several variables in a deterministic fashion. The most robust inductive invariant is a simple conservation relation between the two loop counters qdf5 and fd, which are both incremented by 1 each iteration. Specifically, fd always equals 4 plus qdf5 (since fd starts at 4 and is incremented once per iteration just as qdf5 is incremented). This single relational invariant is strong, inductive, and directly explains the state transition observed in the loop body.
 
-  bjj=(1%13)+9;
-  rm=0;
-  p=1;
-  c45=0;
-  ls=3;
+As progress bounds, we include:
+- a lower bound on qdf5 (qdf5 is never negative) via 0 <= qdf5 (follows from the initial 0 and the exact +1 increment per iteration),
+- a loop variant to guarantee termination: dwe - qdf5 decreases by 1 each iteration because qdf5 increases by 1 while dwe is constant, and the loop guard enforces qdf5 <= dwe - 1 when entering an iteration. Thus dwe - qdf5 is a valid decreasing variant.
 
-  /*@
-    loop invariant 0 <= rm && rm <= bjj;
-    loop invariant p >= 1;
-    loop invariant c45 >= 0;
-    loop invariant ls >= 3;
-    loop assigns c45, ls, p, rm;
-    loop variant bjj - rm;
-  */
-  while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
-  }
+We also provide an exact loop assigns set listing all variables that can be modified by the loop body: qdf5, d, j, c23, dosg, i, fd, jq. This ensures the WP plugin knows which memory locations may be touched inside the loop.
 
-  /*@
-    loop invariant 0 <= p && p <= bjj;
-    loop invariant rm > 0;
-    loop assigns p, rm;
-    loop variant bjj - p;
-  */
-  while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
-  }
+These invariants are inductive and verification-friendly: they do not rely on non-parameter non-local facts, they are preserved by each iteration, and they aid in proving loop termination.
 
-}</code>
------ Candidate 2/5 raw response end -----
-2026-03-14 20:41:03,203 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-14 20:41:03,262 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:42:31,205 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>
-For the two loops, I designed inductive, verification-friendly invariants with a focus on:
-- one core, nontrivial relational/conservation insight for the first loop (c45 evolves by a nonnegative amount dependent on rm and p),
-- minimal yet sufficient progress bounds on the loop counters (rm and p),
-- complete and exact loop assigns for each loop.
-
-Loop 0 (the first while):
-- Core conservation/relational insight: c45 increases by p*rm each iteration (as implemented). To capture non-decreasing behavior and relate the state, I included c45 <= c45 + p*rm as an inductive property (together with p>=1 and rm>=0 implicitly via other invariants). This expresses that c45 does not decrease and that the update term p*rm is nonnegative.
-- Progress bounds: rm is bounded by bjj, and p is bounded below by 1.
-- Invariants chosen:
-  - 0 <= rm <= bjj
-  - c45 >= 0
-  - ls >= 3
-  - p >= 1
-  - c45 <= c45 + p*rm
-  - and a second invariant to enforce progress bounds: 0 <= p <= bjj
-- Loop assigns: c45, ls, p, rm
-- Loop variant: (bjj - rm) to ensure termination progress (rm starts at 0 and ends at bjj in this loop).
-
-Loop 1 (the second while):
-- The loop increments p by 1 each iteration while p < bjj. It also updates rm, but the invariant focus is on the loop counter progress.
-- Progress bounds: p is nonnegative and never exceeds bjj within the loop.
-- Invariants chosen:
-  - 0 <= p <= bjj
-- Loop assigns: p, rm
-- Loop variant: (bjj - p)
-
-These invariants are designed to be inductive, strong (not tautological), and to align with the actual state updates, while keeping the code unchanged aside from the ACSL annotations.
 </reasoning>
-<code>int main1(){
-  int bjj, rm, p, c45, ls;
+<code>int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
 
-  bjj=(1%13)+9;
-  rm=0;
-  p=1;
-  c45=0;
-  ls=3;
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
 
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant (0 <= rm <= bjj) && (c45 >= 0) && (ls >= 3) && (p >= 1) && (c45 <= c45 + p*rm);
-    loop invariant (0 <= p) && (p <= bjj);
-    loop assigns c45, ls, p, rm;
-    loop variant (bjj - rm);
-  @*/
-  while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
-  }
-
-  /*@
-    loop invariant (0 <= p) && (p <= bjj);
-    loop assigns p, rm;
-    loop variant (bjj - p);
-  @*/
-  while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
+    loop invariant fd == 4 + qdf5;
+    loop invariant 0 <= qdf5;
+    loop variant dwe - qdf5;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  */
+  while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
   }
 
 }</code>
------ Candidate 3/5 raw response end -----
-2026-03-14 20:42:31,206 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-14 20:42:31,266 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:44:46,820 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>
-We need inductive, verification-friendly loop invariants and assigns for the two loops in the function, using only the available variables and not altering the code logic.
+----- Candidate 7/8 raw response end -----
+2026-03-22 13:42:28,269 - INFO -   Candidate 8 selected prompt: simple_cot.txt
+2026-03-22 13:42:28,281 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:43:41,661 - INFO - 
+----- Candidate 8/8 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop annotations for Frama-C/WP. The loop updates several state variables in a regular pattern:
 
-Loop 0 analysis (rm < bjj):
-- The loop body updates c45, ls, p, rm with the known transition:
-  - c45' = c45 + p*rm
-  - ls'  = ls + (c45' % 6)
-  - p'   = p + c45'
-  - rm'  = bjj
-  - bjj remains constant
-- Given the initial state (rm = 0, p = 1, c45 = 0, ls = 3, bjj = 1%13+9 = 10), the loop executes once and ends (rm becomes bjj). A robust invariant can capture the scoped behavior that:
-  - rm stays within bounds (rm <= bjj)
-  - rm only takes the boundary values {0, bjj} during loop entry states (since after the body rm becomes bjj and next iteration won’t execute)
-  - c45, p, ls do not change from their initial values in this particular loop execution path (c45 == 0, p == 1, ls == 3)
-- These invariants are inductive: starting from the initial state they hold, and after one iteration (where rm becomes bjj), the next loop entry state (if it existed) would still satisfy rm <= bjj and rm == 0 || rm == bjj; and the conserved values c45, p, ls stay at their initial values. They are stronger than necessary but verification-friendly and help establish the loop exit condition.
-- A small loop variant can be used to show progress toward termination: bjj - rm (non-negative and decreases to 0).
+- qdf5 is incremented by 1 each iteration and the loop runs while qdf5 <= dwe-1. This provides a natural loop counter with non-negative values, and a straightforward loop variant dwe - qdf5 to prove termination.
+- c23 and dosg are both updated by the same term (qdf5 - d) each iteration, while j is updated by the new jq, and then c23 is incremented by the new value of j. This structure yields a relational invariant across iterations.
+- A robust invariant is the conservation of the combination c23 - dosg - j across iterations. Precisely, after each iteration the relation c23 - dosg - j remains constant, starting from the pre-loop value c230 - dosg0 - j0 = 4 - 0 - (-4) = 8. Therefore we can state:
+  c23 - dosg - j == 8
+  This is inductive because the loop body updates preserve this expression as shown by the algebra of the updates.
 
-Loop 1 analysis (p < bjj):
-- The loop body updates p, rm with:
-  - p' = p + 1
-  - rm' grows dramatically (due to the sequence rm++, rm*=2, rm=rm*rm+rm)
-- The loop invariant should express a simple, always-true bound that decreases toward termination. The natural one is p <= bjj (since the loop continues while p < bjj).
-- Use a loop variant that strictly decreases with each iteration: bjj - p, which starts positive (due to p < bjj at entry) and decreases by 1 each iteration as p increments.
+Additionally, we require a minimal, progress-oriented invariant for qdf5, namely 0 <= qdf5, to reflect the non-negativity of the loop counter.
 
-In summary:
-- For Loop 0, we use strong invariants on rm, c45, p, ls, and a non-strict bound on rm with a termination-friendly variant.
-- For Loop 1, we use p <= bjj, rm >= 0, and a decreasing variant bjj - p, with loop assigns {p, rm}.
+We declare:
+- loop invariant 0 <= qdf5;
+- loop invariant c23 - dosg - j == 8;
+- loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+- loop variant dwe - qdf5;
 
-The following annotations implement these invariants and assignments without modifying the original code logic.
-</reasoning>
-<code>int main1(){
-  int bjj, rm, p, c45, ls;
-
-  bjj=(1%13)+9;
-  rm=0;
-  p=1;
-  c45=0;
-  ls=3;
-
-  /*@
-    loop invariant rm <= bjj;
-    loop invariant (rm == 0 || rm == bjj);
-    loop invariant c45 == 0;
-    loop invariant p == 1;
-    loop invariant ls == 3;
-    loop assigns c45, ls, p, rm;
-    loop variant bjj - rm;
-  */
-  while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
-  }
-
-  /*@
-    loop invariant p <= bjj;
-    loop invariant rm >= 0;
-    loop assigns p, rm;
-    loop variant bjj - p;
-  */
-  while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
-  }
-
-}</code>
------ Candidate 4/5 raw response end -----
-2026-03-14 20:44:46,820 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-14 20:44:46,876 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:46:39,011 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>For Loop 0:
-- Observing the updates, rm starts at 0 and is then set to bjj, which means at loop entry rm is either 0 (initial) or bjj (after the first iteration). A concise inductive relation is rm == 0 || rm == bjj.
-- c45 starts at 0 and, because rm is 0 at the moment c45 is updated, the increment c45 = c45 + p * rm yields no change (c45 remains 0). Therefore c45 == 0 is a stable invariant.
-- p starts at 1 and remains 1 because c45 stays 0 and p += c45 has no effect.
-- ls starts at 3 and since c45 % 6 is 0, ls does not change, so ls == 3 is invariant.
-These invariants are preserved across iterations and give a clear, tight description of the loop state. A natural loop variant is (bjj - rm), which decreases from its initial positive value to 0 when the loop terminates. The loop assigns c45, ls, p, rm exactly as they are modified inside the loop.
-
-For Loop 1:
-- The loop guard is p < bjj. Since p increases by 1 each iteration, we have a straightforward progress measure: p <= bjj, which is an inductive invariant.
-- rm is updated in a way that maintains rm >= 0, assuming non-negative initial rm (which holds from the prior loop’s end and the code). Thus rm >= 0 is a safe invariant.
-- The loop assigns p and rm, so we declare loop assigns p, rm. A loop variant (bjj - p) decreases by 1 each iteration and guarantees termination.
-
-These invariants are tight, non-weak, and align with the loop behavior, while remaining within the available variable set and the ACSL constraints. They also avoid introducing unrelated invariants and keep the code unchanged except for annotations. The chosen invariants are inductive and verification-friendly for Frama-C WP. </reasoning>
-
-<code>int main1(){
-  int bjj, rm, p, c45, ls;
-
-  bjj=(1%13)+9;
-  rm=0;
-  p=1;
-  c45=0;
-  ls=3;
-
-  /*@
-    loop invariant rm == 0 || rm == bjj;
-    loop invariant p == 1;
-    loop invariant c45 == 0;
-    loop invariant ls == 3;
-    loop variant (bjj - rm);
-    loop assigns c45, ls, p, rm;
-  */
-  while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
-  }
-
-  /*@
-    loop invariant p <= bjj;
-    loop invariant rm >= 0;
-    loop variant (bjj - p);
-    loop assigns p, rm;
-  */
-  while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
-  }
-
-}</code>
------ Candidate 5/5 raw response end -----
-2026-03-14 20:46:39,011 - INFO - 
------ Candidate 1/5 full code begin -----
-/*@
-  loop invariant (rm == 0) ==> (c45 == 0 && p == 1 && ls == 3);
-  loop invariant rm == 0 || rm == bjj;
-  loop invariant bjj == (1%13) + 9;
-  loop assigns c45, ls, p, rm;
-  loop variant (bjj - rm);
+These invariants are tight, non-trivial, and directly reflect the loop’s state transitions, aiding WP in verification while keeping the model faithful to the original code. The approach does not modify the function logic, only the annotations above the loop. </reasoning>
+<code>/*@
+  loop invariant 0 <= qdf5;
+  loop invariant c23 - dosg - j == 8;
+  loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  loop variant dwe - qdf5;
 */
-while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
+while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
+  }</code>
+----- Candidate 8/8 raw response end -----
+2026-03-22 13:43:41,661 - INFO - 
+----- Candidate 1/8 full code begin -----
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /*@
+    loop invariant fd == 4 + qdf5;
+    loop invariant jq == \at(i, Pre) + 4 * qdf5 + (qdf5 * (qdf5 + 1)) / 2;
+    loop invariant v == 0;
+    loop invariant qdf5 >= 0;
+    loop invariant dwe == \at(i, Pre) - 9;
+    loop invariant d <= 0;
+    loop invariant dosg >= 0;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+    loop variant dwe - qdf5;
+  */
+  while (qdf5<=dwe-1) {
+        qdf5 += 1;
+        if (jq<=d) {
+            d = jq;
+        }
+        if (dwe<dwe+1) {
+            j += v;
+        }
+        c23 = c23+qdf5-d;
+        dosg = dosg+qdf5-d;
+        i += d;
+        fd++;
+        jq += fd;
+        j = j + jq;
+        c23 += j;
+    }
+
+}
+----- Candidate 1/8 full code end -----
+2026-03-22 13:43:41,661 - INFO - 
+----- Candidate 2/8 full code begin -----
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant qdf5 >= 0;
+    loop invariant (dwe >= 0) ==> (qdf5 <= dwe);
+    loop invariant fd == 4 + qdf5;
+    loop invariant jq == \at(i, Pre) + 4*qdf5 + (qdf5*(qdf5+1))/2;
+    loop invariant jq >= \at(i, Pre);
+    loop invariant d <= 0;
+    loop invariant i <= \at(i, Pre);
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  */
+  while (qdf5<=dwe-1) {
+        qdf5 += 1;
+        if (jq<=d) {
+            d = jq;
+        }
+        if (dwe<dwe+1) {
+            j += v;
+        }
+        c23 = c23+qdf5-d;
+        dosg = dosg+qdf5-d;
+        i += d;
+        fd++;
+        jq += fd;
+        j = j + jq;
+        c23 += j;
+    }
+
+}
+----- Candidate 2/8 full code end -----
+2026-03-22 13:43:41,661 - INFO - 
+----- Candidate 3/8 full code begin -----
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /*@
+    loop invariant 0 <= qdf5;
+    loop invariant fd == 4 + qdf5;
+    loop invariant dwe == \at(i, Pre) - 9;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  */
+  while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
   }
 
+}
+----- Candidate 3/8 full code end -----
+2026-03-22 13:43:41,662 - INFO - 
+----- Candidate 4/8 full code begin -----
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /*@
+    loop invariant 0 <= qdf5;
+    loop invariant (dwe >= 0) ==> (qdf5 <= dwe);
+    loop invariant fd == 4 + qdf5;
+    loop invariant jq == \at(i, Pre) + 4*qdf5 + ((qdf5*(qdf5+1))/2);
+    loop invariant dwe == \at(i, Pre) - 9;
+    loop invariant v == 0;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+    loop variant (dwe - qdf5);
+  */
+  while (qdf5<=dwe-1) {
+        qdf5 += 1;
+        if (jq<=d) {
+            d = jq;
+        }
+        if (dwe<dwe+1) {
+            j += v;
+        }
+        c23 = c23+qdf5-d;
+        dosg = dosg+qdf5-d;
+        i += d;
+        fd++;
+        jq += fd;
+        j = j + jq;
+        c23 += j;
+    }
+
+}
+----- Candidate 4/8 full code end -----
+2026-03-22 13:43:41,662 - INFO - 
+----- Candidate 5/8 full code begin -----
 /*@
-  loop invariant bjj == (1%13) + 9;
-  loop invariant p <= bjj;
-  loop invariant rm >= 0;
-  loop assigns p, rm;
-  loop variant (bjj - p);
+  loop invariant 0 <= qdf5 <= dwe;
+  loop invariant fd == qdf5 + 4;
+  loop invariant v == 0;
+  loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  loop variant dwe - qdf5;
 */
-while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
+while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
+  }
+----- Candidate 5/8 full code end -----
+2026-03-22 13:43:41,662 - INFO - 
+----- Candidate 6/8 full code begin -----
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
+
+  /*@
+    loop invariant fd == 4 + qdf5;
+    loop invariant 2 * (jq - \at(i, Pre)) == qdf5 * (qdf5 + 9);
+    loop invariant qdf5 >= 0;
+    loop invariant fd >= 4;
+    loop invariant jq >= \at(i, Pre);
+    loop invariant v == 0;
+    loop invariant dwe == \at(i, Pre) - 9;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  */
+  while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
   }
 
 }
------ Candidate 1/5 full code end -----
-2026-03-14 20:46:39,011 - INFO - 
------ Candidate 2/5 full code begin -----
-int main1(){
-  int bjj, rm, p, c45, ls;
+----- Candidate 6/8 full code end -----
+2026-03-22 13:43:41,662 - INFO - 
+----- Candidate 7/8 full code begin -----
+int main1(int i){
+  int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
 
-  bjj=(1%13)+9;
-  rm=0;
-  p=1;
-  c45=0;
-  ls=3;
+  dwe=i-9;
+  v=0;
+  qdf5=0;
+  fd=4;
+  d=v;
+  jq=i;
+  j=-4;
+  dosg=0;
+  c23=4;
 
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 0 <= rm && rm <= bjj;
-    loop invariant p >= 1;
-    loop invariant c45 >= 0;
-    loop invariant ls >= 3;
-    loop assigns c45, ls, p, rm;
-    loop variant bjj - rm;
+    loop invariant fd == 4 + qdf5;
+    loop invariant 0 <= qdf5;
+    loop variant dwe - qdf5;
+    loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
   */
-  while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
-  }
-
-  /*@
-    loop invariant 0 <= p && p <= bjj;
-    loop invariant rm > 0;
-    loop assigns p, rm;
-    loop variant bjj - p;
-  */
-  while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
+  while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
   }
 
 }
------ Candidate 2/5 full code end -----
-2026-03-14 20:46:39,012 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(){
-  int bjj, rm, p, c45, ls;
-
-  bjj=(1%13)+9;
-  rm=0;
-  p=1;
-  c45=0;
-  ls=3;
-
-  /*@
-    loop invariant (0 <= rm <= bjj) && (c45 >= 0) && (ls >= 3) && (p >= 1) && (c45 <= c45 + p*rm);
-    loop invariant (0 <= p) && (p <= bjj);
-    loop assigns c45, ls, p, rm;
-    loop variant (bjj - rm);
-  @*/
-  while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
+----- Candidate 7/8 full code end -----
+2026-03-22 13:43:41,662 - INFO - 
+----- Candidate 8/8 full code begin -----
+/*@
+  loop invariant 0 <= qdf5;
+  loop invariant c23 - dosg - j == 8;
+  loop assigns qdf5, d, j, c23, dosg, i, fd, jq;
+  loop variant dwe - qdf5;
+*/
+while (qdf5<=dwe-1) {
+      qdf5 += 1;
+      if (jq<=d) {
+          d = jq;
+      }
+      if (dwe<dwe+1) {
+          j += v;
+      }
+      c23 = c23+qdf5-d;
+      dosg = dosg+qdf5-d;
+      i += d;
+      fd++;
+      jq += fd;
+      j = j + jq;
+      c23 += j;
   }
-
-  /*@
-    loop invariant (0 <= p) && (p <= bjj);
-    loop assigns p, rm;
-    loop variant (bjj - p);
-  @*/
-  while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
-  }
-
-}
------ Candidate 3/5 full code end -----
-2026-03-14 20:46:39,012 - INFO - 
------ Candidate 4/5 full code begin -----
-int main1(){
-  int bjj, rm, p, c45, ls;
-
-  bjj=(1%13)+9;
-  rm=0;
-  p=1;
-  c45=0;
-  ls=3;
-
-  /*@
-    loop invariant rm <= bjj;
-    loop invariant (rm == 0 || rm == bjj);
-    loop invariant c45 == 0;
-    loop invariant p == 1;
-    loop invariant ls == 3;
-    loop assigns c45, ls, p, rm;
-    loop variant bjj - rm;
-  */
-  while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
-  }
-
-  /*@
-    loop invariant p <= bjj;
-    loop invariant rm >= 0;
-    loop assigns p, rm;
-    loop variant bjj - p;
-  */
-  while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
-  }
-
-}
------ Candidate 4/5 full code end -----
-2026-03-14 20:46:39,012 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(){
-  int bjj, rm, p, c45, ls;
-
-  bjj=(1%13)+9;
-  rm=0;
-  p=1;
-  c45=0;
-  ls=3;
-
-  /*@
-    loop invariant rm == 0 || rm == bjj;
-    loop invariant p == 1;
-    loop invariant c45 == 0;
-    loop invariant ls == 3;
-    loop variant (bjj - rm);
-    loop assigns c45, ls, p, rm;
-  */
-  while (rm<bjj) {
-      c45 = c45+p*rm;
-      ls = ls+(c45%6);
-      p += c45;
-      rm = bjj;
-  }
-
-  /*@
-    loop invariant p <= bjj;
-    loop invariant rm >= 0;
-    loop variant (bjj - p);
-    loop assigns p, rm;
-  */
-  while (p<bjj) {
-      p++;
-      rm++;
-      rm = rm*2;
-      rm = rm*rm+rm;
-  }
-
-}
------ Candidate 5/5 full code end -----
-2026-03-14 20:46:39,012 - INFO - Successfully generated 5/5 candidates
-2026-03-14 20:46:39,013 - INFO - Checking 14 invariants for conflicts...
-2026-03-14 20:46:39,015 - INFO - Checking 6 invariants for conflicts...
-2026-03-14 20:46:39,016 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-14 20:46:39,016 - INFO -   1: int main1(){
-2026-03-14 20:46:39,016 - INFO -   2:   int bjj, rm, p, c45, ls;
-2026-03-14 20:46:39,016 - INFO -   3: 
-2026-03-14 20:46:39,016 - INFO -   4:   bjj=(1%13)+9;
-2026-03-14 20:46:39,016 - INFO -   5:   rm=0;
-2026-03-14 20:46:39,016 - INFO -   6:   p=1;
-2026-03-14 20:46:39,016 - INFO -   7:   c45=0;
-2026-03-14 20:46:39,016 - INFO -   8:   ls=3;
-2026-03-14 20:46:39,016 - INFO -   9: 
-2026-03-14 20:46:39,016 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-14 20:46:39,016 - INFO - DEBUG: Total lines: 53
-2026-03-14 20:46:39,212 - INFO - syntax Correct
-2026-03-14 20:47:10,503 - INFO - Validate:
-2026-03-14 20:47:10,503 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-14 20:47:10,503 - INFO - 
-2026-03-14 20:47:10,503 - INFO - Verify:
-2026-03-14 20:47:10,503 - INFO - []
-2026-03-14 20:47:10,503 - INFO - 
-2026-03-14 20:47:10,503 - INFO - Houdini iteration 1: All invariants are valid
-2026-03-14 20:47:10,725 - INFO - syntax Correct
-2026-03-14 20:47:42,056 - INFO - Validate:
-2026-03-14 20:47:42,057 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-14 20:47:42,057 - INFO - 
-2026-03-14 20:47:42,057 - INFO - Verify:
-2026-03-14 20:47:42,057 - INFO - []
-2026-03-14 20:47:42,057 - INFO - 
-2026-03-14 20:49:33,661 - INFO - Deduplicated 24 loop invariants in final code
-2026-03-14 20:49:33,855 - INFO - syntax Correct
-2026-03-14 20:50:04,780 - INFO - Validate:
-2026-03-14 20:50:04,780 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-14 20:50:04,780 - INFO - 
-2026-03-14 20:50:04,780 - INFO - Verify:
-2026-03-14 20:50:04,780 - INFO - []
-2026-03-14 20:50:04,781 - INFO - 
-2026-03-14 20:50:04,781 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-14 20:50:04,781 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_53/1.c
-2026-03-14 20:50:04,781 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_53/1_invariants.txt
-2026-03-14 20:50:04,781 - INFO - 
+----- Candidate 8/8 full code end -----
+2026-03-22 13:43:41,662 - INFO - Successfully generated 8/8 candidates
+2026-03-22 13:43:41,663 - INFO - Checking 17 invariants for conflicts...
+2026-03-22 13:43:41,666 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-22 13:43:41,666 - INFO -   1: int main1(int i){
+2026-03-22 13:43:41,666 - INFO -   2:   int dwe, v, qdf5, fd, d, jq, j, dosg, c23;
+2026-03-22 13:43:41,666 - INFO -   3: 
+2026-03-22 13:43:41,666 - INFO -   4:   dwe=i-9;
+2026-03-22 13:43:41,666 - INFO -   5:   v=0;
+2026-03-22 13:43:41,666 - INFO -   6:   qdf5=0;
+2026-03-22 13:43:41,666 - INFO -   7:   fd=4;
+2026-03-22 13:43:41,666 - INFO -   8:   d=v;
+2026-03-22 13:43:41,666 - INFO -   9:   jq=i;
+2026-03-22 13:43:41,666 - INFO -   10:   j=-4;
+2026-03-22 13:43:41,666 - INFO - DEBUG: Total lines: 53
+2026-03-22 13:43:41,873 - INFO - syntax Correct
+2026-03-22 13:44:13,594 - INFO - Validate:
+2026-03-22 13:44:13,594 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, False]
+2026-03-22 13:44:13,594 - INFO - 
+2026-03-22 13:44:13,594 - INFO - Verify:
+2026-03-22 13:44:13,594 - INFO - []
+2026-03-22 13:44:13,594 - INFO - 
+2026-03-22 13:44:13,594 - INFO - Houdini iteration 1: Removed 2 failed invariants
+2026-03-22 13:44:13,594 - INFO -   Before: 17 invariants
+2026-03-22 13:44:13,594 - INFO -   After: 15 invariants
+2026-03-22 13:44:13,594 - INFO -   Remaining invariants:
+2026-03-22 13:44:13,594 - INFO -     [1] fd == 4 + qdf5
+2026-03-22 13:44:13,594 - INFO -     [2] jq == \at(i, Pre) + 4 * qdf5 + (qdf5 * (qdf5 + 1)) / 2
+2026-03-22 13:44:13,594 - INFO -     [3] v == 0
+2026-03-22 13:44:13,594 - INFO -     [4] qdf5 >= 0
+2026-03-22 13:44:13,594 - INFO -     [5] dwe == \at(i, Pre) - 9
+2026-03-22 13:44:13,594 - INFO -     [6] d <= 0
+2026-03-22 13:44:13,594 - INFO -     [7] dosg >= 0
+2026-03-22 13:44:13,594 - INFO -     [8] (dwe >= 0) ==> (qdf5 <= dwe)
+2026-03-22 13:44:13,594 - INFO -     [9] jq >= \at(i, Pre)
+2026-03-22 13:44:13,594 - INFO -     [10] i <= \at(i, Pre)
+2026-03-22 13:44:13,594 - INFO -     [11] 0 <= qdf5
+2026-03-22 13:44:13,594 - INFO -     [12] jq == \at(i, Pre) + 4*qdf5 + ((qdf5*(qdf5+1))/2)
+2026-03-22 13:44:13,594 - INFO -     [13] fd == qdf5 + 4
+2026-03-22 13:44:13,594 - INFO -     [14] 2 * (jq - \at(i, Pre)) == qdf5 * (qdf5 + 9)
+2026-03-22 13:44:13,594 - INFO -     [15] fd >= 4
+2026-03-22 13:44:13,808 - INFO - syntax Correct
+2026-03-22 13:44:45,315 - INFO - Validate:
+2026-03-22 13:44:45,316 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 13:44:45,316 - INFO - 
+2026-03-22 13:44:45,316 - INFO - Verify:
+2026-03-22 13:44:45,316 - INFO - []
+2026-03-22 13:44:45,316 - INFO - 
+2026-03-22 13:44:45,316 - INFO - Houdini iteration 2: All invariants are valid
+2026-03-22 13:44:45,520 - INFO - syntax Correct
+2026-03-22 13:45:17,032 - INFO - Validate:
+2026-03-22 13:45:17,032 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 13:45:17,032 - INFO - 
+2026-03-22 13:45:17,032 - INFO - Verify:
+2026-03-22 13:45:17,032 - INFO - []
+2026-03-22 13:45:17,032 - INFO - 
+2026-03-22 13:45:50,317 - INFO - Deduplicated 6 loop invariants in final code
+2026-03-22 13:45:50,522 - INFO - syntax Correct
+2026-03-22 13:46:21,690 - INFO - Validate:
+2026-03-22 13:46:21,690 - INFO - [True, True, True, True, True, True, True, True, True]
+2026-03-22 13:46:21,690 - INFO - 
+2026-03-22 13:46:21,690 - INFO - Verify:
+2026-03-22 13:46:21,690 - INFO - []
+2026-03-22 13:46:21,690 - INFO - 
+2026-03-22 13:46:21,690 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-22 13:46:21,691 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_53/1.c
+2026-03-22 13:46:21,691 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_53/1_invariants.txt
+2026-03-22 13:46:21,691 - INFO - 
 ============================================================
-2026-03-14 20:50:04,781 - INFO - Final first_pass results:
-2026-03-14 20:50:04,781 - INFO -   syntax=1
-2026-03-14 20:50:04,781 - INFO -   valid=1
-2026-03-14 20:50:04,781 - INFO -   satisfy=None
-2026-03-14 20:50:04,781 - INFO - ============================================================
-2026-03-14 20:50:04,781 - INFO - 
+2026-03-22 13:46:21,691 - INFO - Final first_pass results:
+2026-03-22 13:46:21,691 - INFO -   syntax=1
+2026-03-22 13:46:21,691 - INFO -   valid=1
+2026-03-22 13:46:21,691 - INFO -   satisfy=None
+2026-03-22 13:46:21,691 - INFO - ============================================================
+2026-03-22 13:46:21,691 - INFO - 
 ============================================================
-2026-03-14 20:50:04,781 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-14 20:50:04,781 - INFO -   Total API calls: 2
-2026-03-14 20:50:04,781 - INFO -   Total prompt tokens (input): 3,499
-2026-03-14 20:50:04,781 - INFO -   Total completion tokens (output): 28,328
-2026-03-14 20:50:04,781 - INFO -   Total tokens: 31,827
-2026-03-14 20:50:04,781 - INFO -   Average per call:
-2026-03-14 20:50:04,781 - INFO -     Prompt: 1749.5 tokens
-2026-03-14 20:50:04,781 - INFO -     Completion: 14164.0 tokens
-2026-03-14 20:50:04,781 - INFO -     Total: 15913.5 tokens
-2026-03-14 20:50:04,781 - INFO - ============================================================
-2026-03-14 20:50:04,781 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_53/1.c
-2026-03-14 20:50:04,783 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_53/1_invariants.txt
-2026-03-14 20:50:47,042 - INFO - LLM quality-gate raw response: {
+2026-03-22 13:46:21,691 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-22 13:46:21,691 - INFO -   Total API calls: 6
+2026-03-22 13:46:21,691 - INFO -   Total prompt tokens (input): 7,999
+2026-03-22 13:46:21,691 - INFO -   Total completion tokens (output): 60,404
+2026-03-22 13:46:21,691 - INFO -   Total tokens: 68,403
+2026-03-22 13:46:21,691 - INFO -   Average per call:
+2026-03-22 13:46:21,691 - INFO -     Prompt: 1333.2 tokens
+2026-03-22 13:46:21,691 - INFO -     Completion: 10067.3 tokens
+2026-03-22 13:46:21,691 - INFO -     Total: 11400.5 tokens
+2026-03-22 13:46:21,691 - INFO - ============================================================
+2026-03-22 13:46:21,691 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_53/1.c
+2026-03-22 13:46:21,691 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_53/1_invariants.txt
+2026-03-22 13:46:42,229 - INFO - LLM quality-gate raw response: {
   "ok": false,
   "reason": "fail"
 }
-2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
-2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
-2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
-2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
+2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
+2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...

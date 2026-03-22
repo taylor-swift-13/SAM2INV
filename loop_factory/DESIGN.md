@@ -362,10 +362,115 @@ This makes the generator suitable for:
 
 ---
 
-# 12. Summary
+# 12. LLM-Guided Semantic Diversification
+
+While the probabilistic DSL provides strong control over structural variation, template-level diversity can still become narrow when a fixed semantic core is instantiated only through hand-written operator rules. To address this, we augment the generator with a semantic-core-conditioned large language model (LLM) stage.
+
+## 12.1 Motivation
+
+The DSL already controls:
+
+* loop counts and nesting depth,
+* arithmetic operator mixtures,
+* branch frequency,
+* parameter and state-variable budgets.
+
+However, these controls do not fully capture diversity *within* a given semantic pattern. For example, two loops may both implement prefix-style accumulation or quotient-remainder reduction, yet differ substantially in:
+
+* guard structure,
+* state-role allocation,
+* update ordering,
+* auxiliary shadow variables,
+* conditional refinement logic.
+
+These intra-template variations are difficult to enumerate exhaustively using only manually designed DSL branches. We therefore use an LLM to expand the realization space of each semantic core while preserving its intended meaning.
+
+## 12.2 Semantic-Core-Conditioned Generation
+
+For each selected semantic core \(c\), we define a natural-language specification
+\(\sigma(c)\) that describes:
+
+* the intended loop semantics,
+* mandatory state-transition properties,
+* admissible implementation variations,
+* forbidden degeneracies.
+
+Examples include:
+
+* prefix-style progress with one or more meaningful accumulators,
+* snapshot/shadow-state synchronization,
+* quotient-remainder style reduction,
+* Euclid-like coupled descent,
+* multiplicative decomposition via doubling/halving.
+
+Instead of allowing the DSL alone to instantiate the loop body, we first query an LLM with \(\sigma(c)\) together with the currently available variable set, loop-control variables, and complexity budget. The model returns a structured loop fragment consisting of:
+
+* a guard,
+* optional initialization overrides,
+* assignment statements,
+* optional conditional branches.
+
+This fragment is then converted back into the internal loop AST used by the generator.
+
+## 12.3 Constrained Decoding and Safety
+
+The LLM is not allowed to emit arbitrary code. It is constrained by:
+
+* a fixed variable vocabulary supplied by the generator,
+* a bounded number of assignments and conditional nodes,
+* a restricted statement grammar,
+* semantic-core-specific validation rules.
+
+The emitted fragment is accepted only if it satisfies static checks such as:
+
+* all variables belong to the permitted set,
+* the generated loop exhibits explicit progress,
+* the statement budget is respected,
+* the fragment preserves the required semantic roles of the target core.
+
+If any check fails, the system falls back to the original hand-written DSL realization. Therefore, the LLM acts as a semantic diversification layer rather than a replacement for the base generator.
+
+## 12.4 Effect on Diversity
+
+This hybrid design increases diversity along dimensions that are hard to enumerate manually:
+
+* alternative guard formulations,
+* different allocations of accumulator, shadow, and control variables,
+* reordered yet semantically equivalent update sequences,
+* richer branch-conditioned realizations of the same semantic motif,
+* multiple concrete realizations for the same benchmark-aligned template.
+
+Crucially, the diversity introduced by the LLM is not intended to be merely lexical. It is semantic-core-preserving diversity: samples differ in operational realization while remaining aligned with a common interpretable loop pattern.
+
+## 12.5 Role in the Data Pipeline
+
+In the full data-generation pipeline, the LLM-guided stage operates before invariant generation and verification:
+
+```text
+semantic core selection
+    -> LLM-guided loop realization
+    -> AST validation / fallback
+    -> raw C program synthesis
+    -> invariant generation
+    -> verification and quality filtering
+```
+
+This ordering is important. The LLM increases the support of the raw program distribution, while correctness and usefulness are still enforced downstream by invariant validation, verification, and data-quality filters.
+
+## 12.6 Summary of the Hybrid Strategy
+
+The final generator combines:
+
+* a probabilistic DSL for global structural control, and
+* an LLM-based semantic realization stage for local intra-core diversity.
+
+This yields a practical compromise between analyzability and expressive coverage: the DSL preserves tractable control over the overall program family, while the LLM expands the diversity of meaningful implementations inside each semantic class.
+
+---
+
+# 13. Summary
 
 We define a parameterized probabilistic DSL that generates structured numeric loop programs as a loop forest with bounded nesting depth. The model provides explicit operator distributions, constant injection control, self-update modeling, and stochastic loop nesting.
 
-The resulting generator defines a tractable and analyzable distribution over numeric programs.
-
+We further augment this DSL with an LLM-guided semantic diversification stage that expands intra-template variability while preserving semantic-core constraints. The resulting generator defines a tractable yet more expressive distribution over numeric programs.
 

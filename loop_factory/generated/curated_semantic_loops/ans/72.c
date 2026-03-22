@@ -1,36 +1,43 @@
-int main1(int m,int n){
-  int a, g, v;
+int main1(int b,int k){
+  int m, u, v, a;
 
-  a=n;
-  g=0;
-  v=5;
+  m=(k%34)+12;
+  u=1;
+  v=8;
+  a=b;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant a == n && m == \at(m, Pre) && n == \at(n, Pre);
+  loop invariant m == (k%34) + 12;
+  loop invariant b == \at(b, Pre);
+  loop invariant k == \at(k, Pre);
 
-  loop invariant a == \at(n,Pre) && n == \at(n,Pre) && m == \at(m,Pre);
-  loop invariant g >= 0 && v >= 5 && v >= g;
-  loop invariant a == n;
 
-  loop invariant g >= 0;
-  loop invariant (v - g) % 2 == 1;
-  loop invariant v >= 5;
-  loop invariant a == \at(n, Pre);
 
-  loop invariant (v % 2) == 1 - (g % 2);
-  loop invariant n == \at(n, Pre);
-  loop invariant m == \at(m, Pre);
-  loop assigns v, g;
+  loop invariant m == ((\at(k,Pre) % 34) + 12);
+
+  loop invariant (0 <= v);
+  loop invariant (v <= 8);
+  loop invariant m == (k % 34) + 12 &&
+                   (u == 1) ==> (a == b && v == 8) &&
+                   (u != 1) ==> (a == 0 && v == 0) &&
+                   u > 0;
+  loop invariant (u == 1) ==> (v == 8) &&
+                   (u != 1) ==> (v == 0);
+
+  loop invariant v == 8 || (0 <= v && v <= 6);
+  loop assigns v, a, u;
 */
-while (g<a) {
-      v = v+v;
-      v = v+g;
-      g = g+1;
+while (u*2<=m) {
+      v = v*v+v;
+      v = v%9;
+      a = a*v;
+      v = v%7;
+      u = u*2;
   }
 /*@
-  assert !(g<a) &&
-         (a == n && m == \at(m, Pre) && n == \at(n, Pre));
+  assert !(u*2<=m) &&
+         (m == (k%34) + 12);
 */
 
 

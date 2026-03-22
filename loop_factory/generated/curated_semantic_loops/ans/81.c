@@ -1,31 +1,34 @@
-int main1(int b,int n){
-  int m, s, k, v;
+int main1(int a,int q){
+  int c, t, d;
 
-  m=(b%7)+6;
-  s=0;
-  k=n;
-  v=-4;
+  c=36;
+  t=0;
+  d=c;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant s >= 0;
-  loop invariant s <= m;
-  loop invariant b == \at(b, Pre);
-  loop invariant n == \at(n, Pre);
-  loop invariant m == b % 7 + 6;
-  loop invariant m == (b%7) + 6;
-  loop invariant 0 <= s;
-  loop invariant (n >= 0) ==> (k >= n);
-  loop invariant m == (\at(b, Pre) % 7) + 6;
-  loop assigns k, s;
+  loop invariant t == 0;
+  loop invariant c == 36;
+  loop invariant a == \at(a, Pre);
+  loop invariant q == \at(q, Pre);
+  loop invariant d >= 36;
+  loop invariant d % 5 == 1;
+  loop invariant t <= c;
+  loop invariant (d - 36) % 5 == 0;
+  loop invariant d >= c;
+  loop invariant (d - c) % 5 == 0;
+  loop invariant t >= 0;
+  loop assigns d;
 */
-while (s<=m-1) {
-      k = k*2;
-      s = s+1;
+while (t<c) {
+      d = d+4;
+      if ((t%4)==0) {
+          d = d+1;
+      }
   }
 /*@
-  assert !(s<=m-1) &&
-         (s >= 0);
+  assert !(t<c) &&
+         (t == 0);
 */
 
 

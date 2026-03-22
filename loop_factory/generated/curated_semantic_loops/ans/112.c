@@ -1,41 +1,43 @@
-int main1(int m,int n){
-  int o, x, d, c;
+int main1(int a,int b){
+  int e, u, t;
 
-  o=n+25;
-  x=0;
-  d=o;
-  c=m;
+  e=45;
+  u=0;
+  t=3;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant o == n + 25;
-  loop invariant (d - o) % 6 == 0;
-  loop invariant c - m == (2 + x) * ((d - o) / 6);
-  loop invariant c == m + ((d - o) / 6) * (2 + x);
-  loop invariant x == 0;
-  loop invariant m == \at(m, Pre);
-  loop invariant n == \at(n, Pre);
-  loop invariant (c - m) % (2 + x) == 0;
-  loop invariant c - m <= 2;
-  loop invariant d >= o;
-  loop invariant c >= m;
-  loop invariant d <= o + 5;
-  loop invariant c <= m + 2;
-  loop invariant d >= o - 1;
-  loop invariant (c - m) % 2 == 0;
-  loop assigns c, d;
+  loop invariant a == \at(a, Pre);
+  loop invariant b == \at(b, Pre);
+  loop invariant u == 0;
+  loop invariant e == 45;
+  loop invariant t >= 3;
+  loop invariant e == 45 && u == 0;
+  loop invariant t >= 3 && u <= e-1;
+  loop invariant e == 45 && a == \at(a, Pre) && b == \at(b, Pre) && u == 0;
+  loop invariant t > 0 && u <= e;
+  loop invariant 0 <= u && u <= e;
+
+  loop invariant t >= 3 && t > 0 && (u % 2) == 0 && u <= e - 1;
+  loop invariant u == 0 && 0 <= u && u <= e;
+
+  loop invariant u <= e;
+  loop invariant u <= e - 1;
+  loop invariant u % 2 == 0;
+  loop assigns t;
 */
-while (d<o) {
-      if (d<o) {
-          d = d+1;
+while (u<=e-1) {
+      t = t+2;
+      if ((u%2)==0) {
+          t = t*t;
       }
-      d = d+5;
-      c = c+2;
-      c = c+x;
+      else {
+          t = t*t+t;
+      }
   }
 /*@
-  assert !(d<o) &&
-         (o == n + 25);
+  assert !(u<=e-1) &&
+         (a == \at(a, Pre));
 */
 
 

@@ -1,26 +1,25 @@
-int main1(){
-  int se5, h4d, khd, nh, vo, f;
-  se5=1+8;
-  h4d=se5;
-  khd=5;
-  nh=0;
-  vo=se5;
-  f=h4d;
+int main1(int m){
+  int et, p9w, hts, qb, xq2;
+  et=(m%15)+20;
+  p9w=0;
+  hts=1;
+  qb=5;
+  xq2=p9w;
 
-while (nh<=se5-1) {
-      khd += 1;
-      nh++;
-      f += h4d;
-      vo = vo+(khd%9);
+while (hts<=et) {
+      qb = qb+hts*hts;
+      hts += 1;
+      m = m + hts;
   }
 
-while (se5*2<=vo) {
-      f += h4d;
-      vo = (se5*2)-1;
+while (xq2<et) {
+      p9w = et-xq2;
+      xq2++;
+      m = m + xq2;
   }
 /*@
-  assert !(se5*2<=vo) &&
-         (0 <= nh);
+  assert !(xq2<et) &&
+         (et == \at(m, Pre) % 15 + 20);
 */
 
 }

@@ -1,574 +1,892 @@
-2026-03-14 05:09:08,346 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-14 05:09:08,357 - INFO - Found 1 loops
-2026-03-14 05:09:08,358 - INFO - 
+2026-03-22 13:53:23,529 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-22 13:53:23,539 - INFO - Found 1 loops
+2026-03-22 13:53:23,539 - INFO - 
 ============================================================
-2026-03-14 05:09:08,358 - INFO - Main generation pass 1/1
-2026-03-14 05:09:08,358 - INFO - ============================================================
-2026-03-14 05:09:08,358 - INFO - Loaded single prompt template: simple
-2026-03-14 05:09:08,359 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-14 05:09:08,359 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-14 05:09:08,442 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 05:09:42,862 - INFO - 
------ Candidate 1/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants and precise assigns for the given loop. Observations:
-- rs6 is computed once before the loop and remains constant inside the loop.
-- kq acts as a loop counter, starting at 0 and incrementing each iteration until it reaches rs6.
-- cr increments each iteration and matches kq (cr == kq) across iterations.
-- o is updated by rs6 each iteration, so after t iterations o = o_initial + rs6 * t, i.e., o == \at(o, Pre) + rs6 * kq.
-- wlb starts at 2 and, after t iterations, becomes 2 + sum_{i=0}^{t-1} i = 2 + t*(t-1)/2, i.e., wlb == 2 + kq*(kq-1)/2.
-- A strong invariant set that is preserved by each iteration can be:
-  - kq >= 0 and kq <= rs6 to bound the counter.
-  - cr == kq to reflect the number of executed iterations.
-  - o == \at(o, Pre) + rs6 * kq to capture linear progress of o.
-  - wlb == 2 + kq*(kq - 1)/2 to capture the arithmetic progression of wlb.
-- A loop variant rs6 - kq ensures termination (decreases by 1 each iteration as kq++, rs6 constant).
-- Loop assigns should include all variables modified in the loop: cr, kq, o, wlb.
+2026-03-22 13:53:23,540 - INFO - Main generation pass 1/1
+2026-03-22 13:53:23,540 - INFO - ============================================================
+2026-03-22 13:53:23,540 - INFO - Loaded single prompt template: simple
+2026-03-22 13:53:23,540 - INFO - Generating 8 candidate invariant sets with temperature=1.0
+2026-03-22 13:53:23,540 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-22 13:53:23,553 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:55:40,611 - INFO - 
+----- Candidate 1/8 raw response begin -----
+<reasoning>The loop has a clear alternating decrement pattern: on even nl the variable i7 is decremented, on odd nl the variable o5o is decremented, while nl is incremented each iteration. This yields exact closed-form relations at loop heads:
+- i7 starts as (k%20)+10 and is reduced by 1 every two iterations, i.e. i7 = ((initial_k) % 20) + 10 - ceil(nl/2) = ((\at(k,Pre)%20) + 10) - ((nl+1)/2).
+- o5o starts as (k%15)+8 and is reduced by 1 on every second iteration (the even/odd pattern implies floor(nl/2) decrements), i.e. o5o = ((\at(k,Pre)%15) + 8) - (nl/2).
+- c starts at -1 and increments by 1 every iteration, hence c = nl - 1.
 
-These invariants are exact, inductive, and explain the state updates (conservation law) without introducing unrelated properties. They do not rely on unknown() calls and stay within the given variable scope. The precondition at loop entry satisfies the initialization of these invariants (kq = 0, cr = 0, o = o_initial, rs6 constant, wlb = 2). </reasoning>
+These three invariants are inductive given the loop body: the i7 update happens exactly when nl is even (which corresponds to the ceil(nl/2) change), and o5o update happens when nl is odd (which matches the floor(nl/2) change); nl increments each iteration, and c tracks nl-1. The sum i7 + o5o strictly decreases by 1 each iteration (progress measure), ensuring termination of the loop since the loop guard requires both i7>0 and o5o>0. The loop assigns clause must include all variables modified inside the loop: nl, i7, o5o, c, k, l, w5, je. We avoid any unrelated invariants and keep the relations precise and based only on allowed variables. We also reference the initial value of k with \at(k,Pre) to keep the invariant independent of in-loop mutations of k.
 
-<code>int main1(int o){
-  int rs6, kq, wlb, cr;
+Thus, we propose the following inductive, verification-friendly invariants and variant, plus a complete assigns clause. The invariants hold before the first iteration (nl = 0, i7 = (k%20)+10, o5o = (k%15)+8, c = -1) and are preserved by each iteration, with a decreasing measure i7 + o5o ensuring termination. </reasoning>
 
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
+<code>int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
+
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
 
   /*@
-    loop invariant kq >= 0;
-    loop invariant kq <= rs6;
-    loop invariant cr == kq;
-    loop invariant o == \at(o, Pre) + rs6 * kq;
-    loop invariant wlb == 2 + kq * (kq - 1) / 2;
-    loop assigns cr, kq, o, wlb;
-    loop variant rs6 - kq;
-  */
-  while (1) {
-      if (!(kq<rs6)) {
-          break;
+    loop invariant i7 == ((\at(k,Pre) % 20) + 10) - ((nl + 1) / 2);
+    loop invariant o5o == ((\at(k,Pre) % 15) + 8) - (nl / 2);
+    loop invariant c == nl - 1;
+    loop assigns nl, i7, o5o, c, k, l, w5, je;
+    loop variant (i7 + o5o);
+  @*/
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
   }
 
 }</code>
------ Candidate 1/5 raw response end -----
-2026-03-14 05:09:42,862 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-14 05:09:42,921 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 05:10:57,536 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>We need inductive loop invariants that describe the exact state evolution of the loop and are preserved each iteration. Observations from the loop body:
-- o is increased by rs6 every iteration. With kq iterations executed, o = o_initial + rs6 * kq. This yields the invariant o == \at(o, Pre) + rs6 * kq.
-- cr is incremented once per iteration, starting from 0, so cr == kq.
-- wlb accumulates the progression 2 + sum_{i=0}^{kq-1} i, which equals 2 + kq*(kq-1)/2.
-- kq ranges from 0 up to rs6; the loop runs while kq < rs6, so 0 <= kq <= rs6 is preserved.
-- Because rs6 is constant during the loop and kq increases by 1 each iteration, a loop variant rs6 - kq ensures termination.
+----- Candidate 1/8 raw response end -----
+2026-03-22 13:55:40,611 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-22 13:55:40,624 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:56:11,969 - INFO - 
+----- Candidate 2/8 raw response begin -----
+<reasoning>The loop updates follow a simple state progression:
+- i7 is decremented on even nl, o5o is decremented on odd nl; nl increments every iteration.
+- Therefore c and nl are tightly linked: starting c = -1 and nl = 0, we get c = nl - 1 for all iterations.
+- The pair (i7, o5o) collectively decreases by exactly 1 each iteration, with their sum i7 + o5o dropping from its initial value S0 toward termination. A natural invariant is that i7 + o5o + nl remains constant and equal to the initial sum S0 computed from the function's initial k value.
+- Since k is a function parameter, using \at(k, Pre) allows expressing S0 independently of the loop’s mutations to k.
 
-We also need complete and exact loop assigns: (wlb, o, cr, kq). The invariant set uses only available variables (cr, kq, o, rs6, wlb) and the function parameter o with \at(o, Pre). The invariants are guarded by the loop guard and provide a strong, relational description of the loop state. The loop variant rs6 - kq is optional but helps verification by showing progress towards termination. All invariants are inductive and friendly to Frama-C/WP. No unrelated invariants are added, and we do not modify unknown()/unknownN() calls. </reasoning>
+From these observations, the following inductive invariants are chosen:
+- i7 + o5o + nl == (k initial % 20) + (k initial % 15) + 18
+- c == nl - 1
+- 0 <= i7 and 0 <= o5o (non-negativity preserved while the loop hasn't terminated)
+- A loop variant is i7 + o5o, which strictly decreases by 1 each iteration, ensuring termination.
 
-<code>/*@
-  loop invariant o == \at(o, Pre) + rs6 * kq;
-  loop invariant cr == kq;
-  loop invariant wlb == 2 + kq * (kq - 1) / 2;
-  loop invariant 0 &lt;= kq && kq &lt;= rs6;
-  loop assigns wlb, o, cr, kq;
-  loop variant rs6 - kq;
-*/
-int main1(int o){
-  int rs6, kq, wlb, cr;
+The loop assigns should cover all variables that are written inside the loop: i7, o5o, nl, c, w5, je, k, l. The chosen invariants are strong, inductive, and do not rely on any nonlocal or disallowed constructs. They also respect the rule to not alter the original code body.
 
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
+Now providing the annotated code. </reasoning>
+<code>int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
 
-  /* loop body invariants are above; do not modify code below */
-  while (1) {
-      if (!(kq&lt;rs6)) {
-          break;
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
+
+  /*@ 
+    loop invariant i7 + o5o + nl == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18;
+    loop invariant c == nl - 1;
+    loop invariant 0 <= i7;
+    loop invariant 0 <= o5o;
+    loop assigns nl, i7, o5o, c, w5, je, k, l;
+    loop variant i7 + o5o;
+  @*/
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
   }
 
 }</code>
------ Candidate 2/5 raw response end -----
-2026-03-14 05:10:57,536 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-14 05:10:57,595 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 05:11:33,226 - INFO - 
------ Candidate 3/5 raw response begin -----
+----- Candidate 2/8 raw response end -----
+2026-03-22 13:56:11,969 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-22 13:56:11,983 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:56:56,842 - INFO - 
+----- Candidate 3/8 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop annotations for the given loop. The loop updates a number of state variables (c, i7, je, k, l, nl, o5o, w5). We aim for strong, non-trivial invariants that are preserved by each iteration and help prove termination and required postconditions, without altering the program logic.
+
+Key observations to form invariants:
+- nl starts at 0 and is incremented by 1 each iteration: nl = number of iterations performed.
+- c starts at -1 and is incremented by 1 each iteration: c = nl - 1 is a tight, exact relation that remains true throughout.
+- i7 and o5o decrease alternately: if nl is even, i7--; if nl is odd, o5o--. Hence, after t iterations, i7 and o5o are tied to their initial values and nl via a simple conservation relation.
+- The initial i7 and o5o depend only on the initial k: i7_start = (k%20)+10, o5o_start = (k%15)+8. Since k is updated inside the loop but we want an invariant referring to the initial values, we use \at(k,Pre) to express these starts.
+- We also add simple progress bounds: nl, i7, and o5o are all non-negative during the loop body execution.
+
+From these, we derive:
+- c == nl - 1 (exact relation maintained by increments)
+- i7 + o5o == i7_start + o5o_start - nl, with i7_start = (\at(k,Pre)%20) + 10 and o5o_start = (\at(k,Pre)%15) + 8
+  which is equivalently i7 + o5o == ((\at(k,Pre)%20) + 10) + ((\at(k,Pre)%15) + 8) - nl
+- 0 <= nl
+- 0 <= i7
+- 0 <= o5o
+
+These invariants are maintained across iterations: nl increases by 1 each loop iteration; c increments by 1 each iteration; either i7 or o5o decreases by 1, so the sum i7+o5o decreases by 1, preserving the sum relation with nl. The initial values satisfy all invariants, and they are inductive across iterations. We also declare loop assigns for all modified variables: c, i7, je, k, l, nl, o5o, w5.
+
+Note: We omit a loop_variant since a safe, bounded decreasing variant is non-trivial for this loop; the provided invariants suffice for inductiveness and are verification-friendly with Frama-C/WP. The annotations do not modify the original code or introduce any forbidden constructs. </reasoning>
+<code>/*@ 
+  loop invariant c == nl - 1;
+  loop invariant i7 + o5o == ((\at(k,Pre) % 20) + 10) + ((\at(k,Pre) % 15) + 8) - nl;
+  loop invariant 0 &le; nl;
+  loop invariant 0 &le; i7;
+  loop invariant 0 &le; o5o;
+  loop assigns c, i7, je, k, l, nl, o5o, w5;
+@*/
+while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
+      }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k&lt;je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k&lt;o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }</code>
+----- Candidate 3/8 raw response end -----
+2026-03-22 13:56:56,843 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-22 13:56:56,856 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:57:38,272 - INFO - 
+----- Candidate 4/8 raw response begin -----
 <reasoning>
-We analyze the loop behavior and derive inductive, verification-friendly invariants.
+I analyzed the loop to identify a core state-transition relation that is conserved every iteration and can serve as a strong inductive invariant. Observations:
+- i7 and o5o are each decremented on alternating iterations (depending on nl parity), and exactly one of them decreases per iteration. Therefore the sum i7 + o5o decreases by 1 on every loop iteration.
+- Initially, nl = 0 and c = -1. Each iteration increments nl and then increments c by 1, yielding the exact relation c == nl - 1, which holds from the start and is preserved.
+- The initial values of i7 and o5o depend on the function parameter k. The sum at entry can be expressed in terms of \at(k, Pre) as ((\at(k,Pre) % 20) + 10) + ((\at(k,Pre) % 15) + 8). Since i7 + o5o decreases by 1 each iteration and nl increases by 1, the invariant i7 + o5o == initial_sum - nl captures the conservation law across iterations.
 
-Key state progression per iteration:
-- kq starts at 0 and is incremented by 1 each iteration, and the loop runs while kq < rs6.
-- cr starts at 0 and increments by 1 each iteration, so cr == kq at all times.
-- o is increased by rs6 each iteration, so after t iterations: o = o_initial + t * rs6.
-- wlb starts at 2 and adds the previous kq each iteration, so after t iterations: wlb = 2 + sum_{i=0}^{t-1} i = 2 + t*(t-1)/2.
+Thus, I propose two strong loop invariants:
+1) c == nl - 1
+2) i7 + o5o == ((\at(k,Pre) % 20) + 10) + ((\at(k,Pre) % 15) + 8) - nl
 
-We express these as loop invariants using the available variables (cr, kq, o, rs6, wlb) and the initial value of o via \at(o, Pre):
+I also specify the complete and exact loop assigns: i7, o5o, nl, w5, c, k, l, je.
 
-- o == \at(o, Pre) + kq * rs6
-  Why: each iteration adds rs6 to o, and kq is the number of iterations already executed.
+For loop termination progress, use a loop variant that naturally decreases each iteration. The sum i7 + o5o decreases by 1 each iteration, so loop variant i7 + o5o is appropriate and non-negative while the loop condition i7 > 0 && o5o > 0 holds.
 
-- cr == kq
-  Why: cr starts at 0 and increments by 1 each iteration; same count as kq.
-
-- wlb == 2 + (kq * (kq - 1)) / 2
-  Why: sum of 0..kq-1 added to initial 2.
-
-- kq <= rs6
-  Why: loop condition ensures kq remains within 0..rs6 during execution (at termination kq == rs6).
-
-These invariants are strong (non-tautological) and inductive with the given updates.
-
-Assigns:
-- The loop updates the variables o, cr, kq, wlb, so we specify: loop assigns o, cr, kq, wlb.
-
-Variant:
-- The loop strictly progresses toward termination by increasing kq; use rs6 - kq as the loop variant (non-negative and decreases by 1 each iteration).
-
-Putting it all together, we add the following loop annotations.
+These invariants are inductive (preserved by each iteration) and verification-friendly for Frama-C/WP, while remaining consistent with the given variable set and rules.
 </reasoning>
-<code>int main1(int o){
-  int rs6, kq, wlb, cr;
+<code>int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
 
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
 
   /*@
-    loop invariant o == \at(o, Pre) + kq * rs6;
-    loop invariant cr == kq;
-    loop invariant wlb == 2 + (kq * (kq - 1)) / 2;
-    loop invariant kq <= rs6;
-    loop assigns o, cr, kq, wlb;
-    loop variant rs6 - kq;
+    loop invariant c == nl - 1;
+    loop invariant i7 + o5o == ((\at(k, Pre) % 20) + 10) + ((\at(k, Pre) % 15) + 8) - nl;
+    loop assigns i7, o5o, nl, w5, c, k, l, je;
+    loop variant i7 + o5o;
   */
-  while (1) {
-      if (!(kq<rs6)) {
-          break;
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
-  }
-
-}</code>
------ Candidate 3/5 raw response end -----
-2026-03-14 05:11:33,226 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-14 05:11:33,283 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 05:12:12,345 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>We need inductive, verification-friendly invariants that describe the loop's state updates without modifying the code. Observations:
-- The loop runs while kq < rs6, incrementing kq by 1 each iteration and applying updates:
-  - o increases by rs6
-  - cr increases by 1
-  - wlb increases by the previous kq value
-- rs6 is fixed during the loop (computed before entry and never changed inside).
-- Therefore, after t iterations (0 <= t <= rs6), we can express exact relationships:
-  - cr == kq (both start at 0 and increment together)
-  - o == \at(o, Pre) + rs6 * kq (each iteration increases o by rs6)
-  - wlb == 2 + kq*(kq - 1)/2 (initial 2 plus sum of 0..kq-1)
-- A suitable loop variant to prove termination is rs6 - kq, which decreases by 1 each iteration and is non-negative while the loop is active.
-- These invariants are strong, exact, and compose a minimal set that ensures inductiveness and termination reasoning.
-
-Invariants chosen:
-1) o == \at(o, Pre) + rs6 * kq
-2) cr == kq
-3) wlb == 2 + kq * (kq - 1) / 2
-Assignments: o, wlb, cr, kq
-Loop variant: rs6 - kq
-
-These are inductive: they hold initially (kq=0, o==Pre, cr==0, wlb==2) and are preserved by each loop iteration, while the guard kq < rs6 remains true. They also give a precise description of the final state when the loop exits (kq == rs6). </reasoning>
-<code>int main1(int o){
-  int rs6, kq, wlb, cr;
-
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
-
-  /*@
-    loop invariant o == \at(o, Pre) + rs6 * kq;
-    loop invariant cr == kq;
-    loop invariant wlb == 2 + kq * (kq - 1) / 2;
-    loop assigns o, wlb, cr, kq;
-    loop variant rs6 - kq;
-  */
-  while (1) {
-      if (!(kq<rs6)) {
-          break;
+      else {
+          o5o = o5o - 1;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
-  }
-
-}</code>
------ Candidate 4/5 raw response end -----
-2026-03-14 05:12:12,345 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-14 05:12:12,402 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 05:12:50,649 - INFO - 
------ Candidate 5/5 raw response begin -----
-<reasoning>The loop advances kq from 0 up to rs6-1, updating several state variables each iteration:
-- cr && kq are both incremented by 1 per iteration, so cr == kq is an exact invariant.
-- o increases by rs6 every iteration, so after n iterations o = initial_o + rs6 * n, i.e., o == \at(o, Pre) + rs6 * kq.
-- wlb starts at 2 and accumulates wlb += kq each iteration, yielding wlb = 2 + sum_{i=0}^{kq-1} i = 2 + kq*(kq-1)/2.
-- kq is bounded by 0 <= kq <= rs6, and the loop terminates when kq reaches rs6, so rs6 - kq is a valid decreasing variant.
-
-These invariants are inductive:
-- Initialization holds since before the first iteration cr=0, kq=0, o equals \at(o, Pre), wlb=2, hence cr == kq, o == Pre_o + rs6*0, wlb == 2, and 0 <= kq <= rs6.
-- Inductiveness holds because each iteration preserves cr == kq, updates o by rs6, increments kq and cr by 1, and increases wlb by the previous kq value.
-
-The loop assigns include only the variables modified inside the loop: wlb, o, cr, kq. rs6 is not modified inside the loop, so it is not included in assigns. A loop variant rs6 - kq is provided to prove termination (non-negative and decreases by 1 each iteration).
-
-<code>int main1(int o){
-  int rs6, kq, wlb, cr;
-
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
-
-  /*@
-    loop invariant cr == kq;
-    loop invariant o == \at(o, Pre) + rs6 * kq;
-    loop invariant wlb == 2 + (kq * (kq - 1)) / 2;
-    loop invariant 0 <= kq && kq <= rs6;
-    loop assigns wlb, o, cr, kq;
-    loop variant rs6 - kq;
-  @*/
-  while (1) {
-      if (!(kq<rs6)) {
-          break;
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
-  }
-
-}</code>
------ Candidate 5/5 raw response end -----
-2026-03-14 05:12:50,649 - INFO - 
------ Candidate 1/5 full code begin -----
-int main1(int o){
-  int rs6, kq, wlb, cr;
-
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
-
-  /*@
-    loop invariant kq >= 0;
-    loop invariant kq <= rs6;
-    loop invariant cr == kq;
-    loop invariant o == \at(o, Pre) + rs6 * kq;
-    loop invariant wlb == 2 + kq * (kq - 1) / 2;
-    loop assigns cr, kq, o, wlb;
-    loop variant rs6 - kq;
-  */
-  while (1) {
-      if (!(kq<rs6)) {
-          break;
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
+      l = je-l;
+      je = je + 1;
+      k = k + je;
   }
 
 }
------ Candidate 1/5 full code end -----
-2026-03-14 05:12:50,649 - INFO - 
------ Candidate 2/5 full code begin -----
-/*@
-  loop invariant o == \at(o, Pre) + rs6 * kq;
-  loop invariant cr == kq;
-  loop invariant wlb == 2 + kq * (kq - 1) / 2;
-  loop invariant 0 &lt;= kq && kq &lt;= rs6;
-  loop assigns wlb, o, cr, kq;
-  loop variant rs6 - kq;
+</code>
+----- Candidate 4/8 raw response end -----
+2026-03-22 13:57:38,272 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-22 13:57:38,287 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:59:26,092 - INFO - 
+----- Candidate 5/8 raw response begin -----
+<reasoning>We aim for inductive, verification-friendly loop annotations for Frama-C/WP. Observations from the loop:
+
+- Variables modified inside the loop: i7, o5o, nl, w5, c, k, je, l. So loop assigns should list exactly these.
+- A strong conservation relation can be established by tracking the pair (i7, o5o) as the loop progresses: in every iteration, exactly one of i7 or o5o decreases by 1 (depending on nl parity), while the other remains unchanged. Hence i7 + o5o decreases by 1 each iteration. This provides a natural loop variant: i7 + o5o, which is non-negative and strictly decreases every iteration, ensuring termination.
+- Additionally, i7 + o5o + nl remains constant across iterations because nl increases by 1 every iteration, offsetting the 1-unit decrease in i7+o5o. This yields a strong conservation invariant that ties current state to the initial k value: i7 + o5o + nl == initial_i7 + initial_o5o + 0, which can be expressed using \at(k, Pre): i7 + o5o + nl == (\at(k, Pre) % 20) + (\at(k, Pre) % 15) + 18.
+- We also include non-negativity invariants for i7, o5o, nl to aid verification and match the loop guard semantics.
+- The invariant uses only allowed constructs, and uses \at(k, Pre) to refer to the initial k value as permitted for function parameters.
+- The loop guard is preserved; invariants are not tied to the guard itself, and the loop variant i7 + o5o strictly decreases each iteration, ensuring termination.
+
+Thus, the chosen invariants are:
+1) i7 + o5o + nl == (\at(k, Pre) % 20) + (\at(k, Pre) % 15) + 18
+2) i7 >= 0
+3) o5o >= 0
+4) nl >= 0
+And the loop assigns: i7, o5o, nl, w5, c, k, je, l
+With loop variant: i7 + o5o
+
+These are inductive and align with the code updates: in each iteration, either i7 is decremented or o5o is decremented, nl is incremented, and all other variables may be updated as shown. The invariant 1) captures the invariant sum relation anchored to the initial k, while 2–4 secure non-negativity. The variant 5 ensures termination.
+
+</reasoning>
+<code>/*@ 
+  loop invariant i7 + o5o + nl == (\at(k, Pre) % 20) + (\at(k, Pre) % 15) + 18;
+  loop invariant i7 >= 0;
+  loop invariant o5o >= 0;
+  loop invariant nl >= 0;
+  loop assigns i7, o5o, nl, w5, c, k, je, l;
+  loop variant i7 + o5o;
 */
-int main1(int o){
-  int rs6, kq, wlb, cr;
-
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
-
-  /* loop body invariants are above; do not modify code below */
-  while (1) {
-      if (!(kq&lt;rs6)) {
-          break;
+while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
-  }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }</code>
+----- Candidate 5/8 raw response end -----
+2026-03-22 13:59:26,092 - INFO -   Candidate 6 selected prompt: simple_cot.txt
+2026-03-22 13:59:26,106 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:00:07,306 - INFO - 
+----- Candidate 6/8 raw response begin -----
+<reasoning>The loop updates a pair of relational counters i7 and o5o, while a separate counter nl tallies iterations. A natural inductive invariant is that the sum i7 + o5o decreases by exactly 1 each iteration (since in each iteration exactly one of i7 or o5o is decremented) and nl increases by 1. At entry, i7 and o5o are initialized from k, so their initial sum is a function of \at(k,Pre). Thus a strong inductive invariant is:
+- i7 + o5o == ((\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18) - nl
+This captures the exact conservation law across iterations.
 
-}
------ Candidate 2/5 full code end -----
-2026-03-14 05:12:50,649 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(int o){
-  int rs6, kq, wlb, cr;
+Additionally, i7 and o5o remain non-negative throughout (the loop only decrements i7 when nl is even (while i7>0 due to the loop guard) or decrements o5o when nl is odd, again guarded by their positivity). So we add:
+- i7 >= 0 && o5o >= 0
 
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
+For verification progress, we provide a loop variant that decreases every iteration:
+- loop variant i7 + o5o
 
+Finally, list all variables that the loop can modify in loop assigns:
+- c, i7, je, k, l, nl, o5o, w5
+
+These invariants are inductive, relate exactly to the loop updates, and are verification-friendly for Frama-C/WP. They use \at(k,Pre) to refer to the initial value of k as required. </reasoning>
+<code>int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
+
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant o == \at(o, Pre) + kq * rs6;
-    loop invariant cr == kq;
-    loop invariant wlb == 2 + (kq * (kq - 1)) / 2;
-    loop invariant kq <= rs6;
-    loop assigns o, cr, kq, wlb;
-    loop variant rs6 - kq;
+    loop invariant i7 + o5o == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18 - nl;
+    loop invariant i7 >= 0 && o5o >= 0;
+    loop assigns c, i7, je, k, l, nl, o5o, w5;
+    loop variant i7 + o5o;
   */
-  while (1) {
-      if (!(kq<rs6)) {
-          break;
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
   }
 
-}
------ Candidate 3/5 full code end -----
-2026-03-14 05:12:50,649 - INFO - 
------ Candidate 4/5 full code begin -----
-int main1(int o){
-  int rs6, kq, wlb, cr;
+}</code>
+----- Candidate 6/8 raw response end -----
+2026-03-22 14:00:07,306 - INFO -   Candidate 7 selected prompt: simple_cot.txt
+2026-03-22 14:00:07,319 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:02:13,689 - INFO - 
+----- Candidate 7/8 raw response begin -----
+<reasoning>The loop progresses by decreasing exactly one of i7 or o5o in each iteration and increasing nl by 1. This yields a simple conservation law: i7 + o5o + nl remains constant across iterations and equals the initial sum of the two counters plus 0. Since i7_init = (k%20)+10 and o5o_init = (k%15)+8, we can express this invariant using the initial value of k: i7 + o5o + nl == ((\at(k,Pre) % 20) + 10) + ((\at(k,Pre) % 15) + 8). This is a strong, inductive invariant that captures the core state update (state transition law) of the loop. 
 
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
+We also add nonnegativity invariants for the loop counters (i7, o5o, nl) since the loop guard enforces i7>0 and o5o>0 during execution. A loop variant i7 + o5o provides a minimal, monotone progress metric ensuring termination (it decreases by 1 each iteration since exactly one of i7 or o5o is decremented and nl is incremented). The loop assigns clause lists all variables modified inside the loop to ensure precise framing for WP.
 
-  /*@
-    loop invariant o == \at(o, Pre) + rs6 * kq;
-    loop invariant cr == kq;
-    loop invariant wlb == 2 + kq * (kq - 1) / 2;
-    loop assigns o, wlb, cr, kq;
-    loop variant rs6 - kq;
+The annotations are kept minimal and strong, avoiding tautologies and unused invariants, and respecting the constraints on allowed constructs. The original code is untouched except for the inserted ACSL annotations. </reasoning>
+<code>/*@
+  loop invariant i7 + o5o + nl == ((\at(k, Pre) % 20) + 10) + ((\at(k, Pre) % 15) + 8);
+  loop invariant i7 >= 0;
+  loop invariant o5o >= 0;
+  loop invariant nl >= 0;
+  loop assigns i7, o5o, nl, w5, c, k, l, je;
+  loop variant i7 + o5o;
+*/
+while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
+      }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }</code>
+----- Candidate 7/8 raw response end -----
+2026-03-22 14:02:13,689 - INFO -   Candidate 8 selected prompt: simple_cot.txt
+2026-03-22 14:02:13,702 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:02:49,210 - INFO - 
+----- Candidate 8/8 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop annotations for the given loop. The loop updates i7 and o5o in an alternating fashion based on nl, with nl incrementing each iteration. This yields a clean, exact relational invariant: i7 and o5o track their initial values (based on the entry k) minus the number of iterations that have occurred, partitioned by parity of nl. Specifically:
+- i7 starts at ((k at entry) % 20) + 10 and decreases by 1 on iterations where nl is even. After t iterations, i7 = initial_i7 - floor((t+1)/2) = initial_i7 - ((nl+1)/2) (using integer division).
+- o5o starts at ((k at entry) % 15) + 8 and decreases by 1 on iterations where nl is odd. After t iterations, o5o = initial_o5o - floor(t/2) = initial_o5o - (nl/2).
+
+Thus the core relational invariants are:
+- i7 == (((\at(k, Pre)) % 20) + 10) - ((nl + 1) / 2)
+- o5o == (((\at(k, Pre)) % 15) + 8) - (nl / 2)
+
+These invariants hold before the first iteration (nl = 0) and are preserved by every iteration, given the exact updates to i7 and o5o. They also provide a natural loop-variant: the sum i7 + o5o decreases by 1 each iteration (matching the two-way reduction pattern). We also add a simple progress bound: 0 <= nl (nl never becomes negative). Finally, we declare the precise set of loop assignments to reflect all modified variables: i7, o5o, nl, w5, c, k, je, l. Using \at(k, Pre) allows referencing the initial k value while remaining within allowed variables.
+
+</reasoning>
+<code>int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
+
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
+
+  /*@ 
+    loop invariant i7 == (((\at(k, Pre)) % 20) + 10) - ((nl + 1) / 2);
+    loop invariant o5o == (((\at(k, Pre)) % 15) + 8) - (nl / 2);
+    loop invariant 0 &lt;= nl;
+    loop variant (i7 + o5o);
+    loop assigns i7, o5o, nl, w5, c, k, je, l;
   */
-  while (1) {
-      if (!(kq<rs6)) {
-          break;
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k&lt;je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k&lt;o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
   }
 
-}
------ Candidate 4/5 full code end -----
-2026-03-14 05:12:50,649 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int o){
-  int rs6, kq, wlb, cr;
+}</code>
+----- Candidate 8/8 raw response end -----
+2026-03-22 14:02:49,210 - INFO - 
+----- Candidate 1/8 full code begin -----
+int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
 
-  rs6=(o%39)+20;
-  kq=0;
-  wlb=2;
-  cr=0;
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
 
   /*@
-    loop invariant cr == kq;
-    loop invariant o == \at(o, Pre) + rs6 * kq;
-    loop invariant wlb == 2 + (kq * (kq - 1)) / 2;
-    loop invariant 0 <= kq && kq <= rs6;
-    loop assigns wlb, o, cr, kq;
-    loop variant rs6 - kq;
+    loop invariant i7 == ((\at(k,Pre) % 20) + 10) - ((nl + 1) / 2);
+    loop invariant o5o == ((\at(k,Pre) % 15) + 8) - (nl / 2);
+    loop invariant c == nl - 1;
+    loop assigns nl, i7, o5o, c, k, l, w5, je;
+    loop variant (i7 + o5o);
   @*/
-  while (1) {
-      if (!(kq<rs6)) {
-          break;
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
       }
-      wlb += kq;
-      o = o + rs6;
-      cr = cr + 1;
-      kq++;
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
   }
 
 }
------ Candidate 5/5 full code end -----
-2026-03-14 05:12:50,649 - INFO - Successfully generated 5/5 candidates
-2026-03-14 05:12:50,650 - INFO - Checking 8 invariants for conflicts...
-2026-03-14 05:12:50,652 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-14 05:12:50,652 - INFO -   1: int main1(int o){
-2026-03-14 05:12:50,652 - INFO -   2:   int rs6, kq, wlb, cr;
-2026-03-14 05:12:50,652 - INFO -   3: 
-2026-03-14 05:12:50,652 - INFO -   4:   rs6=(o%39)+20;
-2026-03-14 05:12:50,652 - INFO -   5:   kq=0;
-2026-03-14 05:12:50,652 - INFO -   6:   wlb=2;
-2026-03-14 05:12:50,652 - INFO -   7:   cr=0;
-2026-03-14 05:12:50,652 - INFO -   8: 
-2026-03-14 05:12:50,652 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-14 05:12:50,652 - INFO -   10: /*@
-2026-03-14 05:12:50,653 - INFO - DEBUG: Total lines: 32
-2026-03-14 05:12:50,891 - INFO - syntax Correct
-2026-03-14 05:13:21,915 - INFO - Validate:
-2026-03-14 05:13:21,915 - INFO - [True, False, True, True, True, True, True, True]
-2026-03-14 05:13:21,915 - INFO - 
-2026-03-14 05:13:21,915 - INFO - Verify:
-2026-03-14 05:13:21,915 - INFO - []
-2026-03-14 05:13:21,916 - INFO - 
-2026-03-14 05:13:21,916 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-14 05:13:21,916 - INFO -   Before: 8 invariants
-2026-03-14 05:13:21,916 - INFO -   After: 7 invariants
-2026-03-14 05:13:21,916 - INFO -   Remaining invariants:
-2026-03-14 05:13:21,916 - INFO -     [1] kq >= 0
-2026-03-14 05:13:21,916 - INFO -     [2] cr == kq
-2026-03-14 05:13:21,916 - INFO -     [3] o == \at(o, Pre) + rs6 * kq
-2026-03-14 05:13:21,916 - INFO -     [4] wlb == 2 + kq * (kq - 1) / 2
-2026-03-14 05:13:21,916 - INFO -     [5] o == \at(o, Pre) + kq * rs6
-2026-03-14 05:13:21,916 - INFO -     [6] wlb == 2 + (kq * (kq - 1)) / 2
-2026-03-14 05:13:21,916 - INFO -     [7] 0 <= kq && kq <= rs6
-2026-03-14 05:13:22,142 - INFO - syntax Correct
-2026-03-14 05:13:53,055 - INFO - Validate:
-2026-03-14 05:13:53,056 - INFO - [True, True, True, True, True, True, False]
-2026-03-14 05:13:53,056 - INFO - 
-2026-03-14 05:13:53,056 - INFO - Verify:
-2026-03-14 05:13:53,056 - INFO - []
-2026-03-14 05:13:53,056 - INFO - 
-2026-03-14 05:13:53,056 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-14 05:13:53,056 - INFO -   Before: 7 invariants
-2026-03-14 05:13:53,056 - INFO -   After: 6 invariants
-2026-03-14 05:13:53,056 - INFO -   Remaining invariants:
-2026-03-14 05:13:53,056 - INFO -     [1] kq >= 0
-2026-03-14 05:13:53,056 - INFO -     [2] cr == kq
-2026-03-14 05:13:53,056 - INFO -     [3] o == \at(o, Pre) + rs6 * kq
-2026-03-14 05:13:53,056 - INFO -     [4] wlb == 2 + kq * (kq - 1) / 2
-2026-03-14 05:13:53,056 - INFO -     [5] o == \at(o, Pre) + kq * rs6
-2026-03-14 05:13:53,056 - INFO -     [6] wlb == 2 + (kq * (kq - 1)) / 2
-2026-03-14 05:13:53,314 - INFO - syntax Correct
-2026-03-14 05:14:24,212 - INFO - Validate:
-2026-03-14 05:14:24,212 - INFO - [True, True, True, True, True, True]
-2026-03-14 05:14:24,212 - INFO - 
-2026-03-14 05:14:24,212 - INFO - Verify:
-2026-03-14 05:14:24,212 - INFO - []
-2026-03-14 05:14:24,213 - INFO - 
-2026-03-14 05:14:24,213 - INFO - Houdini iteration 3: All invariants are valid
-2026-03-14 05:14:24,432 - INFO - syntax Correct
-2026-03-14 05:14:55,339 - INFO - Validate:
-2026-03-14 05:14:55,339 - INFO - [True, True, True, True, True, True]
-2026-03-14 05:14:55,339 - INFO - 
-2026-03-14 05:14:55,339 - INFO - Verify:
-2026-03-14 05:14:55,339 - INFO - []
-2026-03-14 05:14:55,339 - INFO - 
-2026-03-14 05:15:09,356 - INFO - Deduplicated 2 loop invariants in final code
-2026-03-14 05:15:09,575 - INFO - syntax Correct
-2026-03-14 05:15:40,352 - INFO - Validate:
-2026-03-14 05:15:40,353 - INFO - [True, True, True, True]
-2026-03-14 05:15:40,353 - INFO - 
-2026-03-14 05:15:40,353 - INFO - Verify:
-2026-03-14 05:15:40,353 - INFO - []
-2026-03-14 05:15:40,353 - INFO - 
-2026-03-14 05:15:40,353 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-14 05:15:40,353 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2642632_1773434918_60/1.c
-2026-03-14 05:15:40,353 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2642632_1773434918_60/1_invariants.txt
-2026-03-14 05:15:40,353 - INFO - 
+----- Candidate 1/8 full code end -----
+2026-03-22 14:02:49,210 - INFO - 
+----- Candidate 2/8 full code begin -----
+int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
+
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
+
+  /*@ 
+    loop invariant i7 + o5o + nl == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18;
+    loop invariant c == nl - 1;
+    loop invariant 0 <= i7;
+    loop invariant 0 <= o5o;
+    loop assigns nl, i7, o5o, c, w5, je, k, l;
+    loop variant i7 + o5o;
+  @*/
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
+      }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }
+
+}
+----- Candidate 2/8 full code end -----
+2026-03-22 14:02:49,210 - INFO - 
+----- Candidate 3/8 full code begin -----
+/*@ 
+  loop invariant c == nl - 1;
+  loop invariant i7 + o5o == ((\at(k,Pre) % 20) + 10) + ((\at(k,Pre) % 15) + 8) - nl;
+  loop invariant 0 &le; nl;
+  loop invariant 0 &le; i7;
+  loop invariant 0 &le; o5o;
+  loop assigns c, i7, je, k, l, nl, o5o, w5;
+@*/
+while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
+      }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k&lt;je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k&lt;o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }
+----- Candidate 3/8 full code end -----
+2026-03-22 14:02:49,210 - INFO - 
+----- Candidate 4/8 full code begin -----
+int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
+
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
+
+  /*@
+    loop invariant c == nl - 1;
+    loop invariant i7 + o5o == ((\at(k, Pre) % 20) + 10) + ((\at(k, Pre) % 15) + 8) - nl;
+    loop assigns i7, o5o, nl, w5, c, k, l, je;
+    loop variant i7 + o5o;
+  */
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
+      }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }
+
+}
+----- Candidate 4/8 full code end -----
+2026-03-22 14:02:49,210 - INFO - 
+----- Candidate 5/8 full code begin -----
+/*@ 
+  loop invariant i7 + o5o + nl == (\at(k, Pre) % 20) + (\at(k, Pre) % 15) + 18;
+  loop invariant i7 >= 0;
+  loop invariant o5o >= 0;
+  loop invariant nl >= 0;
+  loop assigns i7, o5o, nl, w5, c, k, je, l;
+  loop variant i7 + o5o;
+*/
+while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
+      }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }
+----- Candidate 5/8 full code end -----
+2026-03-22 14:02:49,210 - INFO - 
+----- Candidate 6/8 full code begin -----
+int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
+
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant i7 + o5o == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18 - nl;
+    loop invariant i7 >= 0 && o5o >= 0;
+    loop assigns c, i7, je, k, l, nl, o5o, w5;
+    loop variant i7 + o5o;
+  */
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
+      }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }
+
+}
+----- Candidate 6/8 full code end -----
+2026-03-22 14:02:49,210 - INFO - 
+----- Candidate 7/8 full code begin -----
+/*@
+  loop invariant i7 + o5o + nl == ((\at(k, Pre) % 20) + 10) + ((\at(k, Pre) % 15) + 8);
+  loop invariant i7 >= 0;
+  loop invariant o5o >= 0;
+  loop invariant nl >= 0;
+  loop assigns i7, o5o, nl, w5, c, k, l, je;
+  loop variant i7 + o5o;
+*/
+while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
+      }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k<je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k<o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }
+----- Candidate 7/8 full code end -----
+2026-03-22 14:02:49,210 - INFO - 
+----- Candidate 8/8 full code begin -----
+int main1(int l,int k){
+  int nl, i7, o5o, c, w5, je;
+
+  nl=0;
+  i7=(k%20)+10;
+  o5o=(k%15)+8;
+  c=-1;
+  w5=0;
+  je=nl;
+
+  /*@ 
+    loop invariant i7 == (((\at(k, Pre)) % 20) + 10) - ((nl + 1) / 2);
+    loop invariant o5o == (((\at(k, Pre)) % 15) + 8) - (nl / 2);
+    loop invariant 0 &lt;= nl;
+    loop variant (i7 + o5o);
+    loop assigns i7, o5o, nl, w5, c, k, je, l;
+  */
+  while (i7>0&&o5o>0) {
+      if (nl%2==0) {
+          i7 -= 1;
+      }
+      else {
+          o5o = o5o - 1;
+      }
+      nl += 1;
+      if (k&lt;je+1) {
+          w5 = w5 + k;
+      }
+      c = c + 1;
+      k = k+(nl%2);
+      w5 = w5 + c;
+      if (k&lt;o5o+4) {
+          je = je + 1;
+      }
+      l = je-l;
+      je = je + 1;
+      k = k + je;
+  }
+
+}
+----- Candidate 8/8 full code end -----
+2026-03-22 14:02:49,210 - INFO - Successfully generated 8/8 candidates
+2026-03-22 14:02:49,211 - INFO - Checking 15 invariants for conflicts...
+2026-03-22 14:02:49,215 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-22 14:02:49,215 - INFO -   1: int main1(int l,int k){
+2026-03-22 14:02:49,215 - INFO -   2:   int nl, i7, o5o, c, w5, je;
+2026-03-22 14:02:49,215 - INFO -   3: 
+2026-03-22 14:02:49,215 - INFO -   4:   nl=0;
+2026-03-22 14:02:49,215 - INFO -   5:   i7=(k%20)+10;
+2026-03-22 14:02:49,215 - INFO -   6:   o5o=(k%15)+8;
+2026-03-22 14:02:49,215 - INFO -   7:   c=-1;
+2026-03-22 14:02:49,215 - INFO -   8:   w5=0;
+2026-03-22 14:02:49,215 - INFO -   9:   je=nl;
+2026-03-22 14:02:49,215 - INFO -   10: 
+2026-03-22 14:02:49,215 - INFO - DEBUG: Total lines: 53
+2026-03-22 14:02:49,465 - INFO - syntax Correct
+2026-03-22 14:03:21,255 - INFO - Validate:
+2026-03-22 14:03:21,255 - INFO - [True, True, True, True, False, False, True, True, True, True, True, True, True, True, True]
+2026-03-22 14:03:21,255 - INFO - 
+2026-03-22 14:03:21,255 - INFO - Verify:
+2026-03-22 14:03:21,255 - INFO - []
+2026-03-22 14:03:21,255 - INFO - 
+2026-03-22 14:03:21,255 - INFO - Houdini iteration 1: Removed 2 failed invariants
+2026-03-22 14:03:21,255 - INFO -   Before: 15 invariants
+2026-03-22 14:03:21,255 - INFO -   After: 13 invariants
+2026-03-22 14:03:21,255 - INFO -   Remaining invariants:
+2026-03-22 14:03:21,255 - INFO -     [1] i7 == ((\at(k,Pre) % 20) + 10) - ((nl + 1) / 2)
+2026-03-22 14:03:21,255 - INFO -     [2] o5o == ((\at(k,Pre) % 15) + 8) - (nl / 2)
+2026-03-22 14:03:21,255 - INFO -     [3] c == nl - 1
+2026-03-22 14:03:21,255 - INFO -     [4] i7 + o5o + nl == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18
+2026-03-22 14:03:21,255 - INFO -     [5] i7 + o5o == ((\at(k,Pre) % 20) + 10) + ((\at(k,Pre) % 15) + 8) - nl
+2026-03-22 14:03:21,255 - INFO -     [6] i7 >= 0
+2026-03-22 14:03:21,255 - INFO -     [7] o5o >= 0
+2026-03-22 14:03:21,255 - INFO -     [8] nl >= 0
+2026-03-22 14:03:21,255 - INFO -     [9] i7 + o5o == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18 - nl
+2026-03-22 14:03:21,255 - INFO -     [10] i7 >= 0 && o5o >= 0
+2026-03-22 14:03:21,255 - INFO -     [11] i7 + o5o + nl == ((\at(k, Pre) % 20) + 10) + ((\at(k, Pre) % 15) + 8)
+2026-03-22 14:03:21,255 - INFO -     [12] i7 == (((\at(k, Pre)) % 20) + 10) - ((nl + 1) / 2)
+2026-03-22 14:03:21,255 - INFO -     [13] o5o == (((\at(k, Pre)) % 15) + 8) - (nl / 2)
+2026-03-22 14:03:21,455 - INFO - syntax Correct
+2026-03-22 14:03:53,051 - INFO - Validate:
+2026-03-22 14:03:53,051 - INFO - [True, True, True, True, True, False, False, True, True, True, True, True, True]
+2026-03-22 14:03:53,051 - INFO - 
+2026-03-22 14:03:53,051 - INFO - Verify:
+2026-03-22 14:03:53,051 - INFO - []
+2026-03-22 14:03:53,051 - INFO - 
+2026-03-22 14:03:53,051 - INFO - Houdini iteration 2: Removed 2 failed invariants
+2026-03-22 14:03:53,051 - INFO -   Before: 13 invariants
+2026-03-22 14:03:53,051 - INFO -   After: 11 invariants
+2026-03-22 14:03:53,051 - INFO -   Remaining invariants:
+2026-03-22 14:03:53,051 - INFO -     [1] i7 == ((\at(k,Pre) % 20) + 10) - ((nl + 1) / 2)
+2026-03-22 14:03:53,051 - INFO -     [2] o5o == ((\at(k,Pre) % 15) + 8) - (nl / 2)
+2026-03-22 14:03:53,051 - INFO -     [3] c == nl - 1
+2026-03-22 14:03:53,051 - INFO -     [4] i7 + o5o + nl == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18
+2026-03-22 14:03:53,051 - INFO -     [5] i7 + o5o == ((\at(k,Pre) % 20) + 10) + ((\at(k,Pre) % 15) + 8) - nl
+2026-03-22 14:03:53,051 - INFO -     [6] nl >= 0
+2026-03-22 14:03:53,051 - INFO -     [7] i7 + o5o == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18 - nl
+2026-03-22 14:03:53,051 - INFO -     [8] i7 >= 0 && o5o >= 0
+2026-03-22 14:03:53,051 - INFO -     [9] i7 + o5o + nl == ((\at(k, Pre) % 20) + 10) + ((\at(k, Pre) % 15) + 8)
+2026-03-22 14:03:53,051 - INFO -     [10] i7 == (((\at(k, Pre)) % 20) + 10) - ((nl + 1) / 2)
+2026-03-22 14:03:53,051 - INFO -     [11] o5o == (((\at(k, Pre)) % 15) + 8) - (nl / 2)
+2026-03-22 14:03:53,299 - INFO - syntax Correct
+2026-03-22 14:04:24,633 - INFO - Validate:
+2026-03-22 14:04:24,633 - INFO - [True, True, True, True, True, True, True, False, True, True, True]
+2026-03-22 14:04:24,633 - INFO - 
+2026-03-22 14:04:24,634 - INFO - Verify:
+2026-03-22 14:04:24,634 - INFO - []
+2026-03-22 14:04:24,634 - INFO - 
+2026-03-22 14:04:24,634 - INFO - Houdini iteration 3: Removed 1 failed invariants
+2026-03-22 14:04:24,634 - INFO -   Before: 11 invariants
+2026-03-22 14:04:24,634 - INFO -   After: 10 invariants
+2026-03-22 14:04:24,634 - INFO -   Remaining invariants:
+2026-03-22 14:04:24,634 - INFO -     [1] i7 == ((\at(k,Pre) % 20) + 10) - ((nl + 1) / 2)
+2026-03-22 14:04:24,634 - INFO -     [2] o5o == ((\at(k,Pre) % 15) + 8) - (nl / 2)
+2026-03-22 14:04:24,634 - INFO -     [3] c == nl - 1
+2026-03-22 14:04:24,634 - INFO -     [4] i7 + o5o + nl == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18
+2026-03-22 14:04:24,634 - INFO -     [5] i7 + o5o == ((\at(k,Pre) % 20) + 10) + ((\at(k,Pre) % 15) + 8) - nl
+2026-03-22 14:04:24,634 - INFO -     [6] nl >= 0
+2026-03-22 14:04:24,634 - INFO -     [7] i7 + o5o == (\at(k,Pre) % 20) + (\at(k,Pre) % 15) + 18 - nl
+2026-03-22 14:04:24,634 - INFO -     [8] i7 + o5o + nl == ((\at(k, Pre) % 20) + 10) + ((\at(k, Pre) % 15) + 8)
+2026-03-22 14:04:24,634 - INFO -     [9] i7 == (((\at(k, Pre)) % 20) + 10) - ((nl + 1) / 2)
+2026-03-22 14:04:24,634 - INFO -     [10] o5o == (((\at(k, Pre)) % 15) + 8) - (nl / 2)
+2026-03-22 14:04:24,854 - INFO - syntax Correct
+2026-03-22 14:04:56,097 - INFO - Validate:
+2026-03-22 14:04:56,097 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-22 14:04:56,097 - INFO - 
+2026-03-22 14:04:56,097 - INFO - Verify:
+2026-03-22 14:04:56,097 - INFO - []
+2026-03-22 14:04:56,097 - INFO - 
+2026-03-22 14:04:56,097 - INFO - Houdini iteration 4: All invariants are valid
+2026-03-22 14:04:56,312 - INFO - syntax Correct
+2026-03-22 14:05:27,531 - INFO - Validate:
+2026-03-22 14:05:27,531 - INFO - [True, True, True, True, True, True, True, True, True, True]
+2026-03-22 14:05:27,531 - INFO - 
+2026-03-22 14:05:27,531 - INFO - Verify:
+2026-03-22 14:05:27,531 - INFO - []
+2026-03-22 14:05:27,531 - INFO - 
+2026-03-22 14:06:05,055 - INFO - Deduplicated 5 loop invariants in final code
+2026-03-22 14:06:05,248 - INFO - syntax Correct
+2026-03-22 14:06:36,149 - INFO - Validate:
+2026-03-22 14:06:36,149 - INFO - [True, True, True, True, True]
+2026-03-22 14:06:36,149 - INFO - 
+2026-03-22 14:06:36,149 - INFO - Verify:
+2026-03-22 14:06:36,149 - INFO - []
+2026-03-22 14:06:36,149 - INFO - 
+2026-03-22 14:06:36,149 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-22 14:06:36,149 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_60/1.c
+2026-03-22 14:06:36,150 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_60/1_invariants.txt
+2026-03-22 14:06:36,150 - INFO - 
 ============================================================
-2026-03-14 05:15:40,353 - INFO - Final first_pass results:
-2026-03-14 05:15:40,353 - INFO -   syntax=1
-2026-03-14 05:15:40,353 - INFO -   valid=1
-2026-03-14 05:15:40,353 - INFO -   satisfy=None
-2026-03-14 05:15:40,353 - INFO - ============================================================
-2026-03-14 05:15:40,353 - INFO - 
+2026-03-22 14:06:36,150 - INFO - Final first_pass results:
+2026-03-22 14:06:36,150 - INFO -   syntax=1
+2026-03-22 14:06:36,150 - INFO -   valid=1
+2026-03-22 14:06:36,150 - INFO -   satisfy=None
+2026-03-22 14:06:36,150 - INFO - ============================================================
+2026-03-22 14:06:36,150 - INFO - 
 ============================================================
-2026-03-14 05:15:40,353 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-14 05:15:40,353 - INFO -   Total API calls: 1
-2026-03-14 05:15:40,353 - INFO -   Total prompt tokens (input): 1,018
-2026-03-14 05:15:40,353 - INFO -   Total completion tokens (output): 4,923
-2026-03-14 05:15:40,353 - INFO -   Total tokens: 5,941
-2026-03-14 05:15:40,354 - INFO -   Average per call:
-2026-03-14 05:15:40,354 - INFO -     Prompt: 1018.0 tokens
-2026-03-14 05:15:40,354 - INFO -     Completion: 4923.0 tokens
-2026-03-14 05:15:40,354 - INFO -     Total: 5941.0 tokens
-2026-03-14 05:15:40,354 - INFO - ============================================================
-2026-03-14 05:15:40,354 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2642632_1773434918_60/1.c
-2026-03-14 05:15:40,354 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2642632_1773434918_60/1_invariants.txt
-2026-03-14 05:16:15,016 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
-2026-03-14 05:38:59 - INFO - COT Phase#1: generating reverse-COTs for 44 code pieces (existing=537, dedup inside)...
-2026-03-14 05:58:59 - INFO - COT Phase#1: 44/44 unique COTs generated successfully.
-2026-03-14 05:58:59 - INFO - COT Phase#2: generating rejected reverse-COTs for 352 unique dpo_aug.rejected code pieces (existing=2733)...
-2026-03-14 08:51:44 - INFO - COT Phase#3: generating rejected reverse-COTs for 2 unique dpo_teacher.rejected code pieces (existing=2701)...
-2026-03-14 08:52:32 - WARNING - COT Phase: dropped 2 distill records missing valid <reasoning>/<code>.
-2026-03-14 08:52:32 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 09:08:44 - INFO - COT Phase#1: generating reverse-COTs for 10 code pieces (existing=581, dedup inside)...
-2026-03-14 09:14:31 - INFO - COT Phase#1: 10/10 unique COTs generated successfully.
-2026-03-14 09:14:31 - INFO - COT Phase#2: generating rejected reverse-COTs for 83 unique dpo_aug.rejected code pieces (existing=3085)...
-2026-03-14 09:46:24 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces (existing=2750)...
-2026-03-14 09:46:39 - WARNING - COT Phase: dropped 2 distill records missing valid <reasoning>/<code>.
-2026-03-14 09:46:39 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 10:00:57 - INFO - COT Phase#1: generating reverse-COTs for 7 code pieces (existing=591, dedup inside)...
-2026-03-14 10:04:22 - INFO - COT Phase#1: 7/7 unique COTs generated successfully.
-2026-03-14 10:04:22 - INFO - COT Phase#2: generating rejected reverse-COTs for 73 unique dpo_aug.rejected code pieces (existing=3168)...
-2026-03-14 10:42:43 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 10:54:09 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=598, dedup inside)...
-2026-03-14 10:56:43 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-14 10:56:43 - INFO - COT Phase#2: generating rejected reverse-COTs for 33 unique dpo_aug.rejected code pieces (existing=3241)...
-2026-03-14 11:19:24 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 11:33:57 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=601, dedup inside)...
-2026-03-14 11:36:44 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-14 11:36:44 - INFO - COT Phase#2: generating rejected reverse-COTs for 53 unique dpo_aug.rejected code pieces (existing=3274)...
-2026-03-14 11:59:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 12:10:48 - INFO - COT Phase#1: generating reverse-COTs for 4 code pieces (existing=607, dedup inside)...
-2026-03-14 12:12:55 - INFO - COT Phase#1: 4/4 unique COTs generated successfully.
-2026-03-14 12:12:55 - INFO - COT Phase#2: generating rejected reverse-COTs for 28 unique dpo_aug.rejected code pieces (existing=3327)...
-2026-03-14 12:24:05 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 12:32:51 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=611, dedup inside)...
-2026-03-14 12:34:32 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-14 12:34:32 - INFO - COT Phase#2: generating rejected reverse-COTs for 50 unique dpo_aug.rejected code pieces (existing=3355)...
-2026-03-14 12:53:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 13:14:09 - INFO - COT Phase#1: generating reverse-COTs for 9 code pieces (existing=616, dedup inside)...
-2026-03-14 13:17:48 - INFO - COT Phase#1: 9/9 unique COTs generated successfully.
-2026-03-14 13:17:48 - INFO - COT Phase#2: generating rejected reverse-COTs for 76 unique dpo_aug.rejected code pieces (existing=3405)...
-2026-03-14 13:51:37 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces (existing=2918)...
-2026-03-14 13:52:00 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-14 13:52:00 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 14:02:51 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=625, dedup inside)...
-2026-03-14 14:04:25 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-14 14:04:25 - INFO - COT Phase#2: generating rejected reverse-COTs for 26 unique dpo_aug.rejected code pieces (existing=3481)...
-2026-03-14 14:22:59 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 14:38:51 - INFO - COT Phase#1: generating reverse-COTs for 11 code pieces (existing=628, dedup inside)...
-2026-03-14 14:44:39 - INFO - COT Phase#1: 11/11 unique COTs generated successfully.
-2026-03-14 14:44:39 - INFO - COT Phase#2: generating rejected reverse-COTs for 111 unique dpo_aug.rejected code pieces (existing=3507)...
-2026-03-14 15:40:09 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 15:52:42 - INFO - COT Phase#1: generating reverse-COTs for 1 code pieces (existing=639, dedup inside)...
-2026-03-14 15:53:21 - INFO - COT Phase#1: 1/1 unique COTs generated successfully.
-2026-03-14 15:53:21 - INFO - COT Phase#2: generating rejected reverse-COTs for 7 unique dpo_aug.rejected code pieces (existing=3618)...
-2026-03-14 15:56:02 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 16:04:46 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=640, dedup inside)...
-2026-03-14 16:05:55 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
-2026-03-14 16:05:55 - INFO - COT Phase#2: generating rejected reverse-COTs for 14 unique dpo_aug.rejected code pieces (existing=3625)...
-2026-03-14 16:12:29 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 17:01:58 - INFO - COT Phase#1: generating reverse-COTs for 16 code pieces (existing=642, dedup inside)...
-2026-03-14 17:13:15 - INFO - COT Phase#1: 16/16 unique COTs generated successfully.
-2026-03-14 17:13:15 - INFO - COT Phase#2: generating rejected reverse-COTs for 172 unique dpo_aug.rejected code pieces (existing=3639)...
-2026-03-14 19:38:17 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 19:55:30 - INFO - COT Phase#1: generating reverse-COTs for 4 code pieces (existing=658, dedup inside)...
-2026-03-14 19:57:30 - INFO - COT Phase#1: 4/4 unique COTs generated successfully.
-2026-03-14 19:57:30 - INFO - COT Phase#2: generating rejected reverse-COTs for 45 unique dpo_aug.rejected code pieces (existing=3811)...
-2026-03-14 20:23:26 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
-2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
-2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
-2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-22 14:06:36,150 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-22 14:06:36,150 - INFO -   Total API calls: 22
+2026-03-22 14:06:36,150 - INFO -   Total prompt tokens (input): 29,688
+2026-03-22 14:06:36,150 - INFO -   Total completion tokens (output): 157,356
+2026-03-22 14:06:36,150 - INFO -   Total tokens: 187,044
+2026-03-22 14:06:36,150 - INFO -   Average per call:
+2026-03-22 14:06:36,150 - INFO -     Prompt: 1349.5 tokens
+2026-03-22 14:06:36,150 - INFO -     Completion: 7152.5 tokens
+2026-03-22 14:06:36,150 - INFO -     Total: 8502.0 tokens
+2026-03-22 14:06:36,150 - INFO - ============================================================
+2026-03-22 14:06:36,150 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_60/1.c
+2026-03-22 14:06:36,150 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_60/1_invariants.txt
+2026-03-22 14:07:13,515 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "Invariants are non-trivial and correctly relate i7, o5o, nl, c and preserve i7+o5o+nl; however they do not cover all loop-modified variables (k, l, w5, je are not reflected in invariants) and there is no explicit loop variant/bounds for termination; thus not sufficient for rigorous WP verification."
+}
+2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
+2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
+2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...

@@ -1,37 +1,34 @@
-int main1(int b,int k){
-  int j, n, l;
+int main1(int m,int q){
+  int n, t, f;
 
-  j=b-5;
-  n=0;
-  l=-3;
+  n=(q%38)+9;
+  t=n;
+  f=n;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant n >= 0;
+  loop invariant n == (q % 38) + 9;
+  loop invariant m == \at(m, Pre);
+  loop invariant q == \at(q, Pre);
 
-  loop invariant l <= -3;
-  loop invariant l % 3 == 0;
-  loop invariant b == \at(b, Pre);
-  loop invariant k == \at(k, Pre);
-  loop invariant j == b - 5;
-  loop invariant 0 <= n;
-  loop invariant (l % 3) == 0;
+  loop invariant (t > 0) ==> (f == q + 5 || f == n);
+  loop invariant n == (\at(q, Pre) % 38) + 9;
 
-  loop invariant j == \at(b, Pre) - 5;
-  loop invariant j < 0 || n <= j;
+  loop invariant (t == n && f == n) || (t < n && f == q + 5);
+  loop invariant n == ((\at(q, Pre) % 38) + 9);
+  loop invariant n == \at(q, Pre) % 38 + 9;
 
-  loop invariant l < 0;
-  loop assigns l, n;
+  loop invariant (t < n) ==> f == q + 5;
+  loop invariant (t == n) ==> f == n;
+  loop assigns f, t;
 */
-while (n<j) {
-      if ((n%6)==0) {
-          l = l+l;
-      }
-      n = n+1;
+while (t>0) {
+      f = q+5;
+      t = t-1;
   }
 /*@
-  assert !(n<j) &&
-         (n >= 0);
+  assert !(t>0) &&
+         (n == (q % 38) + 9);
 */
 
 

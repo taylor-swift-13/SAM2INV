@@ -1,46 +1,51 @@
-int main1(int m,int n){
-  int r, w, v, u;
+int main1(int a,int p){
+  int n, b, s, v;
 
-  r=(n%8)+8;
-  w=0;
-  v=-5;
-  u=4;
+  n=(p%40)+5;
+  b=0;
+  s=0;
+  v=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant m == \at(m, Pre) &&
-                   n == \at(n, Pre) &&
-                   -5 <= v &&
-                   v <= r &&
-                   r == (\at(n, Pre) % 8) + 8;
+  loop invariant a == \at(a, Pre);
+  loop invariant p == \at(p, Pre);
+  loop invariant 0 <= s;
 
-  loop invariant r == (\at(n,Pre) % 8) + 8;
-  loop invariant v <= r;
-  loop invariant v >= -5;
-  loop invariant u >= 4;
-  loop invariant m == \at(m,Pre);
-  loop invariant n == \at(n,Pre);
-  loop invariant r == (n % 8) + 8;
-  loop invariant r == (n % 8) + 8 &&
-                   -5 <= v &&
-                   v <= r &&
-                   m == \at(m, Pre) &&
-                   n == \at(n, Pre) &&
-                   u >= 0;
-  loop invariant r == ((\at(n, Pre) % 8) + 8);
-  loop assigns v, u;
+  loop invariant (s < n/2) ==> (v == 3*s);
+  loop invariant n == (\at(p, Pre) % 40) + 5;
+
+  loop invariant v % 3 == 0;
+
+  loop invariant n == \at(p, Pre) % 40 + 5;
+
+  loop invariant n == ((\at(p, Pre)) % 40) + 5;
+  loop invariant (s <= n/2) ==> (v == 3*s);
+  loop invariant n == ((\at(p,Pre) % 40) + 5);
+  loop invariant p == \at(p,Pre) && a == \at(a,Pre);
+  loop invariant s <= n/2 ==> v == 3*s;
+
+  loop invariant n == (p % 40) + 5;
+  loop invariant s >= 0;
+  loop invariant (s <= n/2) ==> v == 3*s;
+  loop invariant -3*s <= v && v <= 3*s && v % 3 == 0;
+
+  loop assigns s, v;
 */
-while (v<r) {
-      if (v<r) {
-          v = v+1;
+while (s<n) {
+      if (s<n/2) {
+          v = v+3;
       }
-      u = u+u;
-      u = u+v;
+      else {
+          v = v-3;
+      }
+      s = s+1;
   }
 /*@
-  assert !(v<r) &&
-         (m == \at(m, Pre) && n == \at(n, Pre) && -5 <= v && v <= r && r == (\at(n, Pre) % 8) + 8);
+  assert (n == (\at(p, Pre) % 40) + 5) &&
+         (s >= n) &&
+         (s >= 0) &&
+         (v % 3 == 0);
 */
-
 
 }

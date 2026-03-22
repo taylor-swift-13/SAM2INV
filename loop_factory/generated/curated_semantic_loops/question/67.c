@@ -1,22 +1,25 @@
-int main1(int k,int n){
-  int r, w, b, y;
+int main1(int b,int k){
+  int p, q, v, r;
 
-  r=(k%21)+13;
-  w=1;
-  b=-2;
-  y=4;
+  p=(k%7)+8;
+  q=0;
+  v=p;
+  r=q;
 
 
-while (b<r) {
-      if (b<r) {
-          b = b+1;
+while (v<p) {
+      if (v<p) {
+          v = v+1;
       }
-      b = b+5;
-      y = y+3;
+      r = r+r;
+      r = r+v;
+      v = v+1;
+      v = v+r;
+      r = v-r;
   }
 /*@
-  assert !(b<r) &&
-         (2*(y - 4) == b + 2);
+  assert !(v<p) &&
+         (k == \at(k, Pre));
 */
 
 }

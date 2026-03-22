@@ -1,38 +1,43 @@
 int main1(){
-  int v, zgh, dyks, o, w;
-  v=1;
-  zgh=1;
-  dyks=1;
-  o=0;
-  w=0;
+  int j, wt9n, yl3, b, z, a0u;
+  j=25;
+  wt9n=0;
+  yl3=0;
+  b=0;
+  z=j;
+  a0u=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant o == (dyks-1)*dyks*(2*dyks-1)/6;
-  loop invariant w == (dyks-1)*(v - zgh);
-  loop invariant 1 <= dyks;
-  loop invariant dyks <= v+1;
-  loop invariant v == 1;
-  loop invariant zgh == 1;
-  loop assigns o, dyks, w;
+  loop invariant (0 <= b);
+  loop invariant (b <= j);
+  loop invariant (yl3 == b);
+  loop invariant (z == j + b * wt9n);
+  loop assigns yl3, b, z, a0u;
 */
-while (dyks<=v) {
-      o = o+dyks*dyks;
-      dyks += 1;
-      w = (w+v)+(-(zgh));
+while (b<j) {
+      yl3++;
+      b += 1;
+      z += wt9n;
+      a0u = a0u+(yl3%9);
   }
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 1 <= zgh <= dyks;
-  loop assigns zgh;
+  loop invariant \true;
+  loop assigns z, yl3, a0u;
 */
 while (1) {
-      zgh += 1;
-      if (zgh>=dyks) {
+      if (!(z<=wt9n-1)) {
           break;
       }
+      z += 1;
+      yl3 += wt9n;
+      a0u++;
   }
 /*@
-  assert (o == (dyks-1)*dyks*(2*dyks-1)/6);
+  assert b == j;
+*/
+/*@
+  assert wt9n == 0;
 */
 
 }

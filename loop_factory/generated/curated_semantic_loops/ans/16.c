@@ -1,42 +1,40 @@
-int main1(int k,int p){
-  int r, c, v, y, l, s;
+int main1(int a,int b,int q){
+  int r, z, v, m, g, l;
 
-  r=30;
-  c=r+3;
-  v=r;
-  y=-8;
-  l=k;
-  s=r;
+  r=q;
+  z=0;
+  v=8;
+  m=b;
+  g=0;
+  l=q;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == 30;
-  loop invariant c == r + 3;
-  loop invariant l == k;
-  loop invariant v <= r;
-  loop invariant y == -8 || y == k;
-  loop invariant (v - r) % (c + 1) == 0;
-  loop invariant v - y >= 38;
-  loop invariant v >= r;
-  loop invariant (y == -8) || (y == l);
-  loop invariant (c == r + 3);
-  loop invariant ((v - r) % 34 == 0);
-  loop invariant y == -8 || y == l;
-  loop invariant k == \at(k, Pre);
-  loop assigns y, v;
+  loop invariant g == 0;
+  loop invariant r == q;
+
+  loop invariant (\at(b, Pre) < 0) ==> (m == \at(b, Pre));
+  loop invariant v >= 8;
+  loop invariant r == \at(q, Pre);
+  loop invariant v % 2 == 0;
+  loop invariant m <= \at(b,Pre);
+  loop invariant a == \at(a, Pre);
+  loop invariant b == \at(b, Pre);
+  loop invariant q == \at(q, Pre);
+  loop assigns m, v;
 */
 while (1) {
       if (v>=r) {
           break;
       }
-      if (l<=y) {
-          y = l;
+      if (g<=m) {
+          m = g;
       }
       v = v+1;
-      v = v+c;
+      v = v*2;
   }
 /*@
-  assert (r == 30);
+  assert (g == 0);
 */
 
 

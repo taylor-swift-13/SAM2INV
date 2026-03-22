@@ -1,40 +1,37 @@
-int main1(int b,int m){
-  int y, t, v;
+int main1(int m,int p){
+  int n, l, x;
 
-  y=m+7;
-  t=3;
-  v=3;
+  n=22;
+  l=0;
+  x=n;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant v == 0 || v == 3;
-  loop invariant t >= 3;
-  loop invariant (t - 3) % 3 == 0;
-  loop invariant y == \at(m, Pre) + 7;
   loop invariant m == \at(m, Pre);
-  loop invariant b == \at(b, Pre);
-  loop invariant t % 3 == 0;
-  loop invariant (v == 0 || v == 3) && (v >= 0) && (v <= 3);
-  loop invariant t % 3 == 0 && t >= 3 && (v == 0 || (t == 3 && v == 3));
-  loop invariant y == \at(m, Pre) + 7 &&
-                   m == \at(m, Pre) &&
-                   b == \at(b, Pre) &&
-                   t >= 3 &&
-                   (t - 3) % 3 == 0 &&
-                   (v == 0 || v == 3);
-  loop invariant t == 3 || t <= y;
-  loop invariant y == m + 7;
-  loop invariant (t != 3) ==> (v == 0);
-  loop assigns t, v;
+  loop invariant p == \at(p, Pre);
+  loop invariant n == 22;
+  loop invariant l >= 0;
+  loop invariant l <= n - 2;
+  loop invariant x % 2 == 0;
+  loop invariant l == 0;
+  loop invariant x >= n;
+  loop invariant (x - n) % 2 == 0;
+  loop invariant (l <= n - 3);
+  loop invariant (x >= n);
+  loop invariant (x % 2 == 0);
+  loop invariant l <= n - 3;
+  loop invariant 0 <= l <= n - 3;
+  loop assigns x;
 */
-while (t<=y-3) {
-      v = v+t;
-      v = v-v;
-      t = t+3;
+while (l<=n-3) {
+      x = x+2;
+      if (x+4<n) {
+          x = x+x;
+      }
   }
 /*@
-  assert !(t<=y-3) &&
-         (v == 0 || v == 3);
+  assert !(l<=n-3) &&
+         (m == \at(m, Pre));
 */
 
 

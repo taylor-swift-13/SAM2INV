@@ -1,39 +1,48 @@
-int main1(int n,int q){
-  int r, f, v;
+int main1(int m,int p){
+  int b, u, x, n;
 
-  r=q+19;
-  f=0;
-  v=5;
+  b=19;
+  u=0;
+  x=5;
+  n=u;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == \at(q, Pre) + 19;
-  loop invariant q == \at(q, Pre);
-  loop invariant n == \at(n, Pre);
-  loop invariant f >= 0;
-  loop invariant v >= 0;
+  loop invariant x % 6 == 5;
+  loop invariant x >= 5;
+  loop invariant x <= b + 5;
+  loop invariant n <= x;
+  loop invariant n >= 0;
+  loop invariant m == \at(m, Pre);
+  loop invariant (x - 5) % 6 == 0;
+  loop invariant n == 3 * ((x - 5) / 6) + 5 * (((x - 5) / 6) % 2);
+  loop invariant b == 19;
 
+  loop invariant p == \at(p, Pre);
 
-  loop invariant r == q + 19;
-  loop invariant (f % 3 == 0) && (0 <= f) && (v >= 0) && ((v - f) == 5 || (v - f) == -2 || (v - f) == -3);
-
-  loop invariant (f == 0 ==> v == 5) && (f != 0 ==> (f - v == 2 || f - v == 3));
-  loop invariant f % 3 == 0;
-  loop invariant (f == 0 && v == 5) || (f >= 3 && (r >= 4 ==> v == f - 2) && (r < 4 ==> v == f - 3));
-  loop assigns f, v;
+  loop invariant n >= -3;
+  loop assigns x, n;
 */
-while (f+3<=r) {
-      v = v-v;
-      v = v+f;
-      if (f+4<=v+r) {
-          v = v+1;
+while (x<b) {
+      if (x<b) {
+          x = x+1;
       }
-      f = f+3;
+      x = x+5;
+      n = n+2;
+      if (p<p+5) {
+          n = n+1;
+      }
+      n = x-n;
   }
 /*@
-  assert !(f+3<=r) &&
-         (r == \at(q, Pre) + 19);
+  assert !(x<b) &&
+         (x % 6 == 5);
 */
 
 
+
+  int __dedup_1 = 0;
+  while (__dedup_1 < 3) {
+      __dedup_1 = __dedup_1 + 1;
+  }
 }

@@ -1,43 +1,42 @@
-int main1(int b,int k){
-  int m, u, v, a;
+int main1(int a,int b,int k){
+  int x, i, v, o, z, u;
 
-  m=(k%34)+12;
+  x=29;
+  i=x+4;
+  v=0;
+  o=1;
+  z=1;
   u=1;
-  v=8;
-  a=b;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant m == (k%34) + 12;
+  loop invariant z == 1;
+  loop invariant v >= 0;
+  loop invariant o >= 1;
+  loop invariant a == \at(a, Pre);
   loop invariant b == \at(b, Pre);
   loop invariant k == \at(k, Pre);
+  loop invariant v % 2 == 0;
+  loop invariant x == 29;
 
+  loop invariant v % 3 == 0;
+  loop invariant o % 3 == 1;
+  loop invariant o >= v + 1;
 
-
-  loop invariant m == ((\at(k,Pre) % 34) + 12);
-
-  loop invariant (0 <= v);
-  loop invariant (v <= 8);
-  loop invariant m == (k % 34) + 12 &&
-                   (u == 1) ==> (a == b && v == 8) &&
-                   (u != 1) ==> (a == 0 && v == 0) &&
-                   u > 0;
-  loop invariant (u == 1) ==> (v == 8) &&
-                   (u != 1) ==> (v == 0);
-
-  loop invariant v == 8 || (0 <= v && v <= 6);
-  loop assigns v, a, u;
+  loop invariant z >= 0;
+  loop assigns v, o, z;
 */
-while (u*2<=m) {
-      v = v*v+v;
-      v = v%9;
-      a = a*v;
-      v = v%7;
-      u = u*2;
+while (v<x) {
+      v = v+3;
+      o = o+3;
+      z = z+3;
+      v = v*2;
+      o = o+v;
+      z = z%3;
   }
 /*@
-  assert !(u*2<=m) &&
-         (m == (k%34) + 12);
+  assert !(v<x) &&
+         (z == 1);
 */
 
 

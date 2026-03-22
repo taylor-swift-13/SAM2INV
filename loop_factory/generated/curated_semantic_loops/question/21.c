@@ -1,29 +1,26 @@
-int main1(int b,int m){
-  int l, s, k;
+int main1(){
+  int se5, h4d, khd, nh, vo, f;
+  se5=1+8;
+  h4d=se5;
+  khd=5;
+  nh=0;
+  vo=se5;
+  f=h4d;
 
-  l=35;
-  s=0;
-  k=-6;
-
-
-while (s<l) {
-      k = k-k;
-      k = k+(-3);
-      s = s+1;
+while (nh<=se5-1) {
+      khd += 1;
+      nh++;
+      f += h4d;
+      vo = vo+(khd%9);
   }
 
-
-while (s>=3) {
-      s = s-3;
-  }
-
-
-while (s<=k-1) {
-      s = s+1;
+while (se5*2<=vo) {
+      f += h4d;
+      vo = (se5*2)-1;
   }
 /*@
-  assert !(s<=k-1) &&
-         (l == 35);
+  assert !(se5*2<=vo) &&
+         (0 <= nh);
 */
 
 }

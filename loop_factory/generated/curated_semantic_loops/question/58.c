@@ -1,21 +1,21 @@
-int main1(int m){
-  int p, i, v;
+int main1(int b,int m){
+  int h, n, w;
 
-  p=66;
-  i=p;
-  v=-3;
+  h=79;
+  n=0;
+  w=-2;
 
 
-while (i>2) {
-      v = v-v;
-      if (v<m+2) {
-          v = v+1;
+while (n<=h-1) {
+      w = w+w;
+      if ((n%3)==0) {
+          w = w+1;
       }
-      i = i-3;
+      n = n+1;
   }
 /*@
-  assert !(i>2) &&
-         (i <= 66);
+  assert !(n<=h-1) &&
+         (0 <= n);
 */
 
 }

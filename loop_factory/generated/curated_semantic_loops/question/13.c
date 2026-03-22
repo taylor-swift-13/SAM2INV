@@ -1,23 +1,23 @@
-int main1(){
-  int p6l, n80, p, vj;
-  p6l=180;
-  n80=3;
-  p=1;
-  vj=1;
+int main1(int f){
+  int f3v, zq, y7, q5o;
+  f3v=f;
+  zq=0;
+  y7=2;
+  q5o=1;
 
-while (n80<p6l) {
-      if (!(p<11)) {
-          vj = -1;
+while (zq<=f3v-1) {
+      if (y7>=9) {
+          q5o = -1;
       }
-      if (p<=1) {
-          vj = 1;
+      if (y7<=2) {
+          q5o = 1;
       }
-      n80++;
-      p += vj;
+      zq++;
+      y7 = y7 + q5o;
   }
 /*@
-  assert !(n80<p6l) &&
-         (n80 >= 3);
+  assert !(zq<=f3v-1) &&
+         ((y7 - zq) % 2 == 0);
 */
 
 }

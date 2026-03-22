@@ -1,36 +1,33 @@
-int main1(int m){
-  int p, i, v;
+int main1(int b,int m){
+  int h, n, w;
 
-  p=66;
-  i=p;
-  v=-3;
+  h=79;
+  n=0;
+  w=-2;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant i <= 66;
-  loop invariant i >= 0;
-  loop invariant i % 3 == 0;
-  loop invariant v == -3 || v == 0 || v == 1;
+  loop invariant 0 <= n;
+  loop invariant n <= h;
+  loop invariant w <= -1;
+  loop invariant b == \at(b, Pre);
   loop invariant m == \at(m, Pre);
-  loop invariant p == 66;
-
-  loop invariant 0 <= i;
-  loop invariant i <= p;
-  loop invariant (v == -3) || (v == 0) || (v == 1);
-  loop invariant i % 3 == p % 3;
-  loop invariant (i == 66 && v == -3) || ((m > -2 && v == 1) || (m <= -2 && v == 0));
-  loop assigns v, i;
+  loop invariant h == 79;
+  loop invariant 0 <= n <= h;
+  loop invariant w <= -2;
+  loop invariant (w % 2 != 0) <==> (n % 3 == 1);
+  loop assigns w, n;
 */
-while (i>2) {
-      v = v-v;
-      if (v<m+2) {
-          v = v+1;
+while (n<=h-1) {
+      w = w+w;
+      if ((n%3)==0) {
+          w = w+1;
       }
-      i = i-3;
+      n = n+1;
   }
 /*@
-  assert !(i>2) &&
-         (i <= 66);
+  assert !(n<=h-1) &&
+         (0 <= n);
 */
 
 

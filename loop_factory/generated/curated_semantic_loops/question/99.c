@@ -1,24 +1,27 @@
-int main1(int b,int m){
-  int z, t, v;
+int main1(int a,int p){
+  int v, j, s, h;
 
-  z=(b%20)+10;
-  t=z+6;
-  v=4;
+  v=(p%17)+7;
+  j=0;
+  s=0;
+  h=0;
 
 
-while (t-z>0) {
-      v = v*v;
-      v = v%5;
-      if ((t%4)==0) {
-          v = v*2;
+while (s<v) {
+      if (s<v/2) {
+          h = h+2;
       }
-      t = t-3;
+      else {
+          h = h-2;
+      }
+      s = s+1;
+      s = s+5;
+      h = h+3;
+      s = s+2;
   }
 /*@
-  assert (z == (\at(b, Pre) % 20) + 10) &&
-         (t == z) &&
-         (0 <= v) &&
-         (v <= 8);
+  assert !(s<v) &&
+         (s % 8 == 0);
 */
 
 }

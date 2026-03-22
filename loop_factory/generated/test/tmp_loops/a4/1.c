@@ -1,25 +1,33 @@
-int main1(int o){
-  int nkw, us, am, i5x, jfs;
+int main1(){
+  int o, v, f5, g9, yx, cjj, fo;
 
-  nkw=(o%9)+15;
-  us=nkw;
-  am=-6;
-  i5x=0;
-  jfs=o;
-
-  while (us>1) {
-      i5x = i5x+am*us;
-      jfs += us;
-      us = 1;
-  }
+  o=55;
+  v=1;
+  f5=1;
+  g9=1;
+  yx=1;
+  cjj=-2;
+  fo=12;
 
   while (1) {
-      if (!(am<us)) {
+      if (!(g9<=o)) {
           break;
       }
-      i5x = i5x + o;
-      am += 1;
-      o += am;
+      v = v*(1/g9);
+      if ((g9/2)%2==0) {
+          yx = 1;
+      }
+      else {
+          yx = -1;
+      }
+      f5 = f5+yx*v;
+      g9++;
+      v = v*(1/g9);
+      if (o*o<=o+4) {
+          fo = fo*fo+cjj;
+      }
+      cjj = cjj+(v%9);
+      cjj = cjj + fo;
   }
 
 }

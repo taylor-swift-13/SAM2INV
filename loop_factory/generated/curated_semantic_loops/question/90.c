@@ -1,20 +1,23 @@
-int main1(int n,int p){
-  int x, u, w;
+int main1(int b,int k){
+  int m, j, v, q;
 
-  x=65;
-  u=x;
-  w=p;
+  m=77;
+  j=1;
+  v=m;
+  q=k;
 
 
-while (u>0) {
-      w = w+3;
-      if (u+2<=n+x) {
-          w = w+5;
+while (v<m) {
+      if (v<m) {
+          v = v+1;
       }
+      v = v+j;
+      q = q*q;
+      q = q+v*q;
   }
 /*@
-  assert !(u>0) &&
-         (u == 65);
+  assert !(v<m) &&
+         (m == 77);
 */
 
 }

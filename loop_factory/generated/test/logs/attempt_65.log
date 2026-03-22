@@ -1,631 +1,894 @@
-2026-03-14 20:46:37,670 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-14 20:46:37,686 - INFO - Found 2 loops
-2026-03-14 20:46:37,687 - INFO - 
+2026-03-22 14:01:48,876 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-22 14:01:49,050 - INFO - Found 1 loops
+2026-03-22 14:01:49,051 - INFO - 
 ============================================================
-2026-03-14 20:46:37,687 - INFO - Main generation pass 1/1
-2026-03-14 20:46:37,687 - INFO - ============================================================
-2026-03-14 20:46:37,687 - INFO - Loaded single prompt template: simple
-2026-03-14 20:46:37,687 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-14 20:46:37,687 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-14 20:46:37,754 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:48:51,839 - INFO - 
------ Candidate 1/5 raw response begin -----
-<reasoning>Reasoning about invariants and progress:
+2026-03-22 14:01:49,051 - INFO - Main generation pass 1/1
+2026-03-22 14:01:49,052 - INFO - ============================================================
+2026-03-22 14:01:49,052 - INFO - Loaded single prompt template: simple
+2026-03-22 14:01:49,052 - INFO - Generating 8 candidate invariant sets with temperature=1.0
+2026-03-22 14:01:49,052 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-22 14:01:49,064 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:02:39,537 - INFO - 
+----- Candidate 1/8 raw response begin -----
+<reasoning>The loop updates f and bn in a complementary fashion: on even iterations f decreases by 1, on odd iterations bn decreases by 1, while pqg8 always increases by 1. A natural, inductive invariant is the conserved sum f + bn + pqg8, which remains equal to its initial value (at the start, pqg8 = 0 and f = (v%20)+10, bn = (v%15)+8). This gives a tight, relational invariant that explains the observed state transitions without relying on weak conditions.
 
-Loop 0 (the first while (1) loop):
-- State updates in the loop body (assuming the guard holds) are:
-  - u <- u + c7
-  - c7 <- (c7 + bamt) * 4 + 3 = 4*c7 + 4*bamt + 3
-  - phfb <- (bamt+1) - 1 = bamt
-- bamt does not change in this loop, so bamt remains constant (bamt == 2 initially, preserved throughout this loop).
-- A simple yet effective invariant set that is preserved by every iteration and holds initially:
-  - bamt == 2
-  - c7 >= 0
-  - u >= 0
-  - phfb <= \at(e, Pre)  (phfb is at most the initial parameter e; if the loop runs, the head state has phfb = e and after one iteration phfb becomes bamt <= e for any e >= 3)
-- A natural loop variant (for termination) can be phfb - bamt, which is non-negative when the loop guard holds (bamt+1 <= phfb) and decreases to 0 after the iteration, guaranteeing progress toward termination in this loop context.
-- Core state-transition relation (explanatory, not all of it can be encoded purely as an invariant): 
-  - u' = u + c7
-  - c7' = 4*c7 + 4*bamt + 3
-  - phfb' = bamt
-  This explains why the updates happen as they do and why the loop can terminate after at most one iteration when the guard becomes false.
-  
-Loop 1 (the second while (bamt>=6) loop):
-- This loop modifies c7, ep, and bamt, and the loop guard ensures bamt >= 6 at entry.
-- Invariants that are preserved across iterations and are easy for WP to discharge:
-  - bamt >= 6
-  - c7 >= 0
-  - ep >= 0
-  - phfb <= \at(e, Pre)  (phfb is not touched in this loop, so we reuse the same bound as in the first loop)
-- A straightforward loop variant is not strictly required here (the code as given has a questionable assignment "bamt = =6;"), so we avoid introducing a potentially unsafe or misleading variant. If the code were corrected to progress (e.g., ensure bamt eventually drops below 6), a simple variant like (bamt - 6) or (7 - bamt) could be provided; in this annotation we omit an explicit variant to avoid implying a valid termination measure where code progression is ambiguous.
-- Core state-transition idea for this loop (informational): c7' = c7 + ep*bamt, ep' = ep + bamt, bamt' = 6 (assuming the intended assignment completes). This shows that c7 and ep monotonically grow or stay nonnegative while bamt is driven to (or kept at) 6.
+Concretely, with initial values
+- F0 = (\at(v, Pre) % 20) + 10
+- B0 = (\at(v, Pre) % 15) + 8
 
-Overall goal:
-- Provide inductive loop invariants that are strong and useful for Frama-C/WP, without modifying code, and with complete and exact loop assigns.
-- Keep invariants focused on the actual state that changes in each loop and rely on the function parameter e (via \at(e, Pre)) only where appropriate.
+the invariant is:
+- f + bn + pqg8 == F0 + B0
+
+This invariant is preserved by every loop iteration:
+- If pqg8 is even (f decreases by 1), f' + bn' + pqg8' = (f-1) + bn + (pqg8+1) = f + bn + pqg8
+- If pqg8 is odd (bn decreases by 1), f' + bn' + pqg8' = f + (bn-1) + (pqg8+1) = f + bn + pqg8
+
+Additionally, since the loop guard is f > 0 && bn > 0, the sum f + bn is non-negative and strictly decreases by 1 each iteration, providing a natural progress measure. I include minimal, non-redundant bounds for f and bn (f >= 0, bn >= 0) to aid verification and keep invariants explicit. The loop assigns clause lists exactly all variables modified inside the loop, ensuring precise framing for Frama-C/WP.
+
+Now the complete annotated code follows. It replaces the placeholder loop annotations with the concrete, inductive invariants, a precise assigns set, and a loop variant.)
+
+
+</reasoning>
+<code>int main1(int e,int v){
+  int pqg8, f, bn, e1s, x70, of5, r0sl;
+
+  pqg8=0;
+  f=(v%20)+10;
+  bn=(v%15)+8;
+  e1s=8;
+  x70=-1;
+  of5=-6;
+  r0sl=pqg8;
+
+  /*@
+    loop invariant f + bn + pqg8 == ((\at(v, Pre) % 20) + 10) + ((\at(v, Pre) % 15) + 8);
+    loop invariant f >= 0;
+    loop invariant bn >= 0;
+    loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+    loop variant (f + bn);
+  @*/
+while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }
+
+}</code>
+----- Candidate 1/8 raw response end -----
+2026-03-22 14:02:39,538 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-22 14:02:39,551 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:03:46,532 - INFO - 
+----- Candidate 2/8 raw response begin -----
+<reasoning>In this task, the goal is to provide inductive, verification-friendly ACSL loop annotations for the given loop in main1. The loop updates a number of local variables and two parameters (e, v). A strong, inductive invariant should capture the state transition law (how e and v are updated) and provide a monotonic progress bound for at least the loop counter(s). However, deriving a concise closed-form invariant that exactly expresses e' and v' (the next-state values) in terms of current state using only ACSL primitives is non-trivial here because e and v follow a linear recurrence that does not admit a simple invariant solely in terms of current e and v plus the loop counter pqg8 without resorting to pre-state or higher-order expressions.
+
+To keep the solution sound and verifiable with WP, I provide:
+- a core relational fact that is easy to prove inductively: the loop counter pqg8 remains non-negative, and the loop guard f>0 && bn>0 guarantees progress in each iteration (f and bn are non-increasing through the iterations, with the guard ensuring they stay positive at the top of each iteration).
+- simple progress-related invariants for the loop (non-negativity and non-emptiness of the loop guard) to support termination arguments.
+- a complete and exact loop assigns specification listing all variables that may be modified inside the loop.
+
+Note: The true state-transition law for e and v (e' = e + (e - v), v' = e - v) is inherently a “next-state” description and is more naturally encoded in a postcondition or a functional invariant referencing next-state variables. In standard ACSL loop invariants, one usually encodes such relations by either (i) introducing a ghost state, (ii) using \at(..., Pre) to reference initial values (for relational reasoning across iterations), or (iii) accepting a weaker invariant that WP can discharge. Here, to maintain correctness and avoid referencing non-parameters through \at, I provide straightforward invariants that are inductive and verification-friendly, plus the complete assigns list. If a more precise invariant tying e and v across iterations is desired, one could add a ghost variable with an explicit transition, or extend the contract with a post-state/loop-variant approach that captures the exact recurrence in a form WP can prove. </reasoning>
+
+<code>int main1(int e,int v){
+  int pqg8, f, bn, e1s, x70, of5, r0sl;
+
+  pqg8=0;
+  f=(v%20)+10;
+  bn=(v%15)+8;
+  e1s=8;
+  x70=-1;
+  of5=-6;
+  r0sl=pqg8;
+
+  /*
+   * Loop invariants:
+   * - A core progress property: the loop guard f>0 && bn>0 is the condition under which the loop executes.
+   * - Non-negativity/monotonic progress indicators for loop variables that are known to be non-increasing with respect to the loop guard.
+   * - A complete and exact list of loop-modified variables for Frama-C WP.
+   *
+   * Note: The true symbolic relation linking e and v across iterations is non-trivial to express
+   * as a simple inductive invariant without introducing ghost state or pre/post-state dependencies.
+   */
+  /*@
+    loop invariant f > 0;
+    loop invariant bn > 0;
+    loop invariant pqg8 >= 0;
+    loop assigns pqg8, f, bn, e, v, e1s, of5, x70, r0sl;
+  */
+  while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }
+
+}</code>
+----- Candidate 2/8 raw response end -----
+2026-03-22 14:03:46,532 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-22 14:03:46,546 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:04:36,733 - INFO - 
+----- Candidate 3/8 raw response begin -----
+<reasoning>We need a concise, inductive loop invariant that is friendly to Frama-C/WP and does not modify the original code. The loop updates only a subset of variables on each iteration, but one clean way to capture the progress is to track the sum of the two counters f and bn. Observing the loop body:
+
+- If pqg8 is even at the start of an iteration, f is decremented and bn is unchanged.
+- If pqg8 is odd, bn is decremented and f is unchanged.
+- In every iteration, pqg8 is incremented by 1.
+
+Thus, exactly one of f or bn is decreased by 1 each iteration, so the sum f + bn decreases by 1 per iteration. Initially, f and bn are initialized to:
+  f0 = (v % 20) + 10
+  bn0 = (v % 15) + 8
+We can express their initial sum using the function parameter v and refer to its initial value with \at(v, Pre). Therefore a strong, inductive invariant is:
+
+- f + bn equals the initial sum minus the number of iterations completed, i.e. f + bn == ((\at(v, Pre) % 20) + 10) + ((\at(v, Pre) % 15) + 8) - pqg8.
+
+This invariant is preserved by every loop iteration because pqg8 increases by 1 every iteration and exactly one of f or bn decreases by 1, keeping the invariant intact.
+
+Additionally, we provide a simple bound on the loop counter pqg8 (non-negative), and declare the loop assigns to list all variables modified inside the loop, including the function parameter e (which the loop changes with e += v). A loop variant of f + bn is provided to ensure termination (it decreases by 1 each iteration and is non-negative while the loop guard holds).
+
+Using these, we produce inductive, verification-friendly annotations without changing the original code structure or behavior. The invariant is strong and avoids tautologies or unrelated properties.
+
+</reasoning>
+<code>int main1(int e,int v){
+  int pqg8, f, bn, e1s, x70, of5, r0sl;
+
+  pqg8=0;
+  f=(v%20)+10;
+  bn=(v%15)+8;
+  e1s=8;
+  x70=-1;
+  of5=-6;
+  r0sl=pqg8;
+
+  /*@ 
+    loop invariant f + bn == ((\at(v, Pre) % 20) + 10) + ((\at(v, Pre) % 15) + 8) - pqg8;
+    loop invariant 0 <= pqg8;
+    loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+    loop variant f + bn;
+  @*/
+  while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }
+
+}</code>
+----- Candidate 3/8 raw response end -----
+2026-03-22 14:04:36,733 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-22 14:04:36,748 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:05:49,432 - INFO - 
+----- Candidate 4/8 raw response begin -----
+<reasoning>
+I analyzed the loop to derive inductive, verification-friendly invariants that are strong and useful for Frama-C/WP. The focus was on invariants that can be proven to hold initially and be preserved by each loop iteration, without requiring rewriting of the original code.
+
+Key observations used for invariants:
+- e1s is incremented by 2 every iteration, starting from 8. Therefore e1s == 8 + 2*pqg8 after k iterations (pqg8 counts iterations). This is a precise, inductive invariant.
+- f is decremented by 1 on iterations where the current pqg8 (before increment) is even, and not otherwise. Since pqg8 starts at 0 and is incremented each iteration, the number of times f has been decremented after k iterations equals ceil(k/2) = (k+1)/2 in integer arithmetic. Therefore f == ((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2), where the initial f0 is determined by the entry value of v. This invariant is strong and inductive, tying f to the initial value of v.
+- bn is decreased by 1 when pqg8 is odd, and bn is nonnegative throughout (the loop guard ensures bn > 0 to enter). Thus bn lies in 0..initial_bn, where initial_bn can be expressed in terms of v’s initial value: initial_bn == (\at(v,Pre) % 15) + 8. Hence 0 <= bn <= ((\at(v,Pre) % 15) + 8).
+- pqg8 is the iteration counter starting at 0 and incrementing by 1 each iteration, so pqg8 >= 0 is a natural invariant.
+- We list the exact set of variables that the loop may modify (loop assigns) including all variables that appear mutated in the loop body.
+
+These invariants are designed to be strong (not tautological) and inductive, and they rely only on permitted variables and the function’s pre-state for the initial values where needed. They do not modify the code, and they avoid forbidden constructs.
+
+Note: The invariants chosen are compatible with the given transition behavior:
+- e1s evolves deterministically with pqg8.
+- f’s evolution matches the derived closed form.
+- bn remains nonnegative and bounded by its initial (computed from v).
+- pqg8 monotonically increases, providing a natural loop-counter invariant.
 
 </reasoning>
 <code>/*@
-  loop invariant bamt == 2;
-  loop invariant c7 >= 0;
-  loop invariant u >= 0;
-  loop invariant phfb <= \at(e, Pre);
-  loop variant (phfb - bamt);
-  loop assigns u, c7, phfb;
-*/
-while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
+  loop invariant pqg8 >= 0;
+  loop invariant f == (((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2));
+  loop invariant e1s == 8 + 2*pqg8;
+  loop invariant 0 <= bn <= ((\at(v,Pre) % 15) + 8);
+  loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+*/ 
+while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
       }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
-  }
-
-/*@
-  loop invariant bamt >= 6;
-  loop invariant c7 >= 0;
-  loop invariant ep >= 0;
-  loop invariant phfb <= \at(e, Pre);
-  loop assigns c7, ep, bamt;
-*/
-while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
   }</code>
------ Candidate 1/5 raw response end -----
-2026-03-14 20:48:51,839 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-14 20:48:51,898 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:50:33,051 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>In the first loop (the one with while (1) and an internal break), the key state changes are:
-- bamt is never updated inside the loop body, so bamt remains 2 throughout the loop.
-- u is incremented by c7.
-- c7 is updated as c7 = (c7 + bamt) * 4 + 3, which ensures c7 stays nonnegative and grows from its initial value 2.
-- phfb is set to (bamt+1)-1, i.e., phfb becomes bamt after the first iteration.
-
-From these observations we can provide inductive invariants that are preserved by each iteration:
-- bamt == 2 (constant across the loop).
-- u >= 0 (since u is increased by c7 and c7 is nonnegative in this program path).
-- c7 >= 2 (initially 2; after each update c7 grows to at least 19, and stays >= 2).
-
-These invariants are strong (not tautological) and do not rely on the loop guard beyond the normal flow (the loop actually breaks via the if inside, but the invariants must hold at the loop head for each entry into the loop body).
-
-For the second loop (while (bamt >= 6)), the updates are:
-- c7 = c7 + ep*bamt
-- ep = ep + bamt
-- bamt = 6 (assuming the code intends to set bamt to 6; this makes the loop progress unclear, but we can still express harmless invariants that hold regardless of exact termination behavior)
-- The invariants we add focus on monotone growth of c7 and ep and the non-decrease of bamt (which becomes 6 after the first iteration if it was >=6).
-
-Consequently, we add:
-- In loop 0: invariants u >= 0; bamt == 2; c7 >= 2; and loop assigns u, c7, phfb.
-- In loop 1: invariants c7 >= 2; ep >= 2; and loop assigns c7, ep, bamt.
-
-These invariants are inductive (preserved by each iteration under the given body updates), provide a minimal yet useful progress bound (u grows, ep grows, c7 grows), and give complete loop assigns sets for Frama-C/WP. They avoid tautologies and keep the original code intact.
-
-</reasoning>
-<code>int main1(int e){
-  int phfb, bamt, c7, u, ep;
-
-  phfb=e;
-  bamt=2;
-  c7=bamt;
-  u=0;
-  ep=bamt;
-
-  /*@
-    loop invariant u &gt;= 0;
-    loop invariant bamt == 2;
-    loop invariant c7 &gt;= 2;
-    loop assigns u, c7, phfb;
-  */
-  while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
-      }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
-  }
-
-  /*@
-    loop invariant c7 &gt;= 2;
-    loop invariant ep &gt;= 2;
-    loop assigns c7, ep, bamt;
-  */
-  while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
-  }
-
-}</code>
------ Candidate 2/5 raw response end -----
-2026-03-14 20:50:33,051 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-14 20:50:33,106 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:52:04,506 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>In designing inductive loop invariants for these two loops, I aimed for strong, concise invariants that are preserved by the loop bodies and facilitate verification by Frama-C/WP without altering the original code flow beyond annotations.
-
-Loop 0 (the while (1) loop with a break)
-- Observations:
-  - bamt is never modified inside this loop, so bamt remains constant during the loop. Its initial value is 2.
-  - The body updates u and c7, and finally sets phfb to (bamt+1)-1, i.e., phfb becomes exactly bamt after the first (and only possible) iteration.
-  - If the loop executes, bamt+1 <= phfb must hold on entry, but after the body phfb is set to bamt, so the loop can at most run once for the given bamt.
-- Invariant choices:
-  - bamt == 2 captures the fact that bamt is constant and equal to its initial value throughout the loop. It is true initially and preserved by the body.
-  - u >= 0 and c7 >= 2 are simple, robust invariants since u starts at 0 and is increased by c7, while c7 starts at 2 and grows strictly on each iteration. They hold in the initial state and are preserved by the updates.
-  - loop variant phfb is used to show progress: if the loop executes, phfb is updated to bamt (2) which is a decrease from any initial phfb >= bamt+1. This guarantees eventual termination in the reachable path of this loop (there is at most one iteration when the guard holds).
-- Loop assigns: u, c7, phfb are modified in the loop body, so we specify those.
-
-Loop 1 (the while (bamt>=6) loop)
-- Observations:
-  - If the loop ever executes, bamt is set to 6 inside the loop, and ep and c7 are updated using the current bamt value.
-  - Before the loop, ep starts at 2 and c7 starts at 2; after the loop body, both ep and c7 remain nondecreasing (ep increases by bamt, c7 increases by ep*bamt).
-- Invariant choices:
-  - ep >= 2 and c7 >= 2 reflect the initial values and the monotone growth through the loop, and are preserved by the updates.
-- Loop assigns: c7, ep, bamt are modified inside the loop, so we specify those.
-
-These invariants avoid unrelated or tautological properties, stay within the allowed variable set, and provide a concise inductive explanation to Frama-C/WP for verification.
-
-</reasoning>
-<code>int main1(int e){
-  int phfb, bamt, c7, u, ep;
-
-  phfb=e;
-  bamt=2;
-  c7=bamt;
-  u=0;
-  ep=bamt;
-
-  /*@
-    loop invariant bamt == 2;
-    loop invariant u &gt;= 0;
-    loop invariant c7 &gt;= 2;
-    loop assigns u, c7, phfb;
-    loop variant phfb;
-  */
-while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
-      }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
-  }
-
-  /*@
-    loop invariant ep &gt;= 2;
-    loop invariant c7 &gt;= 2;
-    loop assigns c7, ep, bamt;
-  */
-while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
-  }
-
-}</code>
------ Candidate 3/5 raw response end -----
-2026-03-14 20:52:04,507 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-14 20:52:04,574 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:53:20,858 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>First, analyze the two loops to identify stable state properties that are guaranteed from the function’s initializations and preserved by each loop's body.
-
-Loop 0 (the while(1) with a break):
-- bamt is never updated inside this loop, so bamt remains constant across iterations. Initially bamt is set to 2, so we have bamt == 2 throughout.
-- phfb is initialized to e and, on each iteration that runs, is updated to (bamt+1)-1 which equals bamt (i.e., phfb becomes 2). Across all iterations, phfb cannot exceed the initial value of phfb, which equals e. Therefore phfb <= e holds for the loop lifetime.
-Given these, two strong, inductive invariants can be chosen:
-- bamt == 2
-- phfb <= e
-These are preserved by the loop and are non-tautological. The assigns cover the variables actually modified in the loop body: u, c7, phfb.
-
-Loop 1 (the while (bamt>=6)):
-- If this loop runs, the last statement assigns bamt = 6, so after the first iteration, bamt is 6 and remains >= 6 on subsequent iterations. Thus a safe invariant is bamt >= 6.
-- ep starts at 2 and is increased by bamt each iteration; since bamt >= 6, ep never decreases and remains at least 2. Hence ep >= 2 is preserved.
-These two invariants are inductive for the loop manifold, and the assigns line should reflect the updated variables: c7, ep, bamt.
-
-With these invariants, the WP verifier has the required inductive properties to verify the loops while keeping the code unchanged. The invariants are tight and directly describe the loop state evolution without introducing unrelated facts. </reasoning>
-
-<code>int main1(int e){
-  int phfb, bamt, c7, u, ep;
-
-  phfb=e;
-  bamt=2;
-  c7=bamt;
-  u=0;
-  ep=bamt;
-
-  /*@
-    loop invariant bamt == 2;
-    loop invariant phfb <= e;
-    loop assigns u, c7, phfb;
-  */
-while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
-      }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
-  }
-
-  /*@
-    loop invariant bamt >= 6;
-    loop invariant ep >= 2;
-    loop assigns c7, ep, bamt;
-  */
-while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
-  }
-
-}</code>
------ Candidate 4/5 raw response end -----
-2026-03-14 20:53:20,858 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-14 20:53:20,913 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 20:55:16,457 - INFO - 
------ Candidate 5/5 raw response begin -----
+----- Candidate 4/8 raw response end -----
+2026-03-22 14:05:49,432 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-22 14:05:49,445 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:06:31,614 - INFO - 
+----- Candidate 5/8 raw response begin -----
 <reasoning>
-Goal: provide inductive, verification-friendly ACSL loop annotations for the two loops in main1, ensuring the invariants are:
-- inductive (hold before first iteration and preserved by each iteration),
-- informative (reflect a core conservation/relational update),
-- accompanied by complete and exact loop assigns.
+Chosen invariants focus on a strong, inductive, and easy-to-verify relationship that captures how the loop progresses and how key counters decay.
 
-Observations:
-- Loop 0 is while(1) with an internal break on a condition. It updates u, c7, and phfb; bamt stays constant in this loop. ep is unused here. The per-iteration updates are:
-  u' = u + c7
-  c7' = 4*(c7 + bamt) + 3
-  phfb' = bamt
-- Loop 1 is while (bamt >= 6) with updates to c7, ep, and bamt (bamt becomes 6). It preserves phfb and e; bamt is set to 6, so after an iteration, bamt >= 6 remains true. The per-iteration updates are:
-  c7' = c7 + ep*bamt
-  ep' = ep + bamt
-  bamt' = 6
+Key observations:
+- Each iteration decreases exactly one unit from either f (when pqg8 is even) or bn (when pqg8 is odd), and pqg8 is incremented by 1 every iteration. Consequently, the sum f + bn + pqg8 remains constant across iterations, equal to its initial value.
+- Since the loop guard uses f > 0 and bn > 0, both f and bn stay nonnegative while the loop is active. A simple, robust lower-bound invariant is f >= 0 and bn >= 0.
+- The core, inductive/relational invariant is:
+  f + bn + pqg8 = initial_f0 + initial_bn0
+  where initial_f0 = (\at(v,Pre) % 20) + 10 and initial_bn0 = (\at(v,Pre) % 15) + 8.
+  This directly explains the state transition: as pqg8 increases by 1 and either f decreases by 1 or bn decreases by 1, the sum f+bn+pqg8 stays equal to the initial sum.
+- A loop variant for termination can be the decreasing quantity f + bn, which starts positive (since both f and bn are positive before the loop) and decreases by 1 each iteration.
 
-Two invariants are chosen for each loop to be inductive and non-trivial:
+Thus, the following invariants are inductive and verification-friendly:
+- f >= 0
+- bn >= 0
+- f + bn + pqg8 == initial_f0 + initial_bn0
+- loop variant: f + bn
+- loop assigns: all variables that can be modified inside the loop: f, bn, pqg8, x70, of5, e1s, v, r0sl, e
 
-- For Loop 0 (first loop):
-  - Invariant 1: 0 <= u && c7 > u
-    This captures a key relational property between the accumulative variable u and c7, which is preserved by the body updates:
-      u' = u + c7 and c7' grows (due to bamt being positive). Given u >= 0 and c7 > u initially, one can show c7' > u' under the loop's arithmetic (and bamt >= 2 by initialisation), making this invariant inductive.
-  - Invariant 2: 0 <= u
-    A simple lower bound that is preserved because u is incremented by c7 (which stays non-negative after the first iteration, given the previous invariant and initial values).
-  - Loop assigns: u, c7, phfb
-
-- For Loop 1 (second loop):
-  - Invariant 1: 0 <= ep && 0 <= c7
-    Non-negativity of ep and c7 is preserved by the updates:
-      c7 increases by ep*bamt (ep >= 0, bamt >= 6), and ep increases by bamt (>= 6).
-  - Invariant 2: bamt >= 6
-    Maintained because the loop condition ensures bamt >= 6 at entry, and the body sets bamt = 6, preserving the bound.
-  - Loop assigns: c7, ep, bamt
-
-These invariants are kept tight and informative without altering the original code. They do not rely on at-Pre for locals and stay within the available variables.
+These invariants use only permitted variables (bn, f, pqg8, x70, of5, e1s, v, r0sl, e) and function parameter \at(v,Pre) to express the initial values, satisfying the constraints. The proposed core conservation (f + bn + pqg8 invariant) is the primary, inductive relation that explains loop updates and is preserved by every iteration. The nonnegativity invariants and the loop variant ensure progress and termination.
 
 </reasoning>
-<code>int main1(int e){
-  int phfb, bamt, c7, u, ep;
+<code>int main1(int e,int v){
+  int pqg8, f, bn, e1s, x70, of5, r0sl;
 
-  phfb=e;
-  bamt=2;
-  c7=bamt;
-  u=0;
-  ep=bamt;
+  pqg8=0;
+  f=(v%20)+10;
+  bn=(v%15)+8;
+  e1s=8;
+  x70=-1;
+  of5=-6;
+  r0sl=pqg8;
 
   /*@
-    loop invariant 0 <= u && c7 > u;
-    loop invariant 0 <= u;
-    loop assigns u, c7, phfb;
+    loop invariant f >= 0;
+    loop invariant bn >= 0;
+    /* Core conservation/relational equality explaining the updates:
+       The sum f + bn + pqg8 remains constant and equals the initial sum
+       initial_f0 + initial_bn0 = ( (\at(v,Pre) % 20) + 10 ) + ( (\at(v,Pre) % 15) + 8 )
+    */
+    loop invariant f + bn + pqg8 == ((\at(v,Pre) % 20) + 10) + ((\at(v,Pre) % 15) + 8);
+    loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+    loop variant f + bn;
   */
-  while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
+
+  while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
       }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
   }
 
-  /*@
-    loop invariant 0 <= ep && 0 <= c7;
-    loop invariant bamt >= 6;
-    loop assigns c7, ep, bamt;
-  */
-  while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
+}</code>
+----- Candidate 5/8 raw response end -----
+2026-03-22 14:06:31,614 - INFO -   Candidate 6 selected prompt: simple_cot.txt
+2026-03-22 14:06:31,628 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:07:19,023 - INFO - 
+----- Candidate 6/8 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop invariants for the given loop in main1. The loop body updates several variables deterministically with each iteration. A strong invariant should capture the invariant relations that hold across iterations, while remaining provable from initial values and preserved by each iteration step.
+
+Key observations:
+- pqg8 acts as a loop index that increments by 1 each iteration.
+- Exactly one of f or bn is decremented per iteration depending on the parity of the current pqg8 value, so the sum f + bn decreases by 1 every iteration.
+- Therefore, after t iterations, f + bn equals its initial value minus t. The initial values depend on the function parameter v, which is fixed at entry and can be referred to as \at(v, Pre). The initial f0 = (\at(v,Pre) % 20) + 10 and bn0 = (\at(v,Pre) % 15) + 8.
+- Hence a strong invariant is: f + bn == f0 + bn0 - pqg8, i.e., f + bn == ((\at(v,Pre) % 20) + 10) + ((\at(v,Pre) % 15) + 8) - pqg8.
+- e1s starts at 8 and increases by 2 every iteration, so e1s == 8 + 2*pqg8 is an exact invariant.
+- We also provide a loop variant to prove termination: the natural decreasing measure is f + bn, which decreases by 1 per iteration and is bounded below by 0 in the loop’s lifetime.
+
+Thus we add two strong invariants:
+- f + bn == ((\at(v,Pre) % 20) + 10) + ((\at(v,Pre) % 15) + 8) - pqg8
+- e1s == 8 + 2*pqg8
+And we declare the full loop assigns set to reflect all mutated variables: f, bn, pqg8, x70, of5, e1s, v, r0sl, e. We also provide loop variant: f + bn.
+
+These invariants are inductive and verification-friendly, do not rely on the exact values of e or v beyond the initial parameter, and respect the constraint not to modify code outside the loop annotations. The \at(v,Pre) reference is valid since v is a function parameter. The guard is not used as an invariant; the variant and invariants suffice to support WP verification.
+
+</reasoning>
+<code>/*@
+  loop invariant f + bn == ((\at(v,Pre) % 20) + 10) + ((\at(v,Pre) % 15) + 8) - pqg8;
+  loop invariant e1s == 8 + 2 * pqg8;
+  loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+  loop variant f + bn;
+*/ 
+while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }</code>
+----- Candidate 6/8 raw response end -----
+2026-03-22 14:07:19,024 - INFO -   Candidate 7 selected prompt: simple_cot.txt
+2026-03-22 14:07:19,039 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:08:11,955 - INFO - 
+----- Candidate 7/8 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop annotations for the given loop. The loop counter is pqg8, starting at 0 and incrementing by 1 each iteration. Several state variables evolve predictably every iteration:
+
+- e1s increases by 2 each iteration, starting from 8. So after t iterations, e1s = 8 + 2*t. Since t equals the current pqg8, we have e1s == 8 + 2*pqg8.
+- bn decreases by 1 on every odd loop-step (when the previous pqg8 was even). After t iterations, bn = initial_bn - floor(t/2), where initial_bn = (v % 15) + 8 = ((\at(v,Pre) % 15) + 8). Using integer division, floor(pqg8/2) equals pqg8/2 for non-negative pqg8. So bn == ((\at(v,Pre) % 15) + 8) - (pqg8 / 2).
+- f decreases by 1 on every even loop-step (when the previous pqg8 was even). After t iterations, f = initial_f - ceil(t/2), where initial_f = (v % 20) + 10 = ((\at(v,Pre) % 20) + 10). Ceil(pqg8/2) can be expressed as ((pqg8 + 1) / 2). So f == ((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2).
+
+These relations are exact and inductive, given the loop body structure. They provide strong, non-tautological invariants that describe the coupled evolution of f, bn, and e1s with pqg8, which aids verification with Frama-C/WP. We also include a simple invariant that pqg8 is non-negative. All other variables (x70, of5, r0sl, e) are either updated in ways that aren’t easily captured by a simple closed form without introducing more complex relations; listing them in loop assigns suffices.
+
+We declare the loop assigns for all modified locals: pqg8, f, bn, e1s, x70, of5, r0sl, v, e. The loop variant is chosen as the negative of pqg8 to indicate a strictly decreasing measure and thus termination (as pqg8 increases, -pqg8 decreases). The invariants are placed before the loop to ensure initialization and inductiveness. No unrelated invariants are added. The initial references to initial values use \at(..., Pre) for function parameters v and e as needed; since v and e are function parameters, \at(v,Pre) is allowed. All variables used in invariants are from the available set. </reasoning>
+
+<code>/*@
+  loop invariant f == ((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2);
+  loop invariant bn == ((\at(v,Pre) % 15) + 8) - (pqg8 / 2);
+  loop invariant e1s == 8 + 2*pqg8;
+  loop invariant 0 <= pqg8;
+  loop assigns pqg8, f, bn, e1s, x70, of5, r0sl, v, e;
+  loop variant -(pqg8);
+*/
+while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e - v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }</code>
+----- Candidate 7/8 raw response end -----
+2026-03-22 14:08:11,956 - INFO -   Candidate 8 selected prompt: simple_cot.txt
+2026-03-22 14:08:11,968 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 14:09:04,414 - INFO - 
+----- Candidate 8/8 raw response begin -----
+<reasoning>
+We design inductive loop invariants that capture the key state progression and are friendly to Frama-C WP verification.
+
+Key observations from the loop body:
+- The only control-dependent updates to f and bn are:
+  - If pqg8 is even, f decreases by 1; otherwise bn decreases by 1.
+  - pqg8 is incremented by 1 every iteration.
+  - Other variables (x70, of5, e1s, r0sl, v, e) are updated deterministically but do not alter f or bn directly in a way that breaks a simple invariant on f and bn.
+
+A natural inductive invariant is that the sum f + bn strictly decreases by 1 in every iteration, starting from its initial value (f0 + bn0). Since one of f or bn decreases by 1 each iteration, f + bn reduces by exactly 1 per loop iteration. We can express f0 and bn0 in terms of the function parameter v (which is allowed) as:
+- initial_f = (\at(v, Pre) % 20) + 10
+- initial_bn = (\at(v, Pre) % 15) + 8
+
+Hence a precise conservation relation is:
+- f + bn == initial_f + initial_bn - pqg8
+
+To keep the WP prover robust, we also add simple bounds:
+- f >= 0
+- bn >= 0
+
+And we provide a loop variant that decreases each iteration:
+- loop variant f + bn
+
+Finally, we must specify the complete loop assigns: all variables that can be modified inside the loop: f, bn, pqg8, x70, of5, e1s, r0sl, v, e.
+
+These invariants are inductive:
+- Initialization: before the first iteration, f and bn have their initial positive values, and pqg8 is 0, so the invariant f + bn == initial_f + initial_bn - pqg8 holds.
+- Inductiveness: each iteration either decreases f or bn by 1, and pqg8 increases by 1, keeping the invariant valid; all other updates do not violate it.
+- Exit: when the loop guard becomes false, f <= 0 or bn <= 0, aligning with the invariant since pqg8 carries the number of iterations.
+
+<code>
+/*@
+  loop invariant f >= 0;
+  loop invariant bn >= 0;
+  loop invariant f + bn ==
+    ((\at(v,Pre) % 20) + 10) + ((\at(v,Pre) % 15) + 8) - pqg8;
+  loop variant f + bn;
+  loop assigns f, bn, pqg8, x70, of5, e1s, r0sl, v, e;
+*/
+while (f>0 && bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e - v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
   }
 
 }
 </code>
------ Candidate 5/5 raw response end -----
-2026-03-14 20:55:16,458 - INFO - 
------ Candidate 1/5 full code begin -----
+----- Candidate 8/8 raw response end -----
+2026-03-22 14:09:04,415 - INFO - 
+----- Candidate 1/8 full code begin -----
+int main1(int e,int v){
+  int pqg8, f, bn, e1s, x70, of5, r0sl;
+
+  pqg8=0;
+  f=(v%20)+10;
+  bn=(v%15)+8;
+  e1s=8;
+  x70=-1;
+  of5=-6;
+  r0sl=pqg8;
+
+  /*@
+    loop invariant f + bn + pqg8 == ((\at(v, Pre) % 20) + 10) + ((\at(v, Pre) % 15) + 8);
+    loop invariant f >= 0;
+    loop invariant bn >= 0;
+    loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+    loop variant (f + bn);
+  @*/
+while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }
+
+}
+----- Candidate 1/8 full code end -----
+2026-03-22 14:09:04,415 - INFO - 
+----- Candidate 2/8 full code begin -----
+int main1(int e,int v){
+  int pqg8, f, bn, e1s, x70, of5, r0sl;
+
+  pqg8=0;
+  f=(v%20)+10;
+  bn=(v%15)+8;
+  e1s=8;
+  x70=-1;
+  of5=-6;
+  r0sl=pqg8;
+
+  /*
+   * Loop invariants:
+   * - A core progress property: the loop guard f>0 && bn>0 is the condition under which the loop executes.
+   * - Non-negativity/monotonic progress indicators for loop variables that are known to be non-increasing with respect to the loop guard.
+   * - A complete and exact list of loop-modified variables for Frama-C WP.
+   *
+   * Note: The true symbolic relation linking e and v across iterations is non-trivial to express
+   * as a simple inductive invariant without introducing ghost state or pre/post-state dependencies.
+   */
+  /*@
+    loop invariant f > 0;
+    loop invariant bn > 0;
+    loop invariant pqg8 >= 0;
+    loop assigns pqg8, f, bn, e, v, e1s, of5, x70, r0sl;
+  */
+  while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }
+
+}
+----- Candidate 2/8 full code end -----
+2026-03-22 14:09:04,415 - INFO - 
+----- Candidate 3/8 full code begin -----
+int main1(int e,int v){
+  int pqg8, f, bn, e1s, x70, of5, r0sl;
+
+  pqg8=0;
+  f=(v%20)+10;
+  bn=(v%15)+8;
+  e1s=8;
+  x70=-1;
+  of5=-6;
+  r0sl=pqg8;
+
+  /*@ 
+    loop invariant f + bn == ((\at(v, Pre) % 20) + 10) + ((\at(v, Pre) % 15) + 8) - pqg8;
+    loop invariant 0 <= pqg8;
+    loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+    loop variant f + bn;
+  @*/
+  while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }
+
+}
+----- Candidate 3/8 full code end -----
+2026-03-22 14:09:04,415 - INFO - 
+----- Candidate 4/8 full code begin -----
 /*@
-  loop invariant bamt == 2;
-  loop invariant c7 >= 0;
-  loop invariant u >= 0;
-  loop invariant phfb <= \at(e, Pre);
-  loop variant (phfb - bamt);
-  loop assigns u, c7, phfb;
-*/
-while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
+  loop invariant pqg8 >= 0;
+  loop invariant f == (((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2));
+  loop invariant e1s == 8 + 2*pqg8;
+  loop invariant 0 <= bn <= ((\at(v,Pre) % 15) + 8);
+  loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+*/ 
+while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
       }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }
+----- Candidate 4/8 full code end -----
+2026-03-22 14:09:04,415 - INFO - 
+----- Candidate 5/8 full code begin -----
+int main1(int e,int v){
+  int pqg8, f, bn, e1s, x70, of5, r0sl;
+
+  pqg8=0;
+  f=(v%20)+10;
+  bn=(v%15)+8;
+  e1s=8;
+  x70=-1;
+  of5=-6;
+  r0sl=pqg8;
+
+  /*@
+    loop invariant f >= 0;
+    loop invariant bn >= 0;
+    /* Core conservation/relational equality explaining the updates:
+       The sum f + bn + pqg8 remains constant and equals the initial sum
+       initial_f0 + initial_bn0 = ( (\at(v,Pre) % 20) + 10 ) + ( (\at(v,Pre) % 15) + 8 )
+    */
+    loop invariant f + bn + pqg8 == ((\at(v,Pre) % 20) + 10) + ((\at(v,Pre) % 15) + 8);
+    loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+    loop variant f + bn;
+  */
+
+  while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
   }
 
+}
+----- Candidate 5/8 full code end -----
+2026-03-22 14:09:04,415 - INFO - 
+----- Candidate 6/8 full code begin -----
 /*@
-  loop invariant bamt >= 6;
-  loop invariant c7 >= 0;
-  loop invariant ep >= 0;
-  loop invariant phfb <= \at(e, Pre);
-  loop assigns c7, ep, bamt;
+  loop invariant f + bn == ((\at(v,Pre) % 20) + 10) + ((\at(v,Pre) % 15) + 8) - pqg8;
+  loop invariant e1s == 8 + 2 * pqg8;
+  loop assigns f, bn, pqg8, x70, of5, e1s, v, r0sl, e;
+  loop variant f + bn;
+*/ 
+while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e-v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
+  }
+----- Candidate 6/8 full code end -----
+2026-03-22 14:09:04,415 - INFO - 
+----- Candidate 7/8 full code begin -----
+/*@
+  loop invariant f == ((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2);
+  loop invariant bn == ((\at(v,Pre) % 15) + 8) - (pqg8 / 2);
+  loop invariant e1s == 8 + 2*pqg8;
+  loop invariant 0 <= pqg8;
+  loop assigns pqg8, f, bn, e1s, x70, of5, r0sl, v, e;
+  loop variant -(pqg8);
 */
-while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
-  }
------ Candidate 1/5 full code end -----
-2026-03-14 20:55:16,458 - INFO - 
------ Candidate 2/5 full code begin -----
-int main1(int e){
-  int phfb, bamt, c7, u, ep;
-
-  phfb=e;
-  bamt=2;
-  c7=bamt;
-  u=0;
-  ep=bamt;
-
-  /*@
-    loop invariant u &gt;= 0;
-    loop invariant bamt == 2;
-    loop invariant c7 &gt;= 2;
-    loop assigns u, c7, phfb;
-  */
-  while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
+while (f>0&&bn>0) {
+      if (pqg8%2==0) {
+          f--;
       }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e - v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
   }
-
-  /*@
-    loop invariant c7 &gt;= 2;
-    loop invariant ep &gt;= 2;
-    loop assigns c7, ep, bamt;
-  */
-  while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
+----- Candidate 7/8 full code end -----
+2026-03-22 14:09:04,415 - INFO - 
+----- Candidate 8/8 full code begin -----
+/*@
+  loop invariant f >= 0;
+  loop invariant bn >= 0;
+  loop invariant f + bn ==
+    ((\at(v,Pre) % 20) + 10) + ((\at(v,Pre) % 15) + 8) - pqg8;
+  loop variant f + bn;
+  loop assigns f, bn, pqg8, x70, of5, e1s, r0sl, v, e;
+*/
+while (f>0 && bn>0) {
+      if (pqg8%2==0) {
+          f--;
+      }
+      else {
+          bn -= 1;
+      }
+      pqg8 = pqg8 + 1;
+      if (!(!((pqg8%4)==0))) {
+          x70 += of5;
+      }
+      of5 += bn;
+      e1s += 2;
+      of5 += 1;
+      v = e - v;
+      if ((pqg8%7)==0) {
+          r0sl = r0sl + e;
+      }
+      e += v;
   }
 
 }
------ Candidate 2/5 full code end -----
-2026-03-14 20:55:16,458 - INFO - 
------ Candidate 3/5 full code begin -----
-int main1(int e){
-  int phfb, bamt, c7, u, ep;
-
-  phfb=e;
-  bamt=2;
-  c7=bamt;
-  u=0;
-  ep=bamt;
-
-  /*@
-    loop invariant bamt == 2;
-    loop invariant u &gt;= 0;
-    loop invariant c7 &gt;= 2;
-    loop assigns u, c7, phfb;
-    loop variant phfb;
-  */
-while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
-      }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
-  }
-
-  /*@
-    loop invariant ep &gt;= 2;
-    loop invariant c7 &gt;= 2;
-    loop assigns c7, ep, bamt;
-  */
-while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
-  }
-
-}
------ Candidate 3/5 full code end -----
-2026-03-14 20:55:16,458 - INFO - 
------ Candidate 4/5 full code begin -----
-int main1(int e){
-  int phfb, bamt, c7, u, ep;
-
-  phfb=e;
-  bamt=2;
-  c7=bamt;
-  u=0;
-  ep=bamt;
-
-  /*@
-    loop invariant bamt == 2;
-    loop invariant phfb <= e;
-    loop assigns u, c7, phfb;
-  */
-while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
-      }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
-  }
-
-  /*@
-    loop invariant bamt >= 6;
-    loop invariant ep >= 2;
-    loop assigns c7, ep, bamt;
-  */
-while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
-  }
-
-}
------ Candidate 4/5 full code end -----
-2026-03-14 20:55:16,458 - INFO - 
------ Candidate 5/5 full code begin -----
-int main1(int e){
-  int phfb, bamt, c7, u, ep;
-
-  phfb=e;
-  bamt=2;
-  c7=bamt;
-  u=0;
-  ep=bamt;
-
-  /*@
-    loop invariant 0 <= u && c7 > u;
-    loop invariant 0 <= u;
-    loop assigns u, c7, phfb;
-  */
-  while (1) {
-      if (!(bamt+1<=phfb)) {
-          break;
-      }
-      u += c7;
-      c7 += bamt;
-      c7 = c7*4+3;
-      phfb = (bamt+1)-1;
-  }
-
-  /*@
-    loop invariant 0 <= ep && 0 <= c7;
-    loop invariant bamt >= 6;
-    loop assigns c7, ep, bamt;
-  */
-  while (bamt>=6) {
-      c7 = c7+ep*bamt;
-      ep += bamt;
-      bamt = =6;
-  }
-
-}
------ Candidate 5/5 full code end -----
-2026-03-14 20:55:16,458 - INFO - Successfully generated 5/5 candidates
-2026-03-14 20:55:16,459 - INFO - Checking 7 invariants for conflicts...
-2026-03-14 20:55:16,460 - INFO - Checking 6 invariants for conflicts...
-2026-03-14 20:55:16,462 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-14 20:55:16,462 - INFO -   1: int main1(int e){
-2026-03-14 20:55:16,462 - INFO -   2:   int phfb, bamt, c7, u, ep;
-2026-03-14 20:55:16,462 - INFO -   3: 
-2026-03-14 20:55:16,462 - INFO -   4:   phfb=e;
-2026-03-14 20:55:16,462 - INFO -   5:   bamt=2;
-2026-03-14 20:55:16,462 - INFO -   6:   c7=bamt;
-2026-03-14 20:55:16,462 - INFO -   7:   u=0;
-2026-03-14 20:55:16,462 - INFO -   8:   ep=bamt;
-2026-03-14 20:55:16,462 - INFO -   9: 
-2026-03-14 20:55:16,462 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
-2026-03-14 20:55:16,462 - INFO - DEBUG: Total lines: 48
-2026-03-14 20:55:16,644 - INFO - syntax Error
-[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c (with preprocessing)
-[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c:44: 
-  syntax error:
-  Location: line 44, between columns 13 and 14, before or at token: =
-  42          c7 = c7+ep*bamt;
-  43          ep += bamt;
-  44          bamt = =6;
-        ^^^^^^^^^^^^^^^^
-  45      }
-  46
-[kernel] Frama-C aborted: invalid user input.
-
-2026-03-14 20:55:16,644 - WARNING - All invariants were removed, deleted entire /*@ */ block
-2026-03-14 20:55:16,644 - INFO - Houdini iteration 1: Removed 13 failed invariants
-2026-03-14 20:55:16,644 - INFO -   Before: 13 invariants
-2026-03-14 20:55:16,644 - INFO -   After: 0 invariants
-2026-03-14 20:55:16,644 - ERROR - All invariants were removed by Houdini
-2026-03-14 20:55:16,827 - INFO - syntax Error
-[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c (with preprocessing)
-[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c:44: 
-  syntax error:
-  Location: line 44, between columns 13 and 14, before or at token: =
-  42          c7 = c7+ep*bamt;
-  43          ep += bamt;
-  44          bamt = =6;
-        ^^^^^^^^^^^^^^^^
-  45      }
-  46
-[kernel] Frama-C aborted: invalid user input.
-
-2026-03-14 20:55:54,907 - INFO - Deduplicated 8 loop invariants in final code
-2026-03-14 20:55:55,107 - INFO - syntax Error
-[kernel] Parsing /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c (with preprocessing)
-[kernel] /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c:40: 
-  syntax error:
-  Location: line 40, between columns 13 and 14, before or at token: =
-  38          c7 = c7+ep*bamt;
-  39          ep += bamt;
-  40          bamt = =6;
-        ^^^^^^^^^^^^^^^^
-  41      }
-  42
-[kernel] Frama-C aborted: invalid user input.
-
-2026-03-14 20:55:55,108 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
-2026-03-14 20:55:55,108 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
-2026-03-14 20:55:55,108 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c
-2026-03-14 20:55:55,108 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1_invariants.txt
-2026-03-14 20:55:55,108 - INFO - 
+----- Candidate 8/8 full code end -----
+2026-03-22 14:09:04,415 - INFO - Successfully generated 8/8 candidates
+2026-03-22 14:09:04,416 - INFO - Checking 13 invariants for conflicts...
+2026-03-22 14:09:04,419 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-22 14:09:04,419 - INFO -   1: int main1(int e,int v){
+2026-03-22 14:09:04,419 - INFO -   2:   int pqg8, f, bn, e1s, x70, of5, r0sl;
+2026-03-22 14:09:04,419 - INFO -   3: 
+2026-03-22 14:09:04,419 - INFO -   4:   pqg8=0;
+2026-03-22 14:09:04,419 - INFO -   5:   f=(v%20)+10;
+2026-03-22 14:09:04,420 - INFO -   6:   bn=(v%15)+8;
+2026-03-22 14:09:04,420 - INFO -   7:   e1s=8;
+2026-03-22 14:09:04,420 - INFO -   8:   x70=-1;
+2026-03-22 14:09:04,420 - INFO -   9:   of5=-6;
+2026-03-22 14:09:04,420 - INFO -   10:   r0sl=pqg8;
+2026-03-22 14:09:04,420 - INFO - DEBUG: Total lines: 51
+2026-03-22 14:09:04,645 - INFO - syntax Correct
+2026-03-22 14:10:05,634 - INFO - Validate:
+2026-03-22 14:10:05,634 - INFO - [True, False, False, False, False, True, True, True, True, True, True, True, True]
+2026-03-22 14:10:05,634 - INFO - 
+2026-03-22 14:10:05,635 - INFO - Verify:
+2026-03-22 14:10:05,635 - INFO - []
+2026-03-22 14:10:05,635 - INFO - 
+2026-03-22 14:10:05,635 - INFO - Houdini iteration 1: Removed 4 failed invariants
+2026-03-22 14:10:05,635 - INFO -   Before: 13 invariants
+2026-03-22 14:10:05,635 - INFO -   After: 9 invariants
+2026-03-22 14:10:05,635 - INFO -   Remaining invariants:
+2026-03-22 14:10:05,635 - INFO -     [1] f + bn + pqg8 == ((\at(v, Pre) % 20) + 10) + ((\at(v, Pre) % 15) + 8)
+2026-03-22 14:10:05,635 - INFO -     [2] pqg8 >= 0
+2026-03-22 14:10:05,635 - INFO -     [3] f + bn == ((\at(v, Pre) % 20) + 10) + ((\at(v, Pre) % 15) + 8) - pqg8
+2026-03-22 14:10:05,635 - INFO -     [4] 0 <= pqg8
+2026-03-22 14:10:05,635 - INFO -     [5] f == (((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2))
+2026-03-22 14:10:05,635 - INFO -     [6] e1s == 8 + 2*pqg8
+2026-03-22 14:10:05,635 - INFO -     [7] 0 <= bn <= ((\at(v,Pre) % 15) + 8)
+2026-03-22 14:10:05,635 - INFO -     [8] f == ((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2)
+2026-03-22 14:10:05,635 - INFO -     [9] bn == ((\at(v,Pre) % 15) + 8) - (pqg8 / 2)
+2026-03-22 14:10:05,835 - INFO - syntax Correct
+2026-03-22 14:10:36,956 - INFO - Validate:
+2026-03-22 14:10:36,956 - INFO - [True, True, True, True, True, True, False, True, True]
+2026-03-22 14:10:36,956 - INFO - 
+2026-03-22 14:10:36,957 - INFO - Verify:
+2026-03-22 14:10:36,957 - INFO - []
+2026-03-22 14:10:36,957 - INFO - 
+2026-03-22 14:10:36,957 - INFO - Houdini iteration 2: Removed 1 failed invariants
+2026-03-22 14:10:36,957 - INFO -   Before: 9 invariants
+2026-03-22 14:10:36,957 - INFO -   After: 8 invariants
+2026-03-22 14:10:36,957 - INFO -   Remaining invariants:
+2026-03-22 14:10:36,957 - INFO -     [1] f + bn + pqg8 == ((\at(v, Pre) % 20) + 10) + ((\at(v, Pre) % 15) + 8)
+2026-03-22 14:10:36,957 - INFO -     [2] pqg8 >= 0
+2026-03-22 14:10:36,957 - INFO -     [3] f + bn == ((\at(v, Pre) % 20) + 10) + ((\at(v, Pre) % 15) + 8) - pqg8
+2026-03-22 14:10:36,957 - INFO -     [4] 0 <= pqg8
+2026-03-22 14:10:36,957 - INFO -     [5] f == (((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2))
+2026-03-22 14:10:36,957 - INFO -     [6] e1s == 8 + 2*pqg8
+2026-03-22 14:10:36,957 - INFO -     [7] f == ((\at(v,Pre) % 20) + 10) - ((pqg8 + 1) / 2)
+2026-03-22 14:10:36,957 - INFO -     [8] bn == ((\at(v,Pre) % 15) + 8) - (pqg8 / 2)
+2026-03-22 14:10:37,144 - INFO - syntax Correct
+2026-03-22 14:11:08,180 - INFO - Validate:
+2026-03-22 14:11:08,180 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-22 14:11:08,180 - INFO - 
+2026-03-22 14:11:08,180 - INFO - Verify:
+2026-03-22 14:11:08,180 - INFO - []
+2026-03-22 14:11:08,180 - INFO - 
+2026-03-22 14:11:08,180 - INFO - Houdini iteration 3: All invariants are valid
+2026-03-22 14:11:08,389 - INFO - syntax Correct
+2026-03-22 14:11:39,534 - INFO - Validate:
+2026-03-22 14:11:39,534 - INFO - [True, True, True, True, True, True, True, True]
+2026-03-22 14:11:39,534 - INFO - 
+2026-03-22 14:11:39,534 - INFO - Verify:
+2026-03-22 14:11:39,534 - INFO - []
+2026-03-22 14:11:39,534 - INFO - 
+2026-03-22 14:12:14,703 - INFO - Deduplicated 3 loop invariants in final code
+2026-03-22 14:12:14,889 - INFO - syntax Correct
+2026-03-22 14:12:45,839 - INFO - Validate:
+2026-03-22 14:12:45,839 - INFO - [True, True, True, True, True]
+2026-03-22 14:12:45,839 - INFO - 
+2026-03-22 14:12:45,839 - INFO - Verify:
+2026-03-22 14:12:45,839 - INFO - []
+2026-03-22 14:12:45,839 - INFO - 
+2026-03-22 14:12:45,839 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-22 14:12:45,840 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_65/1.c
+2026-03-22 14:12:45,840 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_65/1_invariants.txt
+2026-03-22 14:12:45,840 - INFO - 
 ============================================================
-2026-03-14 20:55:55,108 - INFO - Final first_pass results:
-2026-03-14 20:55:55,108 - INFO -   syntax=None
-2026-03-14 20:55:55,108 - INFO -   valid=None
-2026-03-14 20:55:55,108 - INFO -   satisfy=None
-2026-03-14 20:55:55,108 - INFO - ============================================================
-2026-03-14 20:55:55,108 - INFO - 
+2026-03-22 14:12:45,840 - INFO - Final first_pass results:
+2026-03-22 14:12:45,840 - INFO -   syntax=1
+2026-03-22 14:12:45,840 - INFO -   valid=1
+2026-03-22 14:12:45,840 - INFO -   satisfy=None
+2026-03-22 14:12:45,840 - INFO - ============================================================
+2026-03-22 14:12:45,840 - INFO - 
 ============================================================
-2026-03-14 20:55:55,108 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-14 20:55:55,108 - INFO -   Total API calls: 6
-2026-03-14 20:55:55,108 - INFO -   Total prompt tokens (input): 8,134
-2026-03-14 20:55:55,108 - INFO -   Total completion tokens (output): 54,249
-2026-03-14 20:55:55,108 - INFO -   Total tokens: 62,383
-2026-03-14 20:55:55,108 - INFO -   Average per call:
-2026-03-14 20:55:55,108 - INFO -     Prompt: 1355.7 tokens
-2026-03-14 20:55:55,108 - INFO -     Completion: 9041.5 tokens
-2026-03-14 20:55:55,108 - INFO -     Total: 10397.2 tokens
-2026-03-14 20:55:55,108 - INFO - ============================================================
-2026-03-14 20:55:55,108 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1.c
-2026-03-14 20:55:55,109 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_3546533_1773491008_65/1_invariants.txt
-2026-03-14 21:11:31 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=662, dedup inside)...
-2026-03-14 21:18:45 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
-2026-03-14 21:18:45 - INFO - COT Phase#2: generating rejected reverse-COTs for 135 unique dpo_aug.rejected code pieces (existing=3856)...
-2026-03-14 22:58:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
+2026-03-22 14:12:45,840 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-22 14:12:45,840 - INFO -   Total API calls: 28
+2026-03-22 14:12:45,840 - INFO -   Total prompt tokens (input): 41,061
+2026-03-22 14:12:45,840 - INFO -   Total completion tokens (output): 228,416
+2026-03-22 14:12:45,840 - INFO -   Total tokens: 269,477
+2026-03-22 14:12:45,840 - INFO -   Average per call:
+2026-03-22 14:12:45,840 - INFO -     Prompt: 1466.5 tokens
+2026-03-22 14:12:45,840 - INFO -     Completion: 8157.7 tokens
+2026-03-22 14:12:45,840 - INFO -     Total: 9624.2 tokens
+2026-03-22 14:12:45,840 - INFO - ============================================================
+2026-03-22 14:12:45,840 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_65/1.c
+2026-03-22 14:12:45,840 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_65/1_invariants.txt
+2026-03-22 14:13:25,684 - INFO - LLM quality-gate raw response: {
+  "ok": false,
+  "reason": "fail"
+}
+2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
+2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
+2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...

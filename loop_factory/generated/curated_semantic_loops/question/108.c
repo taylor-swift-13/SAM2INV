@@ -1,19 +1,20 @@
-int main1(int m,int q){
-  int j, k, x;
+int main1(int k,int m){
+  int i, r, x, d;
 
-  j=(m%6)+19;
-  k=0;
-  x=q;
+  i=(k%6)+11;
+  r=i;
+  x=3;
+  d=r;
 
 
-while (k<j) {
-      x = x+5;
-      x = x+3;
-      k = k+1;
+while (r>=4) {
+      d = d+1;
+      x = d*d;
+      x = x+d;
   }
 /*@
-  assert !(k<j) &&
-         (j == (m % 6) + 19);
+  assert !(r>=4) &&
+         (r == i);
 */
 
 }

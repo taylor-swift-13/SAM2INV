@@ -1,39 +1,40 @@
-int main1(int k,int n){
-  int r, w, b, y;
+int main1(int b,int k){
+  int p, q, v, r;
 
-  r=(k%21)+13;
-  w=1;
-  b=-2;
-  y=4;
+  p=(k%7)+8;
+  q=0;
+  v=p;
+  r=q;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 2*(y - 4) == b + 2;
-  loop invariant b >= -2;
-  loop invariant b <= r + 5;
-  loop invariant y >= 4;
-  loop invariant r == (\at(k, Pre) % 21) + 13;
-  loop invariant b + 2 == 2*(y - 4);
-  loop invariant (y - 4) % 3 == 0;
-  loop invariant k == \at(k,Pre);
-  loop invariant n == \at(n,Pre);
-  loop invariant (b + 2) % 6 == 0;
-  loop invariant r == (k % 21) + 13;
-  loop invariant b - 2*y == -10;
-  loop invariant b == 2*y - 10;
+  loop invariant k == \at(k, Pre);
+  loop invariant b == \at(b, Pre);
+  loop invariant p == (\at(k, Pre) % 7) + 8;
 
-  loop assigns b, y;
+  loop invariant p <= 14;
+  loop invariant p == (k % 7) + 8;
+  loop invariant v <= p;
+  loop invariant r >= 0;
+  loop invariant v >= 0;
+  loop invariant v == p;
+  loop invariant r == 0;
+  loop invariant r <= p + 1;
+  loop assigns v, r;
 */
-while (b<r) {
-      if (b<r) {
-          b = b+1;
+while (v<p) {
+      if (v<p) {
+          v = v+1;
       }
-      b = b+5;
-      y = y+3;
+      r = r+r;
+      r = r+v;
+      v = v+1;
+      v = v+r;
+      r = v-r;
   }
 /*@
-  assert !(b<r) &&
-         (2*(y - 4) == b + 2);
+  assert !(v<p) &&
+         (k == \at(k, Pre));
 */
 
 

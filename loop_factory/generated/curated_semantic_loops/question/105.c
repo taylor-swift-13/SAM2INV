@@ -1,22 +1,26 @@
-int main1(int m,int n){
-  int r, w, v, u;
+int main1(int a,int p){
+  int n, b, s, v;
 
-  r=(n%8)+8;
-  w=0;
-  v=-5;
-  u=4;
+  n=(p%40)+5;
+  b=0;
+  s=0;
+  v=0;
 
 
-while (v<r) {
-      if (v<r) {
-          v = v+1;
+while (s<n) {
+      if (s<n/2) {
+          v = v+3;
       }
-      u = u+u;
-      u = u+v;
+      else {
+          v = v-3;
+      }
+      s = s+1;
   }
 /*@
-  assert !(v<r) &&
-         (m == \at(m, Pre) && n == \at(n, Pre) && -5 <= v && v <= r && r == (\at(n, Pre) % 8) + 8);
+  assert (n == (\at(p, Pre) % 40) + 5) &&
+         (s >= n) &&
+         (s >= 0) &&
+         (v % 3 == 0);
 */
 
 }

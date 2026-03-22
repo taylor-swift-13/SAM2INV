@@ -1,31 +1,45 @@
-int main1(int k,int q){
-  int j, v, t;
+int main1(int b,int n){
+  int z, h, d;
 
-  j=(k%18)+18;
-  v=0;
-  t=k;
+  z=(b%37)+4;
+  h=z;
+  d=-6;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant t == k + (v*(v-1))/2;
-  loop invariant v <= j;
-  loop invariant 0 <= v;
-  loop invariant j == (k % 18) + 18;
-  loop invariant t == k + v*(v - 1)/2 && j >= 0;
-  loop invariant k == \at(k, Pre);
-  loop invariant j == (\at(k, Pre) % 18) + 18;
-  loop invariant t == \at(k, Pre) + v*(v-1)/2;
-  loop invariant q == \at(q,Pre);
-  loop invariant t == \at(k, Pre) + (v*(v-1))/2;
-  loop assigns t, v;
+  loop invariant b == \at(b, Pre);
+  loop invariant n == \at(n, Pre);
+  loop invariant z == (\at(b, Pre) % 37) + 4;
+  loop invariant h == z;
+  loop invariant d >= -6;
+  loop invariant b == \at(b, Pre) &&
+                   n == \at(n, Pre) &&
+                   h == z &&
+                   z == (\at(b, Pre) % 37) + 4;
+
+  loop invariant b == \at(b, Pre) && n == \at(n, Pre);
+  loop invariant z == (b % 37) + 4;
+
+  loop invariant (n >= 6) ==> ((-6 <= d) && (d <= 0));
+  loop invariant h == z && z == (\at(b, Pre) % 37) + 4 && b == \at(b, Pre);
+  loop invariant n == \at(n, Pre) && d >= -6;
+
+  loop invariant h <= 40;
+
+  loop assigns d;
 */
-while (v<j) {
-      t = t+v;
-      v = v+1;
+while (h-2>=0) {
+      d = d+4;
+      if (h+6<=n+z) {
+          d = d-d;
+      }
+      else {
+          d = d+1;
+      }
   }
 /*@
-  assert !(v<j) &&
-         (t == k + (v*(v-1))/2);
+  assert !(h-2>=0) &&
+         (b == \at(b, Pre));
 */
 
 

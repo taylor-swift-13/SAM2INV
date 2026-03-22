@@ -1,16 +1,23 @@
-int main(int n) {
-  if (n < 0) n = 0;
-  int i = 0, j;
-  int budget = n * (n + 1);
-  
-  while (i < n) {
-    
-    for (j = 0; j < i; ++j) {
-      budget -= 2;
-    }
-    budget -= 2;
-    i++;
+int main1(int k){
+  int u, q, j;
+
+  u=(k%6)+4;
+  q=u;
+  j=q;
+
+
+while (q-2>=0) {
+      j = j+1;
+      if (q+6<=q+u) {
+          j = j+1;
+      }
+      q = q-2;
   }
-  /*@ assert budget == 0 && budget % 2 == 0; */
-  return budget;
+/*@
+  assert (u == (\at(k, Pre) % 6) + 4) &&
+         (q <= 1) &&
+         ((q % 2) == (u % 2)) &&
+         (j >= q);
+*/
+
 }

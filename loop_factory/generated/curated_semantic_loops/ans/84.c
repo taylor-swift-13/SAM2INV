@@ -1,35 +1,33 @@
-int main1(int b,int k){
-  int v, o, j, z;
+int main1(int b,int n){
+  int m, s, k, v;
 
-  v=b;
-  o=v;
-  j=o;
-  z=-5;
+  m=(b%7)+6;
+  s=0;
+  k=n;
+  v=-4;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant v == b;
-  loop invariant j <= v;
-  loop invariant j >= b;
-  loop invariant (j - b) % 2 == 0;
-  loop invariant v == \at(b, Pre);
-  loop invariant k == \at(k, Pre);
-  loop invariant (v - j) % 2 == 0;
-  loop invariant j <= v + 1;
-  loop invariant b == \at(b,Pre);
-  loop invariant (j - \at(b, Pre)) % 2 == 0;
-  loop invariant j >= \at(b, Pre);
-  loop assigns j;
+  loop invariant k == \at(n, Pre) + 3*s;
+  loop invariant 0 <= s;
+  loop invariant s <= m;
+  loop invariant m == (\at(b, Pre) % 7) + 6;
+  loop invariant b == \at(b, Pre);
+  loop invariant n == \at(n, Pre);
+  loop invariant m == (b % 7) + 6;
+  loop invariant k - 3*s == n;
+  loop invariant s >= 0;
+  loop invariant k == n + 3*s;
+  loop invariant m == (\at(b, Pre) % 7 + 6);
+  loop assigns k, s;
 */
-while (j<v) {
-      if (j<v) {
-          j = j+1;
-      }
-      j = j+1;
+while (s<=m-1) {
+      k = k+3;
+      s = s+1;
   }
 /*@
-  assert !(j<v) &&
-         (v == b);
+  assert !(s<=m-1) &&
+         (k == \at(n, Pre) + 3*s);
 */
 
 

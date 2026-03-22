@@ -1,19 +1,25 @@
-int main1(int n,int q){
-  int l, i, u, v;
+int main1(int k,int n){
+  int r, w, b, y;
 
-  l=51;
-  i=l;
-  u=0;
-  v=q;
+  r=(k%21)+13;
+  w=1;
+  b=-2;
+  y=4;
 
 
-while (i>3) {
-      u = u+4;
-      i = i-4;
+while (w<=r-1) {
+      if (w<r/2) {
+          b = b+y;
+      }
+      else {
+          b = b+1;
+      }
+      b = b+5;
+      y = y+3;
   }
 /*@
-  assert !(i>3) &&
-         (u + i == l);
+  assert !(w<=r-1) &&
+         (y >= 4);
 */
 
 }

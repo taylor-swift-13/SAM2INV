@@ -1,26 +1,26 @@
-int main1(int k,int p){
-  int r, c, v, y, l, s;
+int main1(int a,int b,int q){
+  int r, z, v, m, g, l;
 
-  r=30;
-  c=r+3;
-  v=r;
-  y=-8;
-  l=k;
-  s=r;
+  r=q;
+  z=0;
+  v=8;
+  m=b;
+  g=0;
+  l=q;
 
 
 while (1) {
       if (v>=r) {
           break;
       }
-      if (l<=y) {
-          y = l;
+      if (g<=m) {
+          m = g;
       }
       v = v+1;
-      v = v+c;
+      v = v*2;
   }
 /*@
-  assert (r == 30);
+  assert (g == 0);
 */
 
 }

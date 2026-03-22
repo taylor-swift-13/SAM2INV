@@ -1,20 +1,25 @@
-int main1(int k,int n){
-  int b, g, e, l;
+int main1(int a,int b){
+  int u, d, n, e;
 
-  b=(n%8)+16;
-  g=0;
-  e=k;
-  l=k;
+  u=b+12;
+  d=u;
+  n=0;
+  e=a;
 
 
-while (g<=b-1) {
-      l = l+l;
-      l = l+e;
-      g = g+1;
+while (n<u) {
+      if (n>=u/2) {
+          e = e+4;
+      }
+      n = n+1;
+      n = n*3+3;
   }
 /*@
-  assert !(g<=b-1) &&
-         (0 <= g);
+  assert (u == \at(b, Pre) + 12) &&
+         (n >= u) &&
+         (n % 3 == 0) &&
+         (e >= \at(a, Pre)) &&
+         ((e - \at(a, Pre)) % 4 == 0);
 */
 
 }

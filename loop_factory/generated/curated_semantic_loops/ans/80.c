@@ -1,47 +1,41 @@
-int main1(int m,int q){
-  int i, e, o;
+int main1(int m,int n){
+  int z, u, w, r;
 
-  i=(q%17)+16;
-  e=0;
-  o=-8;
+  z=8;
+  u=z+6;
+  w=u;
+  r=z;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant i == (q % 17) + 16;
-  loop invariant o == -8;
-  loop invariant e % 2 == 0;
-
+  loop invariant z == 8;
   loop invariant m == \at(m, Pre);
-  loop invariant q == \at(q, Pre);
-  loop invariant i == ((\at(q, Pre) % 17) + 16);
-  loop invariant e >= 0;
-  loop invariant e <= i;
-  loop invariant i == (\at(q,Pre)%17) + 16;
-  loop invariant -8 <= o;
-  loop invariant o <= 8;
-  loop invariant i == (q % 17) + 16 &&
-                   e % 2 == 0 &&
-                   0 <= e &&
-                   e <= i &&
-                   o == -8 &&
-                   q == \at(q, Pre) &&
-                   m == \at(m, Pre);
-  loop invariant 0 <= i;
-  loop invariant i <= 32;
-  loop assigns e, o;
+  loop invariant n == \at(n, Pre);
+  loop invariant w % 2 == 0;
+  loop invariant u % 2 == 0;
+  loop invariant r % 2 == 0;
+
+  loop invariant u <= z + 6;
+  loop invariant w > 0;
+  loop invariant (w % 2 == 0);
+  loop invariant (w >= z + 6);
+  loop invariant (u <= z + 6);
+  loop invariant (u >= z);
+  loop invariant (u % 2 == z % 2);
+  loop invariant (r % 2 == z % 2);
+  loop invariant u <= 14;
+  loop assigns w, r, u;
 */
-while (e+2<=i) {
-      if (o+1<i) {
-          o = o%9;
-      }
-      e = e+2;
+while (u>=z+1) {
+      w = w*2;
+      r = r+w;
+      r = r%2;
+      u = u-2;
   }
 /*@
-  assert (i == (\at(q, Pre) % 17) + 16) &&
-         (0 <= e) &&
-         (e <= i) &&
-         (e + 2 > i) &&
-         (e % 2 == 0);
+  assert !(u>=z+1) &&
+         (z == 8);
 */
+
 
 }

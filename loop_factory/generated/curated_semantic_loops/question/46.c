@@ -1,17 +1,18 @@
-int main(int n) {
-  /*@ requires 0 <= n <= 100; */
-  if (n < 0) n = 0;
-  int i = 0, j;
-  int z = 0;
-  
-  while (i < n) {
-    
-    for (j = 0; j < i; ++j) {
-      z += 2;
-    }
-    z += 2 * i;
-    i++;
+int main1(int a){
+  int y, h, v;
+
+  y=(a%7)+18;
+  h=0;
+  v=-5;
+
+
+while (h<y) {
+      v = v+v;
+      h = h+5;
   }
-  /*@ assert i == n; */
-  return z;
+/*@
+  assert !(h<y) &&
+         (a == \at(a, Pre));
+*/
+
 }

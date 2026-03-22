@@ -1,21 +1,22 @@
-int main1(int p){
-  int l, k, r, b;
+int main1(int n,int q){
+  int r, f, v;
 
-  l=p+7;
-  k=l;
-  r=l;
-  b=l;
+  r=q+19;
+  f=0;
+  v=5;
 
 
-while (r<l) {
-      if (r<l) {
-          r = r+1;
+while (f+3<=r) {
+      v = v-v;
+      v = v+f;
+      if (f+4<=v+r) {
+          v = v+1;
       }
-      r = r+2;
+      f = f+3;
   }
 /*@
-  assert !(r<l) &&
-         (l == p + 7);
+  assert !(f+3<=r) &&
+         (r == \at(q, Pre) + 19);
 */
 
 }

@@ -1,41 +1,55 @@
-int main1(int k,int n,int p){
-  int l, y, v, q, o, g;
+int main1(int b,int m){
+  int l, s, k;
 
-  l=(n%7)+20;
-  y=0;
-  v=n;
-  q=8;
-  o=y;
-  g=p;
+  l=35;
+  s=0;
+  k=-6;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant o == 0;
-  loop invariant v >= \at(n, Pre);
-  loop invariant l == (\at(n, Pre) % 7) + 20;
-  loop invariant (q == 8) || (q == o);
-  loop invariant k == \at(k, Pre);
-  loop invariant n == \at(n, Pre);
-  loop invariant p == \at(p, Pre);
-  loop invariant l == (n % 7) + 20;
-  loop invariant v >= n;
-  loop invariant q == o || q == 8;
-  loop invariant q == 8 || q == 0;
-
-  loop invariant (v == n && q == 8) || (v > n && q == 0);
-  loop assigns v, q;
+  loop invariant l == 35;
+  loop invariant b == \at(b, Pre);
+  loop invariant m == \at(m, Pre);
+  loop invariant s <= l;
+  loop invariant k <= -3;
+  loop invariant 0 <= s;
+  loop invariant k == -6 || k == -3;
+  loop invariant (b == \at(b, Pre) && m == \at(m, Pre) && l == 35 && s <= l && ((s == 0) ==> (k == -6)) && ((s > 0) ==> (k == -3)));
+  loop invariant (b == \at(b, Pre) && m == \at(m, Pre) && l == 35 && s >= 0);
+  loop invariant s >= 0;
+  loop invariant s <= l && (k == -6 || k == -3) && l == 35 && b == \at(b, Pre) && m == \at(m, Pre);
+  loop assigns k, s;
 */
-while (1) {
-      if (v>=l) {
-          break;
-      }
-      if (o<=q) {
-          q = o;
-      }
-      v = v+1;
+while (s<l) {
+      k = k-k;
+      k = k+(-3);
+      s = s+1;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant (s % 3) == (l % 3);
+  loop invariant (b == \at(b, Pre) && m == \at(m, Pre) && l == 35 && s <= l);
+
+  loop assigns s;
+*/
+while (s>=3) {
+      s = s-3;
+  }
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant k == -3;
+  loop invariant (b == \at(b, Pre) && m == \at(m, Pre) && l == 35);
+
+  loop assigns s;
+*/
+while (s<=k-1) {
+      s = s+1;
   }
 /*@
-  assert (o == 0);
+  assert !(s<=k-1) &&
+         (l == 35);
 */
 
 

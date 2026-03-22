@@ -1,18 +1,22 @@
-int main1(int b){
-  int p, z, v;
+int main1(int b,int k){
+  int n, j, s, w;
 
-  p=b;
-  z=p;
-  v=z;
+  n=(k%25)+11;
+  j=n;
+  s=n;
+  w=j;
 
 
-while (z>1) {
-      v = v-v;
-      z = z-2;
+while (s<n) {
+      if (s<n) {
+          s = s+1;
+      }
+      w = w+w;
+      w = w+s;
   }
 /*@
-  assert !(z>1) &&
-         (b == \at(b, Pre));
+  assert !(s<n) &&
+         (n == (\at(k, Pre) % 25) + 11);
 */
 
 }

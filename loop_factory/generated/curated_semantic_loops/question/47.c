@@ -1,18 +1,18 @@
-int main1(int q){
-  int r, o, e, v;
+int main1(int b){
+  int p, z, v;
 
-  r=47;
-  o=r;
-  e=o;
-  v=q;
+  p=b;
+  z=p;
+  v=z;
 
 
-while (o-2>=0) {
-      o = o-2;
+while (z>1) {
+      v = v-v;
+      z = z-2;
   }
 /*@
-  assert !(o-2>=0) &&
-         (r == 47);
+  assert !(z>1) &&
+         (b == \at(b, Pre));
 */
 
 }

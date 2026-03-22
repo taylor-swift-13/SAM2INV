@@ -1,34 +1,33 @@
-int main1(int m,int n){
-  int w, t, d;
+int main1(int a,int b){
+  int i, k, l;
 
-  w=79;
-  t=0;
-  d=w;
+  i=(a%27)+13;
+  k=0;
+  l=-2;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant m == \at(m, Pre);
-  loop invariant n == \at(n, Pre);
-  loop invariant w == 79;
-  loop invariant t % 2 == 0;
-  loop invariant t <= w - 1;
-  loop invariant (t == 0) ==> (d == 79);
-  loop invariant t <= w;
-  loop invariant 0 <= t;
-  loop invariant 0 <= t <= w;
-  loop invariant (t == 0) ==> (d == w);
-  loop assigns d, t;
+  loop invariant i == \at(a, Pre) % 27 + 13;
+  loop invariant k == 0;
+  loop invariant l == -2 || l == 2;
+  loop invariant a == \at(a, Pre);
+  loop invariant b == \at(b, Pre);
+  loop invariant i == (a % 27) + 13;
+  loop invariant -2 <= l;
+  loop invariant l <= 2;
+  loop invariant i == (\at(a, Pre) % 27) + 13;
+
+  loop invariant i == ((\at(a, Pre) % 27) + 13);
+  loop invariant (l == -2) || (l == 2);
+  loop assigns l;
 */
-while (t<=w-2) {
-      d = d-d;
-      if ((t%2)==0) {
-          d = d+1;
-      }
-      t = t+2;
+while (k+1<=i) {
+      l = l+4;
+      l = l%4;
   }
 /*@
-  assert !(t<=w-2) &&
-         (m == \at(m, Pre));
+  assert !(k+1<=i) &&
+         (i == \at(a, Pre) % 27 + 13);
 */
 
 

@@ -1,22 +1,25 @@
-int main1(int k,int p){
-  int d, i, v;
+int main1(int k,int q){
+  int i, u, o, r;
 
-  d=p+3;
-  i=2;
-  v=-8;
+  i=59;
+  u=i;
+  o=0;
+  r=0;
 
 
-while (i+2<=d) {
-      v = v+1;
-      v = v+2;
-      if (v+7<d) {
-          v = v+1;
+while (o<i) {
+      if (o<i/2) {
+          r = r+3;
       }
-      i = i+2;
+      else {
+          r = r-3;
+      }
+      o = o+1;
+      o = o+3;
   }
 /*@
-  assert !(i+2<=d) &&
-         (d == p + 3);
+  assert !(o<i) &&
+         (o % 4 == 0);
 */
 
 }

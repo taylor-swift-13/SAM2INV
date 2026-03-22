@@ -1,22 +1,30 @@
-int main1(int n,int q){
-  int r, f, v;
+int main1(int m,int p){
+  int b, u, x, n;
 
-  r=q+19;
-  f=0;
-  v=5;
+  b=19;
+  u=0;
+  x=5;
+  n=u;
 
 
-while (f+3<=r) {
-      v = v-v;
-      v = v+f;
-      if (f+4<=v+r) {
-          v = v+1;
+while (x<b) {
+      if (x<b) {
+          x = x+1;
       }
-      f = f+3;
+      x = x+5;
+      n = n+2;
+      if (p<p+5) {
+          n = n+1;
+      }
+      n = x-n;
   }
 /*@
-  assert !(f+3<=r) &&
-         (r == \at(q, Pre) + 19);
+  assert !(x<b) &&
+         (x % 6 == 5);
 */
 
+  int __dedup_1 = 0;
+  while (__dedup_1 < 3) {
+      __dedup_1 = __dedup_1 + 1;
+  }
 }

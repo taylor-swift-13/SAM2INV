@@ -1,23 +1,23 @@
-int main1(int m,int n){
-  int o, x, d, c;
+int main1(int a,int b){
+  int e, u, t;
 
-  o=n+25;
-  x=0;
-  d=o;
-  c=m;
+  e=45;
+  u=0;
+  t=3;
 
 
-while (d<o) {
-      if (d<o) {
-          d = d+1;
+while (u<=e-1) {
+      t = t+2;
+      if ((u%2)==0) {
+          t = t*t;
       }
-      d = d+5;
-      c = c+2;
-      c = c+x;
+      else {
+          t = t*t+t;
+      }
   }
 /*@
-  assert !(d<o) &&
-         (o == n + 25);
+  assert !(u<=e-1) &&
+         (a == \at(a, Pre));
 */
 
 }

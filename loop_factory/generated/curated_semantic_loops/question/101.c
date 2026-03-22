@@ -1,23 +1,24 @@
-int main1(int k,int m){
-  int f, x, v, q;
+int main1(int a,int k,int n){
+  int c, t, v, i;
 
-  f=33;
-  x=f;
-  v=x;
-  q=f;
+  c=(a%8)+14;
+  t=0;
+  v=c;
+  i=c;
 
 
-while (v!=0&&q!=0) {
-      if (v>q) {
-          v = v-q;
+while (t<c) {
+      v = v+1;
+      i = i-1;
+      if (t+4<=a+c) {
+          i = i+1;
       }
-      else {
-          q = q-v;
-      }
+      v = v+t;
+      t = t+1;
   }
 /*@
-  assert !(v!=0&&q!=0) &&
-         (v > 0);
+  assert !(t<c) &&
+         (v == c + t*(t+1)/2);
 */
 
 }

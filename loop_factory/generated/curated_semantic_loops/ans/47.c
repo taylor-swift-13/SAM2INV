@@ -1,32 +1,35 @@
-int main1(int q){
-  int r, o, e, v;
+int main1(int b){
+  int p, z, v;
 
-  r=47;
-  o=r;
-  e=o;
-  v=q;
+  p=b;
+  z=p;
+  v=z;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == 47;
-  loop invariant o <= r;
-  loop invariant o >= 0;
-  loop invariant o % 2 == r % 2;
-  loop invariant q == \at(q, Pre);
-  loop invariant 0 <= o;
-  loop invariant o <= 47;
-  loop invariant o % 2 == 47 % 2;
-  loop invariant o + 2 * ((47 - o) / 2) == 47;
-  loop invariant o >= 1;
-  loop invariant o % 2 == 1;
-  loop assigns o;
+  loop invariant b == \at(b, Pre);
+  loop invariant p == b;
+  loop invariant z <= p;
+  loop invariant (p - z) % 2 == 0;
+  loop invariant p == \at(b, Pre);
+  loop invariant v == 0 || v == \at(b, Pre);
+  loop invariant (v == \at(b, Pre)) <==> (z == \at(b, Pre));
+  loop invariant z <= \at(b, Pre);
+  loop invariant z % 2 == \at(b, Pre) % 2;
+  loop invariant z >= v;
+  loop invariant v <= p;
+
+  loop invariant v <= z;
+  loop invariant ((\at(b, Pre) - z) % 2 == 0);
+  loop assigns v, z;
 */
-while (o-2>=0) {
-      o = o-2;
+while (z>1) {
+      v = v-v;
+      z = z-2;
   }
 /*@
-  assert !(o-2>=0) &&
-         (r == 47);
+  assert !(z>1) &&
+         (b == \at(b, Pre));
 */
 
 

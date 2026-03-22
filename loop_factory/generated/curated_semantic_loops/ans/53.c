@@ -1,34 +1,41 @@
-int main1(int a){
-  int y, h, v;
+int main1(int b,int k){
+  int y, j, n, q, v;
 
-  y=(a%7)+18;
-  h=0;
-  v=-5;
+  y=40;
+  j=0;
+  n=j;
+  q=4;
+  v=-4;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant a == \at(a, Pre);
-  loop invariant y == (a % 7) + 18;
-  loop invariant h % 5 == 0;
-  loop invariant h >= 0;
-  loop invariant v <= -5;
-  loop invariant y == ((\at(a, Pre)) % 7) + 18;
-  loop invariant h <= y + 4;
-  loop invariant v % 5 == 0;
-  loop invariant y == (\at(a, Pre) % 7) + 18;
-  loop invariant 0 <= h;
-
-  loop invariant v < 0;
-  loop invariant y == \at(a, Pre) % 7 + 18;
-  loop assigns h, v;
+  loop invariant j % 5 == 0;
+  loop invariant 0 <= j;
+  loop invariant j <= y;
+  loop invariant q == 4 - j/5 && ((q % 2 == 0) ==> n == 0) && ((q % 2 != 0) ==> n == -5) && b == \at(b,Pre) && k == \at(k,Pre);
+  loop invariant 5*q + j == 20;
+  loop invariant n == 0 || n == -5;
+  loop invariant b == \at(b, Pre);
+  loop invariant k == \at(k, Pre);
+  loop invariant v == -4;
+  loop invariant 0 <= j <= y;
+  loop invariant n == 0 || n == v - 1;
+  loop invariant q >= -4;
+  loop invariant q <= 4;
+  loop invariant q == 4 - (j/5);
+  loop invariant ((j/5) % 2 == 0) ==> (n == 0);
+  loop invariant y == 40;
+  loop assigns n, q, j;
 */
-while (h<y) {
-      v = v+v;
-      h = h+5;
+while (j<=y-5) {
+      n = n+1;
+      q = q-1;
+      n = v-n;
+      j = j+5;
   }
 /*@
-  assert !(h<y) &&
-         (a == \at(a, Pre));
+  assert !(j<=y-5) &&
+         (j % 5 == 0);
 */
 
 

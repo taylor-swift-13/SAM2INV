@@ -1,32 +1,39 @@
-int main1(){
-  int j, wt9n, yl3, b, z, a0u;
-  j=25;
-  wt9n=0;
-  yl3=0;
-  b=0;
-  z=j;
-  a0u=0;
+int main1(int a,int q){
+  int c, j, t, e;
 
-while (b<j) {
-      yl3++;
-      b += 1;
-      z += wt9n;
-      a0u = a0u+(yl3%9);
-  }
+  c=20;
+  j=0;
+  t=3;
+  e=q;
+
 
 while (1) {
-      if (!(z<=wt9n-1)) {
+      if (j>=c) {
           break;
       }
-      z += 1;
-      yl3 += wt9n;
-      a0u++;
+      t = t+3;
+      j = j+1;
+      t = t+1;
+      e = e-1;
+      if ((j%5)==0) {
+          e = e+1;
+      }
   }
 /*@
-  assert b == j;
-*/
-/*@
-  assert wt9n == 0;
+  assert (t == 3 + 4*j);
 */
 
+  while (t > c) {
+      if (j > 0 && t - j >= c) {
+          t = t - j;
+          j = j / 2;
+      } else {
+          t = t - 1;
+      }
+      e = e + 1;
+  }
+/*@
+  assert !(t > c) &&
+         (t == c);
+*/
 }

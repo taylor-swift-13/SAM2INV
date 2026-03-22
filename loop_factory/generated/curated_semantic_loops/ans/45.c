@@ -1,24 +1,38 @@
-int main(int n) {
-  if (n < 0) n = 0;
-  int i = 0, j;
-  int budget = n * (n + 1);
-  /*@ loop invariant 0 <= i <= n;
-      loop invariant budget == n * (n + 1) - i * (i + 1);
-      loop assigns i, j, budget;
-      loop variant n - i;
-  */
-  while (i < n) {
-    /*@ loop invariant 0 <= j <= i;
-        loop invariant budget == n * (n + 1) - i * (i + 1) - 2 * j;
-        loop assigns j, budget;
-        loop variant i - j;
-    */
-    for (j = 0; j < i; ++j) {
-      budget -= 2;
-    }
-    budget -= 2;
-    i++;
+int main1(int k){
+  int u, q, j;
+
+  u=(k%6)+4;
+  q=u;
+  j=q;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant u == ((\at(k, Pre) % 6) + 4);
+  loop invariant (q % 2) == (((\at(k, Pre) % 6) + 4) % 2);
+
+  loop invariant (u >= 6) ==> j == 2*(\at(k, Pre) % 6 + 4) - q &&
+                   (u < 6)  ==> j == (\at(k, Pre) % 6 + 4) + ((\at(k, Pre) % 6 + 4 - q)/2);
+
+  loop invariant q <= \at(k, Pre) % 6 + 4;
+  loop invariant j >= q;
+
+  loop invariant u == (\at(k, Pre) % 6) + 4;
+  loop invariant k == \at(k, Pre);
+
+  loop assigns j, q;
+*/
+while (q-2>=0) {
+      j = j+1;
+      if (q+6<=q+u) {
+          j = j+1;
+      }
+      q = q-2;
   }
-  /*@ assert budget == 0 && budget % 2 == 0; */
-  return budget;
+/*@
+  assert (u == (\at(k, Pre) % 6) + 4) &&
+         (q <= 1) &&
+         ((q % 2) == (u % 2)) &&
+         (j >= q);
+*/
+
 }

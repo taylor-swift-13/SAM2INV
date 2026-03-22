@@ -1,26 +1,20 @@
-int main1(int n,int q){
-  int m, k, x, v;
+int main1(int b,int m){
+  int r, u, v;
 
-  m=(q%6)+4;
-  k=0;
-  x=k;
-  v=8;
+  r=(b%30)+15;
+  u=0;
+  v=-5;
 
 
-while (k+3<=m) {
-      if (k<m/2) {
-          x = x+v;
+while (u<r) {
+      if ((u%5)==0) {
+          v = v+v;
       }
-      else {
-          x = x+1;
-      }
-      v = v+v;
-      v = v+x;
-      x = x+2;
+      u = u+1;
   }
 /*@
-  assert !(k+3<=m) &&
-         (k == 0);
+  assert !(u<r) &&
+         (r == (b % 30) + 15);
 */
 
 }

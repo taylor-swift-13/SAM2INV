@@ -1,40 +1,41 @@
 int main1(int b,int k){
-  int l, i, a;
+  int m, l, v, d;
 
-  l=(k%12)+13;
-  i=0;
-  a=l;
+  m=56;
+  l=0;
+  v=0;
+  d=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant l == k%12 + 13;
-  loop invariant i % 3 == 0;
+  loop invariant m == 56;
+  loop invariant d >= 0;
+  loop invariant d % 5 == 0;
+  loop invariant v >= 0;
+  loop invariant v % 5 == 0;
+  loop invariant v >= d;
+  loop invariant b == \at(b,Pre);
+  loop invariant k == \at(k,Pre);
+  loop invariant d >= 0 && v >= 0;
+  loop invariant d <= v;
+  loop invariant v == 0 || v % 3 == 2;
+  loop invariant (v == 0) || (v % 3 == 2);
 
-  loop invariant (i == 0) ==> (a == l);
-  loop invariant (i > 0) ==> (a == 2*k - 10);
-  loop invariant k == \at(k, Pre);
-  loop invariant b == \at(b, Pre);
-  loop invariant 0 <= i && i <= l + 2;
-  loop invariant i == 0 || a == 2 * \at(k, Pre) - 10;
-  loop invariant l == (\at(k, Pre) % 12) + 13;
-  loop invariant (i == 0) ==> (a == l) && (i > 0) ==> (a == 2*k - 10);
-  loop invariant l == ((\at(k, Pre)) % 12) + 13;
-  loop invariant l == (\at(k, Pre) % 12) + 13 &&
-                   b == \at(b, Pre) &&
-                   k == \at(k, Pre);
+  loop invariant v % 5 == 0 && v >= d && d >= 0 && v <= 3*m + 2;
 
-  loop invariant i >= 0 && i <= l + 2;
-  loop invariant (i == 0 && a == l) || (i > 0 && a == 2*k - 10);
-  loop assigns a, i;
+
+  loop invariant d <= 5*v;
+  loop invariant b == \at(b, Pre) && k == \at(k, Pre);
+  loop assigns d, v;
 */
-while (i<l) {
-      a = k+(-5);
-      a = a+a;
-      i = i+3;
+while (v<m) {
+      d = d+5;
+      v = v+1;
+      v = v*3+2;
   }
 /*@
-  assert !(i<l) &&
-         (l == k%12 + 13);
+  assert !(v<m) &&
+         (m == 56);
 */
 
 

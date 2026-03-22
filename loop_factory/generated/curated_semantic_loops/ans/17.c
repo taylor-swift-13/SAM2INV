@@ -1,40 +1,41 @@
-int main1(int a,int b,int q){
-  int r, z, v, m, g, l;
+int main1(int k,int n,int p){
+  int l, y, v, q, o, g;
 
-  r=q;
-  z=0;
-  v=8;
-  m=b;
-  g=0;
-  l=q;
+  l=(n%7)+20;
+  y=0;
+  v=n;
+  q=8;
+  o=y;
+  g=p;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant g == 0;
-  loop invariant r == q;
+  loop invariant o == 0;
+  loop invariant v >= \at(n, Pre);
+  loop invariant l == (\at(n, Pre) % 7) + 20;
+  loop invariant (q == 8) || (q == o);
+  loop invariant k == \at(k, Pre);
+  loop invariant n == \at(n, Pre);
+  loop invariant p == \at(p, Pre);
+  loop invariant l == (n % 7) + 20;
+  loop invariant v >= n;
+  loop invariant q == o || q == 8;
+  loop invariant q == 8 || q == 0;
 
-  loop invariant (\at(b, Pre) < 0) ==> (m == \at(b, Pre));
-  loop invariant v >= 8;
-  loop invariant r == \at(q, Pre);
-  loop invariant v % 2 == 0;
-  loop invariant m <= \at(b,Pre);
-  loop invariant a == \at(a, Pre);
-  loop invariant b == \at(b, Pre);
-  loop invariant q == \at(q, Pre);
-  loop assigns m, v;
+  loop invariant (v == n && q == 8) || (v > n && q == 0);
+  loop assigns v, q;
 */
 while (1) {
-      if (v>=r) {
+      if (v>=l) {
           break;
       }
-      if (g<=m) {
-          m = g;
+      if (o<=q) {
+          q = o;
       }
       v = v+1;
-      v = v*2;
   }
 /*@
-  assert (g == 0);
+  assert (o == 0);
 */
 
 

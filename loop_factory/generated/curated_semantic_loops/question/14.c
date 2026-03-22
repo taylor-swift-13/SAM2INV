@@ -1,23 +1,26 @@
-int main1(int f){
-  int f3v, zq, y7, q5o;
-  f3v=f;
-  zq=0;
-  y7=2;
-  q5o=1;
+int main1(int a,int q){
+  int c, j, t, e;
 
-while (zq<=f3v-1) {
-      if (y7>=9) {
-          q5o = -1;
+  c=20;
+  j=0;
+  t=3;
+  e=q;
+
+
+while (1) {
+      if (j>=c) {
+          break;
       }
-      if (y7<=2) {
-          q5o = 1;
+      t = t+3;
+      j = j+1;
+      t = t+1;
+      e = e-1;
+      if ((j%5)==0) {
+          e = e+1;
       }
-      zq++;
-      y7 = y7 + q5o;
   }
 /*@
-  assert !(zq<=f3v-1) &&
-         ((y7 - zq) % 2 == 0);
+  assert (t == 3 + 4*j);
 */
 
 }

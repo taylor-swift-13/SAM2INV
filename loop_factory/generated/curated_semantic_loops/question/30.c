@@ -1,34 +1,34 @@
-int main1(int m,int p){
-  int b, u, x, n;
+int main1(int k,int p){
+  int r, c, v, y, l, s;
 
-  b=19;
-  u=0;
-  x=5;
-  n=u;
+  r=30;
+  c=r+3;
+  v=r;
+  y=-8;
+  l=k;
+  s=r;
 
 
-while (x<b) {
-      if (x<b) {
-          x = x+1;
+while (1) {
+      if (v>=r) {
+          break;
       }
-      x = x+5;
-      n = n+2;
-      if (p<p+5) {
-          n = n+1;
+      if (l<=y) {
+          y = l;
       }
-      n = x-n;
+      v = v+1;
+      v = v+c;
   }
 /*@
-  assert !(x<b) &&
-         (x % 6 == 5);
+  assert (r == 30);
 */
 
-  while (x > b) {
-      n = n + (x - b);
-      x = b + (x - b) / 2;
+  while (y < 0) {
+      y = y + 1;
+      v = v + 1;
   }
 /*@
-  assert !(x > b) &&
-         (x == b);
+  assert !(y < 0) &&
+         (y == 0);
 */
 }

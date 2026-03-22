@@ -1,35 +1,30 @@
-int main1(int a,int k){
-  int r, g, d;
+int main1(int k,int q){
+  int h, j, t;
 
-  r=(k%14)+14;
-  g=r;
-  d=k;
+  h=64;
+  j=h;
+  t=-5;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == (\at(k, Pre) % 14) + 14;
+  loop invariant 0 <= j && j <= 64;
+  loop invariant h == 64;
   loop invariant k == \at(k, Pre);
-  loop invariant a == \at(a, Pre);
-  loop invariant 0 <= g;
-  loop invariant g <= r;
-  loop invariant (g == r) ==> d == \at(k, Pre);
-  loop invariant (g < r) ==> d >= 0;
-  loop invariant g >= 0;
-  loop invariant g <= ((\at(k,Pre) % 14) + 14);
-  loop invariant r == ((\at(k,Pre) % 14) + 14);
-  loop invariant r == \at(k, Pre) % 14 + 14;
-  loop invariant r == (k % 14) + 14;
-  loop invariant g <= (k % 14) + 14;
-  loop assigns d, g;
+  loop invariant q == \at(q, Pre);
+  loop invariant t <= -5;
+  loop invariant t % 5 == 0;
+  loop invariant j >= 0;
+  loop assigns t, j;
 */
-while (g>0) {
-      d = d*2;
-      d = d*d;
-      g = g-1;
+while (j>0) {
+      if ((j%4)==0) {
+          t = t+t;
+      }
+      j = j-1;
   }
 /*@
-  assert !(g>0) &&
-         (r == (\at(k, Pre) % 14) + 14);
+  assert !(j>0) &&
+         (0 <= j && j <= 64);
 */
 
 

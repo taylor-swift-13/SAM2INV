@@ -1,18 +1,21 @@
-int main1(int a,int m){
-  int n, j, c;
+int main1(int k,int q){
+  int i, v, a, t;
 
-  n=56;
-  j=n;
-  c=-8;
+  i=(k%6)+8;
+  v=0;
+  a=2;
+  t=k;
 
 
-while (j>=2) {
-      c = a-n;
-      j = j-2;
+while (v<=i-1) {
+      a = a+2;
+      t = t+a;
+      t = t+t;
+      v = v+1;
   }
 /*@
-  assert !(j>=2) &&
-         (a == \at(a, Pre));
+  assert !(v<=i-1) &&
+         (k == \at(k, Pre));
 */
 
 }

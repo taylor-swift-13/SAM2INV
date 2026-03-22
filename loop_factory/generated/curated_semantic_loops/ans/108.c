@@ -1,33 +1,40 @@
-int main1(int m,int q){
-  int j, k, x;
+int main1(int k,int m){
+  int i, r, x, d;
 
-  j=(m%6)+19;
-  k=0;
-  x=q;
+  i=(k%6)+11;
+  r=i;
+  x=3;
+  d=r;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant j == (m % 6) + 19;
-  loop invariant x == q + 8*k;
-  loop invariant 0 <= k;
-  loop invariant k <= j;
-  loop invariant x == \at(q, Pre) + 8*k;
-  loop invariant j == \at(m, Pre) % 6 + 19;
-  loop invariant x <= \at(q, Pre) + 8*j;
-  loop invariant m == \at(m, Pre);
-  loop invariant q == \at(q, Pre);
-  loop invariant 0 <= k <= j;
-  loop invariant x >= q;
-  loop assigns x, k;
+  loop invariant r == i;
+  loop invariant d >= r;
+  loop invariant k == \at(k,Pre);
+  loop invariant m == \at(m,Pre);
+  loop invariant x >= 3;
+  loop invariant i == r;
+  loop invariant r >= 4;
+  loop invariant r == i && i == (k % 6) + 11;
+  loop invariant d >= r && x >= 3;
+  loop invariant (x == d*(d+1)) || (d == r && x == 3);
+  loop invariant r == (k % 6) + 11;
+  loop invariant i == (k % 6) + 11;
+  loop invariant r == i && d >= r;
+  loop invariant x >= 0 && k == \at(k, Pre) && m == \at(m, Pre);
+  loop invariant d >= (\at(k, Pre) % 6) + 11;
+  loop invariant i == (\at(k, Pre) % 6) + 11;
+  loop invariant r == (\at(k, Pre) % 6) + 11;
+  loop assigns d, x;
 */
-while (k<j) {
-      x = x+5;
-      x = x+3;
-      k = k+1;
+while (r>=4) {
+      d = d+1;
+      x = d*d;
+      x = x+d;
   }
 /*@
-  assert !(k<j) &&
-         (j == (m % 6) + 19);
+  assert !(r>=4) &&
+         (r == i);
 */
 
 

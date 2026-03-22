@@ -1,20 +1,19 @@
-int main1(int a,int p){
-  int m, y, b;
+int main1(int b,int k){
+  int a, s, c, n;
 
-  m=26;
-  y=m;
-  b=y;
+  a=80;
+  s=0;
+  c=-17823;
+  n=2;
 
 
-while (y>=1) {
-      b = b+4;
-      if (y<m+5) {
-          b = b+y;
-      }
+while (c<=-3) {
+      c = c+n-1;
+      n = n+2;
   }
 /*@
-  assert !(y>=1) &&
-         (y >= 1);
+  assert !(c<=-3) &&
+         (4*(c + 17823) == (n - 2)*(n - 2));
 */
 
 }

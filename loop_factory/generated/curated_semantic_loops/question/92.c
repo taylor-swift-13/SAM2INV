@@ -1,25 +1,24 @@
-int main1(int k,int n){
-  int r, w, b, y;
+int main1(int b,int n){
+  int y, t, c, v;
 
-  r=(k%21)+13;
-  w=1;
-  b=-2;
-  y=4;
+  y=11;
+  t=0;
+  c=-3;
+  v=y;
 
 
-while (w<=r-1) {
-      if (w<r/2) {
-          b = b+y;
+while (t+5<=y) {
+      c = c*2;
+      v = v+c;
+      v = v%3;
+      if (y*y<=y+6) {
+          v = v*2;
       }
-      else {
-          b = b+1;
-      }
-      b = b+5;
-      y = y+3;
+      t = t+5;
   }
 /*@
-  assert !(w<=r-1) &&
-         (y >= 4);
+  assert !(t+5<=y) &&
+         (b == \at(b, Pre));
 */
 
 }

@@ -1,30 +1,14 @@
-int main1(){
-  int mn, mr, g;
-  mn=(1%20)+5;
-  mr=(1%20)+5;
-  g=(1%20)+5;
-
-while (mn>0) {
-      if (mr>0) {
-          if (g>0) {
-              mn--;
-              mr -= 1;
-              g -= 1;
-          }
-      }
-      mr = mr + 5;
+int main(int n) {
+  if (n < 0) n = 0;
+  int i, j;
+  int s = 0;
+  
+  for (i = 0; i < n; ++i) {
+    
+    for (j = 0; j <= i; ++j) {
+      s += 1;
+    }
   }
-/*@
-  assert !(mn>0) &&
-         (g == mn);
-*/
-
-  while (mr > mn) {
-      mr = mr - 1;
-      g = g + 1;
-  }
-/*@
-  assert !(mr > mn) &&
-         (mr == mn);
-*/
+  /*@ assert s == n * (n + 1) / 2; */
+  return s;
 }

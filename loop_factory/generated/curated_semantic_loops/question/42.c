@@ -1,15 +1,18 @@
-int main(int n) {
-  /*@ requires 0 <= n <= 100; */
-  if (n < 0) n = 0;
-  int i, j;
-  int budget = n * n;
-  
-  for (i = 0; i < n; ++i) {
-    
-    for (j = 0; j < i; ++j) {
-      budget -= 1;
-    }
+int main1(int q){
+  int r, o, e, v;
+
+  r=47;
+  o=r;
+  e=o;
+  v=q;
+
+
+while (o-2>=0) {
+      o = o-2;
   }
-  /*@ assert i == n; */
-  return budget;
+/*@
+  assert !(o-2>=0) &&
+         (r == 47);
+*/
+
 }

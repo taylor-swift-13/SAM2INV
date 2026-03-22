@@ -1,23 +1,24 @@
-int main1(int a,int m){
-  int x, j, i, b;
+int main1(int a,int k){
+  int v, r, g, p;
 
-  x=35;
-  j=x;
-  i=5;
-  b=3;
+  v=(a%18)+14;
+  r=v;
+  g=-8;
+  p=0;
 
 
-while (j-4>=0) {
-      if (i+6<=x) {
-          i = i+6;
+while (g!=0&&p!=0) {
+      if (g>p) {
+          g = g-p;
       }
       else {
-          i = x;
+          p = p-g;
       }
+      g = g*g+g;
   }
 /*@
-  assert !(j-4>=0) &&
-         (m == \at(m, Pre));
+  assert !(g!=0&&p!=0) &&
+         (v == (a % 18) + 14);
 */
 
 }

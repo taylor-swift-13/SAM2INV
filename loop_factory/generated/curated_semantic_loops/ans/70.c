@@ -1,34 +1,40 @@
-int main1(int n,int p){
-  int m, j, q;
+int main1(int k,int m){
+  int f, x, v, q;
 
-  m=34;
-  j=m;
-  q=m;
+  f=33;
+  x=f;
+  v=x;
+  q=f;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant m == 34;
-  loop invariant n == \at(n, Pre);
-  loop invariant p == \at(p, Pre);
-  loop invariant j <= 34;
-  loop invariant j >= 1;
-  loop invariant (j % 3) == 1;
+  loop invariant v > 0;
 
-  loop invariant j <= m;
-  loop invariant (m - j) % 3 == 0;
-  loop invariant j % 3 == 1;
-  loop invariant q % 34 == 0;
-  loop invariant q >= 34;
-
-  loop assigns j, q;
+  loop invariant v + q <= 66;
+  loop invariant k == \at(k, Pre);
+  loop invariant m == \at(m, Pre);
+  loop invariant v >= 0;
+  loop invariant q >= 0;
+  loop invariant v % 33 == 0;
+  loop invariant q % 33 == 0;
+  loop invariant f == 33;
+  loop invariant 0 <= v;
+  loop invariant 0 <= q;
+  loop invariant v <= 33;
+  loop invariant q <= 33;
+  loop assigns v, q;
 */
-while (j>2) {
-      q = q+q;
-      j = j-3;
+while (v!=0&&q!=0) {
+      if (v>q) {
+          v = v-q;
+      }
+      else {
+          q = q-v;
+      }
   }
 /*@
-  assert !(j>2) &&
-         (m == 34);
+  assert !(v!=0&&q!=0) &&
+         (v > 0);
 */
 
 

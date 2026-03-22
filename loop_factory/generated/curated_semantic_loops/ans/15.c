@@ -1,39 +1,42 @@
-int main1(int a,int q){
-  int c, j, t, e;
+int main1(int k,int p){
+  int r, c, v, y, l, s;
 
-  c=20;
-  j=0;
-  t=3;
-  e=q;
+  r=30;
+  c=r+3;
+  v=r;
+  y=-8;
+  l=k;
+  s=r;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant t == 3 + 4*j;
-  loop invariant e == q - j + (j/5);
-  loop invariant c == 20;
-  loop invariant a == \at(a, Pre);
-  loop invariant q == \at(q, Pre);
-  loop invariant 0 <= j;
-  loop invariant j <= c;
-  loop invariant e == \at(q, Pre) - j + j/5;
-  loop invariant e == q - j + j/5;
-  loop invariant j >= 0;
-  loop assigns t, j, e;
+  loop invariant r == 30;
+  loop invariant c == r + 3;
+  loop invariant l == k;
+  loop invariant v <= r;
+  loop invariant y == -8 || y == k;
+  loop invariant (v - r) % (c + 1) == 0;
+  loop invariant v - y >= 38;
+  loop invariant v >= r;
+  loop invariant (y == -8) || (y == l);
+  loop invariant (c == r + 3);
+  loop invariant ((v - r) % 34 == 0);
+  loop invariant y == -8 || y == l;
+  loop invariant k == \at(k, Pre);
+  loop assigns y, v;
 */
 while (1) {
-      if (j>=c) {
+      if (v>=r) {
           break;
       }
-      t = t+3;
-      j = j+1;
-      t = t+1;
-      e = e-1;
-      if ((j%5)==0) {
-          e = e+1;
+      if (l<=y) {
+          y = l;
       }
+      v = v+1;
+      v = v+c;
   }
 /*@
-  assert (t == 3 + 4*j);
+  assert (r == 30);
 */
 
 

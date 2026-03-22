@@ -1,42 +1,40 @@
-int main1(int k,int n){
-  int r, w, b, y;
+int main1(int b,int n){
+  int y, t, c, v;
 
-  r=(k%21)+13;
-  w=1;
-  b=-2;
-  y=4;
+  y=11;
+  t=0;
+  c=-3;
+  v=y;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant y >= 4;
-  loop invariant (y - 4) % 3 == 0;
-  loop invariant w == 1;
-  loop invariant r == (\at(k, Pre) % 21) + 13;
-  loop invariant k == \at(k, Pre);
+  loop invariant b == \at(b, Pre);
   loop invariant n == \at(n, Pre);
-  loop invariant (w < r/2) ==> (6*b == y*y + 7*y - 56);
-  loop invariant (w >= r/2) ==> (b == 2*y - 10);
-  loop invariant y % 3 == 1;
-  loop invariant b >= -2;
+  loop invariant t % 5 == 0;
+  loop invariant 0 <= t;
+  loop invariant t <= y;
+  loop invariant c <= -3;
 
-  loop invariant r == \at(k, Pre) % 21 + 13;
-  loop invariant b - 2*y >= -10;
-
-  loop assigns b, y;
+  loop invariant (v - 2) % 3 == 0;
+  loop invariant y == 11;
+  loop invariant c < 0;
+  loop invariant c % 3 == 0;
+  loop invariant -1 <= v;
+  loop invariant v <= 11;
+  loop assigns c, v, t;
 */
-while (w<=r-1) {
-      if (w<r/2) {
-          b = b+y;
+while (t+5<=y) {
+      c = c*2;
+      v = v+c;
+      v = v%3;
+      if (y*y<=y+6) {
+          v = v*2;
       }
-      else {
-          b = b+1;
-      }
-      b = b+5;
-      y = y+3;
+      t = t+5;
   }
 /*@
-  assert !(w<=r-1) &&
-         (y >= 4);
+  assert !(t+5<=y) &&
+         (b == \at(b, Pre));
 */
 
 

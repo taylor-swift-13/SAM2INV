@@ -1,19 +1,20 @@
 int main1(int b,int k){
-  int l, i, a;
+  int m, l, v, d;
 
-  l=(k%12)+13;
-  i=0;
-  a=l;
+  m=56;
+  l=0;
+  v=0;
+  d=0;
 
 
-while (i<l) {
-      a = k+(-5);
-      a = a+a;
-      i = i+3;
+while (v<m) {
+      d = d+5;
+      v = v+1;
+      v = v*3+2;
   }
 /*@
-  assert !(i<l) &&
-         (l == k%12 + 13);
+  assert !(v<m) &&
+         (m == 56);
 */
 
 }

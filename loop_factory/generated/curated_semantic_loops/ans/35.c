@@ -1,46 +1,22 @@
-int main1(){
-  int mn, mr, g;
-  mn=(1%20)+5;
-  mr=(1%20)+5;
-  g=(1%20)+5;
-  /* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant g == mn;
-  loop invariant mr - 4*mn - g >= -24;
-  loop invariant 0 <= mn <= 6;
-  loop invariant 0 <= g <= 6;
-  loop invariant mr >= 5;
-  loop assigns mn, mr, g;
-*/
-while (mn>0) {
-      if (mr>0) {
-          if (g>0) {
-              mn--;
-              mr -= 1;
-              g -= 1;
-          }
-      }
-      mr = mr + 5;
+int main(int n) {
+  if (n < 0) n = 0;
+  int i, j;
+  int s = 0;
+  /*@ loop invariant 0 <= i <= n;
+      loop invariant s == i * (i + 1) / 2;
+      loop assigns i, j, s;
+      loop variant n - i;
+  */
+  for (i = 0; i < n; ++i) {
+    /*@ loop invariant 0 <= j <= i + 1;
+        loop invariant s == i * (i + 1) / 2 + j;
+        loop assigns j, s;
+        loop variant i + 1 - j;
+    */
+    for (j = 0; j <= i; ++j) {
+      s += 1;
+    }
   }
-/*@
-  assert !(mn>0) &&
-         (g == mn);
-*/
-
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant mr >= mn;
-  loop invariant mn == 0;
-  loop invariant g >= 0;
-  loop assigns mr, g;
-*/
-  while (mr > mn) {
-      mr = mr - 1;
-      g = g + 1;
-  }
-/*@
-  assert !(mr > mn) &&
-         (mr == mn);
-*/
+  /*@ assert s == n * (n + 1) / 2; */
+  return s;
 }

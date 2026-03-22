@@ -1,65 +1,944 @@
-2026-03-14 23:04:37,995 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-14 23:04:38,012 - INFO - Found 2 loops
-2026-03-14 23:04:38,016 - INFO - 
+2026-03-22 13:12:01,630 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-22 13:12:01,644 - INFO - Found 1 loops
+2026-03-22 13:12:01,645 - INFO - 
 ============================================================
-2026-03-14 23:04:38,016 - INFO - Main generation pass 1/1
-2026-03-14 23:04:38,016 - INFO - ============================================================
-2026-03-14 23:04:38,016 - INFO - Loaded single prompt template: simple
-2026-03-14 23:04:38,016 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-14 23:04:38,016 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-14 23:04:38,082 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 23:05:39,665 - INFO - 
------ Candidate 1/5 raw response begin -----
-<reasoning>For the two loops, I propose inductive loop invariants that are strong enough to be useful for WP, while keeping the code unchanged otherwise. The updates inside the first loop are:
-- bqk' = bqk + ut*r8dx
-- ut'  = ut + iys
-- r8dx' = iys
-with iys, the loop-bound constant, not changed.
+2026-03-22 13:12:01,645 - INFO - Main generation pass 1/1
+2026-03-22 13:12:01,645 - INFO - ============================================================
+2026-03-22 13:12:01,645 - INFO - Loaded single prompt template: simple
+2026-03-22 13:12:01,646 - INFO - Generating 8 candidate invariant sets with temperature=1.0
+2026-03-22 13:12:01,646 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-22 13:12:01,660 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:13:41,907 - INFO - 
+----- Candidate 1/8 raw response begin -----
+<reasoning>
+The loop updates are very regular: each iteration wj is incremented by 1 and oxi is decremented by 1. This immediately suggests a strong relational invariant oxi == xca9 - wj, which is preserved every iteration (initially true since oxi=49 and wj=0, and both are updated correspondingly). From this, we can derive a suite of linear, inductive invariants for other variables that evolve linearly with the loop counter wj:
 
-From this, we can derive simple, safe invariants:
-- r8dx is always <= iys (and after an iteration it becomes iys, so this remains true).
-- ut is always >= iys (ut starts at iys and only increases).
-- bqk is nonnegative (starts at 0 and the update uses nonnegative terms).
+- wj progresses from 0 up to xca9, so wj <= xca9.
+- The function parameters g and r evolve predictably with wj:
+  - g grows by (xca9 - i) per iteration, i is constant 2, so g == \at(g, Pre) + wj * (xca9 - i).
+  - r grows by 3 per iteration, so r == \at(r, Pre) + 3 * wj.
+- Other local variables update linearly with wj:
+  - bh increments by 1 per iteration: bh == \at(bh,Pre) + wj.
+  - kh increments by 5 per iteration: kh == \at(kh,Pre) + 5 * wj.
+  - x increments by 4 per iteration: x == \at(x,Pre) + 4 * wj.
+  - pw1t increments by i (2) and then by 1, i.e., by 3 per iteration: pw1t == \at(pw1t,Pre) + 3 * wj.
+- i remains constant at 2, so i == 2 is an invariant.
 
-These invariants are preserved by the body given the updates above, and they areInitialization- and induction-friendly. As a “core conservation/relational equality” reflecting the loop's updates, we also explicitly present the actual update relationships via the invariants indirectly: bqk increases by ut*r8dx, ut increases by iys, and r8dx is set to iys. The loop variant iys - r8dx provides a minimal progress bound for the first loop (one iteration at most, since r8dx becomes iys on the first iteration). For the second loop, the transition is:
-- bqk' = bqk + 1
-- ut'  = ut + 1
-with iys fixed, so a natural loop variant is iys - ut, which decreases by 1 each iteration and stays nonnegative while the loop progresses. The chosen invariants avoid referring to non-parameter Pre values, and the loop assigns cover all modified variables exactly. The results are consistent with the given loop contexts and maintainability within Frama-C/WP. </reasoning>
+These invariants are inductive: they hold before the first iteration (wj=0, oxi=49, and the initial values for all other vars align with wj=0), and every loop iteration preserves them because all the updates are linear in wj. The minimal loop variant is (xca9 - wj), which strictly decreases by 1 each iteration as wj increments, ensuring termination since the loop guard is effectively wj < xca9 together with oxi > 0 (which is equivalent to wj < xca9 due to oxi == xca9 - wj).
 
-<code>int main1(){
-  int iys, r8dx, ut, bqk;
+The loop assigns clause must include every variable that is assigned inside the loop body. Here that is: wj, oxi, pw1t, x, r, bh, kh, g. Function parameters g and r are considered modifiable by the loop body (g is assigned), so they are included in the assigns set. Other local variables (like i, xca9, etc.) are not reassigned inside the loop (xca9 and i are constants in this function).
 
-  iys=1*2;
-  r8dx=2;
-  ut=iys;
-  bqk=0;
+With these invariants, Frama-C WP can verify the loop inductively and derive useful information about the post-state at exit (e.g., wj reaches xca9, oxi becomes 0, and all the tracked variables reach their predicted linear relationships with the number of iterations).
+
+</reasoning>
+<code>
+int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
 
   /*@
-    loop invariant (r8dx <= iys) && (ut >= iys);
-    loop invariant (bqk >= 0);
-    loop assigns bqk, ut, r8dx;
-    loop variant iys - r8dx;
+    loop invariant oxi == xca9 - wj;
+    loop invariant wj <= xca9;
+    loop invariant i == 2;
+    loop invariant g == \at(g, Pre) + wj * (xca9 - i);
+    loop invariant r == \at(r, Pre) + 3 * wj;
+    loop invariant pw1t == \at(pw1t, Pre) + 3 * wj;
+    loop invariant bh == \at(bh, Pre) + wj;
+    loop invariant kh == \at(kh, Pre) + 5 * wj;
+    loop invariant x == \at(x, Pre) + 4 * wj;
+    loop assigns wj, oxi, pw1t, x, r, bh, kh, g;
+    loop variant (xca9 - wj);
   */
   while (1) {
-      if (!(r8dx<=iys-1)) {
+      if (!(wj<xca9&&oxi>0)) {
           break;
       }
-      bqk = bqk+ut*r8dx;
-      ut = ut + iys;
-      r8dx = iys;
-  }
+      wj = wj + 1;
+      oxi--;
 
-  /*@
-    loop invariant (ut <= iys) && (bqk >= 0);
-    loop assigns bqk, ut;
-    loop variant iys - ut;
-  */
-  while (ut<=iys-1) {
-      bqk = bqk + 1;
-      ut += 1;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
   }
 
 }
------ Candidate 1/5 raw response end -----
-2026-03-14 23:05:39,667 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-14 23:05:39,755 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+</code>
+----- Candidate 1/8 raw response end -----
+2026-03-22 13:13:41,908 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-22 13:13:41,926 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:15:43,809 - INFO - 
+----- Candidate 2/8 raw response begin -----
+<reasoning>
+The loop updates a number of variables in a highly regular way:
+- wj is incremented by 1 each iteration and oxi is decremented by 1, so their sum remains constant: wj + oxi == xca9 (49).
+- r increases by 3 per iteration, so r == initial_r + 3*wj, i.e. r == \at(r,Pre) + 3*wj.
+- pw1t increases by 2 (via pw1t += i) and then by 1 (pw1t += 1), i.e. by 3 per iteration; starting from -2, pw1t == -2 + 3*wj.
+- kh increases by 4 and then by 1, i.e. by 5 per iteration; starting from 2, kh == 2 + 5*wj.
+- bh starts at initial g and is incremented by 1 each iteration, so bh == \at(g,Pre) + wj.
+- g itself increases by (xca9 - i) per iteration, i.e. by 47, so a concise invariant is g == \at(g,Pre) + (xca9 - i) * wj.
+
+Together, these invariants are inductive:
+- They hold before the first iteration (values given in the loop context).
+- They are preserved by each iteration due to the exact per-iteration updates.
+- They collectively provide a strong, verification-friendly summary of the loop state evolution and allow proving eventual termination with a decreasing variant.
+
+The loop assigns must include every variable modified inside the loop. The chosen invariants cover the core state while the loop assigns line explicitly lists all modified variables: wj, oxi, pw1t, x, r, bh, kh, g.
+
+The loop variant 49 - wj strictly decreases with every iteration of the loop body, ensuring termination as wj increases until the guard fails.
+</reasoning>
+<code>int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
+
+  /*@
+    loop invariant g == \at(g,Pre) + (xca9 - i) * wj;
+    loop invariant r == \at(r,Pre) + 3*wj;
+    loop invariant pw1t == -2 + 3*wj;
+    loop invariant kh == 2 + 5*wj;
+    loop invariant bh == \at(g,Pre) + wj;
+    loop invariant wj + oxi == xca9;
+    loop assigns wj, oxi, pw1t, x, r, bh, kh, g;
+    loop variant xca9 - wj;
+  */
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+
+}</code>
+----- Candidate 2/8 raw response end -----
+2026-03-22 13:15:43,809 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-22 13:15:43,822 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:17:27,653 - INFO - 
+----- Candidate 3/8 raw response begin -----
+<reasoning>
+The loop progresses with a simple, highly regular state update pattern:
+- The pair (wj, oxi) moves monotonically: wj increases by 1 and oxi decreases by 1 each iteration. This yields a strong conservation relation: wj + oxi == 49 (since initial values are 0 and 49 respectively, and xca9 is 49).
+- The iteration count t equals wj. Many other variables depend linearly on t:
+  - r increases by 3 per iteration, so r == initial_r + 3 * wj.
+  - pw1t increases by 3 per iteration (2 from the first inner update and 1 from the later update), so pw1t == -2 + 3 * wj.
+  - g increases by 47 per iteration, so g == initial_g + 47 * wj.
+  - kh increases by 5 per iteration, so kh == 2 + 5 * wj.
+  - bh increases by 1 per iteration, but we avoid equating it to a function of Pre since bh is a local (not a parameter); we still enumerate bh among loop assigns.
+
+- The loop termination is driven by wj reaching 49 (since oxi = 49 - wj and the loop breaks when wj >= 49 or oxi <= 0). A natural loop variant is 49 - wj, which strictly decreases with each iteration.
+
+These invariants are inductive, use only allowed variables (parameters g and r can use \at(..., Pre); other locals are expressed via direct linear relations to wj), and provide a compact, verification-friendly description of the loop state transitions. The loop assigns list includes all variables that are modified inside the loop.
+
+</reasoning>
+<code>/*@
+  loop invariant wj + oxi == 49;
+  loop invariant r == \at(r, Pre) + 3 * wj;
+  loop invariant pw1t == -2 + 3 * wj;
+  loop invariant g == \at(g, Pre) + 47 * wj;
+  loop invariant kh == 2 + 5 * wj;
+  loop invariant 0 <= wj && wj <= 49;
+  loop variant 49 - wj;
+  loop assigns wj, oxi, pw1t, x, r, g, bh, kh;
+*/
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }</code>
+----- Candidate 3/8 raw response end -----
+2026-03-22 13:17:27,653 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-22 13:17:27,669 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:18:00,124 - INFO - 
+----- Candidate 4/8 raw response begin -----
+<reasoning>
+I chose invariants that capture the exact state changes (conservation laws) and linear relations between variables and the loop counter wj, so WP can prove preservation and establish exact exit facts.
+
+Core conservation:
+- wj + oxi == xca9 is the fundamental preserved equality: wj increases by 1 and oxi decreases by 1 each iteration, so their sum remains equal to the constant xca9 (49).
+
+Counters and progress:
+- 0 <= wj <= xca9 and 0 <= oxi <= xca9 give tight bounds on the two loop counters/capacity variables.
+- The loop variant (xca9 - wj) is a non-negative integer that strictly decreases by 1 each iteration, guaranteeing termination of the guarded loop.
+
+Exact linear relations:
+- Many variables change by a fixed amount per iteration; expressing them as affine functions of wj makes the invariants strong and inductive:
+  - pw1t == -2 + 3*wj (pw1t increases by 3 each iter: +i (2) and +1).
+  - kh == 2 + 5*wj (kh increases by 5 each iter: +=4 and ++).
+  - r == \at(r, Pre) + 3*wj (r increases by 3 each iter).
+  - g == \at(g, Pre) + (xca9 - i) * wj (g increases by xca9 - i = 47 each iter).
+  - bh == \at(g, Pre) + wj (bh increments by 1 each iter).
+
+Constants:
+- i and xca9 are not modified; asserting i == 2 and xca9 == 49 helps discharge conditions like i+3 <= i+xca9 used in the code.
+
+Bounds on x:
+- x increases by either 4 or 5 per iteration (conditional +1 then +4). So a safe, inductive pair of bounds is:
+  \at(g, Pre) + 4*wj <= x <= \at(g, Pre) + 5*wj
+
+Loop assigns:
+- Exactly the variables that are modified in the loop body: wj, oxi, pw1t, x, r, bh, kh, g.
+
+All invariants use only available variables and \at(...) only on function parameters (\at(g, Pre) and \at(r, Pre)). They are inductive: each equality/inequality is preserved by the concrete updates in the loop body (the always-true condition i+3 <= i+xca9 is justified by xca9 == 49 and i == 2). The variant xca9 - wj decreases by 1 on each executed iteration.
+</reasoning>
+<code>
+int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
+
+  /*@
+    loop invariant i == 2;
+    loop invariant xca9 == 49;
+    loop invariant 0 <= wj && wj <= xca9;
+    loop invariant 0 <= oxi && oxi <= xca9;
+    loop invariant (wj + oxi) == xca9;
+    loop invariant pw1t == (-2 + 3 * wj);
+    loop invariant kh == (2 + 5 * wj);
+    loop invariant r == (\at(r, Pre) + 3 * wj);
+    loop invariant g == (\at(g, Pre) + (xca9 - i) * wj);
+    loop invariant bh == (\at(g, Pre) + wj);
+    loop invariant (\at(g, Pre) + 4 * wj) <= x && x <= (\at(g, Pre) + 5 * wj);
+    loop assigns wj, oxi, pw1t, x, r, bh, kh, g;
+    loop variant (xca9 - wj);
+  */
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+
+}
+</code>
+----- Candidate 4/8 raw response end -----
+2026-03-22 13:18:00,124 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-22 13:18:00,136 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:18:52,769 - INFO - 
+----- Candidate 5/8 raw response begin -----
+<reasoning>
+I inspected the loop body and the initial state. Key observations:
+- wj starts at 0 and is incremented by 1 while oxi starts at xca9 (49) and is decremented by 1 each iteration. Hence the sum wj + oxi is preserved (conservation equality).
+- kh increases by 5 each iteration (kh += 4; kh++), so kh == i + 5*wj is an exact relational invariant.
+- bh increases by 1 each iteration so bh == \at(g, Pre) + wj.
+- r increases by 3 each iteration so r == \at(r, Pre) + 3*wj.
+- pw1t is increased by i inside a conditional and then by 1 unconditionally. Given i and xca9 values (i unchanged, xca9==49), the conditional (i+3 <= i+xca9) holds initially and is preserved; therefore pw1t increases by (i+1) each iteration and pw1t == -2 + (i+1)*wj.
+- g increases by (xca9 - i) each iteration so g == \at(g, Pre) + (xca9 - i) * wj.
+- x increases by either 4 or 5 each iteration (4 always due to x += 4, plus 1 when x+7 < xca9). Thus bounds \at(g, Pre) + 4*wj <= x <= \at(g, Pre) + 5*wj are preserved and are useful for verification.
+- The natural loop variant is oxi because it is non-negative and decreases by 1 on each executed iteration.
+
+I therefore provided a concise set of inductive and verification-friendly invariants:
+- One core conservation equality (wj + oxi == xca9).
+- Exact relational equalities capturing linear updates (kh, bh, r, pw1t, g).
+- Progress/bounds for counters and x.
+- A small invariant (i+3 <= i + xca9) to justify the conditional increment of pw1t in every iteration given the initialized values.
+- A complete assigns clause listing exactly the variables modified in the loop.
+- A variant (oxi) to help prove termination.
+
+All invariants use only available variables or permitted uses of \at(...) on function parameters (\at(g, Pre), \at(r, Pre)). The original C code is unchanged except for the annotations.
+</reasoning>
+<code>
+int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
+
+  /*@
+    loop invariant wj + oxi == xca9;
+    loop invariant 0 <= wj && 0 <= oxi && wj <= xca9 && oxi <= xca9;
+    loop invariant kh == i + 5 * wj;
+    loop invariant bh == \at(g, Pre) + wj;
+    loop invariant r == \at(r, Pre) + 3 * wj;
+    loop invariant pw1t == -2 + (i + 1) * wj;
+    loop invariant g == \at(g, Pre) + (xca9 - i) * wj;
+    loop invariant \at(g, Pre) + 4 * wj <= x && x <= \at(g, Pre) + 5 * wj;
+    loop invariant i + 3 <= i + xca9;
+    loop assigns wj, oxi, pw1t, x, bh, kh, r, g;
+    loop variant oxi;
+  */
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+
+}
+</code>
+----- Candidate 5/8 raw response end -----
+2026-03-22 13:18:52,770 - INFO -   Candidate 6 selected prompt: simple_cot.txt
+2026-03-22 13:18:52,785 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:19:45,989 - INFO - 
+----- Candidate 6/8 raw response begin -----
+<reasoning>
+I choose invariants that are inductive, explain the loop state transition, and expose exact linear relations between counters and accumulators so WP can verify preservation and exit facts.
+
+Core conservation/relational equality
+- wj + oxi == xca9
+  - Reason: each iteration does wj = wj+1 and oxi = oxi-1 so the sum is conserved; initially 0+49 == xca9.
+
+Exact linear relations (state transition laws)
+- kh == i + 5 * wj
+  - kh increases by 4 and then by 1 each iteration: net +5 per iteration. With wj counting iterations, kh = initial i + 5*wj.
+- pw1t == -2 + (i + 1) * wj
+  - pw1t increases by i (the conditional is always true here) and then by 1 each iteration: net +(i+1).
+- bh == \at(g, Pre) + wj
+  - bh++ each iteration.
+- g == \at(g, Pre) + (xca9 - i) * wj
+  - g increases by xca9 - i each iteration.
+- r == \at(r, Pre) + 3 * wj
+  - r increases by 3 each iteration.
+
+Progress bounds and bounds for arithmetic variables
+- 0 <= wj && wj <= xca9
+  - wj is a nonnegative iteration counter and never exceeds xca9 (guard ensures wj<xca9 while iterating).
+- 0 <= oxi (follows from sum invariant but stated to help WP).
+- \at(g, Pre) + 4 * wj <= x && x <= \at(g, Pre) + 5 * wj
+  - Per-iteration x increases by either 4 or 5 (conditionally +1 then +4), so x is between 4*wj and 5*wj above its initial value \at(g,Pre). This yields a strong, useful bound for WP without using quantifiers.
+
+Loop assigns
+- All variables modified in the loop are listed exactly: wj, oxi, pw1t, x, bh, kh, g, r.
+
+Loop variant
+- xca9 - wj
+  - Decreases by 1 on each iteration while nonnegative (ensured by 0 <= wj <= xca9), proving termination of the while-loop when the guard is true.
+
+These invariants are inductive (each relation matches the concrete per-iteration updates) and together with exit condition !(wj<xca9 && oxi>0) yield exact exit facts (e.g. wj==xca9 or oxi==0 by combining with the sum invariant).
+</reasoning>
+<code>
+int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
+
+  /*@
+    loop invariant wj + oxi == xca9;
+    loop invariant 0 <= wj && wj <= xca9 && 0 <= oxi;
+    loop invariant kh == i + 5 * wj;
+    loop invariant pw1t == -2 + (i + 1) * wj;
+    loop invariant bh == \at(g, Pre) + wj;
+    loop invariant g == \at(g, Pre) + (xca9 - i) * wj;
+    loop invariant r == \at(r, Pre) + 3 * wj;
+    loop invariant \at(g, Pre) + 4 * wj <= x && x <= \at(g, Pre) + 5 * wj;
+    loop assigns wj, oxi, pw1t, x, bh, kh, g, r;
+    loop variant (xca9 - wj);
+  */
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+
+}
+</code>
+----- Candidate 6/8 raw response end -----
+2026-03-22 13:19:45,989 - INFO -   Candidate 7 selected prompt: simple_cot.txt
+2026-03-22 13:19:46,005 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:21:55,803 - INFO - 
+----- Candidate 7/8 raw response begin -----
+<reasoning>The loop updates a handful of variables in a highly structured way. To derive inductive, verification-friendly invariants we:
+
+- Capture the exact per-iteration updates for key variables where possible.
+- Use a strong, exact relation for pw1t, since the code path for its update is always taken (the condition i+3<=i+xca9 is always true with given constants), yielding pw1t = -2 + 3*wj.
+- Provide simple linear invariants for g, r, bh, kh, ensuring they reflect their per-iteration increments:
+  - g increases by (xca9 - i) each iteration => g = \at(g,Pre) + (xca9 - i)*wj = \at(g,Pre) + 47*wj.
+  - r increases by 3 each iteration => r = \at(r,Pre) + 3*wj.
+  - bh increases by 1 per iteration starting from initial bh = g => bh = \at(g,Pre) + wj.
+  - kh starts at i and increases by 5 per iteration (4 then 1) => kh = 2 + 5*wj.
+- Add bounds for the loop counter wj (0 <= wj <= xca9) and for oxi (0 <= oxi) to reflect termination conditions.
+- Provide a useful bound for x: since x starts at g and increases by 4 each iteration, with an occasional extra +1 when x < 42 (but never more than +5 per iteration), we can state:
+  - x >= \at(g,Pre) and x <= \at(g,Pre) + 5*wj.
+  - This is safe given the per-iteration maximum increase and the starting relation x = g at loop entry.
+- Include a loop variant (xca9 - wj) which strictly decreases as wj increments and ensures termination under the given guard.
+- Enumerate a complete set of loop assigns: wj, oxi, pw1t, x, r, bh, kh, g.
+
+All invariants are inductive under the actual loop body, rely only on known constants or function parameters (g, r), and avoid modifying the original code otherwise. They stay faithful to the code’s behavior without needing to refer to Pre for non-parameter locals.
+
+</reasoning>
+<code>/*@
+  loop invariant wj &gt;= 0;
+  loop invariant wj &lt;= xca9;
+  loop invariant oxi &gt;= 0;
+  // pw1t progression: initial -2, increases by i (2) and then by 1 per iteration => -2 + 3*wj
+  loop invariant pw1t == -2 + 3*wj;
+  // r progression: initial r plus 3 per iteration
+  loop invariant r == \at(r,Pre) + 3*wj;
+  // g progression: initial g plus (xca9 - i) per iteration = 47 per iteration
+  loop invariant g == \at(g,Pre) + 47*wj;
+  // bh progression: initial bh equals initial g; increases by 1 per iteration
+  loop invariant bh == \at(g,Pre) + wj;
+  // kh progression: starts at i (2) and increases by 5 per iteration
+  loop invariant kh == 2 + 5*wj;
+  // x progression: starts at initial g; increases by up to 5 per iteration, >= initial g
+  loop invariant x &gt;= \at(g,Pre);
+  loop invariant x &lt;= \at(g,Pre) + 5*wj;
+  loop assigns wj, oxi, pw1t, x, r, bh, kh, g;
+  loop variant (xca9 - wj);
+*/</code>
+----- Candidate 7/8 raw response end -----
+2026-03-22 13:21:55,803 - INFO -   Candidate 8 selected prompt: simple_cot.txt
+2026-03-22 13:21:55,816 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 13:24:41,652 - INFO - 
+----- Candidate 8/8 raw response begin -----
+<reasoning>To create inductive, verification-friendly loop annotations for Frama-C/WP, I focused on the loop’s evolution of key state variables and derived a small set of strong invariants that capture the essential, repeatable state transitions seen in every iteration:
+
+- Core conservation (state transition law): The loop body increments wj by 1 and decrements oxi by 1. Hence, wj + oxi remains constant and equals the initial value xca9 (49). This invariant is preserved across iterations and is tight enough to drive termination reasoning.
+
+- Linear progress for arithmetic accumulators: pw1t grows by 3 each iteration (i contributes 2, then an extra +1). Given the initial pw1t = -2, pw1t = -2 + 3*wj holds for all iterations. This invariant directly ties pw1t to the iteration counter wj and is strong, not tautological.
+
+- Global parameter evolution: g is updated by g = g + (xca9 - i) each iteration, i is constant (2) and xca9 is 49, so g grows by 47 per iteration. Therefore, g - (xca9 - i) * wj remains equal to the initial g value, which is expressible as g - (xca9 - i) * wj == \at(g, Pre). This invariant uses a function parameter and its initial value, helping relate g and wj across iterations.
+
+- Loop variant: oxi decreases by 1 every iteration, providing a natural decreasing measure to prove termination.
+
+- Loop assigns: The loop touches wj, oxi, pw1t, x, r, bh, kh, and g. The invariant set and the assigns set reflect exactly the variables modified in the loop body.
+
+These invariants are inductive (hold initially, preserved by each iteration) and coupled with a meaningful loop variant to help Frama-C WP discharge the proof. The annotations avoid introducing any new constructs or modifying the program logic beyond adding ACSL metadata. </reasoning>
+<code>/*@
+  loop invariant wj + oxi == xca9;
+  loop invariant 0 <= wj <= xca9;
+  loop invariant pw1t == -2 + 3 * wj;
+  loop invariant g - (xca9 - i) * wj == \at(g, Pre);
+  loop assigns {wj, oxi, pw1t, x, r, bh, kh, g};
+  loop variant oxi;
+*/
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }</code>
+----- Candidate 8/8 raw response end -----
+2026-03-22 13:24:41,652 - INFO - 
+----- Candidate 1/8 full code begin -----
+int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
+
+  /*@
+    loop invariant oxi == xca9 - wj;
+    loop invariant wj <= xca9;
+    loop invariant i == 2;
+    loop invariant g == \at(g, Pre) + wj * (xca9 - i);
+    loop invariant r == \at(r, Pre) + 3 * wj;
+    loop invariant pw1t == \at(pw1t, Pre) + 3 * wj;
+    loop invariant bh == \at(bh, Pre) + wj;
+    loop invariant kh == \at(kh, Pre) + 5 * wj;
+    loop invariant x == \at(x, Pre) + 4 * wj;
+    loop assigns wj, oxi, pw1t, x, r, bh, kh, g;
+    loop variant (xca9 - wj);
+  */
+  while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+
+}
+----- Candidate 1/8 full code end -----
+2026-03-22 13:24:41,652 - INFO - 
+----- Candidate 2/8 full code begin -----
+int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
+
+  /*@
+    loop invariant g == \at(g,Pre) + (xca9 - i) * wj;
+    loop invariant r == \at(r,Pre) + 3*wj;
+    loop invariant pw1t == -2 + 3*wj;
+    loop invariant kh == 2 + 5*wj;
+    loop invariant bh == \at(g,Pre) + wj;
+    loop invariant wj + oxi == xca9;
+    loop assigns wj, oxi, pw1t, x, r, bh, kh, g;
+    loop variant xca9 - wj;
+  */
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+
+}
+----- Candidate 2/8 full code end -----
+2026-03-22 13:24:41,652 - INFO - 
+----- Candidate 3/8 full code begin -----
+/*@
+  loop invariant wj + oxi == 49;
+  loop invariant r == \at(r, Pre) + 3 * wj;
+  loop invariant pw1t == -2 + 3 * wj;
+  loop invariant g == \at(g, Pre) + 47 * wj;
+  loop invariant kh == 2 + 5 * wj;
+  loop invariant 0 <= wj && wj <= 49;
+  loop variant 49 - wj;
+  loop assigns wj, oxi, pw1t, x, r, g, bh, kh;
+*/
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+----- Candidate 3/8 full code end -----
+2026-03-22 13:24:41,652 - INFO - 
+----- Candidate 4/8 full code begin -----
+int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
+
+  /*@
+    loop invariant i == 2;
+    loop invariant xca9 == 49;
+    loop invariant 0 <= wj && wj <= xca9;
+    loop invariant 0 <= oxi && oxi <= xca9;
+    loop invariant (wj + oxi) == xca9;
+    loop invariant pw1t == (-2 + 3 * wj);
+    loop invariant kh == (2 + 5 * wj);
+    loop invariant r == (\at(r, Pre) + 3 * wj);
+    loop invariant g == (\at(g, Pre) + (xca9 - i) * wj);
+    loop invariant bh == (\at(g, Pre) + wj);
+    loop invariant (\at(g, Pre) + 4 * wj) <= x && x <= (\at(g, Pre) + 5 * wj);
+    loop assigns wj, oxi, pw1t, x, r, bh, kh, g;
+    loop variant (xca9 - wj);
+  */
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+
+}
+----- Candidate 4/8 full code end -----
+2026-03-22 13:24:41,652 - INFO - 
+----- Candidate 5/8 full code begin -----
+int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
+
+  /*@
+    loop invariant wj + oxi == xca9;
+    loop invariant 0 <= wj && 0 <= oxi && wj <= xca9 && oxi <= xca9;
+    loop invariant kh == i + 5 * wj;
+    loop invariant bh == \at(g, Pre) + wj;
+    loop invariant r == \at(r, Pre) + 3 * wj;
+    loop invariant pw1t == -2 + (i + 1) * wj;
+    loop invariant g == \at(g, Pre) + (xca9 - i) * wj;
+    loop invariant \at(g, Pre) + 4 * wj <= x && x <= \at(g, Pre) + 5 * wj;
+    loop invariant i + 3 <= i + xca9;
+    loop assigns wj, oxi, pw1t, x, bh, kh, r, g;
+    loop variant oxi;
+  */
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+
+}
+----- Candidate 5/8 full code end -----
+2026-03-22 13:24:41,652 - INFO - 
+----- Candidate 6/8 full code begin -----
+int main1(int g,int r){
+  int xca9, i, wj, oxi, kh, pw1t, x, bh;
+
+  xca9=49;
+  i=2;
+  wj=0;
+  oxi=xca9;
+  kh=i;
+  pw1t=-2;
+  x=g;
+  bh=g;
+
+  /*@
+    loop invariant wj + oxi == xca9;
+    loop invariant 0 <= wj && wj <= xca9 && 0 <= oxi;
+    loop invariant kh == i + 5 * wj;
+    loop invariant pw1t == -2 + (i + 1) * wj;
+    loop invariant bh == \at(g, Pre) + wj;
+    loop invariant g == \at(g, Pre) + (xca9 - i) * wj;
+    loop invariant r == \at(r, Pre) + 3 * wj;
+    loop invariant \at(g, Pre) + 4 * wj <= x && x <= \at(g, Pre) + 5 * wj;
+    loop assigns wj, oxi, pw1t, x, bh, kh, g, r;
+    loop variant (xca9 - wj);
+  */
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+
+}
+----- Candidate 6/8 full code end -----
+2026-03-22 13:24:41,652 - INFO - 
+----- Candidate 7/8 full code begin -----
+/*@
+  loop invariant wj &gt;= 0;
+  loop invariant wj &lt;= xca9;
+  loop invariant oxi &gt;= 0;
+  // pw1t progression: initial -2, increases by i (2) and then by 1 per iteration => -2 + 3*wj
+  loop invariant pw1t == -2 + 3*wj;
+  // r progression: initial r plus 3 per iteration
+  loop invariant r == \at(r,Pre) + 3*wj;
+  // g progression: initial g plus (xca9 - i) per iteration = 47 per iteration
+  loop invariant g == \at(g,Pre) + 47*wj;
+  // bh progression: initial bh equals initial g; increases by 1 per iteration
+  loop invariant bh == \at(g,Pre) + wj;
+  // kh progression: starts at i (2) and increases by 5 per iteration
+  loop invariant kh == 2 + 5*wj;
+  // x progression: starts at initial g; increases by up to 5 per iteration, >= initial g
+  loop invariant x &gt;= \at(g,Pre);
+  loop invariant x &lt;= \at(g,Pre) + 5*wj;
+  loop assigns wj, oxi, pw1t, x, r, bh, kh, g;
+  loop variant (xca9 - wj);
+*/
+----- Candidate 7/8 full code end -----
+2026-03-22 13:24:41,652 - INFO - 
+----- Candidate 8/8 full code begin -----
+/*@
+  loop invariant wj + oxi == xca9;
+  loop invariant 0 <= wj <= xca9;
+  loop invariant pw1t == -2 + 3 * wj;
+  loop invariant g - (xca9 - i) * wj == \at(g, Pre);
+  loop assigns {wj, oxi, pw1t, x, r, bh, kh, g};
+  loop variant oxi;
+*/
+while (1) {
+      if (!(wj<xca9&&oxi>0)) {
+          break;
+      }
+      wj = wj + 1;
+      oxi--;
+      if (i+3<=i+xca9) {
+          pw1t = pw1t + i;
+      }
+      if (x+7<xca9) {
+          x = x + 1;
+      }
+      r = r + 3;
+      pw1t = pw1t + 1;
+      bh++;
+      kh += 4;
+      g = g+xca9-i;
+      x += 4;
+      kh++;
+  }
+----- Candidate 8/8 full code end -----
+2026-03-22 13:24:41,652 - INFO - Successfully generated 8/8 candidates
+2026-03-22 13:24:41,654 - INFO - Checking 31 invariants for conflicts...
+2026-03-22 13:24:41,665 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-22 13:24:41,665 - INFO -   1: int main1(int g,int r){
+2026-03-22 13:24:41,665 - INFO -   2:   int xca9, i, wj, oxi, kh, pw1t, x, bh;
+2026-03-22 13:24:41,665 - INFO -   3: 
+2026-03-22 13:24:41,665 - INFO -   4:   xca9=49;
+2026-03-22 13:24:41,665 - INFO -   5:   i=2;
+2026-03-22 13:24:41,665 - INFO -   6:   wj=0;
+2026-03-22 13:24:41,665 - INFO -   7:   oxi=xca9;
+2026-03-22 13:24:41,665 - INFO -   8:   kh=i;
+2026-03-22 13:24:41,665 - INFO -   9:   pw1t=-2;
+2026-03-22 13:24:41,665 - INFO -   10:   x=g;
+2026-03-22 13:24:41,665 - INFO - DEBUG: Total lines: 70
+2026-03-22 13:24:41,904 - INFO - syntax Correct
+2026-03-22 13:25:13,651 - INFO - Validate:
+2026-03-22 13:25:13,651 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 13:25:13,651 - INFO - 
+2026-03-22 13:25:13,651 - INFO - Verify:
+2026-03-22 13:25:13,651 - INFO - []
+2026-03-22 13:25:13,651 - INFO - 
+2026-03-22 13:25:13,651 - INFO - Houdini iteration 1: All invariants are valid
+2026-03-22 13:25:13,853 - INFO - syntax Correct
+2026-03-22 13:25:45,594 - INFO - Validate:
+2026-03-22 13:25:45,594 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 13:25:45,594 - INFO - 
+2026-03-22 13:25:45,594 - INFO - Verify:
+2026-03-22 13:25:45,594 - INFO - []
+2026-03-22 13:25:45,594 - INFO - 
+2026-03-22 13:26:27,680 - INFO - Deduplicated 37 loop invariants in final code
+2026-03-22 13:26:27,874 - INFO - syntax Correct
+2026-03-22 13:26:58,983 - INFO - Validate:
+2026-03-22 13:26:58,983 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 13:26:58,983 - INFO - 
+2026-03-22 13:26:58,983 - INFO - Verify:
+2026-03-22 13:26:58,983 - INFO - []
+2026-03-22 13:26:58,983 - INFO - 
+2026-03-22 13:26:58,983 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-22 13:26:58,984 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_44/1.c
+2026-03-22 13:26:58,984 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_44/1_invariants.txt
+2026-03-22 13:26:58,984 - INFO - 
+============================================================
+2026-03-22 13:26:58,984 - INFO - Final first_pass results:
+2026-03-22 13:26:58,984 - INFO -   syntax=1
+2026-03-22 13:26:58,984 - INFO -   valid=1
+2026-03-22 13:26:58,984 - INFO -   satisfy=None
+2026-03-22 13:26:58,984 - INFO - ============================================================
+2026-03-22 13:26:58,984 - INFO - 
+============================================================
+2026-03-22 13:26:58,984 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-22 13:26:58,984 - INFO -   Total API calls: 7
+2026-03-22 13:26:58,984 - INFO -   Total prompt tokens (input): 9,942
+2026-03-22 13:26:58,984 - INFO -   Total completion tokens (output): 54,018
+2026-03-22 13:26:58,984 - INFO -   Total tokens: 63,960
+2026-03-22 13:26:58,984 - INFO -   Average per call:
+2026-03-22 13:26:58,984 - INFO -     Prompt: 1420.3 tokens
+2026-03-22 13:26:58,984 - INFO -     Completion: 7716.9 tokens
+2026-03-22 13:26:58,984 - INFO -     Total: 9137.1 tokens
+2026-03-22 13:26:58,984 - INFO - ============================================================
+2026-03-22 13:26:58,985 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_44/1.c
+2026-03-22 13:26:58,985 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_44/1_invariants.txt
+2026-03-22 13:27:43,013 - INFO - LLM quality-gate raw response: {
+  "ok": true,
+  "reason": "pass"
+}
+2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
+2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
+2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...

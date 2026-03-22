@@ -1,24 +1,20 @@
-int main1(int b,int m){
-  int a, i, v;
+int main1(int p,int q){
+  int t, g, v;
 
-  a=m;
-  i=a;
-  v=a;
+  t=q;
+  g=0;
+  v=2;
 
 
-while (i>=2) {
-      if (i+4<=v+a) {
-          v = v+v;
+while (g+5<=t) {
+      v = v+4;
+      if ((g%3)==0) {
+          v = v-v;
       }
-      else {
-          v = v+i;
-      }
-      v = i;
-      i = i-2;
   }
 /*@
-  assert !(i>=2) &&
-         (m == \at(m, Pre));
+  assert !(g+5<=t) &&
+         (t == \at(q, Pre));
 */
 
 }

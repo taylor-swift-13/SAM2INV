@@ -460,6 +460,7 @@ def build_full_input_template_map(
 
     # doc_granularity / max_cover / doc_hybrid:
     # keep explicit docs mapping where available.
+    input_template_overrides: Dict[str, str] = {}
     id_map = _semantic_id_to_name_map()
     for m in re.finditer(r"^###\s+([A-Z]+\d+)\s+·\s+(.+)$", text, flags=re.M):
         tid = m.group(1)
@@ -476,6 +477,9 @@ def build_full_input_template_map(
         for fam, idx in _parse_sources_refs(sm.group(1).strip()):
             key = f"{_normalize_input_family(fam)}/{idx}.c"
             mapping[key] = tmpl
+
+    for key, tmpl in input_template_overrides.items():
+        mapping[key] = tmpl
 
     l_bank = _semantic_templates_by_prefix("L")
     n_bank = _semantic_templates_by_prefix("N")
@@ -2516,39 +2520,48 @@ class ProbabilisticLoopFactory:
                 used_assign += 2
                 core_applied = True
             elif chosen == "mod_bucket_cascade":
-                # Divisibility cascade with multiple residue buckets and running index.
-                e = state_vars[4] if len(state_vars) > 4 else a
-                k1 = self.rng.randint(7, 11)
-                k2 = self.rng.randint(5, 9)
-                k3 = self.rng.randint(3, 7)
+                # Generic modular/divisibility classification loop with many buckets,
+                # optional weighted accumulation, and a long else-if chain.
+                mod_pool = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+                self.rng.shuffle(mod_pool)
+                bucket_vars = list(state_vars[1:])
+                max_branches = min(len(bucket_vars), max(4, if_budget + 1), max(4, assign_total - 1), 8)
+                branch_slots = max(4, min(max_branches, len(bucket_vars)))
+                chosen_buckets = bucket_vars[:branch_slots]
+                chosen_mods = sorted(mod_pool[: max(1, len(chosen_buckets) - 1)], reverse=True)
+                agg = state_vars[1 + len(chosen_buckets)] if len(state_vars) > 1 + len(chosen_buckets) else None
+                drift = state_vars[2 + len(chosen_buckets)] if len(state_vars) > 2 + len(chosen_buckets) else None
                 set_init(a, "0")
-                set_init(b, "0")
-                set_init(c, "0")
-                set_init(d, "0")
-                set_init(e, "0")
-                guard = f"{a}<{lim}"
-                body.append(
-                    IfElse(
-                        cond=f"{a}%{k1}==0",
-                        then_body=[Assign(e, f"{e}+1")],
-                        else_body=[
-                            IfElse(
-                                cond=f"{a}%{k2}==0",
-                                then_body=[Assign(d, f"{d}+1")],
-                                else_body=[
-                                    IfElse(
-                                        cond=f"{a}%{k3}==0",
-                                        then_body=[Assign(c, f"{c}+1")],
-                                        else_body=[Assign(b, f"{b}+1")],
-                                    )
-                                ],
-                            )
-                        ],
+                for bucket in chosen_buckets:
+                    set_init(bucket, "0")
+                if agg is not None:
+                    set_init(agg, "0")
+                if drift is not None:
+                    set_init(drift, "0")
+                limit_expr = lim if self.rng.random() < 0.6 else f"{lim}+({src}%7)"
+                guard = f"{a}<{limit_expr}"
+
+                weighted = agg is not None and assign_total >= (2 * len(chosen_buckets) + 1)
+                fallback_body = [Assign(chosen_buckets[-1], f"{chosen_buckets[-1]}+1")]
+                if weighted:
+                    fallback_body.append(Assign(agg, f"{agg}+{len(chosen_buckets)}"))
+                nested_branch: Stmt = IfOnly(cond="1", then_body=fallback_body)
+                for idx, (mod, bucket) in enumerate(reversed(list(zip(chosen_mods, chosen_buckets[:-1]))), start=1):
+                    then_body = [Assign(bucket, f"{bucket}+1")]
+                    if weighted:
+                        then_body.append(Assign(agg, f"{agg}+{len(chosen_buckets) - idx}"))
+                    nested_branch = IfElse(
+                        cond=f"{a}%{mod}==0",
+                        then_body=then_body,
+                        else_body=[nested_branch],
                     )
-                )
+                body.append(nested_branch)
                 body.append(Assign(a, f"{a}+1"))
-                used_if += 3
-                used_assign += 5
+                if drift is not None:
+                    drift_base = chosen_mods[self.rng.randrange(len(chosen_mods))]
+                    body.append(Assign(drift, f"{drift}+{a}%{drift_base}"))
+                used_if += max(0, len(chosen_buckets) - 1)
+                used_assign += 1 + len(chosen_buckets) + (len(chosen_buckets) if weighted else 0) + (1 if drift is not None else 0)
                 core_applied = True
             elif chosen == "qr_division_step":
                 # Quotient-remainder coupling: x > y*q+r.
@@ -2827,37 +2840,59 @@ class ProbabilisticLoopFactory:
                 used_assign += 3
                 core_applied = True
             elif chosen == "multi_branch_swap_recurrence":
-                # 4-way piecewise swap recurrence with moving threshold.
+                # Generic piecewise nonlinear recurrence with role swaps, moving thresholds,
+                # and 3-4 branches over a coupled residual/drift system.
                 e = state_vars[4] if len(state_vars) > 4 else a
                 f = state_vars[5] if len(state_vars) > 5 else b
-                set_init(a, f"{src}*{src}")      # n
-                set_init(b, f"({src}%11)+3")     # d
-                set_init(c, f"{a}%{b}")          # r
-                set_init(d, "0")                 # t
-                set_init(e, f"{a}%({b}-2)")      # k
-                set_init(f, f"4*({a}/({b}-2)-{a}/{b})")  # q
-                guard = f"{src}>={b}&&{c}!=0"
+                g = state_vars[6] if len(state_vars) > 6 else None
+                alpha = self.rng.choice([2, 3])
+                step = self.rng.choice([2, 4, 6])
+                inc = self.rng.choice([1, 2, 3])
+                shift = self.rng.choice([0, 1, 2])
+                set_init(a, f"{src}*{src}+({src}%7)")
+                set_init(b, f"({src}%9)+3")
+                set_init(c, f"{a}%{b}")
+                set_init(d, "0")
+                set_init(e, f"{a}%({b}-1)")
+                set_init(f, f"({step}/2)*({a}/({b}-1)-{a}/{b})")
+                if g is not None:
+                    set_init(g, "0")
+                guard = f"{src}+{shift}>={b}&&{c}!=0"
+
+                last_else: List[Stmt] = [
+                    Assign(d, c),
+                    Assign(c, f"{alpha}*{c}-{e}+{f}-2*{b}-{step}"),
+                    Assign(e, d),
+                    Assign(f, f"{f}-{step}"),
+                    Assign(b, f"{b}+{inc}"),
+                ]
+                if g is not None:
+                    last_else.append(Assign(g, f"{g}+{c}%({inc}+2)"))
+                branch3 = IfElse(
+                    cond=f"{alpha}*{c}+{f}<2*{b}+{e}+{step}",
+                    then_body=[Assign(d, c), Assign(c, f"{alpha}*{c}-{e}+{f}-{b}"), Assign(e, d), Assign(f, f"{f}-{step//2}"), Assign(b, f"{b}+{inc}")],
+                    else_body=last_else,
+                )
+                branch2_then = [Assign(d, c), Assign(c, f"{alpha}*{c}-{e}+{f}"), Assign(e, d), Assign(b, f"{b}+{inc}")]
+                if g is not None:
+                    branch2_then.append(Assign(g, f"{g}+{e}%({inc}+3)"))
+                nested = IfElse(
+                    cond=f"{alpha}*{c}+{f}<{b}+{e}+{step//2+1}",
+                    then_body=branch2_then,
+                    else_body=[branch3],
+                )
+                first_then = [Assign(d, c), Assign(c, f"{alpha}*{c}-{e}+{f}+{b}+{inc}"), Assign(e, d), Assign(f, f"{f}+{step}"), Assign(b, f"{b}+{inc}")]
+                if g is not None:
+                    first_then.append(Assign(g, f"{g}+{b}%({step}+1)"))
                 body.append(
                     IfElse(
-                        cond=f"2*{c}+{f}<{e}",
-                        then_body=[Assign(d, c), Assign(c, f"2*{c}-{e}+{f}+{b}+2"), Assign(e, d), Assign(f, f"{f}+4"), Assign(b, f"{b}+2")],
-                        else_body=[
-                            IfElse(
-                                cond=f"2*{c}+{f}<{b}+{e}+2",
-                                then_body=[Assign(d, c), Assign(c, f"2*{c}-{e}+{f}"), Assign(e, d), Assign(b, f"{b}+2")],
-                                else_body=[
-                                    IfElse(
-                                        cond=f"2*{c}+{f}<2*{b}+{e}+4",
-                                        then_body=[Assign(d, c), Assign(c, f"2*{c}-{e}+{f}-{b}-2"), Assign(e, d), Assign(f, f"{f}-4"), Assign(b, f"{b}+2")],
-                                        else_body=[Assign(d, c), Assign(c, f"2*{c}-{e}+{f}-2*{b}-4"), Assign(e, d), Assign(f, f"{f}-8"), Assign(b, f"{b}+2")],
-                                    )
-                                ],
-                            )
-                        ],
+                        cond=f"{alpha}*{c}+{f}<{e}+{shift}",
+                        then_body=first_then,
+                        else_body=[nested],
                     )
                 )
                 used_if += 3
-                used_assign += 8
+                used_assign += 8 + (3 if g is not None else 0)
                 core_applied = True
             elif chosen == "while_one_min_break":
                 # while(1){ if(ctr>=lim) break; if(z<=y) y=z; ctr++; }

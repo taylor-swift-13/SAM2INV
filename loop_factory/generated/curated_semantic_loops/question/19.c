@@ -1,25 +1,29 @@
-int main1(int k,int n,int p){
-  int l, y, v, q, o, g;
+int main1(int b,int m){
+  int l, s, k;
 
-  l=(n%7)+20;
-  y=0;
-  v=n;
-  q=8;
-  o=y;
-  g=p;
+  l=35;
+  s=0;
+  k=-6;
 
 
-while (1) {
-      if (v>=l) {
-          break;
-      }
-      if (o<=q) {
-          q = o;
-      }
-      v = v+1;
+while (s<l) {
+      k = k-k;
+      k = k+(-3);
+      s = s+1;
+  }
+
+
+while (s>=3) {
+      s = s-3;
+  }
+
+
+while (s<=k-1) {
+      s = s+1;
   }
 /*@
-  assert (o == 0);
+  assert !(s<=k-1) &&
+         (l == 35);
 */
 
 }

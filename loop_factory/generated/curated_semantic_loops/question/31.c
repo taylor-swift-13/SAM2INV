@@ -1,39 +1,34 @@
-int main1(int a,int q){
-  int c, j, t, e;
+int main1(int a,int b,int q){
+  int r, z, v, m, g, l;
 
-  c=20;
-  j=0;
-  t=3;
-  e=q;
+  r=q;
+  z=0;
+  v=8;
+  m=b;
+  g=0;
+  l=q;
 
 
 while (1) {
-      if (j>=c) {
+      if (v>=r) {
           break;
       }
-      t = t+3;
-      j = j+1;
-      t = t+1;
-      e = e-1;
-      if ((j%5)==0) {
-          e = e+1;
+      if (g<=m) {
+          m = g;
       }
+      v = v+1;
+      v = v*2;
   }
 /*@
-  assert (t == 3 + 4*j);
+  assert (g == 0);
 */
 
-  while (t > c) {
-      if (j > 0 && t - j >= c) {
-          t = t - j;
-          j = j / 2;
-      } else {
-          t = t - 1;
-      }
-      e = e + 1;
+  while (v > r) {
+      v = v - 1;
+      z = z + 1;
   }
 /*@
-  assert !(t > c) &&
-         (t == c);
+  assert !(v > r) &&
+         (v == r);
 */
 }

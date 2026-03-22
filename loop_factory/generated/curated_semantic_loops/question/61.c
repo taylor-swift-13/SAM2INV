@@ -1,21 +1,17 @@
-int main1(int b){
-  int r, m, v, z;
+int main1(int b,int p){
+  int c, v, m;
 
-  r=b-1;
-  m=r;
-  v=r;
-  z=m;
+  c=(p%6)+10;
+  v=1;
+  m=v;
 
 
-while (v<r) {
-      if (v<r) {
-          v = v+1;
-      }
-      v = v+z+z;
+while (v<=c/3) {
+      v = v*3;
   }
 /*@
-  assert !(v<r) &&
-         (r == \at(b, Pre) - 1);
+  assert !(v<=c/3) &&
+         (v >= 1);
 */
 
 }

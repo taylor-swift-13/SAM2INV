@@ -1,30 +1,38 @@
-int main1(int n){
-  int r, q, z, s;
+int main1(int k){
+  int b, y, v, j;
 
-  r=(n%11)+17;
-  q=r;
-  z=8;
-  s=r;
+  b=63;
+  y=3;
+  v=y;
+  j=y;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant n == \at(n, Pre);
-  loop invariant r == (\at(n, Pre) % 11) + 17;
-  loop invariant 0 <= q;
-  loop invariant q <= (\at(n, Pre) % 11) + 17;
-  loop invariant r == (\at(n, Pre) % 11 + 17);
-  loop invariant q <= r;
-  loop invariant q >= 0;
-  loop invariant q <= \at(n,Pre) % 11 + 17;
-  loop invariant r == \at(n,Pre) % 11 + 17;
-  loop assigns q;
+  loop invariant j == 3;
+  loop invariant y == 3;
+  loop invariant b == 63;
+  loop invariant k == \at(k, Pre);
+  loop invariant ((v % 10 == 3 && v <= b) || v == b + 6);
+  loop invariant v <= b + j + j;
+  loop invariant v >= y;
+  loop invariant j == y;
+  loop invariant v <= 69;
+  loop invariant (v - y) % 2 == 0;
+  loop invariant v >= 3 && v <= b + 2*j && (v == b + 2*j || v % 10 == 3);
+  loop assigns v;
 */
-while (q-1>=0) {
-      q = q-1;
+while (y+3<=b) {
+      if (v+4<=b) {
+          v = v+4;
+      }
+      else {
+          v = b;
+      }
+      v = v+j+j;
   }
 /*@
-  assert !(q-1>=0) &&
-         (n == \at(n, Pre));
+  assert !(y+3<=b) &&
+         (j == 3);
 */
 
 

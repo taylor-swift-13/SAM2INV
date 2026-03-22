@@ -1,36 +1,48 @@
-int main1(int k,int p){
-  int d, i, v;
+int main1(int k,int q){
+  int i, u, o, r;
 
-  d=p+3;
-  i=2;
-  v=-8;
+  i=59;
+  u=i;
+  o=0;
+  r=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant d == p + 3;
-  loop invariant i % 2 == 0;
-  loop invariant v >= -8;
-  loop invariant p == \at(p, Pre);
-  loop invariant k == \at(k, Pre);
-  loop invariant i >= 2;
-  loop invariant v <= 2*i - 12;
-  loop invariant v >= -8 + 3 * ((i - 2) / 2);
-  loop invariant d == \at(p, Pre) + 3;
+  loop invariant o % 4 == 0;
+  loop invariant 0 <= o;
+  loop invariant o <= i + 3;
+  loop invariant r % 3 == 0;
+  loop invariant -3*(o/4) <= r && r <= 3*(o/4);
 
-  loop invariant ((i - 2) % 2) == 0;
-  loop assigns v, i;
+  loop invariant r % 3 == 0 && -3*(o/4) <= r && r <= 3*(o/4) && k == \at(k, Pre) && q == \at(q, Pre);
+
+  loop invariant k == \at(k, Pre);
+  loop invariant q == \at(q, Pre);
+  loop invariant o >= 0;
+  loop invariant o <= i + 1;
+  loop invariant i == 59;
+
+  loop invariant (o/4) <= 8 ==> r == 3*(o/4);
+
+  loop invariant (o <= 4*(i/8)) ==> r == 3*(o/4);
+  loop invariant -3*(o/4) <= r;
+  loop invariant r <= 3*(o/4);
+  loop invariant (o <= 32) ==> (r == 3*(o/4));
+  loop assigns r, o;
 */
-while (i+2<=d) {
-      v = v+1;
-      v = v+2;
-      if (v+7<d) {
-          v = v+1;
+while (o<i) {
+      if (o<i/2) {
+          r = r+3;
       }
-      i = i+2;
+      else {
+          r = r-3;
+      }
+      o = o+1;
+      o = o+3;
   }
 /*@
-  assert !(i+2<=d) &&
-         (d == p + 3);
+  assert !(o<i) &&
+         (o % 4 == 0);
 */
 
 

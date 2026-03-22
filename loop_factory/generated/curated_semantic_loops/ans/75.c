@@ -1,33 +1,36 @@
-int main1(int b,int k){
-  int d, m, p, s;
+int main1(int k,int p){
+  int d, i, v;
 
-  d=k;
-  m=2;
-  p=k;
-  s=b;
+  d=p+3;
+  i=2;
+  v=-8;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant d == k;
-  loop invariant b == \at(b, Pre);
+  loop invariant d == p + 3;
+  loop invariant i % 2 == 0;
+  loop invariant v >= -8;
+  loop invariant p == \at(p, Pre);
   loop invariant k == \at(k, Pre);
-  loop invariant p >= k;
-  loop invariant p <= d;
-  loop invariant p >= d;
-  loop invariant (p - d) % 2 == 0;
-  loop invariant p % 2 == k % 2;
-  loop invariant p <= d + 1;
-  loop assigns p;
+  loop invariant i >= 2;
+  loop invariant v <= 2*i - 12;
+  loop invariant v >= -8 + 3 * ((i - 2) / 2);
+  loop invariant d == \at(p, Pre) + 3;
+
+  loop invariant ((i - 2) % 2) == 0;
+  loop assigns v, i;
 */
-while (p<d) {
-      if (p<d) {
-          p = p+1;
+while (i+2<=d) {
+      v = v+1;
+      v = v+2;
+      if (v+7<d) {
+          v = v+1;
       }
-      p = p+1;
+      i = i+2;
   }
 /*@
-  assert !(p<d) &&
-         (d == k);
+  assert !(i+2<=d) &&
+         (d == p + 3);
 */
 
 

@@ -1,20 +1,35 @@
-int main1(int o){
-  int dq, m9, p;
+int main1(int i){
+  int tkj, kl, b6, d9b, eik, ah, yspz, b;
 
-  dq=108;
-  m9=0;
-  p=0;
+  tkj=i;
+  kl=tkj;
+  b6=0;
+  d9b=kl;
+  eik=-4;
+  ah=tkj;
+  yspz=-6;
+  b=i;
 
-  while (p<dq) {
-      p++;
-      m9 = m9 + o;
-      o += m9;
-  }
-
-  while (dq<p) {
-      dq = dq + 1;
-      m9 = m9 + o;
-      o += p;
+  while (b6<tkj) {
+      b6 += 1;
+      if (ah<=eik) {
+          eik = ah;
+      }
+      if (yspz<yspz+1) {
+          yspz += 4;
+      }
+      d9b = d9b + tkj;
+      d9b = d9b + 3;
+      yspz += 2;
+      if (!(!(kl+2<=yspz+tkj))) {
+          yspz = yspz + i;
+      }
+      else {
+          i = i + kl;
+      }
+      i = i + 1;
+      b += b;
+      d9b = d9b + eik;
   }
 
 }

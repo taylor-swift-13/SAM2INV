@@ -1,24 +1,31 @@
-int main1(int w){
-  int gu, vv5z, y6g, pv;
-  gu=w*3;
-  vv5z=0;
-  y6g=0;
-  pv=-4;
+int main1(int p,int q){
+  int i, b, v;
 
-while (y6g<gu) {
-      pv = gu-y6g;
-      y6g += 1;
-      w += y6g;
+  i=53;
+  b=0;
+  v=-1;
+
+
+while (b<=i-1) {
+      v = v*v+v;
+      if (b+4<=v+i) {
+          v = v*2;
+      }
+      b = b+1;
   }
 
-while (1) {
-      vv5z = vv5z + 1;
-      if (vv5z>=gu) {
-          break;
-      }
+
+while (v+1<=i) {
+      v = v+1;
+  }
+
+
+while (v-1>=0) {
+      v = v-1;
   }
 /*@
-  assert (gu == 3 * \at(w, Pre));
+  assert !(v-1>=0) &&
+         ((b <= i) && (0 <= b) && (v == -1 || v == 0));
 */
 
 }

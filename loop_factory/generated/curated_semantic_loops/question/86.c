@@ -1,19 +1,23 @@
-int main1(int a,int b){
-  int p, i, e;
+int main1(int b,int k){
+  int y, u, x, r;
 
-  p=(a%14)+4;
-  i=p+4;
-  e=-5;
+  y=61;
+  u=0;
+  x=0;
+  r=u;
 
 
-while (i>=p+1) {
-      e = e*2;
-      e = e*e+e;
-      i = i-3;
+while (u<=y-2) {
+      if (x+3<=y) {
+          x = x+3;
+      }
+      else {
+          x = y;
+      }
   }
 /*@
-  assert !(i>=p+1) &&
-         (a == \at(a, Pre));
+  assert !(u<=y-2) &&
+         (u <= y - 2);
 */
 
 }

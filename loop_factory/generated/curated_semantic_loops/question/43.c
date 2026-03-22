@@ -1,15 +1,19 @@
-int main(int n) {
-  /*@ requires 0 <= n <= 100; */
-  if (n < 0) n = 0;
-  int i, j;
-  int slots = 0;
-  
-  for (i = n; i > 0; --i) {
-    
-    for (j = i - 1; j >= 0; j -= 2) {
-      slots += 1;
-    }
+int main1(int m){
+  int n, q, v;
+
+  n=(m%14)+9;
+  q=0;
+  v=6;
+
+
+while (q<=n-3) {
+      v = v-v;
+      v = v+q;
+      q = q+3;
   }
-  /*@ assert i == 0; */
-  return slots;
+/*@
+  assert !(q<=n-3) &&
+         (m == \at(m,Pre));
+*/
+
 }

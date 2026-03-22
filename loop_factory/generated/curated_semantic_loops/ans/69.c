@@ -1,40 +1,35 @@
-int main1(int b,int m){
-  int a, i, v;
+int main1(int p,int q){
+  int t, g, v;
 
-  a=m;
-  i=a;
-  v=a;
+  t=q;
+  g=0;
+  v=2;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant m == \at(m, Pre);
-  loop invariant b == \at(b, Pre);
-  loop invariant i <= a;
-  loop invariant (v == i) || (v == i + 2);
-  loop invariant v <= a;
-  loop invariant a == \at(m, Pre);
-  loop invariant i % 2 == a % 2;
-  loop invariant v == i || v == i + 2;
+  loop invariant t == \at(q, Pre);
+  loop invariant g == 0;
+  loop invariant v % 2 == 0;
+  loop invariant p == \at(p, Pre);
+  loop invariant v >= 0;
+  loop invariant t == q;
+  loop invariant q == \at(q,Pre);
+  loop invariant 0 <= v <= 2;
+  loop invariant (v == 2) || (v == 0);
+  loop invariant g % 3 != 0 ==> (v % 4 == 2);
 
-  loop invariant a == m;
-  loop invariant v >= i;
-  loop invariant i % 2 == v % 2;
-  loop invariant v <= i + 2;
-  loop assigns v, i;
+  loop invariant v == 2 || v == 0;
+  loop assigns v;
 */
-while (i>=2) {
-      if (i+4<=v+a) {
-          v = v+v;
+while (g+5<=t) {
+      v = v+4;
+      if ((g%3)==0) {
+          v = v-v;
       }
-      else {
-          v = v+i;
-      }
-      v = i;
-      i = i-2;
   }
 /*@
-  assert !(i>=2) &&
-         (m == \at(m, Pre));
+  assert !(g+5<=t) &&
+         (t == \at(q, Pre));
 */
 
 

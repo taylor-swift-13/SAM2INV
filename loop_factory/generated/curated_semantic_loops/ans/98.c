@@ -1,36 +1,39 @@
-int main1(int p,int q){
-  int r, u, v;
+int main1(int k,int m){
+  int g, u, i, x;
 
-  r=(q%29)+5;
+  g=36;
   u=0;
-  v=q;
+  i=0;
+  x=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == (q % 29) + 5;
-  loop invariant 0 <= u;
-  loop invariant (v == q) || (v == 0);
-  loop invariant (u == 0) ==> (v == q);
-
-  loop invariant v == 0 || v == q;
-  loop invariant r == (\at(q, Pre) % 29) + 5;
-  loop invariant (r >= 1) ==> (0 <= u && u <= r);
-  loop invariant (r >= 1) ==> (u <= r);
-  loop invariant (0 <= u) && (v == q || v == 0);
-  loop invariant q == \at(q, Pre);
-
-  loop invariant v == \at(q, Pre) || v == 0;
-  loop assigns u, v;
+  loop invariant g == 36;
+  loop invariant 0 <= i;
+  loop invariant i <= g;
+  loop invariant (x % 2) == 0;
+  loop invariant x % 4 == 0;
+  loop invariant x >= 0;
+  loop invariant k == \at(k, Pre);
+  loop invariant m == \at(m, Pre);
+  loop invariant 0 <= i <= g;
+  loop invariant x >= 2*i;
+  loop invariant 0 <= i && i <= g && x % 4 == 0 && (i <= g/2 ==> x >= 0);
+  loop assigns i, x;
 */
-while (u<=r-1) {
-      if (v<r+4) {
-          v = v-v;
+while (i<g) {
+      if (i<g/2) {
+          x = x+2;
       }
-      u = u+1;
+      else {
+          x = x-2;
+      }
+      i = i+1;
+      x = x+x;
   }
 /*@
-  assert !(u<=r-1) &&
-         (r == (q % 29) + 5);
+  assert !(i<g) &&
+         (g == 36);
 */
 
 

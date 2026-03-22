@@ -1,26 +1,33 @@
-int main1(int a,int j){
-  int qak, k35, dk, pxh, g, b;
+int main1(int j,int y){
+  int vr, u, jkc, hu, ap, rr, i, d;
 
-  qak=(a%32)+17;
-  k35=qak;
-  dk=0;
-  pxh=0;
-  g=a;
-  b=a;
+  vr=j-7;
+  u=0;
+  jkc=1;
+  hu=1;
+  ap=1;
+  rr=1;
+  i=vr;
+  d=u;
 
-  while (pxh<qak) {
-      pxh = pxh + 1;
-      dk = dk + a;
-      a = a + dk;
-  }
-
-  while (1) {
-      if (!(k35<=b-1)) {
-          break;
+  while (ap<=vr) {
+      jkc = jkc*(j/ap);
+      if ((ap/2)%2==0) {
+          rr = 1;
       }
-      dk = k35+1;
-      k35 += 2;
-      g = g+b-qak;
+      else {
+          rr = -1;
+      }
+      hu = hu+rr*jkc;
+      ap += 1;
+      jkc = jkc*(j/ap);
+      if (hu*hu<=vr+4) {
+          j = j*2;
+      }
+      y = y + 3;
+      d = d+jkc+ap;
+      i += d;
+      d += j;
   }
 
 }

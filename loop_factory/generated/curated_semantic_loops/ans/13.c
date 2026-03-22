@@ -1,33 +1,33 @@
-int main1(){
-  int p6l, n80, p, vj;
-  p6l=180;
-  n80=3;
-  p=1;
-  vj=1;
+int main1(int f){
+  int f3v, zq, y7, q5o;
+  f3v=f;
+  zq=0;
+  y7=2;
+  q5o=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant n80 >= 3;
-  loop invariant n80 <= p6l;
-  loop invariant 1 <= p;
-  loop invariant p <= 11;
-  loop invariant (vj == 1) || (vj == -1);
-  loop invariant ((p + n80) % 2) == 0;
-  loop invariant (p - n80) <= -2;
-  loop assigns n80, p, vj;
+  loop invariant (y7 - zq) % 2 == 0;
+  loop invariant (q5o == 1) || (q5o == -1);
+  loop invariant 2 <= y7 <= 9;
+  loop invariant f3v == \at(f, Pre);
+  loop invariant f == \at(f, Pre);
+  loop invariant y7 <= 2 + zq;
+  loop invariant zq >= 0 && (f3v >= 0 ==> zq <= f3v);
+  loop assigns q5o, zq, y7;
 */
-while (n80<p6l) {
-      if (!(p<11)) {
-          vj = -1;
+while (zq<=f3v-1) {
+      if (y7>=9) {
+          q5o = -1;
       }
-      if (p<=1) {
-          vj = 1;
+      if (y7<=2) {
+          q5o = 1;
       }
-      n80++;
-      p += vj;
+      zq++;
+      y7 = y7 + q5o;
   }
 /*@
-  assert !(n80<p6l) &&
-         (n80 >= 3);
+  assert !(zq<=f3v-1) &&
+         ((y7 - zq) % 2 == 0);
 */
 
 }

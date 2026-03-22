@@ -1,43 +1,42 @@
-int main1(){
-  int se5, h4d, khd, nh, vo, f;
-  se5=1+8;
-  h4d=se5;
-  khd=5;
-  nh=0;
-  vo=se5;
-  f=h4d;
+int main1(int m){
+  int et, p9w, hts, qb, xq2;
+  et=(m%15)+20;
+  p9w=0;
+  hts=1;
+  qb=5;
+  xq2=p9w;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= nh;
-  loop invariant nh <= se5;
-  loop invariant khd == 5 + nh;
-  loop invariant f == h4d * (nh + 1);
-  loop invariant h4d == se5;
-  loop invariant vo >= se5;
-  loop invariant vo <= se5 + 8 * nh;
-  loop invariant ((vo - se5 - (nh * 5 + (nh * (nh + 1)) / 2)) % 9) == 0;
-  loop assigns khd, nh, f, vo;
+  loop invariant et == \at(m, Pre) % 15 + 20;
+  loop invariant 1 <= hts;
+  loop invariant hts <= et + 1;
+  loop invariant qb == 5 + (hts - 1) * hts * (2 * hts - 1) / 6;
+  loop assigns qb, hts, m;
 */
-while (nh<=se5-1) {
-      khd += 1;
-      nh++;
-      f += h4d;
-      vo = vo+(khd%9);
+while (hts<=et) {
+      qb = qb+hts*hts;
+      hts += 1;
+      m = m + hts;
   }
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant f >= h4d;
-  loop invariant h4d > 0;
-  loop invariant f % h4d == 0;
-  loop assigns f, vo;
+  loop invariant 0 <= xq2;
+  loop invariant xq2 <= et;
+  loop invariant 0 <= p9w;
+  loop invariant (xq2 == 0 ==> p9w == 0) &&
+                   (xq2 > 0  ==> p9w == (et - (xq2 - 1)));
+  loop invariant (xq2 == 0) ==> p9w == 0;
+  loop invariant (xq2 > 0) ==> p9w == et - xq2 + 1;
+  loop assigns p9w, xq2, m;
 */
-while (se5*2<=vo) {
-      f += h4d;
-      vo = (se5*2)-1;
+while (xq2<et) {
+      p9w = et-xq2;
+      xq2++;
+      m = m + xq2;
   }
 /*@
-  assert !(se5*2<=vo) &&
-         (0 <= nh);
+  assert !(xq2<et) &&
+         (et == \at(m, Pre) % 15 + 20);
 */
 
 }

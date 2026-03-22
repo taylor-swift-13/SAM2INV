@@ -1,23 +1,20 @@
-int main1(int k,int p){
-  int j, y, v, s;
+int main1(int m,int n){
+  int v, k, h, s;
 
-  j=44;
-  y=j;
-  v=0;
-  s=-2;
+  v=42;
+  k=v;
+  h=m;
+  s=m;
 
 
-while (v<j) {
-      if (v<j) {
-          v = v+1;
-      }
-      v = v+1;
-      s = s-1;
-      s = s+1;
+while (k>=3) {
+      h = h+s+s;
+      h = h+1;
+      k = k-3;
   }
 /*@
-  assert !(v<j) &&
-         (k == \at(k, Pre));
+  assert !(k>=3) &&
+         (k >= 0);
 */
 
 }

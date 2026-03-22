@@ -1,19 +1,22 @@
-int main1(int m,int n){
-  int a, g, v;
+int main1(int b,int k){
+  int m, u, v, a;
 
-  a=n;
-  g=0;
-  v=5;
+  m=(k%34)+12;
+  u=1;
+  v=8;
+  a=b;
 
 
-while (g<a) {
-      v = v+v;
-      v = v+g;
-      g = g+1;
+while (u*2<=m) {
+      v = v*v+v;
+      v = v%9;
+      a = a*v;
+      v = v%7;
+      u = u*2;
   }
 /*@
-  assert !(g<a) &&
-         (a == n && m == \at(m, Pre) && n == \at(n, Pre));
+  assert !(u*2<=m) &&
+         (m == (k%34) + 12);
 */
 
 }

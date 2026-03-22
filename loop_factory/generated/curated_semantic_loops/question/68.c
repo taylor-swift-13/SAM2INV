@@ -1,23 +1,24 @@
 int main1(int b,int m){
-  int k, j, p, d, w;
+  int z, t, v;
 
-  k=14;
-  j=k;
-  p=-8;
-  d=b;
-  w=-2;
+  z=(b%20)+10;
+  t=z+6;
+  v=4;
 
 
-while (p<k) {
-      if (p<k) {
-          p = p+1;
+while (t-z>0) {
+      v = v*v;
+      v = v%5;
+      if ((t%4)==0) {
+          v = v*2;
       }
-      p = p+1;
-      d = d+p;
+      t = t-3;
   }
 /*@
-  assert !(p<k) &&
-         (4*d == 4*b + (p + 8) * (p - 6));
+  assert (z == (\at(b, Pre) % 20) + 10) &&
+         (t == z) &&
+         (0 <= v) &&
+         (v <= 8);
 */
 
 }

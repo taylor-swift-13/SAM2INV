@@ -1,19 +1,21 @@
-int main1(int m){
-  int n, q, v;
+int main1(int p){
+  int z, k, s, o;
 
-  n=(m%14)+9;
-  q=0;
-  v=6;
+  z=p;
+  k=z;
+  s=z;
+  o=8;
 
 
-while (q<=n-3) {
-      v = v-v;
-      v = v+q;
-      q = q+3;
+while (s<z) {
+      if (s<z) {
+          s = s+1;
+      }
+      s = s+1;
   }
 /*@
-  assert !(q<=n-3) &&
-         (m == \at(m,Pre));
+  assert !(s<z) &&
+         (z == p);
 */
 
 }

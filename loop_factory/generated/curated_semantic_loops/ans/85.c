@@ -1,43 +1,36 @@
-int main1(int m,int n){
-  int l, v, o;
+int main1(int b,int p){
+  int c, k, v, y;
 
-  l=n+9;
-  v=l;
-  o=l;
+  c=(p%24)+17;
+  k=0;
+  v=k;
+  y=p;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant l == n + 9;
-  loop invariant v <= l;
+  loop invariant v % 4 == 0;
+  loop invariant (y - p) % 4 == 0;
 
-  loop invariant v % 4 == l % 4;
-  loop invariant (l >= 6) ==> o >= 0;
-  loop invariant l == \at(n, Pre) + 9 &&
-                   n == \at(n, Pre) &&
-                   m == \at(m, Pre) &&
-                   l - v >= 0 &&
-                   (l - v) % 4 == 0;
-
-  loop invariant l == \at(n, Pre) + 9;
-  loop invariant m == \at(m, Pre);
-  loop invariant n == \at(n, Pre);
-  loop invariant (v - l) % 4 == 0;
-
-  loop invariant v <= \at(n, Pre) + 9;
-  loop invariant (v - (\at(n, Pre) + 9)) % 4 == 0;
-  loop invariant (\at(n, Pre) + 9 == 0) <==> (o == 0);
-  loop assigns o, v;
+  loop invariant v >= 0;
+  loop invariant y >= p;
+  loop invariant p == \at(p, Pre);
+  loop invariant c == (\at(p, Pre) % 24) + 17;
+  loop invariant k == 0;
+  loop invariant y >= \at(p, Pre);
+  loop invariant c == (p % 24) + 17;
+  loop invariant b == \at(b, Pre);
+  loop invariant y - p >= v;
+  loop invariant v % 2 == 0;
+  loop assigns v, y;
 */
-while (v>3) {
-      o = o*2;
-      if (v+6<=v+l) {
-          o = o*o;
-      }
-      v = v-4;
+while (k+1<=c) {
+      v = v+2;
+      v = v*2;
+      y = y+v;
   }
 /*@
-  assert !(v>3) &&
-         (l == n + 9);
+  assert !(k+1<=c) &&
+         (v % 4 == 0);
 */
 
 

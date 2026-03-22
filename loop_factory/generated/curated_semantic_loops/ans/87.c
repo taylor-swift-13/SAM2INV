@@ -1,38 +1,36 @@
-int main1(int a,int m){
-  int x, j, i, b;
+int main1(int a,int k){
+  int v, r, g, p;
 
-  x=35;
-  j=x;
-  i=5;
-  b=3;
+  v=(a%18)+14;
+  r=v;
+  g=-8;
+  p=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant m == \at(m, Pre);
+  loop invariant v == (a % 18) + 14;
   loop invariant a == \at(a, Pre);
-  loop invariant (i == x) || (((i - 5) % 6) == 0 && 5 <= i && i <= x);
-  loop invariant 5 <= i;
-  loop invariant i <= x;
-  loop invariant j == 35;
-  loop invariant x == 35;
-  loop invariant i >= 5;
-  loop invariant j >= 4;
-  loop invariant (i == 5) || (i == 11) || (i == 17) || (i == 23) || (i == 29) || (i == 35);
-  loop invariant 5 <= i && i <= x && ((i - 5) % 6 == 0 || i == x);
-  loop invariant i % 6 == 5;
-  loop assigns i;
+  loop invariant k == \at(k, Pre);
+  loop invariant p >= 0;
+  loop invariant g <= g*g + g;
+  loop invariant v == (\at(a, Pre) % 18) + 14;
+  loop invariant (g > p) ==> (g - p) > 0;
+  loop invariant (g <= p) ==> (p - g) >= 0;
+
+  loop assigns g, p;
 */
-while (j-4>=0) {
-      if (i+6<=x) {
-          i = i+6;
+while (g!=0&&p!=0) {
+      if (g>p) {
+          g = g-p;
       }
       else {
-          i = x;
+          p = p-g;
       }
+      g = g*g+g;
   }
 /*@
-  assert !(j-4>=0) &&
-         (m == \at(m, Pre));
+  assert !(g!=0&&p!=0) &&
+         (v == (a % 18) + 14);
 */
 
 

@@ -1,25 +1,34 @@
-int main1(int t,int d){
-  int vw, u, sw, m, mrq;
-  vw=143;
-  u=-4;
-  sw=0;
-  m=0;
-  mrq=0;
+int main1(int m,int p){
+  int b, u, x, n;
 
-while (sw<vw) {
-      m += sw;
-      d = d + u;
-      sw = sw + 1;
-  }
+  b=19;
+  u=0;
+  x=5;
+  n=u;
 
-while (1) {
-      u = u + 1;
-      if (u>=mrq) {
-          break;
+
+while (x<b) {
+      if (x<b) {
+          x = x+1;
       }
+      x = x+5;
+      n = n+2;
+      if (p<p+5) {
+          n = n+1;
+      }
+      n = x-n;
   }
 /*@
-  assert (m == sw*(sw - 1)/2);
+  assert !(x<b) &&
+         (x % 6 == 5);
 */
 
+  while (x > b) {
+      n = n + (x - b);
+      x = b + (x - b) / 2;
+  }
+/*@
+  assert !(x > b) &&
+         (x == b);
+*/
 }

@@ -1,34 +1,38 @@
-int main1(int n,int p){
-  int x, u, w;
+int main1(int b,int k){
+  int m, j, v, q;
 
-  x=65;
-  u=x;
-  w=p;
+  m=77;
+  j=1;
+  v=m;
+  q=k;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant u == 65;
-  loop invariant x == 65;
-  loop invariant n == \at(n, Pre);
-  loop invariant p == \at(p, Pre);
-  loop invariant (u+2 <= n+x) ==> ((w - \at(p, Pre)) % 8 == 0);
-  loop invariant (u+2 > n+x) ==> ((w - \at(p, Pre)) % 3 == 0);
-  loop invariant u == x;
-  loop invariant w >= \at(p, Pre);
-  loop invariant u >= 0;
-  loop invariant u <= 65;
-  loop invariant (n >= 2) ==> ((w - \at(p, Pre)) % 8 == 0);
-  loop assigns w;
+  loop invariant m == 77;
+  loop invariant j == 1;
+  loop invariant v <= m + 1;
+  loop invariant b == \at(b, Pre);
+  loop invariant k == \at(k, Pre);
+  loop invariant v == 77;
+  loop invariant q == k;
+  loop invariant v >= 0;
+  loop invariant (v - m) % 2 == 0;
+  loop invariant v % 2 == 1;
+  loop invariant v >= m;
+  loop invariant v >= 77;
+  loop assigns v, q;
 */
-while (u>0) {
-      w = w+3;
-      if (u+2<=n+x) {
-          w = w+5;
+while (v<m) {
+      if (v<m) {
+          v = v+1;
       }
+      v = v+j;
+      q = q*q;
+      q = q+v*q;
   }
 /*@
-  assert !(u>0) &&
-         (u == 65);
+  assert !(v<m) &&
+         (m == 77);
 */
 
 

@@ -1,21 +1,37 @@
-int main(int n) {
-  /*@ requires 0 <= n <= 100; */
-  if (n < 0) n = 0;
-  int i, j;
-  int slots = 0;
-  /*@ loop invariant 0 <= i <= n;
-      loop assigns i, j, slots;
-      loop variant i;
-  */
-  for (i = n; i > 0; --i) {
-    /*@ loop invariant \true;
-        loop assigns j, slots;
-        loop variant j + 1;
-    */
-    for (j = i - 1; j >= 0; j -= 2) {
-      slots += 1;
-    }
+int main1(int m){
+  int n, q, v;
+
+  n=(m%14)+9;
+  q=0;
+  v=6;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+
+  loop invariant m == \at(m,Pre);
+  loop invariant n == (m % 14) + 9;
+  loop invariant q >= 0;
+  loop invariant (q == 0) ==> (v == 6);
+  loop invariant (q != 0) ==> (v == q - 3);
+  loop invariant q % 3 == 0;
+
+  loop invariant v == 6 || v == q - 3;
+  loop invariant n == \at(m, Pre) % 14 + 9;
+
+  loop invariant (q == 0 && v == 6) || (q != 0 && v == q - 3);
+
+  loop invariant v >= q - 3;
+  loop assigns v, q;
+*/
+while (q<=n-3) {
+      v = v-v;
+      v = v+q;
+      q = q+3;
   }
-  /*@ assert i == 0; */
-  return slots;
+/*@
+  assert !(q<=n-3) &&
+         (m == \at(m,Pre));
+*/
+
+
 }

@@ -1,22 +1,21 @@
-int main1(int b,int m){
-  int x, t, y, o;
+int main1(int m,int q){
+  int d, f, v;
 
-  x=b;
-  t=0;
-  y=x;
-  o=-2;
+  d=m;
+  f=d;
+  v=q;
 
 
-while (y<x) {
-      if (y<x) {
-          y = y+1;
+while (f-4>=0) {
+      v = v+4;
+      if ((f%7)==0) {
+          v = v-v;
       }
-      y = y+1;
-      o = o+y;
+      v = v+1;
   }
 /*@
-  assert !(y<x) &&
-         (((x - y) % 2) == 0);
+  assert !(f-4>=0) &&
+         (d == m);
 */
 
 }

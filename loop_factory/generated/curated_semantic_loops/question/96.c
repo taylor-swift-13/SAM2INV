@@ -1,25 +1,25 @@
-int main1(int b,int k){
-  int p, q, v, r;
+int main1(int a,int n){
+  int u, c, f, v;
 
-  p=(k%7)+8;
-  q=0;
-  v=p;
-  r=q;
+  u=(a%23)+12;
+  c=0;
+  f=0;
+  v=0;
 
 
-while (v<p) {
-      if (v<p) {
+while (f<u) {
+      if (f<u/2) {
           v = v+1;
       }
-      r = r+r;
-      r = r+v;
-      v = v+1;
-      v = v+r;
-      r = v-r;
+      else {
+          v = v-1;
+      }
+      f = f+1;
+      v = v+f;
   }
 /*@
-  assert !(v<p) &&
-         (k == \at(k, Pre));
+  assert !(f<u) &&
+         (a == \at(a, Pre));
 */
 
 }

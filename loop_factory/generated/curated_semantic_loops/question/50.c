@@ -1,18 +1,21 @@
-int main1(int n,int q){
-  int m, d, a, b;
+int main1(int m){
+  int p, i, v;
 
-  m=(n%28)+10;
-  d=m;
-  a=m;
-  b=0;
+  p=66;
+  i=p;
+  v=-3;
 
 
-while (d>=1) {
-      d = d/2;
+while (i>2) {
+      v = v-v;
+      if (v<m+2) {
+          v = v+1;
+      }
+      i = i-3;
   }
 /*@
-  assert !(d>=1) &&
-         (m == (\at(n, Pre) % 28) + 10);
+  assert !(i>2) &&
+         (i <= 66);
 */
 
 }

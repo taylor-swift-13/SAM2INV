@@ -1,149 +1,2027 @@
-2026-03-14 22:58:59,710 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-14 22:58:59,728 - INFO - Found 2 loops
-2026-03-14 22:58:59,731 - INFO - 
+2026-03-22 22:45:58,793 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-03-22 22:45:58,806 - INFO - Found 1 loops
+2026-03-22 22:45:58,808 - INFO - 
 ============================================================
-2026-03-14 22:58:59,731 - INFO - Main generation pass 1/1
-2026-03-14 22:58:59,731 - INFO - ============================================================
-2026-03-14 22:58:59,731 - INFO - Loaded single prompt template: simple
-2026-03-14 22:58:59,731 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-14 22:58:59,732 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-14 22:59:01,528 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 23:01:48,831 - INFO - 
------ Candidate 1/5 raw response begin -----
+2026-03-22 22:45:58,808 - INFO - Main generation pass 1/1
+2026-03-22 22:45:58,808 - INFO - ============================================================
+2026-03-22 22:45:58,808 - INFO - Loaded single prompt template: simple
+2026-03-22 22:45:58,808 - INFO - Generating 20 candidate invariant sets with temperature=1.0
+2026-03-22 22:45:58,808 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-03-22 22:45:58,823 - INFO -   Generating candidate 1/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:46:56,703 - INFO - 
+----- Candidate 1/20 raw response begin -----
 <reasoning>
-Two loops are present. The goal is to provide inductive, verification-friendly ACSL loop invariants that reflect the observed state relations arising from the loop bodies while staying valid for all possible initial values of the function parameters.
+I will fill the loop annotations with inductive invariants that are verification-friendly and reflect the loop’s counter behavior, while keeping the code unchanged.
 
-Key observations to guide invariants:
-- Before both loops, w is initialized as w = e*5, t = e, rg = 0, k2 = 0.
-- In Loop 0:
-  - t does not change inside the loop; it remains equal to the initial parameter e.
-  - w is a fixed value equal to 5 times the initial e (since w is not updated inside this loop).
-  - The only nontrivial update to k2 is k2 := w-1, so after the first iteration k2 becomes w-1 and thereafter remains w-1. Thus, across loop heads, k2 can only be 0 (before the first iteration) or w-1 (before subsequent iterations).
-  - The loop assigns to e, rg, and k2.
-- For Loop 1 (the infinite-while that breaks based on rg and t):
-  - t remains the initial e, i.e., t == \at(e,Pre).
-  - w is incremented by 1 each iteration (so w >= 5 * \at(e,Pre) at all times).
-  - The loop assigns to w and rg.
-  - The loop contains a break condition rg >= t, which controls termination; however, termination reasoning is nontrivial, so the invariants kept are conservative.
+Key observations to support invariants:
+- The loop counter sr starts at 1 and is incremented by 1 each iteration, and the loop continues while sr <= h0. Therefore, at the start of every loop iteration, 1 <= sr <= h0 holds; after an iteration but before the next check, sr may become h0+1, in which case no further iteration occurs. A simple strong invariant is 1 <= sr <= h0.
+- h0 and puv are initialized to 37 and never modified inside the loop; thus h0 == 37 and puv == 37 hold throughout.
+- pz starts at 0 and is updated each iteration by pz = pz*2 + 4 (the branch pz = pz*rt is only taken if puv%4 == 0; since puv == 37, that branch is never taken). Consequently, pz remains non-negative throughout, so pz >= 0 holds.
+- A termination measure (loop variant) can be h0 - sr, which decreases by 1 every iteration as sr increases from 1 toward h0.
 
-With these in mind, the following invariants are chosen:
-- Loop 0:
-  - t == \at(e,Pre) to capture that t holds the initial e.
-  - w == 5 * \at(e,Pre) to capture that w was computed from the initial e and does not change in this loop.
-  - (k2 == 0) || (k2 == w - 1) to reflect that k2 is either 0 initially or becomes w-1 and stays there on subsequent iterations.
-  - loop assigns e, rg, k2; to precisely describe the state updates performed in the loop.
-- Loop 1:
-  - t == \at(e,Pre) again to reflect that t is still the initial e.
-  - w >= 5 * \at(e,Pre) to capture that w has been incremented from its initial value and cannot go below that baseline in this loop.
-  - loop assigns w, rg; to reflect the updates performed inside this loop.
+I also present a concise, explicit "state transition law" in the reasoning to explain the loop updates conceptually (the invariant itself remains a simpler, verifiable property). The core relations update as:
+- s = sr before iteration; s' = s + 1 after iteration.
+- dj is 1 if (s/2) is even, else -1.
+- muh' = muh * (v / s) * (v / (s + 1)).
+- j1' = j1 + dj * (muh * (v / s))  // muh*(v/s) is the value used for the increment.
+- pz' = pz*2 + 4  (since puv%4 != 0 in this function)
+- rt' = (rt + dj) * pz' + 4
 
-Note: These invariants are intentionally conservative and avoid assumptions that could be violated by unusual initial values of e (e.g., negative values). They are designed to be inductive across loop iterations and to be verification-friendly for Frama-C/WP, while adhering to the given constraints (no modification of the code, no use of non-parameter Pre-annotations on locals, etc.).
+These relations explain the loop’s state transitions, while the invariants give a clean, strong, inductive property to verify.
 </reasoning>
-<code>
-int main1(int y,int e){
-  int w, k2, t, rg;
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
 
-  w=e*5;
-  k2=0;
-  t=e;
-  rg=0;
-
-  /*@
-    loop invariant t == \at(e, Pre);
-    loop invariant w == 5 * \at(e, Pre);
-    loop invariant (k2 == 0) || (k2 == w - 1);
-    loop assigns e, rg, k2;
-  */
-  while (k2<=w-1) {
-      e = e + k2;
-      rg = rg+t*k2;
-      k2 = =w-1;
-  }
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
 
   /*@
-    loop invariant t == \at(e, Pre);
-    loop invariant w >= 5 * \at(e, Pre);
-    loop assigns w, rg;
+    loop invariant 1 <= sr && sr <= h0;
+    loop invariant puv == 37;
+    loop invariant h0 == 37;
+    loop invariant pz >= 0;
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant h0 - sr;
   */
-  while (1) {
-      w += 1;
-      rg++;
-      if (rg>=t) {
+while (1) {
+      if (!(sr<=h0)) {
           break;
       }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 1/20 raw response end -----
+2026-03-22 22:46:56,703 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-03-22 22:46:56,716 - INFO -   Generating candidate 2/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:47:43,420 - INFO - 
+----- Candidate 2/20 raw response begin -----
+<reasoning>The loop uses a straightforward counter-based guard: it continues while sr <= h0, with sr starting at 1 and incrementing by 1 each iteration. A robust inductive set of invariants should (a) bound the counter, (b) reflect the discrete two-state choice for dj (either +1 or -1), (c) confirm a stable, known relation for the function parameters (puv remains equal to h0 as it is never modified in the loop), and (d) provide a valid progress measure to guarantee termination.
+
+I propose the following inductive invariants:
+
+- 1 <= sr <= h0: keeps the loop counter within the original guard bounds at the start of each iteration.
+- puv == h0: the parameter puv is constant after initialization and equals h0 throughout the loop.
+- (dj == 1) || (dj == -1): the code assigns dj to either 1 or -1 on every iteration.
+- loop variant h0 - sr: a standard progress measure that decreases by 1 each iteration and is non-negative while the loop runs, ensuring termination.
+
+Additionally, the loop assigns are explicitly listed for all variables that are updated inside the loop body: muh, dj, sr, j1, pz, rt.
+
+Note: The chosen invariants avoid deep arithmetic relations involving v, pz, rt, and muh to remain robust to the exact arithmetic (including integer division) performed in the loop. The core state progression (sr increment) is captured by the loop variant, and the invariants ensure inductiveness without over-constraining the loop’s arithmetic path. The “core relation” of the loop is the per-iteration update of sr and the consequent state changes; this is respected through the progress metric and counter bounds rather than a brittle closed-form equality over all loop variables. </reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0;
+    loop invariant puv == h0;
+    loop invariant (dj == 1) || (dj == -1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant h0 - sr;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
   }
 
 }
 </code>
------ Candidate 1/5 raw response end -----
-2026-03-14 23:01:48,833 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-14 23:01:48,917 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 23:03:48,882 - INFO - 
------ Candidate 2/5 raw response begin -----
-<reasoning>
-For Loop 0:
-- The loop body updates e by adding k2 and updates rg by adding t*k2, while k2 increases toward w-1. If we assume the intended increment is k2 := k2 + 1 (a common pattern for a loop that processes k2 from 0 to w-1), then after k2 iterations:
-  - e = e0 + t * sum_{i=0}^{k2-1} i = e0 + t * (k2*(k2-1)/2), where e0 is the initial value of e.
-  - rg = t * sum_{i=0}^{k2-1} i = t * (k2*(k2-1)/2).
-  - The natural invariants capturing this state are:
-    - 0 <= k2 <= w
-    - e == \at(e, Pre) + t * (k2*(k2-1)/2)
-    - rg == t * (k2*(k2-1)/2)
-  - The loop assigns e, rg, k2.
-  - A loop variant that ensures termination is w - k2 (k2 increases toward w).
+----- Candidate 2/20 raw response end -----
+2026-03-22 22:47:43,421 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-03-22 22:47:43,435 - INFO -   Generating candidate 3/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:48:29,351 - INFO - 
+----- Candidate 3/20 raw response begin -----
+<reasoning>In this loop, the terminating condition is controlled by sr <= h0, with sr starting at 1 and being incremented every iteration. A natural invariant is a bound on sr, which also gives a progress measure for termination. A simple, robust invariant is 1 <= sr <= h0 + 1, which holds before the first iteration (sr = 1) and is preserved after each iteration (sr is increased by 1). 
 
-For Loop 1:
-- This loop increments w and rg by 1 each iteration and breaks when rg >= t. A robust invariant here is simply that rg never decreases (rg is only incremented) and that the loop assigns w and rg. A natural termination measure is t - rg, which decreases by 1 each iteration and is nonnegative as long as the loop continues (rg < t). Thus:
-  - loop invariant 0 <= rg
-  - loop assigns w, rg
-  - loop variant t - rg
+The variable pz is always non-negative because it starts at 0 and the only update where it changes is pz = pz*2+4 (and a potential, but false, path pz = pz*rt when puv%4==0, given puv = 37). Thus pz >= 0 is a safe invariant.
 
-Note: The provided code contains a likely typographical bug in the first loop (k2 = =w-1;). The invariants above assume the intended increment is k2 := k2 + 1 so that k2 progresses from 0 to w-1 and the stated relations hold. If the code truly uses the exact text "k2 = =w-1;" without a valid increment, the loop would not terminate; the invariants would not be inductive under that semantics. The invariants below reflect the conventional intended semantics to make the loop inductive and verification-friendly in Frama-C/WP.
-</reasoning>
-<code>int main1(int y,int e){
-  int w, k2, t, rg;
+To capture the deterministic update of dj from sr, we add two invariants that encode the relation between sr and dj:
+- if (sr/2) % 2 == 0, then dj == 1
+- if (sr/2) % 2 != 0, then dj == -1
 
-  w=e*5;
-  k2=0;
-  t=e;
-  rg=0;
+These express the explicit branching in the code that sets dj based on sr, and they are preserved across iterations since dj is overwritten each iteration according to sr.
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant 0 <= k2 <= w;
-  loop invariant e == \at(e, Pre) + t * (k2*(k2-1)/2);
-  loop invariant rg == t * (k2*(k2-1)/2);
-  loop assigns e, rg, k2;
-  loop variant w - k2;
-*/
-while (k2<=w-1) {
-      e = e + k2;
-      rg = rg+t*k2;
-      k2 = =w-1;
-  }
+We also provide a loop variant to prove progress towards termination: (h0 + 1 - sr) decreases by 1 every iteration, since sr increments by 1 per iteration.
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant 0 <= rg;
-  loop assigns w, rg;
-  loop variant t - rg;
-*/
-while (1) {
-      w += 1;
-      rg++;
-      if (rg>=t) {
+Finally, we list the loop assigns: muh, dj, sr, j1, pz, rt, which are all mutated inside the loop.</reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0 + 1;
+    loop invariant pz >= 0;
+    loop invariant ((sr/2) % 2 == 0) ==> (dj == 1);
+    loop invariant ((sr/2) % 2 != 0) ==> (dj == -1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant (h0 + 1 - sr);
+  */
+  while (1) {
+      if (!(sr<=h0)) {
           break;
       }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
   }
 
 }</code>
------ Candidate 2/5 raw response end -----
-2026-03-14 23:03:48,882 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-14 23:03:48,946 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-14 23:05:07,050 - INFO - 
------ Candidate 3/5 raw response begin -----
-<EMPTY_RESPONSE>
------ Candidate 3/5 raw response end -----
-2026-03-14 23:05:07,051 - WARNING -   Failed to extract code from candidate 3
-2026-03-14 23:05:07,052 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-14 23:05:07,116 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+----- Candidate 3/20 raw response end -----
+2026-03-22 22:48:29,351 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-03-22 22:48:29,367 - INFO -   Generating candidate 4/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:49:02,790 - INFO - 
+----- Candidate 4/20 raw response begin -----
+<reasoning>The loop updates involve several stateful variables: muh, dj, sr, j1, pz, and rt. We aim for inductive invariants that are strong, verifiable, and do not modify the original code. Observations guiding invariant choices:
+- puv is initialized to h0 and never changed; thus a conservation relation puv == h0 holds throughout.
+- h0 is a constant set to 37; hence h0 == 37 is a valid invariant.
+- v is a function parameter and never modified; using v == \at(v, Pre) captures the fact that v remains the initial parameter value throughout the loop.
+- The loop guard sr <= h0 bounds the loop; we also keep a lower bound sr >= 1 to reflect the initialization sr = 1 and the subsequent sr++ in every iteration.
+- pz is initialized to 0 and updated as pz = pz*2 + 4 each iteration (the if branch regarding puv%4 is never true for the given constants, but the invariant should hold regardless of the conditional). This yields pz >= 0 as a safe invariant.
+- The loop assigns must include all variables that are modified inside the loop body: muh, dj, sr, j1, pz, rt.
+- A loop variant that guarantees progress toward termination is needed; since sr starts at 1 and is increased by 1 each iteration, (h0 - sr) decreases every iteration while the loop continues, providing a decreasing variant.
+
+The core conservation/relational equality chosen is puv == h0, which captures the invariant that the initial, constant-related value (puv) remains equal to the preserved constant h0 throughout the loop. The remaining invariants ensure structural bounds and stability of the loop state without constraining unrelated behavior. </reasoning>
+<code>/*@
+  loop invariant puv == h0;
+  loop invariant h0 == 37;
+  loop invariant v == \at(v, Pre);
+  loop invariant sr <= h0;
+  loop invariant sr >= 1;
+  loop invariant pz & 0 == 0 ? pz >= 0 : pz >= 0; // simplified non-negativity check for pz
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant (h0 - sr);
+*/</code>
+----- Candidate 4/20 raw response end -----
+2026-03-22 22:49:02,790 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-03-22 22:49:02,805 - INFO -   Generating candidate 5/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:49:34,164 - INFO - 
+----- Candidate 5/20 raw response begin -----
+<reasoning>We need inductive loop invariants that Frama-C/WP can verify given the loop structure. Observations:
+- The loop guard is sr <= h0 and h0 is a constant 37; sr starts at 1 and is incremented every iteration, so a natural progress bound is 1 <= sr <= h0+1, with a loop variant h0 - sr to drive termination.
+- The variable dj is assigned to either 1 or -1 each iteration, so invariant (dj == 1) || (dj == -1) is stable.
+- The variables that are mutated inside the loop are muh, j1, sr, dj, pz, rt. We must declare all of them in the loop assigns clause.
+- puv and h0 remain constant inside the loop; we can express simple invariants on them (puv == 37, h0 == 37) since they are set before the loop and never changed during it.
+- pz is updated deterministically as pz = pz*2+4 (the if path based on puv%4 is never taken for puv == 37, but including the unconditional growth pz >= 0 is a safe invariant).
+- The “core conservation/relational” aspect of the loop is that sr increases by 1 per iteration and pz updates in a predictable way, while rt is updated via rt = (rt + dj) * pz + 4 with the post-update pz, which provides a straightforward progress description. We encode the progress with a loop variant and a few simple relational invariants to help the prover reason inductively without requiring quantifiers or at-Pre on locals.
+
+Chosen inductive invariants:
+- puv == 37
+- h0 == 37
+- 1 <= sr <= h0+1
+- (dj == 1) || (dj == -1)
+- pz >= 0
+- loop assigns muh, j1, sr, dj, pz, rt
+- loop variant h0 - sr
+
+These are strong enough to be inductive, align with the known updates, and avoid introducing unrelated properties. The explicit core state-update relationship is captured by the guard progress bound and the deterministic updates (e.g., sr++ and pz := pz*2+4) which improve the proof as iterations advance. No rewriting of unknown() calls is performed; only loop annotations are added. </reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@ 
+    loop invariant puv == 37;
+    loop invariant h0 == 37;
+    loop invariant 1 <= sr && sr <= h0+1;
+    loop invariant (dj == 1) || (dj == -1);
+    loop invariant pz >= 0;
+    loop assigns muh, j1, sr, dj, pz, rt;
+    loop variant h0 - sr;
+  @*/
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 5/20 raw response end -----
+2026-03-22 22:49:34,164 - INFO -   Candidate 6 selected prompt: simple_cot.txt
+2026-03-22 22:49:34,180 - INFO -   Generating candidate 6/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:50:12,550 - INFO - 
+----- Candidate 6/20 raw response begin -----
+<reasoning>The loop updates sr by 1 each iteration and the loop exits when sr > h0. A clear inductive invariant is to relate the chosen dj sign to the previous iteration’s sr value, i.e., dj is 1 when the previous sr (which is current sr minus 1) satisfies ((sr-1)/2) even, and dj is -1 otherwise. This captures the exact way dj is assigned in the loop body and remains valid across iterations. Additionally, a simple non-negativity bound on the remaining iterations is given by h0 - sr >= 0 as a progress constraint, and we declare the loop assigns set to precisely all variables mutated inside the loop. A loop variant h0 - sr provides a decreasing measure ensuring termination. The chosen invariants are inductive and verify the key arithmetic state transition law without over-restricting the rest of the loop’s behavior. The invariants avoid using at() on non-parameters and use only allowed variables. </reasoning>
+<code>/*@
+  loop invariant ((((sr - 1) / 2) % 2) == 0) ==> (dj == 1);
+  loop invariant ((((sr - 1) / 2) % 2) != 0) ==> (dj == -1);
+  loop invariant (h0 - sr >= 0);
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/</code>
+----- Candidate 6/20 raw response end -----
+2026-03-22 22:50:12,550 - INFO -   Candidate 7 selected prompt: simple_cot.txt
+2026-03-22 22:50:12,564 - INFO -   Generating candidate 7/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:50:42,848 - INFO - 
+----- Candidate 7/20 raw response begin -----
+<reasoning>In this loop, the obvious stable facts are around the loop bounds and sign choices, and a simple constant-relations conservation:
+
+- A core conservation/equality: h0 remains 37 and puv remains 37 throughout the loop (they are assigned once before the loop and never changed inside). This gives a stable equality relation that is trivially inductive and helps anchor the loop state.
+- Progress bounds: The loop guard is effectively sr <= h0, with sr starting at 1 and being incremented each iteration, so 1 <= sr <= h0+1 should hold at loop entry and be preserved across iterations.
+- Dj is always either 1 or -1 due to the if-else that assigns 1 or -1, so -1 <= dj <= 1 is preserved.
+- pz is non-negative: starting from 0 and updated by pz = pz*2+4 (and possibly pz = pz*rt before that, but since pz is non-negative and multiplied by non-negative rt, the non-negativity is preserved), so pz >= 0 throughout.
+- Loop variant chosen to prove termination: h0 - sr decreases by 1 each iteration while sr <= h0, so loop variant (h0 - sr) is non-negative and strictly decreases, ensuring termination when sr passes h0.
+
+These invariants are inductive (hold initially and preserved by each iteration) and capture minimal progress, while keeping the loop assigns complete.
+
+Note: We keep the original code unchanged other than adding these ACSL loop annotations. The function parameters and local variables used in invariants are drawn only from the allowed set, and we do not use \at on local variables. The invariant uses a single conjunction line for the first invariant and a second line for another basic invariant, followed by the assigns and the loop variant. The two invariants together express both a conservation (constants) and progress (bounds) property. </reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant (h0 == 37) && (puv == 37) && (1 <= sr) && (sr <= h0+1) && (-1 <= dj <= 1);
+    loop invariant (pz >= 0);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant (h0 - sr);
+  @*/
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 7/20 raw response end -----
+2026-03-22 22:50:42,848 - INFO -   Candidate 8 selected prompt: simple_cot.txt
+2026-03-22 22:50:42,878 - INFO -   Generating candidate 8/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:51:13,855 - INFO - 
+----- Candidate 8/20 raw response begin -----
+<reasoning>Reasoning about invariants:
+- A safe and inductive core invariant is about the loop counter sr: 1 <= sr <= h0 + 1. It holds initially (sr == 1) and increases by 1 each iteration, and the loop exits when sr becomes h0+1 (via the internal break when sr > h0). This provides a strong, verifiable progress bound.
+
+- The loop updates dj according to sr: dj = 1 iff ((sr/2) % 2 == 0), else dj = -1. We encode this exact dependency as two guarded invariants:
+  • ((sr/2) % 2 == 0) ==> (dj == 1)
+  • ((sr/2) % 2 != 0) ==> (dj == -1)
+  These are inductive because dj is deterministically set from sr in every iteration.
+
+- The pz variable follows the recurrence pz = pz * 2 + 4 each iteration (ignoring the puv%4 branch which is constant for puv = 37). Since pz starts at 0, this ensures pz is always a multiple of 4. We encode this as pz % 4 == 0, which is preserved by pz = pz*2 + 4.
+
+- We keep the loop assigns exactly to the variables that are modified in the loop body: muh, dj, sr, j1, pz, rt. This is essential for sound verification.
+
+- The optional loop variant is chosen as (h0 + 1 - sr), which strictly decreases on every executed iteration (since sr increments by 1 each time), ensuring termination under Frama-C WP for this form of loop.
+
+- All invariants are chosen to be tight but safe for any values of v (and the constant h0 = 37 in this function). They do not rely on non-parameters beyond those allowed and do not introduce tautologies. The initial state satisfies all invariants (e.g., sr = 1, pz = 0, dj = 1, etc.).</reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0 + 1;
+    loop invariant ((sr/2) % 2 == 0) ==> (dj == 1);
+    loop invariant ((sr/2) % 2 != 0) ==> (dj == -1);
+    loop invariant pz % 4 == 0;
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant (h0 + 1 - sr);
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 8/20 raw response end -----
+2026-03-22 22:51:13,855 - INFO -   Candidate 9 selected prompt: simple_cot.txt
+2026-03-22 22:51:13,870 - INFO -   Generating candidate 9/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:52:31,975 - INFO - 
+----- Candidate 9/20 raw response begin -----
+<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given function. Observations to drive the invariants:
+- The loop actually terminates when sr > h0, with sr incremented by 1 each iteration. A natural loop variant is h0 - sr.
+- h0 is fixed at 37 (initially), sr starts at 1 and never decreases. This yields a simple progress measure.
+- The parameter v is used in integer divisions, but the code paths are consistent across iterations. The available variables include puv, which is initialized to h0 (37) and never changed in the loop. This makes puv % 4 != 0 a stable, helpful invariant (indeed 37 % 4 != 0). If this invariant is used, the conditional block if ((puv%4)==0) { pz = pz*rt; } is effectively dead in this particular run, and pz always evolves by pz = pz*2 + 4.
+- The loop always assigns only: dj, j1, muh, sr, pz, rt (and never h0, puv, v, or others). So the loop assigns clause should list exactly these.
+- A strong, simple invariant set is:
+  - 0 <= h0 - sr (i.e.,  sr <= h0 while the loop body executes)
+  - (dj == 1) or (dj == -1) (dj is always set to ±1 by the code)
+  - puv % 4 != 0 (true for the given initial value puv = 37 and unchanged thereafter)
+  - pz >= 0 (pz is updated with pz = pz*2 + 4 whenever the code runs; since the non-dead path holds, pz stays non-negative)
+  - Additional bounds: 1 <= sr <= h0 holds at loop entry; this is compatible with the above.
+- The core “state transition” behavior is captured by the above invariants and the natural loop variant, ensuring inductiveness and progress.
+
+Thus, we provide two loop invariant conjuncts (combined on two lines to fit the template), a loop variant, and an exact loop assigns list. This keeps the invariants tight, non-tautological, and verification-friendly for Frama-C/WP. The code itself is left unchanged except for the loop annotations. </reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 0 <= h0 - sr && ((dj == 1) || (dj == -1)) && (puv % 4 != 0) && (pz >= 0);
+    loop invariant 1 <= sr && sr <= h0;
+    loop assigns dj, j1, muh, sr, pz, rt;
+    loop variant h0 - sr;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 9/20 raw response end -----
+2026-03-22 22:52:31,975 - INFO -   Candidate 10 selected prompt: simple_cot.txt
+2026-03-22 22:52:31,989 - INFO -   Generating candidate 10/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:53:23,482 - INFO - 
+----- Candidate 10/20 raw response begin -----
+<reasoning>Chosen invariants aim at a simple, inductive, and verification-friendly description of the loop's progress while keeping the code unchanged.
+
+Rationale for invariants
+- The loop uses an internal guard based on sr and h0 (with h0 initialized to 37). To stay robust across iterations, we keep a non-strict bound that remains true at the start of every iteration (including the final state where the next iteration would not execute). A safe, simple bound is 1 <= sr <= h0+1.
+- The variables h0 and puv are initialized once and never modified in the loop, so asserting their constant values (h0 == 37, puv == 37) is sound and helpful for reasoning about the loop without constraining mutable variables.
+- The loop counter sr strictly increases by 1 each iteration (sr++). Therefore sr stays within 1..(h0+1) throughout and the natural loop variant h0 - sr decreases by 1 each iteration until the loop exits. This provides a natural termination measure for Frama-C WP.
+- The loop assigns the core stateful variables modified inside the loop: muh, dj, sr, j1, pz, rt.
+
+State transition (core conservation/relational explanation)
+- Each iteration computes dj from the current sr, then increments sr. The variable muh is updated twice with factors depending on v and the (old and new) sr. j1 accumulates the contribution dj * muh after the first muh update. The pz accumulator conditionally multiplies by rt (subject to puv%4) and then applies a affine step (pz = pz*2 + 4). Finally rt is updated by rt = (rt + dj) * pz + 4.
+- A compact relational summary across one full iteration (from loop head to next loop head) is:
+  sr' = sr + 1
+  dj' = ((sr/2) % 2 == 0) ? 1 : -1
+  muh' = muh * (v / sr) * (v / (sr + 1))
+  j1' = j1 + dj * (muh * (v / sr))  // using muh after the first update
+  pz' = ((puv % 4 == 0) ? pz * rt : pz) * 2 + 4
+  rt' = (rt + dj) * pz' + 4
+- This demonstrates a coherent state update law that relates new values to the old ones, supporting inductive verification with the chosen invariants.
+
+Therefore the invariants below capture the essential, verifiable progression without over-constraining the program state, and a loop variant ensures termination. The loop assigns clause lists exactly the variables that the loop can modify. </reasoning>
+
+<code>/*@
+  loop invariant 1 <= sr <= h0 + 1;
+  loop invariant puv == 37;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }</code>
+----- Candidate 10/20 raw response end -----
+2026-03-22 22:53:23,483 - INFO -   Candidate 11 selected prompt: simple_cot.txt
+2026-03-22 22:53:23,496 - INFO -   Generating candidate 11/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:54:49,826 - INFO - 
+----- Candidate 11/20 raw response begin -----
+<reasoning>The loop updates define a clear inductive state relation between rt, pz, and the other evolving variables. A robust inductive invariant should capture the following:
+
+- Progress and bounds on the loop counter sr: it starts at 1 and is incremented each iteration, with the loop exiting when sr > h0 (h0 is 37). Therefore, before each iteration sr satisfies 1 <= sr <= h0. A natural, slightly looser invariant is 1 <= sr <= h0+1, which remains true at the head of every iteration due to the break condition and the post-increment of sr inside the loop.
+
+- A core relational invariant between rt and pz that is preserved by every iteration. Looking at the loop body, after the updates pz becomes pz_old*2+4 and rt becomes ( (rt_old + dj) * pz_new ) + 4. From this, one can derive that (rt - 4) is always a multiple of the current pz whenever pz is nonzero. Initially pz = 0, so we cannot require the divisibility predicate; hence we guard it with pz == 0 || ((rt - 4) % pz == 0). This relation is preserved by the updates, since after each iteration new_rt - 4 is divisible by new_pz.
+
+- The loop assigns clause must list all modified variables inside the loop: muh, dj, sr, j1, pz, rt.
+
+- A loop variant to ensure termination: since sr is monotonically increasing by 1 while sr <= h0, a natural decreasing variant is h0 - sr.
+
+These invariants are inductive:
+- Initialization: at loop entry sr = 1 and pz = 0, so 1 <= sr <= h0+1 holds, and pz == 0 so the pz divisibility invariant is satisfied.
+- Inductive step: assuming the invariant holds at the loop head, the body updates sr -> sr+1, pz -> pz*2+4 (nonzero after first iteration), and rt becomes (rt + dj) * pz_new + 4. This preserves the invariant (rt - 4) is a multiple of pz when pz != 0, and maintains the bound on sr. The declared loop variant h0 - sr strictly decreases.
+
+Thus, these invariants provide a strong, inductive, verification-friendly specification for Frama-C/WP. </reasoning>
+<code>/*@
+  loop invariant 1 <= sr <= h0 + 1;
+  loop invariant pz == 0 || ((rt - 4) % pz == 0);
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }</code>
+----- Candidate 11/20 raw response end -----
+2026-03-22 22:54:49,827 - INFO -   Candidate 12 selected prompt: simple_cot.txt
+2026-03-22 22:54:49,841 - INFO -   Generating candidate 12/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:55:53,943 - INFO - 
+----- Candidate 12/20 raw response begin -----
+<reasoning>Chosen invariants aim to be inductive and verification-friendly without over-constraining the program. The loop updates mainly progress sr and pz, while mutating muh, dj, j1, rt. To ensure inductiveness and termination:
+
+- Progress bounds: sr only increases by 1 per iteration and the loop body only executes while sr <= h0. Thus 0 <= sr <= h0+1 stays true across iterations. Also pz is always non-negative (pz starts at 0 and is updated by pz = pz*2 + 4 or pz = pz*rt when puv%4==0; in this function, puv = h0 = 37, so the conditional branch is never taken; nevertheless pz remains >= 0). These provide minimal, robust progress and bound information that is easy for WP to discharge.
+- Core update relation: dj is set to either 1 or -1 every iteration that could execute, hence the invariant dj * dj == 1 holds whenever sr <= h0. This captures the essential “state update” pattern for the sign variable dj and is inductive because dj is reset to ±1 at the start of every iteration that enters the body.
+- Assigns: The loop actually updates muh, dj, sr, j1, pz, rt. We list precisely these as loop assigns.
+- Loop variant: (h0 - sr) decreases by 1 each iteration that enters the body (since sr is incremented), ensuring termination of the loop when sr reaches h0+1, which aligns with the break condition.
+
+These invariants are kept unconditional where safe, and the dj-dj==1 relation is scoped to iterations where the body can execute (sr <= h0) to stay sound with the inner break structure.
+</reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 0 <= sr <= h0 + 1;
+    loop invariant 0 <= pz;
+    /* The body only executes when sr <= h0; during such iterations, dj is set to either 1 or -1. */
+    loop invariant (sr <= h0) ==> (dj * dj == 1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant (h0 - sr);
+  @*/
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 12/20 raw response end -----
+2026-03-22 22:55:53,943 - INFO -   Candidate 13 selected prompt: simple_cot.txt
+2026-03-22 22:55:53,958 - INFO -   Generating candidate 13/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:56:52,952 - INFO - 
+----- Candidate 13/20 raw response begin -----
+<reasoning>The loop runs while sr <= h0, with sr starting at 1 and being incremented each iteration. A simple, inductive invariant that is preserved across iterations and holds at initialization is:
+- 1 <= sr <= h0 + 1
+This captures that sr progresses from 1 up to h0, and on termination sr == h0+1.
+
+Other safe invariants that hold for all iterations given the code:
+- pz >= 0, since pz starts at 0 and is updated by pz = pz*2 + 4 (the puv%4 == 0 branch is never taken in this context because puv is set to h0 = 37, so the branch is effectively dead code for this loop; nonetheless, pz remains non-negative).
+- dj is always either 1 or -1, because the code assigns dj to exactly 1 or -1 depending on (sr/2)%2.
+
+We also declare the standard loop progress measure:
+- loop variant h0 + 1 - sr, which decreases by 1 each iteration as sr increments, proving termination under the guard sr <= h0.
+
+The request asks for a core conservation/relational equality describing the loop updates. A practical takeaway from the loop body is that rt is updated in a way that depends on its previous value and on pz (which itself evolves deterministically). In particular, with the observed dead branch (puv%4 != 0 for puv = h0 = 37), pz follows pz = pz*2 + 4 and rt is updated according to rt = (rt + dj) * pz + 4. This state-transition perspective informs the chosen invariants and helps verification-friendly reasoning, though we keep the invariants themselves simple and robust to general v values.
+
+Thus, the following inductive invariants and loop-variant are used:
+- 1 <= sr <= h0 + 1
+- pz >= 0
+- (dj == 1) || (dj == -1)
+- loop assigns muh, dj, sr, j1, pz, rt
+- loop variant h0 + 1 - sr
+
+These are inductive, non-tautological, and do not require modifying the function semantics beyond adding annotations. They also do not rely on non-parameter Pre-state captures.
+
+</reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*>>> LOOP INVARIANT TO FILL<<<*/
+  /*@
+    loop invariant 1 <= sr <= h0 + 1;
+    loop invariant pz >= 0;
+    loop invariant (dj == 1) || (dj == -1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant h0 + 1 - sr;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 13/20 raw response end -----
+2026-03-22 22:56:52,952 - INFO -   Candidate 14 selected prompt: simple_cot.txt
+2026-03-22 22:56:52,966 - INFO -   Generating candidate 14/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:57:30,653 - INFO - 
+----- Candidate 14/20 raw response begin -----
+<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop inside main1. The loop breaks when sr > h0 (guard sr <= h0). A simple, safe inductive invariant is to bound the loop counter sr and to reflect a constant non-branching condition on puv (which controls the pz-branch). Since puv is initialized to h0 and never changed, the branch if ((puv%4)==0) is effectively never taken; we can capture that with an invariant puv % 4 != 0 to aid verification. We also provide a basic bound on sr that is preserved through the loop head when the loop condition holds: 1 <= sr <= h0. To ensure termination, we add a loop variant that decreases with each iteration: h0 + 1 - sr. The loop assigns clause must list all modified locals in the loop body: muh, dj, sr, j1, pz, rt. We avoid adding unrelated invariants and keep the original code unchanged. The resulting invariants are inductive and verification-friendly for Frama-C/WP. The core relational/transition equality is not easily expressible in a simple invariant due to the multiple state updates inside the loop; we thus rely on a minimal but strong enough pair of invariants plus the loop variant to drive the prover, while keeping the loop variables' state relationships governed by the actual updates in the code. </reasoning>
+
+<code>/*@
+  loop invariant 1 <= sr <= h0;
+  loop invariant puv % 4 != 0;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 + 1 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }</code>
+----- Candidate 14/20 raw response end -----
+2026-03-22 22:57:30,653 - INFO -   Candidate 15 selected prompt: simple_cot.txt
+2026-03-22 22:57:30,668 - INFO -   Generating candidate 15/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:58:38,050 - INFO - 
+----- Candidate 15/20 raw response begin -----
+<reasoning>For this loop, I aimed to produce inductive invariants that are strong enough to guide Frama-C/WP proof while staying faithful to the program semantics and the available variables. Key observations:
+
+- The loop guard is effectively on sr <= h0. The loop uses a break when sr > h0. Therefore, a natural progress bound is 1 <= sr <= h0, which is preserved across iterations.
+- The variable dj is deterministically set to either 1 or -1 each iteration depending on sr, so a tight bound is -1 <= dj <= 1 is safe and preserved.
+- The special update pattern of rt and pz yields a modular relation: after the pz update (which happens before rt is updated), rt is updated to (rt + dj) * pz + 4. A robust invariant to capture the arithmetic relationship that survives across iterations is:
+  - If pz == 0 (only at initialization), then rt must be the initial value v.
+  - If pz != 0, then rt is congruent to 4 modulo pz, i.e., (rt - 4) is divisible by pz. This is a strong, exact relational invariant that mirrors the end-of-iteration update rt = (rt_old + dj) * pz + 4, which guarantees rt ≡ 4 (mod pz) for the new pz.
+  This modular invariant is carefully chosen to be robust under negative values of v and still be checkable by the WP plugin.
+- Additional invariants stating the fixed constants (h0 == 37, puv == 37) help keep the state obvious and verifiable, and pz >= 0 follows from the exact pz update form (pz starts at 0 and then grows as pz = pz*2 + 4).
+- A loop variant h0 - sr ensures termination as sr monotonically increases by 1 each iteration and the guard enforces sr <= h0.
+
+Combined, these invariants are inductive, non-tautological, and directly reflect the observed loop updates, while keeping the loop assigns complete and exact. The invariant about (rt - 4) % pz == 0 is chosen to avoid issues with signed modulo when rt can be negative, by checking divisibility rather than a direct modulo equality. </reasoning>
+<code>/*@
+  loop invariant h0 == 37;
+  loop invariant puv == 37;
+  loop invariant 1 <= sr <= h0;
+  loop invariant -1 <= dj <= 1;
+  /* 
+     Relational constraint capturing the loop's core arithmetic update:
+     - Initially (pz == 0): rt must equal the initial value v.
+     - After the first iteration (pz > 0): rt is always such that (rt - 4) is divisible by pz.
+     This invariant is preserved across iterations, since at the end of each
+     iteration: rt becomes (rt + dj) * pz + 4 with pz updated earlier in the loop.
+  */
+  loop invariant (pz == 0) ==> (rt == v);
+  loop invariant (pz != 0) ==> ((rt - 4) % pz == 0);
+  loop invariant pz >= 0;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/ 
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }</code>
+----- Candidate 15/20 raw response end -----
+2026-03-22 22:58:38,050 - INFO -   Candidate 16 selected prompt: simple_cot.txt
+2026-03-22 22:58:38,065 - INFO -   Generating candidate 16/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 22:59:44,592 - INFO - 
+----- Candidate 16/20 raw response begin -----
+<reasoning>The loop increments sr from 1 up to h0 (37) and thus terminates when sr > h0. To aid WP verification we add inductive invariants that are preserved across iterations and help derive required post-conditions at exit. The challenging part is capturing the interaction between rt and pz, which are updated in a coupled way:
+
+- pz is updated as pz = pz*2 + 4 each iteration (plus a possible puv%4 path that is never taken here since puv = 37, but we keep the invariant robust to that).
+- rt is updated as rt = (rt + dj) * pz_new + 4, where pz_new is the updated pz.
+
+A robust relational invariant that remains inductive under these updates is:
+  (pz == 0) || ((rt - 4) % pz == 0)
+
+Reasoning:
+- Initially, pz = 0, so the invariant holds trivially.
+- If pz != 0 at the start of an iteration, after the body the new pz becomes pz' = 2*pz + 4 and the new rt becomes rt' = (rt + dj) * pz' + 4. Therefore rt' - 4 = (rt + dj) * pz', which is clearly a multiple of pz'. Hence (rt' - 4) % pz' == 0, preserving the invariant for the next header where pz = pz' and rt = rt'.
+- The invariant is safe at start when pz == 0, and non-zero thereafter.
+
+In addition, we include:
+- 1 <= sr <= h0 to assert the loop counter range that is maintained while the loop guard sr <= h0 holds.
+- (dj == 1) || (dj == -1) to reflect the exact sign choice that the code assigns to dj, which is a simple, non-trivial property of the loop variable.
+
+We also provide a loop variant h0 - sr to give Frama-C/WP a natural decreasing measure for termination, since sr is incremented each iteration and h0 is 37.
+
+The combination of these invariants and a precise loop variant is intended to be verification-friendly and inductive for the given loop, while keeping the original code unchanged. The forbidden/unsupported constructs are avoided and no \at(.. Pre) usage is introduced on locals (only on parameters if at all used, but here we reference only available variables). </reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0;
+    loop invariant pz == 0 || ((rt - 4) % pz == 0);
+    loop invariant (dj == 1) || (dj == -1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant h0 - sr;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 16/20 raw response end -----
+2026-03-22 22:59:44,592 - INFO -   Candidate 17 selected prompt: simple_cot.txt
+2026-03-22 22:59:44,608 - INFO -   Generating candidate 17/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 23:02:07,751 - INFO - 
+----- Candidate 17/20 raw response begin -----
+<reasoning>
+- Observed that puv is initialized to 37 and never modified inside the loop. Therefore the condition (puv % 4) == 0 is always false, so the block that multiplies pz by rt is never executed. This makes pz follow a deterministic recurrence: pz := pz * 2 + 4 on each iteration.
+- With initial pz = 0, this recurrence yields pz always a multiple of 4 (p z % 4 == 0) for all iterations.
+- The loop guard is while (1) with an explicit break when sr > h0. Since sr starts at 1 and is incremented by 1 each iteration, a natural loop variant is h0 - sr, which decreases by 1 every iteration and is non-negative while sr <= h0.
+- Reasonable inductive invariants (independent of specific run-time values beyond stated updates) are:
+  - 1 <= sr <= h0, which is preserved at the moment just before each iteration (the guard ensures sr <= h0) and holds initially (sr == 1).
+  - pz % 4 == 0, which is preserved by the pz := pz*2 + 4 update (and the initial pz == 0 is congruent to 0 mod 4).
+  - puv % 4 != 0, which is invariant since puv is not modified (and 37 % 4 != 0 holds).
+- These invariants are strong enough to guide the WP verifier through the loop while not relying on unsupported quantifiers or constructs. The loop assigns clause should include all variables modified inside the loop: muh, dj, sr, j1, pz, rt.
+- The core “conservation/relational equality” here is the pz update law pz_next = pz * 2 + 4 (valid because the other branch is never taken for the given puv), which explains how pz evolves across iterations and explains why pz stays a multiple of 4.
+</reasoning>
+<code>
+/*@
+  loop invariant 1 <= sr <= h0;
+  loop invariant pz % 4 == 0;
+  loop invariant puv % 4 != 0;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+</code>
+----- Candidate 17/20 raw response end -----
+2026-03-22 23:02:07,752 - INFO -   Candidate 18 selected prompt: simple_cot.txt
+2026-03-22 23:02:07,770 - INFO -   Generating candidate 18/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 23:03:28,339 - INFO - 
+----- Candidate 18/20 raw response begin -----
+<reasoning>In designing the loop invariants for this function, I focused on ensuring inductiveness and simplicity while remaining verification-friendly for Frama-C/WP.
+
+Key observations used for invariants:
+- The loop guard is effectively sr <= h0, and sr starts at 1 and is incremented by 1 each iteration. Therefore, 1 <= sr <= h0 holds at the top of every iteration.
+- The code deterministically sets dj to either 1 or -1 on each iteration (based on (sr/2)%2 == 0). Therefore, dj ∈ {1, -1} is preserved.
+- pz is initialized to 0 and, in this particular function, the branch if ((puv%4) == 0) is never taken because puv is 37 (puv%4 != 0). Consequently, pz follows the simple recurrence pz = pz*2 + 4 on every iteration, which guarantees pz >= 0 throughout the loop.
+- The loop modifies muh, j1, sr, dj, pz, rt in the body; for a precise contract we list these as the loop assigns set.
+
+One core concept of the loop's state updates (state transition law) in this function (given puv%4 != 0) is:
+- Before each iteration, pz_old is updated to pz_new = pz_old * 2 + 4, dj is set to either 1 or -1, sr increases by 1, j1 and muh are updated based on v and the current sr, and rt is updated via rt += dj followed by rt = rt * pz_new + 4. This captures how rt and pz evolve jointly from one iteration to the next.
+
+Given the complexity of expressions tying all variables together, the invariants focus on guaranteed, non-branching properties that are preserved across iterations and help establish termination, while the loop variant ensures termination.
+
+</reasoning>
+<code>/*@
+  loop invariant 1 <= sr && sr <= h0;
+  loop invariant (dj == 1) || (dj == -1);
+  loop invariant pz >= 0;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 18/20 raw response end -----
+2026-03-22 23:03:28,340 - INFO -   Candidate 19 selected prompt: simple_cot.txt
+2026-03-22 23:03:28,361 - INFO -   Generating candidate 19/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 23:04:25,896 - INFO - 
+----- Candidate 19/20 raw response begin -----
+<reasoning>
+I analyzed the loop structure and identified a small, strong set of invariants that are inductive and verification-friendly for Frama-C/WP:
+
+- Core conservation/relational equality: puv == h0
+  - Both puv and h0 are initialized from the same value and are never modified inside the loop. This equality holds before the loop and is preserved by every iteration, explaining the state update that both stay equal.
+
+- Minimal progress bound for the loop counter sr:
+  - Since sr starts at 1 and is incremented by 1 each iteration, and the loop exits when sr > h0 (guard sr <= h0 is checked via a break inside), a safe invariant describing progress is 1 <= sr <= h0 + 1. This holds at the loop entry and is preserved across iterations (sr increases by 1 each time, and the maximum value sr can reach before termination is h0+1).
+
+- Complete and exact loop assigns:
+  - The variables that are assigned inside the loop body are: dj, muh, sr, j1, pz, rt. These must be listed in loop assigns to reflect all modifications performed within the loop.
+
+- Loop variant for termination guidance:
+  - A loop variant of h0 - sr ensures the measured progress decreases with each iteration (since sr increases by 1 each time while the guard holds). This supports termination reasoning for the loop.
+
+These invariants are chosen to be strong (non-tautological) and minimal, directly reflecting the loop’s key state updates and counter progression, while staying purely within the available variables and the function parameters.
+
+</reasoning>
+<code>/*@
+  loop invariant puv == h0;
+  loop invariant ((1 <= sr) && (sr <= h0 + 1));
+  loop assigns dj, muh, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }</code>
+----- Candidate 19/20 raw response end -----
+2026-03-22 23:04:25,896 - INFO -   Candidate 20 selected prompt: simple_cot.txt
+2026-03-22 23:04:25,915 - INFO -   Generating candidate 20/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-03-22 23:05:13,375 - INFO - 
+----- Candidate 20/20 raw response begin -----
+<reasoning>Chosen invariants focus on the loop counter progression and the determinism of the direction variable so that the loop is provably inductive with minimal, precise assertions.
+
+- Core state-transition (progress) relation: sr is the loop counter that starts at 1 and is incremented by 1 on each iteration, and the loop exits once sr > h0. This gives a simple, inductive bound: 1 <= sr <= h0+1. It also provides a natural loop variant: h0+1 - sr, which decreases by 1 every iteration, proving termination.
+- Direction variable invariants: dj is assigned to either 1 or -1 in every iteration (depending on sr), so (dj == 1) || (dj == -1) is preserved across iterations.
+- Additional safety fact: since the loop body always updates sr (and only uses sr in arithmetic with v), bounding sr suffices to constrain the number of iterations without over-constraining arithmetic with muh, rt, etc. We avoid asserting stronger relations that would be brittle under different signs of v or other values.
+
+Invariants chosen:
+- 1 <= sr <= h0 + 1
+- (dj == 1) || (dj == -1)
+Loop variant used to aid WP in proving termination:
+- h0 + 1 - sr
+
+Loop assigns:
+- muh, dj, sr, j1, pz, rt
+
+These invariants are inductive given the transformation in the loop and do not rely on speculative relations between the other arithmetic variables (which would be harder to prove and brittle). The chosen invariants are strong enough to prove progress and maintainable under the exact given code path (with puv == h0 == 37, so the pz branch does indeed behave predictably as noted in the reasoning).
+
+</reasoning>
+<code>int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0 + 1;
+    loop invariant ((dj == 1) || (dj == -1));
+    loop variant h0 + 1 - sr;
+    loop assigns muh, dj, sr, j1, pz, rt;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}</code>
+----- Candidate 20/20 raw response end -----
+2026-03-22 23:05:13,375 - INFO - 
+----- Candidate 1/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr && sr <= h0;
+    loop invariant puv == 37;
+    loop invariant h0 == 37;
+    loop invariant pz >= 0;
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant h0 - sr;
+  */
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 1/20 full code end -----
+2026-03-22 23:05:13,375 - INFO - 
+----- Candidate 2/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0;
+    loop invariant puv == h0;
+    loop invariant (dj == 1) || (dj == -1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant h0 - sr;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 2/20 full code end -----
+2026-03-22 23:05:13,375 - INFO - 
+----- Candidate 3/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0 + 1;
+    loop invariant pz >= 0;
+    loop invariant ((sr/2) % 2 == 0) ==> (dj == 1);
+    loop invariant ((sr/2) % 2 != 0) ==> (dj == -1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant (h0 + 1 - sr);
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 3/20 full code end -----
+2026-03-22 23:05:13,375 - INFO - 
+----- Candidate 4/20 full code begin -----
+/*@
+  loop invariant puv == h0;
+  loop invariant h0 == 37;
+  loop invariant v == \at(v, Pre);
+  loop invariant sr <= h0;
+  loop invariant sr >= 1;
+  loop invariant pz & 0 == 0 ? pz >= 0 : pz >= 0; // simplified non-negativity check for pz
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant (h0 - sr);
+*/
+----- Candidate 4/20 full code end -----
+2026-03-22 23:05:13,375 - INFO - 
+----- Candidate 5/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@ 
+    loop invariant puv == 37;
+    loop invariant h0 == 37;
+    loop invariant 1 <= sr && sr <= h0+1;
+    loop invariant (dj == 1) || (dj == -1);
+    loop invariant pz >= 0;
+    loop assigns muh, j1, sr, dj, pz, rt;
+    loop variant h0 - sr;
+  @*/
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 5/20 full code end -----
+2026-03-22 23:05:13,375 - INFO - 
+----- Candidate 6/20 full code begin -----
+/*@
+  loop invariant ((((sr - 1) / 2) % 2) == 0) ==> (dj == 1);
+  loop invariant ((((sr - 1) / 2) % 2) != 0) ==> (dj == -1);
+  loop invariant (h0 - sr >= 0);
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+----- Candidate 6/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 7/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant (h0 == 37) && (puv == 37) && (1 <= sr) && (sr <= h0+1) && (-1 <= dj <= 1);
+    loop invariant (pz >= 0);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant (h0 - sr);
+  @*/
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 7/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 8/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0 + 1;
+    loop invariant ((sr/2) % 2 == 0) ==> (dj == 1);
+    loop invariant ((sr/2) % 2 != 0) ==> (dj == -1);
+    loop invariant pz % 4 == 0;
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant (h0 + 1 - sr);
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 8/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 9/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 0 <= h0 - sr && ((dj == 1) || (dj == -1)) && (puv % 4 != 0) && (pz >= 0);
+    loop invariant 1 <= sr && sr <= h0;
+    loop assigns dj, j1, muh, sr, pz, rt;
+    loop variant h0 - sr;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 9/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 10/20 full code begin -----
+/*@
+  loop invariant 1 <= sr <= h0 + 1;
+  loop invariant puv == 37;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+----- Candidate 10/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 11/20 full code begin -----
+/*@
+  loop invariant 1 <= sr <= h0 + 1;
+  loop invariant pz == 0 || ((rt - 4) % pz == 0);
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+----- Candidate 11/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 12/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 0 <= sr <= h0 + 1;
+    loop invariant 0 <= pz;
+    /* The body only executes when sr <= h0; during such iterations, dj is set to either 1 or -1. */
+    loop invariant (sr <= h0) ==> (dj * dj == 1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant (h0 - sr);
+  @*/
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 12/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 13/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*>>> LOOP INVARIANT TO FILL<<<*/
+  /*@
+    loop invariant 1 <= sr <= h0 + 1;
+    loop invariant pz >= 0;
+    loop invariant (dj == 1) || (dj == -1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant h0 + 1 - sr;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 13/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 14/20 full code begin -----
+/*@
+  loop invariant 1 <= sr <= h0;
+  loop invariant puv % 4 != 0;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 + 1 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+----- Candidate 14/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 15/20 full code begin -----
+/*@
+  loop invariant h0 == 37;
+  loop invariant puv == 37;
+  loop invariant 1 <= sr <= h0;
+  loop invariant -1 <= dj <= 1;
+  /* 
+     Relational constraint capturing the loop's core arithmetic update:
+     - Initially (pz == 0): rt must equal the initial value v.
+     - After the first iteration (pz > 0): rt is always such that (rt - 4) is divisible by pz.
+     This invariant is preserved across iterations, since at the end of each
+     iteration: rt becomes (rt + dj) * pz + 4 with pz updated earlier in the loop.
+  */
+  loop invariant (pz == 0) ==> (rt == v);
+  loop invariant (pz != 0) ==> ((rt - 4) % pz == 0);
+  loop invariant pz >= 0;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/ 
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+----- Candidate 15/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 16/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0;
+    loop invariant pz == 0 || ((rt - 4) % pz == 0);
+    loop invariant (dj == 1) || (dj == -1);
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant h0 - sr;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 16/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 17/20 full code begin -----
+/*@
+  loop invariant 1 <= sr <= h0;
+  loop invariant pz % 4 == 0;
+  loop invariant puv % 4 != 0;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 17/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 18/20 full code begin -----
+/*@
+  loop invariant 1 <= sr && sr <= h0;
+  loop invariant (dj == 1) || (dj == -1);
+  loop invariant pz >= 0;
+  loop assigns muh, dj, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 18/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 19/20 full code begin -----
+/*@
+  loop invariant puv == h0;
+  loop invariant ((1 <= sr) && (sr <= h0 + 1));
+  loop assigns dj, muh, sr, j1, pz, rt;
+  loop variant h0 - sr;
+*/
+while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+----- Candidate 19/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - 
+----- Candidate 20/20 full code begin -----
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+
+  /*@
+    loop invariant 1 <= sr <= h0 + 1;
+    loop invariant ((dj == 1) || (dj == -1));
+    loop variant h0 + 1 - sr;
+    loop assigns muh, dj, sr, j1, pz, rt;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+
+}
+----- Candidate 20/20 full code end -----
+2026-03-22 23:05:13,376 - INFO - Successfully generated 20/20 candidates
+2026-03-22 23:05:13,378 - INFO - Checking 19 invariants for conflicts...
+2026-03-22 23:05:13,380 - INFO -   Conflict detected:
+2026-03-22 23:05:13,380 - INFO -     [7] (dj == 1) || (dj == -1)
+2026-03-22 23:05:13,381 - INFO -     [10] ((sr/2) % 2 != 0) ==> (dj == -1)
+2026-03-22 23:05:13,384 - INFO - DEBUG: First 10 lines of code written to file:
+2026-03-22 23:05:13,384 - INFO -   1: int main1(int v){
+2026-03-22 23:05:13,384 - INFO -   2:   int h0, puv, muh, j1, sr, dj, pz, rt;
+2026-03-22 23:05:13,384 - INFO -   3: 
+2026-03-22 23:05:13,384 - INFO -   4:   h0=37;
+2026-03-22 23:05:13,384 - INFO -   5:   puv=h0;
+2026-03-22 23:05:13,384 - INFO -   6:   muh=1;
+2026-03-22 23:05:13,384 - INFO -   7:   j1=1;
+2026-03-22 23:05:13,384 - INFO -   8:   sr=1;
+2026-03-22 23:05:13,384 - INFO -   9:   dj=1;
+2026-03-22 23:05:13,384 - INFO -   10:   pz=0;
+2026-03-22 23:05:13,384 - INFO - DEBUG: Total lines: 58
+2026-03-22 23:05:13,630 - INFO - syntax Correct
+2026-03-22 23:05:45,020 - INFO - Validate:
+2026-03-22 23:05:45,020 - INFO - [False, True, True, True, True, True, True, True, False, True, True, True, True, True, False, True, True, True]
+2026-03-22 23:05:45,020 - INFO - 
+2026-03-22 23:05:45,020 - INFO - Verify:
+2026-03-22 23:05:45,020 - INFO - []
+2026-03-22 23:05:45,020 - INFO - 
+2026-03-22 23:05:45,020 - INFO - Houdini iteration 1: Removed 3 failed invariants
+2026-03-22 23:05:45,020 - INFO -   Before: 18 invariants
+2026-03-22 23:05:45,020 - INFO -   After: 15 invariants
+2026-03-22 23:05:45,020 - INFO -   Remaining invariants:
+2026-03-22 23:05:45,020 - INFO -     [1] puv == 37
+2026-03-22 23:05:45,020 - INFO -     [2] h0 == 37
+2026-03-22 23:05:45,020 - INFO -     [3] pz >= 0
+2026-03-22 23:05:45,020 - INFO -     [4] 1 <= sr <= h0
+2026-03-22 23:05:45,020 - INFO -     [5] puv == h0
+2026-03-22 23:05:45,020 - INFO -     [6] (dj == 1) || (dj == -1)
+2026-03-22 23:05:45,020 - INFO -     [7] 1 <= sr <= h0 + 1
+2026-03-22 23:05:45,020 - INFO -     [8] 1 <= sr && sr <= h0+1
+2026-03-22 23:05:45,020 - INFO -     [9] (h0 == 37) && (puv == 37) && (1 <= sr) && (sr <= h0+1) && (-1 <= dj <= 1)
+2026-03-22 23:05:45,020 - INFO -     [10] (pz >= 0)
+2026-03-22 23:05:45,020 - INFO -     [11] pz % 4 == 0
+2026-03-22 23:05:45,020 - INFO -     [12] 0 <= h0 - sr && ((dj == 1) || (dj == -1)) && (puv % 4 != 0) && (pz >= 0)
+2026-03-22 23:05:45,020 - INFO -     [13] puv % 4 != 0
+2026-03-22 23:05:45,020 - INFO -     [14] ((1 <= sr) && (sr <= h0 + 1))
+2026-03-22 23:05:45,021 - INFO -     [15] ((dj == 1) || (dj == -1))
+2026-03-22 23:05:45,240 - INFO - syntax Correct
+2026-03-22 23:06:16,038 - INFO - Validate:
+2026-03-22 23:06:16,038 - INFO - [True, True, True, False, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 23:06:16,038 - INFO - 
+2026-03-22 23:06:16,038 - INFO - Verify:
+2026-03-22 23:06:16,038 - INFO - []
+2026-03-22 23:06:16,038 - INFO - 
+2026-03-22 23:06:16,038 - INFO - Houdini iteration 2: Removed 1 failed invariants
+2026-03-22 23:06:16,038 - INFO -   Before: 15 invariants
+2026-03-22 23:06:16,038 - INFO -   After: 14 invariants
+2026-03-22 23:06:16,038 - INFO -   Remaining invariants:
+2026-03-22 23:06:16,038 - INFO -     [1] puv == 37
+2026-03-22 23:06:16,038 - INFO -     [2] h0 == 37
+2026-03-22 23:06:16,038 - INFO -     [3] pz >= 0
+2026-03-22 23:06:16,038 - INFO -     [4] puv == h0
+2026-03-22 23:06:16,038 - INFO -     [5] (dj == 1) || (dj == -1)
+2026-03-22 23:06:16,038 - INFO -     [6] 1 <= sr <= h0 + 1
+2026-03-22 23:06:16,038 - INFO -     [7] 1 <= sr && sr <= h0+1
+2026-03-22 23:06:16,038 - INFO -     [8] (h0 == 37) && (puv == 37) && (1 <= sr) && (sr <= h0+1) && (-1 <= dj <= 1)
+2026-03-22 23:06:16,038 - INFO -     [9] (pz >= 0)
+2026-03-22 23:06:16,038 - INFO -     [10] pz % 4 == 0
+2026-03-22 23:06:16,038 - INFO -     [11] 0 <= h0 - sr && ((dj == 1) || (dj == -1)) && (puv % 4 != 0) && (pz >= 0)
+2026-03-22 23:06:16,038 - INFO -     [12] puv % 4 != 0
+2026-03-22 23:06:16,038 - INFO -     [13] ((1 <= sr) && (sr <= h0 + 1))
+2026-03-22 23:06:16,038 - INFO -     [14] ((dj == 1) || (dj == -1))
+2026-03-22 23:06:16,280 - INFO - syntax Correct
+2026-03-22 23:06:47,283 - INFO - Validate:
+2026-03-22 23:06:47,283 - INFO - [True, True, True, True, True, True, True, True, True, True, False, True, True, True]
+2026-03-22 23:06:47,283 - INFO - 
+2026-03-22 23:06:47,283 - INFO - Verify:
+2026-03-22 23:06:47,283 - INFO - []
+2026-03-22 23:06:47,283 - INFO - 
+2026-03-22 23:06:47,283 - INFO - Houdini iteration 3: Removed 1 failed invariants
+2026-03-22 23:06:47,283 - INFO -   Before: 14 invariants
+2026-03-22 23:06:47,283 - INFO -   After: 13 invariants
+2026-03-22 23:06:47,283 - INFO -   Remaining invariants:
+2026-03-22 23:06:47,283 - INFO -     [1] puv == 37
+2026-03-22 23:06:47,283 - INFO -     [2] h0 == 37
+2026-03-22 23:06:47,283 - INFO -     [3] pz >= 0
+2026-03-22 23:06:47,283 - INFO -     [4] puv == h0
+2026-03-22 23:06:47,283 - INFO -     [5] (dj == 1) || (dj == -1)
+2026-03-22 23:06:47,283 - INFO -     [6] 1 <= sr <= h0 + 1
+2026-03-22 23:06:47,283 - INFO -     [7] 1 <= sr && sr <= h0+1
+2026-03-22 23:06:47,283 - INFO -     [8] (h0 == 37) && (puv == 37) && (1 <= sr) && (sr <= h0+1) && (-1 <= dj <= 1)
+2026-03-22 23:06:47,283 - INFO -     [9] (pz >= 0)
+2026-03-22 23:06:47,283 - INFO -     [10] pz % 4 == 0
+2026-03-22 23:06:47,283 - INFO -     [11] puv % 4 != 0
+2026-03-22 23:06:47,283 - INFO -     [12] ((1 <= sr) && (sr <= h0 + 1))
+2026-03-22 23:06:47,283 - INFO -     [13] ((dj == 1) || (dj == -1))
+2026-03-22 23:06:47,509 - INFO - syntax Correct
+2026-03-22 23:07:18,641 - INFO - Validate:
+2026-03-22 23:07:18,641 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 23:07:18,641 - INFO - 
+2026-03-22 23:07:18,641 - INFO - Verify:
+2026-03-22 23:07:18,641 - INFO - []
+2026-03-22 23:07:18,641 - INFO - 
+2026-03-22 23:07:18,641 - INFO - Houdini iteration 4: All invariants are valid
+2026-03-22 23:07:18,873 - INFO - syntax Correct
+2026-03-22 23:07:50,019 - INFO - Validate:
+2026-03-22 23:07:50,020 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
+2026-03-22 23:07:50,020 - INFO - 
+2026-03-22 23:07:50,020 - INFO - Verify:
+2026-03-22 23:07:50,020 - INFO - []
+2026-03-22 23:07:50,020 - INFO - 
+2026-03-22 23:08:13,055 - INFO - Deduplicated 14 loop invariants in final code
+2026-03-22 23:08:13,270 - INFO - syntax Correct
+2026-03-22 23:08:44,083 - INFO - Validate:
+2026-03-22 23:08:44,083 - INFO - [True, True, True, True, True, True]
+2026-03-22 23:08:44,084 - INFO - 
+2026-03-22 23:08:44,084 - INFO - Verify:
+2026-03-22 23:08:44,084 - INFO - []
+2026-03-22 23:08:44,084 - INFO - 
+2026-03-22 23:08:44,084 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
+2026-03-22 23:08:44,084 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_8/1.c
+2026-03-22 23:08:44,084 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_8/1_invariants.txt
+2026-03-22 23:08:44,084 - INFO - 
+============================================================
+2026-03-22 23:08:44,084 - INFO - Final first_pass results:
+2026-03-22 23:08:44,084 - INFO -   syntax=1
+2026-03-22 23:08:44,084 - INFO -   valid=1
+2026-03-22 23:08:44,084 - INFO -   satisfy=None
+2026-03-22 23:08:44,084 - INFO - ============================================================
+2026-03-22 23:08:44,084 - INFO - 
+============================================================
+2026-03-22 23:08:44,084 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-03-22 23:08:44,084 - INFO -   Total API calls: 26
+2026-03-22 23:08:44,084 - INFO -   Total prompt tokens (input): 42,028
+2026-03-22 23:08:44,084 - INFO -   Total completion tokens (output): 203,625
+2026-03-22 23:08:44,084 - INFO -   Total tokens: 245,653
+2026-03-22 23:08:44,084 - INFO -   Average per call:
+2026-03-22 23:08:44,084 - INFO -     Prompt: 1616.5 tokens
+2026-03-22 23:08:44,084 - INFO -     Completion: 7831.7 tokens
+2026-03-22 23:08:44,084 - INFO -     Total: 9448.2 tokens
+2026-03-22 23:08:44,084 - INFO - ============================================================
+2026-03-22 23:08:44,085 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_8/1.c
+2026-03-22 23:08:44,085 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_8/1_invariants.txt
+2026-03-22 23:09:22,915 - INFO - LLM quality-gate raw response: <reasoning>
+The provided invariants cover the loop’s key state and its updates, and they are non-trivial rather than mere tautologies. They capture:
+
+- The loop’s anchor constants: puv == 37 and h0 == 37, ensuring these values are preserved (they are initialized once and never modified).
+- A bound and sign constraint on the loop counter sr: 1 <= sr && sr <= h0 + 1 provides a precise, inductive bound that matches the actual loop progress (sr starts at 1 and is incremented until it exceeds h0).
+- The multiplicative/alternating update pattern for dj: (dj == 1) || (dj == -1) encodes the observed two-state update.
+- The non-negativity and divisibility property of pz: pz >= 0 and pz % 4 == 0 reflect the concrete recurrence pz = pz*2 + 4 and the initial 0, ensuring pz stays a non-negative multiple of 4.
+- A conservative but precise loop-assigns set: all variables that can be modified inside the loop are listed (muh, dj, sr, j1, pz, rt).
+- A termination-friendly loop variant: loop variant h0 + 1 - sr expresses a strictly decreasing measure (as sr increases each iteration while the loop condition holds), aiding Frama-C WP in proving termination.
+
+Notes and potential refinements:
+- Replace 1 <= sr <= h0 + 1 with 1 <= sr && sr <= h0 + 1 for proper ACSL syntax; the current form is non-idiomatic in ACSL and can be misinterpreted as a chained comparison. The intended invariant is sr within [1, h0+1].
+- The invariants do not constrain rt, since rt can vary with v and the evolving pz; this is appropriate.
+- A stronger invariant relating muh and sr or showing a relation between j1 and muh would be possible but would be more complex and not strictly necessary for inductiveness given the current code structure.
+
+Overall, the invariants are high-quality: they are non-trivial, summarize loop behavior, cover all modified variables, and include a termination variant.
+</reasoning>
+<code>
+int main1(int v){
+  int h0, puv, muh, j1, sr, dj, pz, rt;
+  h0=37;
+  puv=h0;
+  muh=1;
+  j1=1;
+  sr=1;
+  dj=1;
+  pz=0;
+  rt=v;
+  /*@
+    loop invariant puv == 37;
+    loop invariant h0 == 37;
+    loop invariant pz >= 0;
+    loop invariant (dj == 1) || (dj == -1);
+    loop invariant 1 <= sr && sr <= h0 + 1;
+    loop invariant pz % 4 == 0;
+    loop assigns muh, dj, sr, j1, pz, rt;
+    loop variant h0 + 1 - sr;
+  */
+  while (1) {
+      if (!(sr<=h0)) {
+          break;
+      }
+      muh = muh*(v/sr);
+      if ((sr/2)%2==0) {
+          dj = 1;
+      }
+      else {
+          dj = -1;
+      }
+      sr++;
+      j1 = j1+dj*muh;
+      muh = muh*(v/sr);
+      if ((puv%4)==0) {
+          pz = pz*rt;
+      }
+      pz = pz*2+4;
+      rt += dj;
+      rt = rt*pz+4;
+  }
+}
+</code>

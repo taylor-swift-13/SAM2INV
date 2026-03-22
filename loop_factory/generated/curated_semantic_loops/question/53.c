@@ -1,18 +1,22 @@
-int main1(int a){
-  int y, h, v;
+int main1(int b,int k){
+  int y, j, n, q, v;
 
-  y=(a%7)+18;
-  h=0;
-  v=-5;
+  y=40;
+  j=0;
+  n=j;
+  q=4;
+  v=-4;
 
 
-while (h<y) {
-      v = v+v;
-      h = h+5;
+while (j<=y-5) {
+      n = n+1;
+      q = q-1;
+      n = v-n;
+      j = j+5;
   }
 /*@
-  assert !(h<y) &&
-         (a == \at(a, Pre));
+  assert !(j<=y-5) &&
+         (j % 5 == 0);
 */
 
 }

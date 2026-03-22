@@ -1,33 +1,35 @@
-int main1(int b,int m){
-  int h, n, w;
+int main1(int k,int p){
+  int j, y, v, s;
 
-  h=79;
-  n=0;
-  w=-2;
+  j=44;
+  y=j;
+  v=0;
+  s=-2;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= n;
-  loop invariant n <= h;
-  loop invariant w <= -1;
-  loop invariant b == \at(b, Pre);
-  loop invariant m == \at(m, Pre);
-  loop invariant h == 79;
-  loop invariant 0 <= n <= h;
-  loop invariant w <= -2;
-  loop invariant (w % 2 != 0) <==> (n % 3 == 1);
-  loop assigns w, n;
+  loop invariant k == \at(k, Pre);
+  loop invariant p == \at(p, Pre);
+  loop invariant s == -2;
+  loop invariant 0 <= v;
+  loop invariant v <= j;
+  loop invariant (j - v) % 2 == 0;
+  loop invariant j == 44;
+  loop invariant v % 2 == 0;
+  loop invariant v >= 0;
+  loop assigns v, s;
 */
-while (n<=h-1) {
-      w = w+w;
-      if ((n%3)==0) {
-          w = w+1;
+while (v<j) {
+      if (v<j) {
+          v = v+1;
       }
-      n = n+1;
+      v = v+1;
+      s = s-1;
+      s = s+1;
   }
 /*@
-  assert !(n<=h-1) &&
-         (0 <= n);
+  assert !(v<j) &&
+         (k == \at(k, Pre));
 */
 
 

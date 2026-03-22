@@ -1,33 +1,31 @@
-int main1(int b){
-  int r, m, v, z;
+int main1(int b,int p){
+  int c, v, m;
 
-  r=b-1;
-  m=r;
-  v=r;
-  z=m;
+  c=(p%6)+10;
+  v=1;
+  m=v;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == \at(b, Pre) - 1;
-  loop invariant z == r;
-  loop invariant (1 + 2*r) != 0 ==> (v - r) % (1 + 2*r) == 0;
-  loop invariant r == b - 1;
-  loop invariant v <= r;
-  loop invariant z == b - 1;
-  loop invariant v >= r;
-  loop invariant (v - r) % (1 + 2 * z) == 0;
-  loop invariant (v - r) % (1 + 2*r) == 0;
+  loop invariant v >= 1;
+  loop invariant (v == 1) || (v % 3 == 0);
+  loop invariant v <= c;
+  loop invariant c == (\at(p, Pre) % 6 + 10);
+  loop invariant p == \at(p, Pre);
+  loop invariant v > 0;
+  loop invariant c == (p % 6) + 10;
+  loop invariant b == \at(b, Pre);
+  loop invariant c == \at(p, Pre) % 6 + 10;
+  loop invariant v == 1 || v % 3 == 0;
+  loop invariant v == 1 || v == 3 || v == 9;
   loop assigns v;
 */
-while (v<r) {
-      if (v<r) {
-          v = v+1;
-      }
-      v = v+z+z;
+while (v<=c/3) {
+      v = v*3;
   }
 /*@
-  assert !(v<r) &&
-         (r == \at(b, Pre) - 1);
+  assert !(v<=c/3) &&
+         (v >= 1);
 */
 
 

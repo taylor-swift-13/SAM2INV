@@ -1,41 +1,49 @@
-int main1(int b,int m){
-  int z, t, v;
+int main1(int a,int p){
+  int v, j, s, h;
 
-  z=(b%20)+10;
-  t=z+6;
-  v=4;
+  v=(p%17)+7;
+  j=0;
+  s=0;
+  h=0;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant b == \at(b, Pre);
-  loop invariant m == \at(m, Pre);
-  loop invariant (t - z) >= 0;
-  loop invariant ((t - z) % 3) == 0;
-  loop invariant 0 <= v;
-  loop invariant v <= 8;
+  loop invariant s % 8 == 0;
 
+  loop invariant h >= 0;
 
-  loop invariant z == (b % 20) + 10;
-  loop invariant t >= z;
-  loop invariant (t - z) % 3 == 0;
-  loop invariant z == (\at(b, Pre) % 20) + 10;
-  loop invariant v >= 0;
-  loop invariant t - z >= 0;
-  loop assigns v, t;
+  loop invariant p == \at(p, Pre);
+  loop invariant a == \at(a, Pre);
+  loop invariant v == (\at(p, Pre) % 17) + 7;
+  loop invariant (s / 8) < (((v / 2) - 1) / 8) + 1 ==> h == 5 * (s / 8);
+
+  loop invariant h <= (5*s)/8;
+
+  loop invariant h >= s/8;
+  loop invariant h <= 5*(s/8);
+
+  loop invariant v == (p % 17) + 7;
+  loop invariant (h - s/8) % 4 == 0;
+  loop invariant 0 <= s;
+  loop invariant 0 <= h;
+  loop assigns h, s;
 */
-while (t-z>0) {
-      v = v*v;
-      v = v%5;
-      if ((t%4)==0) {
-          v = v*2;
+while (s<v) {
+      if (s<v/2) {
+          h = h+2;
       }
-      t = t-3;
+      else {
+          h = h-2;
+      }
+      s = s+1;
+      s = s+5;
+      h = h+3;
+      s = s+2;
   }
 /*@
-  assert (z == (\at(b, Pre) % 20) + 10) &&
-         (t == z) &&
-         (0 <= v) &&
-         (v <= 8);
+  assert !(s<v) &&
+         (s % 8 == 0);
 */
+
 
 }

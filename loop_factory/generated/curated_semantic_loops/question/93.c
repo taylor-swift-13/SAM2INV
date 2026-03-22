@@ -1,20 +1,20 @@
-int main1(int b,int m){
-  int r, u, v;
+int main1(int b,int n){
+  int j, a, e, f;
 
-  r=(b%30)+15;
-  u=0;
-  v=-5;
+  j=(b%11)+11;
+  a=j;
+  e=a;
+  f=n;
 
 
-while (u<r) {
-      if ((u%5)==0) {
-          v = v+v;
-      }
-      u = u+1;
+while (a>0) {
+      e = e+1;
+      f = f-1;
+      a = a-1;
   }
 /*@
-  assert !(u<r) &&
-         (r == (b % 30) + 15);
+  assert !(a>0) &&
+         (e + f == ((b % 11) + 11) + n);
 */
 
 }

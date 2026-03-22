@@ -1,21 +1,33 @@
-int main(int n) {
-  /*@ requires 0 <= n <= 100; */
-  if (n < 0) n = 0;
-  int i, j;
-  int budget = n * n;
-  /*@ loop invariant 0 <= i <= n;
-      loop assigns i, j, budget;
-      loop variant n - i;
-  */
-  for (i = 0; i < n; ++i) {
-    /*@ loop invariant \true;
-        loop assigns j, budget;
-        loop variant i - j;
-    */
-    for (j = 0; j < i; ++j) {
-      budget -= 1;
-    }
+int main1(int q){
+  int r, o, e, v;
+
+  r=47;
+  o=r;
+  e=o;
+  v=q;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant r == 47;
+  loop invariant o <= r;
+  loop invariant o >= 0;
+  loop invariant o % 2 == r % 2;
+  loop invariant q == \at(q, Pre);
+  loop invariant 0 <= o;
+  loop invariant o <= 47;
+  loop invariant o % 2 == 47 % 2;
+  loop invariant o + 2 * ((47 - o) / 2) == 47;
+  loop invariant o >= 1;
+  loop invariant o % 2 == 1;
+  loop assigns o;
+*/
+while (o-2>=0) {
+      o = o-2;
   }
-  /*@ assert i == n; */
-  return budget;
+/*@
+  assert !(o-2>=0) &&
+         (r == 47);
+*/
+
+
 }

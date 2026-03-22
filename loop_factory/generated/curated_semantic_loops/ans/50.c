@@ -1,30 +1,36 @@
-int main1(int n,int q){
-  int m, d, a, b;
+int main1(int m){
+  int p, i, v;
 
-  m=(n%28)+10;
-  d=m;
-  a=m;
-  b=0;
+  p=66;
+  i=p;
+  v=-3;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant m == (\at(n, Pre) % 28) + 10;
-  loop invariant n == \at(n, Pre);
-  loop invariant q == \at(q, Pre);
+  loop invariant i <= 66;
+  loop invariant i >= 0;
+  loop invariant i % 3 == 0;
+  loop invariant v == -3 || v == 0 || v == 1;
+  loop invariant m == \at(m, Pre);
+  loop invariant p == 66;
 
-  loop invariant d <= m;
-  loop invariant m == \at(n, Pre) % 28 + 10;
-  loop invariant n == \at(n, Pre) && q == \at(q, Pre);
-  loop invariant (m >= 0 ==> 0 <= d && d <= m) && (m <= 0 ==> m <= d && d <= 0);
-
-  loop assigns d;
+  loop invariant 0 <= i;
+  loop invariant i <= p;
+  loop invariant (v == -3) || (v == 0) || (v == 1);
+  loop invariant i % 3 == p % 3;
+  loop invariant (i == 66 && v == -3) || ((m > -2 && v == 1) || (m <= -2 && v == 0));
+  loop assigns v, i;
 */
-while (d>=1) {
-      d = d/2;
+while (i>2) {
+      v = v-v;
+      if (v<m+2) {
+          v = v+1;
+      }
+      i = i-3;
   }
 /*@
-  assert !(d>=1) &&
-         (m == (\at(n, Pre) % 28) + 10);
+  assert !(i>2) &&
+         (i <= 66);
 */
 
 

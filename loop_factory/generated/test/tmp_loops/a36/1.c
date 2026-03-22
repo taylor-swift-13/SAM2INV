@@ -1,22 +1,28 @@
-int main1(int n){
-  int h, b6, b0, mu, mi;
+int main1(){
+  int y8, nq, e7, pi, h, ue, u3, mu4;
 
-  h=n-2;
-  b6=h;
-  b0=0;
-  mu=b6;
-  mi=0;
+  y8=1*3;
+  nq=0;
+  e7=nq;
+  pi=0;
+  h=-5;
+  ue=y8;
+  u3=-6;
+  mu4=nq;
 
-  while (b0<h) {
-      mu = b0+4;
-      n = n+h-b6;
-      b0 += 2;
-  }
-
-  while (mu>=1) {
-      mi = mi+h*mu;
-      b6 += mu;
-      mu = =1;
+  while (nq<=y8-1) {
+      pi = pi - 3;
+      e7 = e7 + 3;
+      if (nq+4<=y8+y8) {
+          u3 += h;
+      }
+      if (ue+1<y8) {
+          ue = ue + 3;
+      }
+      mu4 = mu4 + nq;
+      h += 4;
+      ue += h;
+      nq = =y8-1;
   }
 
 }

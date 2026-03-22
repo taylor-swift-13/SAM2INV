@@ -1,21 +1,26 @@
-int main1(int p){
-  int z, k, s, o;
+int main1(int n,int q){
+  int m, k, x, v;
 
-  z=p;
-  k=z;
-  s=z;
-  o=8;
+  m=(q%6)+4;
+  k=0;
+  x=k;
+  v=8;
 
 
-while (s<z) {
-      if (s<z) {
-          s = s+1;
+while (k+3<=m) {
+      if (k<m/2) {
+          x = x+v;
       }
-      s = s+1;
+      else {
+          x = x+1;
+      }
+      v = v+v;
+      v = v+x;
+      x = x+2;
   }
 /*@
-  assert !(s<z) &&
-         (z == p);
+  assert !(k+3<=m) &&
+         (k == 0);
 */
 
 }

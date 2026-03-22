@@ -1,18 +1,23 @@
-int main1(int k,int q){
-  int j, v, t;
+int main1(int b,int n){
+  int z, h, d;
 
-  j=(k%18)+18;
-  v=0;
-  t=k;
+  z=(b%37)+4;
+  h=z;
+  d=-6;
 
 
-while (v<j) {
-      t = t+v;
-      v = v+1;
+while (h-2>=0) {
+      d = d+4;
+      if (h+6<=n+z) {
+          d = d-d;
+      }
+      else {
+          d = d+1;
+      }
   }
 /*@
-  assert !(v<j) &&
-         (t == k + (v*(v-1))/2);
+  assert !(h-2>=0) &&
+         (b == \at(b, Pre));
 */
 
 }

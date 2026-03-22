@@ -1,35 +1,44 @@
-int main1(int p){
-  int z, k, s, o;
+int main1(int n,int q){
+  int m, k, x, v;
 
-  z=p;
-  k=z;
-  s=z;
-  o=8;
+  m=(q%6)+4;
+  k=0;
+  x=k;
+  v=8;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant z == p;
-  loop invariant p == \at(p, Pre);
-  loop invariant s <= z;
-  loop invariant ((z - s) % 2) == 0;
-  loop invariant 0 <= z - s;
-  loop invariant s <= z + 1;
-  loop invariant s >= p;
-  loop invariant z == \at(p, Pre);
-  loop invariant s >= \at(p, Pre);
-  loop invariant (s - \at(p, Pre)) % 2 == 0;
-  loop invariant ((s - z) % 2) == 0;
-  loop assigns s;
+  loop invariant k == 0;
+  loop invariant m == ((\at(q, Pre) % 6) + 4);
+  loop invariant x >= 0;
+  loop invariant v >= 8;
+  loop invariant v >= x;
+
+  loop invariant m == (\at(q, Pre) % 6) + 4;
+  loop invariant q == \at(q, Pre);
+  loop invariant n == \at(n, Pre);
+
+  loop invariant m == (q % 6) + 4;
+  loop invariant v >= x + 2;
+
+  loop invariant m == \at(q, Pre) % 6 + 4;
+  loop invariant (x + v) % 2 == 0;
+  loop assigns x, v;
 */
-while (s<z) {
-      if (s<z) {
-          s = s+1;
+while (k+3<=m) {
+      if (k<m/2) {
+          x = x+v;
       }
-      s = s+1;
+      else {
+          x = x+1;
+      }
+      v = v+v;
+      v = v+x;
+      x = x+2;
   }
 /*@
-  assert !(s<z) &&
-         (z == p);
+  assert !(k+3<=m) &&
+         (k == 0);
 */
 
 

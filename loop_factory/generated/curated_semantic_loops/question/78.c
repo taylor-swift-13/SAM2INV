@@ -1,18 +1,23 @@
-int main1(int k,int m){
-  int t, u, v;
+int main1(int m,int n){
+  int o, x, d, c;
 
-  t=(m%14)+15;
-  u=0;
-  v=k;
+  o=n+25;
+  x=0;
+  d=o;
+  c=m;
 
 
-while (u<t) {
-      v = v*v;
-      u = u+1;
+while (d<o) {
+      if (d<o) {
+          d = d+1;
+      }
+      d = d+5;
+      c = c+2;
+      c = c+x;
   }
 /*@
-  assert !(u<t) &&
-         (0 <= u && u <= t && (u == 0 ==> v == k) && t == (m % 14) + 15);
+  assert !(d<o) &&
+         (o == n + 25);
 */
 
 }

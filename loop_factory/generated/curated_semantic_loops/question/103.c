@@ -1,22 +1,25 @@
-int main1(int b,int k){
-  int m, u, v, a;
+int main1(int a,int b,int k){
+  int x, i, v, o, z, u;
 
-  m=(k%34)+12;
+  x=29;
+  i=x+4;
+  v=0;
+  o=1;
+  z=1;
   u=1;
-  v=8;
-  a=b;
 
 
-while (u*2<=m) {
-      v = v*v+v;
-      v = v%9;
-      a = a*v;
-      v = v%7;
-      u = u*2;
+while (v<x) {
+      v = v+3;
+      o = o+3;
+      z = z+3;
+      v = v*2;
+      o = o+v;
+      z = z%3;
   }
 /*@
-  assert !(u*2<=m) &&
-         (m == (k%34) + 12);
+  assert !(v<x) &&
+         (z == 1);
 */
 
 }

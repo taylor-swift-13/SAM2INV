@@ -1,25 +1,32 @@
-int main1(int o,int j){
-  int ogn, mpq, dg, hj, b51;
+int main1(int b){
+  int a8c0, j, zg, fa, gis, smh, yuh, a, opl;
 
-  ogn=(j%19)+18;
-  mpq=0;
-  dg=0;
-  hj=-5;
-  b51=j;
+  a8c0=200;
+  j=a8c0;
+  zg=0;
+  fa=0;
+  gis=0;
+  smh=(b%18)+5;
+  yuh=b;
+  a=j;
+  opl=0;
 
-  while (dg<=ogn-1) {
-      hj = dg+5;
-      o += mpq;
-      dg += 2;
-  }
-
-  while (1) {
-      if (!(ogn+1<=b51)) {
-          break;
+  while (smh>0) {
+      fa = fa+b*b;
+      zg = zg+b*b;
+      gis = gis+b*b;
+      smh -= 1;
+      if (b+2<a8c0) {
+          b = b*2;
       }
-      dg += hj;
-      mpq = mpq + dg;
-      b51 = (ogn+1)-1;
+      if (smh*smh<=a8c0+5) {
+          b = b%5;
+      }
+      opl = opl+(smh%2);
+      yuh = yuh+(zg%7);
+      a = a+(gis%2);
+      yuh = yuh*3;
+      a = a/3;
   }
 
 }

@@ -1,35 +1,36 @@
-int main1(int b){
-  int p, z, v;
+int main1(int b,int k){
+  int n, j, s, w;
 
-  p=b;
-  z=p;
-  v=z;
+  n=(k%25)+11;
+  j=n;
+  s=n;
+  w=j;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant b == \at(b, Pre);
-  loop invariant p == b;
-  loop invariant z <= p;
-  loop invariant (p - z) % 2 == 0;
-  loop invariant p == \at(b, Pre);
-  loop invariant v == 0 || v == \at(b, Pre);
-  loop invariant (v == \at(b, Pre)) <==> (z == \at(b, Pre));
-  loop invariant z <= \at(b, Pre);
-  loop invariant z % 2 == \at(b, Pre) % 2;
-  loop invariant z >= v;
-  loop invariant v <= p;
+  loop invariant n == (\at(k, Pre) % 25) + 11;
+  loop invariant s <= n;
+  loop invariant (s == n) ==> (w == n);
 
-  loop invariant v <= z;
-  loop invariant ((\at(b, Pre) - z) % 2 == 0);
-  loop assigns v, z;
+  loop invariant n == (k%25) + 11;
+  loop invariant w >= s;
+  loop invariant b == \at(b, Pre);
+  loop invariant k == \at(k, Pre);
+  loop invariant w >= n;
+  loop invariant s >= \at(k, Pre) % 25 + 11;
+  loop invariant w >= \at(k, Pre) % 25 + 11;
+  loop assigns s, w;
 */
-while (z>1) {
-      v = v-v;
-      z = z-2;
+while (s<n) {
+      if (s<n) {
+          s = s+1;
+      }
+      w = w+w;
+      w = w+s;
   }
 /*@
-  assert !(z>1) &&
-         (b == \at(b, Pre));
+  assert !(s<n) &&
+         (n == (\at(k, Pre) % 25) + 11);
 */
 
 

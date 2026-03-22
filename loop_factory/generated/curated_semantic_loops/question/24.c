@@ -1,31 +1,25 @@
-int main1(int p,int q){
-  int i, b, v;
+int main1(){
+  int xo4, bazd, z, w;
+  xo4=1+5;
+  bazd=2;
+  z=1;
+  w=0;
 
-  i=53;
-  b=0;
-  v=-1;
+while (bazd<xo4) {
+      bazd = bazd + 1;
+  }
 
-
-while (b<=i-1) {
-      v = v*v+v;
-      if (b+4<=v+i) {
-          v = v*2;
+while (1) {
+      w += 1;
+      if (w>=z) {
+          break;
       }
-      b = b+1;
-  }
-
-
-while (v+1<=i) {
-      v = v+1;
-  }
-
-
-while (v-1>=0) {
-      v = v-1;
   }
 /*@
-  assert !(v-1>=0) &&
-         ((b <= i) && (0 <= b) && (v == -1 || v == 0));
+  assert bazd == xo4;
+*/
+/*@
+  assert w >= z && z == 1;
 */
 
 }

@@ -1,32 +1,22 @@
-int main1(int a,int m,int p){
-  int n, e, l, c, g, t;
+int main1(){
+  int n5, vsl8, qbv8;
+  n5=(1%20)+5;
+  vsl8=(1%20)+5;
+  qbv8=(1%20)+5;
 
-  n=a+9;
-  e=0;
-  l=m;
-  c=6;
-  g=-1;
-  t=e;
-
-
-while (1) {
-      if (l>=n) {
-          break;
+while (n5>=1) {
+      if (vsl8>0) {
+          if (qbv8>0) {
+              n5 -= 1;
+              vsl8 -= 1;
+              qbv8 -= 1;
+          }
       }
-      if (g<=c) {
-          c = g;
-      }
-      l = l+1;
-      l = l+5;
+      vsl8++;
   }
 /*@
-  assert (l >= n);
-*/
-/*@
-  assert (l - m) % 6 == 0;
-*/
-/*@
-  assert n == a + 9;
+  assert !(n5>=1) &&
+         (n5 == qbv8);
 */
 
 }

@@ -1,20 +1,26 @@
-int main1(int m,int p){
-  int n, l, x;
+int main1(int a,int m,int q){
+  int w, s, u, v, t;
 
-  n=22;
-  l=0;
-  x=n;
+  w=51;
+  s=0;
+  u=0;
+  v=0;
+  t=a;
 
 
-while (l<=n-3) {
-      x = x+2;
-      if (x+4<n) {
-          x = x+x;
+while (u<w) {
+      if (u<w/2) {
+          v = v+3;
       }
+      else {
+          v = v-3;
+      }
+      u = u+1;
+      u = u+2;
   }
 /*@
-  assert !(l<=n-3) &&
-         (m == \at(m, Pre));
+  assert !(u<w) &&
+         (a == \at(a, Pre));
 */
 
 }

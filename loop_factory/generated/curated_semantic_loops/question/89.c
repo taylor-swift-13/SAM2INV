@@ -1,23 +1,20 @@
-int main1(int a,int n){
-  int h, k, v, i;
+int main1(int b,int p){
+  int c, v, m;
 
-  h=56;
-  k=2;
-  v=a;
-  i=-3;
+  c=(p%6)+10;
+  v=1;
+  m=v;
 
 
-while (k+2<=h) {
-      if (v+4<=h) {
-          v = v+4;
+while (v<=c/3) {
+      if (v+6<=p+c) {
+          m = m*2;
       }
-      else {
-          v = h;
-      }
+      v = v*3;
   }
 /*@
-  assert !(k+2<=h) &&
-         (a == \at(a, Pre));
+  assert !(v<=c/3) &&
+         (c == (\at(p,Pre) % 6) + 10);
 */
 
 }

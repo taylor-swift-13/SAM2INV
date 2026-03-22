@@ -1,17 +1,15 @@
 int main(int n) {
+  /*@ requires 0 <= n <= 100; */
   if (n < 0) n = 0;
   int i, j;
-  int bands = 0;
+  int slots = 0;
   
-  for (i = 0; i < n; ++i) {
-    j = 0;
+  for (i = n; i > 0; --i) {
     
-    while (j < n) {
-      if (j <= i / 2) bands += 2;
-      else bands += 1;
-      j++;
+    for (j = i - 1; j >= 0; j -= 2) {
+      slots += 1;
     }
   }
-  /*@ assert (n == 0 || bands >= n * n) && bands <= 2 * n * n; */
-  return bands;
+  /*@ assert i == 0; */
+  return slots;
 }

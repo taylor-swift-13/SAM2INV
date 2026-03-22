@@ -1,38 +1,35 @@
-int main1(int a,int n){
-  int h, k, v, i;
+int main1(int b,int p){
+  int c, v, m;
 
-  h=56;
-  k=2;
-  v=a;
-  i=-3;
+  c=(p%6)+10;
+  v=1;
+  m=v;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant a == \at(a, Pre);
-  loop invariant n == \at(n, Pre);
-  loop invariant v == \at(a, Pre) || v <= h;
-  loop invariant (v == h) || ((v - \at(a, Pre)) % 4 == 0);
-  loop invariant k <= h;
-  loop invariant (v == \at(a, Pre) || v == h || (v >= \at(a, Pre) && v <= h && ((v - \at(a, Pre)) % 4) == 0));
-  loop invariant k + 2 <= h + 1;
-  loop invariant v <= h || v == \at(a, Pre);
-  loop invariant h == 56;
-  loop invariant k == 2;
-  loop invariant ( \at(a, Pre) <= h ==> (v >= \at(a, Pre) && v <= h && ( (v - \at(a, Pre)) % 4 == 0 || v == h ) ) )
-                   && ( \at(a, Pre) > h  ==> (v == \at(a, Pre) || v == h) );
-  loop assigns v;
+  loop invariant c == (\at(p,Pre) % 6) + 10;
+  loop invariant p == \at(p,Pre);
+  loop invariant b == \at(b,Pre);
+  loop invariant v >= 1;
+  loop invariant v <= c;
+  loop invariant m >= 1;
+  loop invariant m > 0;
+  loop invariant (m == 1) || (m % 2 == 0);
+  loop invariant c == (p % 6) + 10;
+  loop invariant v <= 9;
+
+  loop invariant v >= 1 && v <= c && (v == 1 || v % 3 == 0) && m >= 1;
+  loop assigns m, v;
 */
-while (k+2<=h) {
-      if (v+4<=h) {
-          v = v+4;
+while (v<=c/3) {
+      if (v+6<=p+c) {
+          m = m*2;
       }
-      else {
-          v = h;
-      }
+      v = v*3;
   }
 /*@
-  assert !(k+2<=h) &&
-         (a == \at(a, Pre));
+  assert !(v<=c/3) &&
+         (c == (\at(p,Pre) % 6) + 10);
 */
 
 

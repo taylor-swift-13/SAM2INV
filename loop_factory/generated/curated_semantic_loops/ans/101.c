@@ -1,40 +1,42 @@
-int main1(int k,int m){
-  int f, x, v, q;
+int main1(int a,int k,int n){
+  int c, t, v, i;
 
-  f=33;
-  x=f;
-  v=x;
-  q=f;
+  c=(a%8)+14;
+  t=0;
+  v=c;
+  i=c;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant v > 0;
+  loop invariant v == c + t*(t+1)/2;
+  loop invariant t <= c;
+  loop invariant (t <= a + c - 3) ==> i == c;
 
-  loop invariant v + q <= 66;
-  loop invariant k == \at(k, Pre);
-  loop invariant m == \at(m, Pre);
-  loop invariant v >= 0;
-  loop invariant q >= 0;
-  loop invariant v % 33 == 0;
-  loop invariant q % 33 == 0;
-  loop invariant f == 33;
-  loop invariant 0 <= v;
-  loop invariant 0 <= q;
-  loop invariant v <= 33;
-  loop invariant q <= 33;
-  loop assigns v, q;
+  loop invariant a == \at(a, Pre);
+  loop invariant 0 <= t <= c;
+  loop invariant 0 <= i <= c;
+  loop invariant (t <= a + c - 3) ==> (i == c);
+
+  loop invariant i <= c;
+  loop invariant t >= 0;
+  loop invariant (t <= a + c - 4) ==> (i == c);
+  loop invariant i >= 0;
+  loop invariant c == (a % 8) + 14;
+  loop invariant i >= c - t;
+  loop assigns v, i, t;
 */
-while (v!=0&&q!=0) {
-      if (v>q) {
-          v = v-q;
+while (t<c) {
+      v = v+1;
+      i = i-1;
+      if (t+4<=a+c) {
+          i = i+1;
       }
-      else {
-          q = q-v;
-      }
+      v = v+t;
+      t = t+1;
   }
 /*@
-  assert !(v!=0&&q!=0) &&
-         (v > 0);
+  assert !(t<c) &&
+         (v == c + t*(t+1)/2);
 */
 
 

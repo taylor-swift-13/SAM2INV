@@ -1,33 +1,37 @@
-int main1(int a,int m){
-  int n, j, c;
+int main1(int k,int q){
+  int i, v, a, t;
 
-  n=56;
-  j=n;
-  c=-8;
+  i=(k%6)+8;
+  v=0;
+  a=2;
+  t=k;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant a == \at(a, Pre);
-  loop invariant m == \at(m, Pre);
-  loop invariant n == 56;
-  loop invariant 0 <= j;
-  loop invariant j <= 56;
-  loop invariant j % 2 == 0 && ((c == a - n) || (c == -8 && j == 56));
-  loop invariant j >= 0;
-  loop invariant (j % 2) == 0 && (c == -8 || c == a - n);
-  loop invariant j % 2 == 0;
-  loop invariant (j < 56) ==> c == a - n;
-  loop invariant (j % 2) == 0;
-  loop invariant (c == -8) || (c == a - n);
-  loop assigns c, j;
+  loop invariant k == \at(k, Pre);
+  loop invariant q == \at(q, Pre);
+  loop invariant a == 2*(v+1);
+  loop invariant 0 <= v;
+  loop invariant v <= i;
+  loop invariant (v > 0) ==> (t % 2 == 0);
+  loop invariant i >= 3;
+  loop invariant i <= 13;
+  loop invariant i == (k % 6) + 8;
+  loop invariant a == 2 + 2*v;
+  loop invariant i == (\at(k,Pre) % 6) + 8;
+  loop invariant i == k % 6 + 8;
+  loop invariant 0 <= v <= i;
+  loop assigns a, t, v;
 */
-while (j>=2) {
-      c = a-n;
-      j = j-2;
+while (v<=i-1) {
+      a = a+2;
+      t = t+a;
+      t = t+t;
+      v = v+1;
   }
 /*@
-  assert !(j>=2) &&
-         (a == \at(a, Pre));
+  assert !(v<=i-1) &&
+         (k == \at(k, Pre));
 */
 
 

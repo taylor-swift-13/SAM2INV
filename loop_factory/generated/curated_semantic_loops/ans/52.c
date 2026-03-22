@@ -1,38 +1,38 @@
-int main1(int k){
-  int u, q, j;
+int main1(int n){
+  int r, j, v;
 
-  u=(k%6)+4;
-  q=u;
-  j=q;
+  r=n;
+  j=4;
+  v=n;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant u == ((\at(k, Pre) % 6) + 4);
-  loop invariant (q % 2) == (((\at(k, Pre) % 6) + 4) % 2);
+  loop invariant j >= 4;
+  loop invariant r == \at(n, Pre);
+  loop invariant j <= r || r < 4;
+  loop invariant v <= \at(n, Pre) + (j - 4);
+  loop invariant n == \at(n, Pre);
+  loop invariant j <= r || j == 4;
+  loop invariant ( \at(n, Pre) >= 0 ==> v <= \at(n, Pre) + (j - 4) )
+                   && ( \at(n, Pre) < 0  ==> v <= j - 4 );
 
-  loop invariant (u >= 6) ==> j == 2*(\at(k, Pre) % 6 + 4) - q &&
-                   (u < 6)  ==> j == (\at(k, Pre) % 6 + 4) + ((\at(k, Pre) % 6 + 4 - q)/2);
-
-  loop invariant q <= \at(k, Pre) % 6 + 4;
-  loop invariant j >= q;
-
-  loop invariant u == (\at(k, Pre) % 6) + 4;
-  loop invariant k == \at(k, Pre);
-
-  loop assigns j, q;
+  loop invariant 0 <= j % 9;
+  loop invariant j % 9 < 9;
+  loop assigns v, j;
 */
-while (q-2>=0) {
-      j = j+1;
-      if (q+6<=q+u) {
-          j = j+1;
+while (j<r) {
+      if ((j%9)==0) {
+          v = v-v;
       }
-      q = q-2;
+      else {
+          v = v+1;
+      }
+      j = j+1;
   }
 /*@
-  assert (u == (\at(k, Pre) % 6) + 4) &&
-         (q <= 1) &&
-         ((q % 2) == (u % 2)) &&
-         (j >= q);
+  assert !(j<r) &&
+         (j >= 4);
 */
+
 
 }

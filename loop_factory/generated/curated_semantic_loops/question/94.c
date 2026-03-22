@@ -1,20 +1,18 @@
-int main1(int b,int k){
-  int j, n, l;
+int main1(int m,int q){
+  int n, t, f;
 
-  j=b-5;
-  n=0;
-  l=-3;
+  n=(q%38)+9;
+  t=n;
+  f=n;
 
 
-while (n<j) {
-      if ((n%6)==0) {
-          l = l+l;
-      }
-      n = n+1;
+while (t>0) {
+      f = q+5;
+      t = t-1;
   }
 /*@
-  assert !(n<j) &&
-         (n >= 0);
+  assert !(t>0) &&
+         (n == (q % 38) + 9);
 */
 
 }

@@ -1,36 +1,35 @@
-int main1(int m){
-  int n, q, v;
+int main1(int p){
+  int z, k, s, o;
 
-  n=(m%14)+9;
-  q=0;
-  v=6;
+  z=p;
+  k=z;
+  s=z;
+  o=8;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-
-  loop invariant m == \at(m,Pre);
-  loop invariant n == (m % 14) + 9;
-  loop invariant q >= 0;
-  loop invariant (q == 0) ==> (v == 6);
-  loop invariant (q != 0) ==> (v == q - 3);
-  loop invariant q % 3 == 0;
-
-  loop invariant v == 6 || v == q - 3;
-  loop invariant n == \at(m, Pre) % 14 + 9;
-
-  loop invariant (q == 0 && v == 6) || (q != 0 && v == q - 3);
-
-  loop invariant v >= q - 3;
-  loop assigns v, q;
+  loop invariant z == p;
+  loop invariant p == \at(p, Pre);
+  loop invariant s <= z;
+  loop invariant ((z - s) % 2) == 0;
+  loop invariant 0 <= z - s;
+  loop invariant s <= z + 1;
+  loop invariant s >= p;
+  loop invariant z == \at(p, Pre);
+  loop invariant s >= \at(p, Pre);
+  loop invariant (s - \at(p, Pre)) % 2 == 0;
+  loop invariant ((s - z) % 2) == 0;
+  loop assigns s;
 */
-while (q<=n-3) {
-      v = v-v;
-      v = v+q;
-      q = q+3;
+while (s<z) {
+      if (s<z) {
+          s = s+1;
+      }
+      s = s+1;
   }
 /*@
-  assert !(q<=n-3) &&
-         (m == \at(m,Pre));
+  assert !(s<z) &&
+         (z == p);
 */
 
 

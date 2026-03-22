@@ -1,41 +1,41 @@
 int main1(int b,int m){
-  int k, j, p, d, w;
+  int z, t, v;
 
-  k=14;
-  j=k;
-  p=-8;
-  d=b;
-  w=-2;
+  z=(b%20)+10;
+  t=z+6;
+  v=4;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 4*d == 4*b + (p + 8) * (p - 6);
-  loop invariant p <= k;
   loop invariant b == \at(b, Pre);
   loop invariant m == \at(m, Pre);
-  loop invariant d == \at(b, Pre) + ((p + 8)/2) * (((p + 8)/2) - 7) &&
-                     p >= -8 &&
-                     ((p + 8) % 2) == 0 &&
-                     p <= k;
-  loop invariant k == 14;
-  loop invariant p >= -8;
-  loop invariant 4*d - p*p - 2*p == 4*\at(b, Pre) - 48;
-  loop invariant p <= k + 1;
-  loop invariant 4*d == p*p + 2*p + 4*\at(b, Pre) - 48;
-  loop invariant (p % 2) == 0;
-  loop assigns p, d;
+  loop invariant (t - z) >= 0;
+  loop invariant ((t - z) % 3) == 0;
+  loop invariant 0 <= v;
+  loop invariant v <= 8;
+
+
+  loop invariant z == (b % 20) + 10;
+  loop invariant t >= z;
+  loop invariant (t - z) % 3 == 0;
+  loop invariant z == (\at(b, Pre) % 20) + 10;
+  loop invariant v >= 0;
+  loop invariant t - z >= 0;
+  loop assigns v, t;
 */
-while (p<k) {
-      if (p<k) {
-          p = p+1;
+while (t-z>0) {
+      v = v*v;
+      v = v%5;
+      if ((t%4)==0) {
+          v = v*2;
       }
-      p = p+1;
-      d = d+p;
+      t = t-3;
   }
 /*@
-  assert !(p<k) &&
-         (4*d == 4*b + (p + 8) * (p - 6));
+  assert (z == (\at(b, Pre) % 20) + 10) &&
+         (t == z) &&
+         (0 <= v) &&
+         (v <= 8);
 */
-
 
 }

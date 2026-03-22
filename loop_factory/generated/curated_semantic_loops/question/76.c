@@ -1,21 +1,20 @@
-int main1(int k,int p){
-  int g, l, m, v;
+int main1(int a,int p){
+  int m, y, b;
 
-  g=54;
-  l=g;
-  m=l;
-  v=g;
+  m=26;
+  y=m;
+  b=y;
 
 
-while (m<g) {
-      if (m<g) {
-          m = m+1;
+while (y>=1) {
+      b = b+4;
+      if (y<m+5) {
+          b = b+y;
       }
-      m = m+1;
   }
 /*@
-  assert !(m<g) &&
-         (m <= g + 1);
+  assert !(y>=1) &&
+         (y >= 1);
 */
 
 }

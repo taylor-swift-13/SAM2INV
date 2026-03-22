@@ -1,43 +1,63 @@
-int main1(){
-  int j, wt9n, yl3, b, z, a0u;
-  j=25;
-  wt9n=0;
-  yl3=0;
-  b=0;
-  z=j;
-  a0u=0;
+int main1(int a,int q){
+  int c, j, t, e;
+
+  c=20;
+  j=0;
+  t=3;
+  e=q;
+
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (0 <= b);
-  loop invariant (b <= j);
-  loop invariant (yl3 == b);
-  loop invariant (z == j + b * wt9n);
-  loop assigns yl3, b, z, a0u;
-*/
-while (b<j) {
-      yl3++;
-      b += 1;
-      z += wt9n;
-      a0u = a0u+(yl3%9);
-  }
-  /* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant \true;
-  loop assigns z, yl3, a0u;
+  loop invariant t == 3 + 4*j;
+  loop invariant e == q - j + (j/5);
+  loop invariant c == 20;
+  loop invariant a == \at(a, Pre);
+  loop invariant q == \at(q, Pre);
+  loop invariant 0 <= j;
+  loop invariant j <= c;
+  loop invariant e == \at(q, Pre) - j + j/5;
+  loop invariant e == q - j + j/5;
+  loop invariant j >= 0;
+  loop assigns t, j, e;
 */
 while (1) {
-      if (!(z<=wt9n-1)) {
+      if (j>=c) {
           break;
       }
-      z += 1;
-      yl3 += wt9n;
-      a0u++;
+      t = t+3;
+      j = j+1;
+      t = t+1;
+      e = e-1;
+      if ((j%5)==0) {
+          e = e+1;
+      }
   }
 /*@
-  assert b == j;
-*/
-/*@
-  assert wt9n == 0;
+  assert (t == 3 + 4*j);
 */
 
+
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+/*@
+  loop invariant t >= c;
+  loop invariant c == 20;
+  loop invariant j >= 0;
+  loop invariant a == \at(a, Pre);
+  loop invariant q == \at(q, Pre);
+  loop assigns t, j, e;
+*/
+  while (t > c) {
+      if (j > 0 && t - j >= c) {
+          t = t - j;
+          j = j / 2;
+      } else {
+          t = t - 1;
+      }
+      e = e + 1;
+  }
+/*@
+  assert !(t > c) &&
+         (t == c);
+*/
 }

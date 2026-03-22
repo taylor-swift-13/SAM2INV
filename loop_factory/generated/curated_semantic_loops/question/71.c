@@ -1,19 +1,20 @@
-int main1(int b,int m){
-  int y, t, v;
+int main1(int m,int p){
+  int n, l, x;
 
-  y=m+7;
-  t=3;
-  v=3;
+  n=22;
+  l=0;
+  x=n;
 
 
-while (t<=y-3) {
-      v = v+t;
-      v = v-v;
-      t = t+3;
+while (l<=n-3) {
+      x = x+2;
+      if (x+4<n) {
+          x = x+x;
+      }
   }
 /*@
-  assert !(t<=y-3) &&
-         (v == 0 || v == 3);
+  assert !(l<=n-3) &&
+         (m == \at(m, Pre));
 */
 
 }

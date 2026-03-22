@@ -1,21 +1,20 @@
-int main1(int m,int n){
-  int l, v, o;
+int main1(int b,int p){
+  int c, k, v, y;
 
-  l=n+9;
-  v=l;
-  o=l;
+  c=(p%24)+17;
+  k=0;
+  v=k;
+  y=p;
 
 
-while (v>3) {
-      o = o*2;
-      if (v+6<=v+l) {
-          o = o*o;
-      }
-      v = v-4;
+while (k+1<=c) {
+      v = v+2;
+      v = v*2;
+      y = y+v;
   }
 /*@
-  assert !(v>3) &&
-         (l == n + 9);
+  assert !(k+1<=c) &&
+         (v % 4 == 0);
 */
 
 }

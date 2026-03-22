@@ -1,21 +1,18 @@
-int main1(int m,int n){
-  int w, t, d;
+int main1(int a,int b){
+  int i, k, l;
 
-  w=79;
-  t=0;
-  d=w;
+  i=(a%27)+13;
+  k=0;
+  l=-2;
 
 
-while (t<=w-2) {
-      d = d-d;
-      if ((t%2)==0) {
-          d = d+1;
-      }
-      t = t+2;
+while (k+1<=i) {
+      l = l+4;
+      l = l%4;
   }
 /*@
-  assert !(t<=w-2) &&
-         (m == \at(m, Pre));
+  assert !(k+1<=i) &&
+         (i == \at(a, Pre) % 27 + 13);
 */
 
 }

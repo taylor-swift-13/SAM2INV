@@ -1,25 +1,25 @@
-int main1(int m){
-  int et, p9w, hts, qb, xq2;
-  et=(m%15)+20;
-  p9w=0;
-  hts=1;
-  qb=5;
-  xq2=p9w;
+int main1(){
+  int v, zgh, dyks, o, w;
+  v=1;
+  zgh=1;
+  dyks=1;
+  o=0;
+  w=0;
 
-while (hts<=et) {
-      qb = qb+hts*hts;
-      hts += 1;
-      m = m + hts;
+while (dyks<=v) {
+      o = o+dyks*dyks;
+      dyks += 1;
+      w = (w+v)+(-(zgh));
   }
 
-while (xq2<et) {
-      p9w = et-xq2;
-      xq2++;
-      m = m + xq2;
+while (1) {
+      zgh += 1;
+      if (zgh>=dyks) {
+          break;
+      }
   }
 /*@
-  assert !(xq2<et) &&
-         (et == \at(m, Pre) % 15 + 20);
+  assert (o == (dyks-1)*dyks*(2*dyks-1)/6);
 */
 
 }

@@ -1,31 +1,43 @@
-int main1(int b,int p){
-  int c, v, m;
+int main1(int a,int q){
+  int b, c, t, v;
 
-  c=(p%6)+10;
-  v=1;
-  m=v;
+  b=a;
+  c=b;
+  t=q;
+  v=-6;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant v >= 1;
-  loop invariant (v == 1) || (v % 3 == 0);
-  loop invariant v <= c;
-  loop invariant c == (\at(p, Pre) % 6 + 10);
-  loop invariant p == \at(p, Pre);
-  loop invariant v > 0;
-  loop invariant c == (p % 6) + 10;
-  loop invariant b == \at(b, Pre);
-  loop invariant c == \at(p, Pre) % 6 + 10;
-  loop invariant v == 1 || v % 3 == 0;
-  loop invariant v == 1 || v == 3 || v == 9;
-  loop assigns v;
+  loop invariant a == \at(a, Pre);
+  loop invariant q == \at(q, Pre);
+  loop invariant b == a;
+  loop invariant c == b;
+  loop invariant v == -6;
+  loop invariant b == \at(a, Pre);
+  loop invariant c == \at(a, Pre);
+  loop invariant (c < b/2) ==> (t <= \at(q, Pre) && (t - \at(q, Pre)) % 3 == 0);
+  loop invariant (c >= b/2) ==> (t >= \at(q, Pre) && (t - \at(q, Pre)) % 4 == 0);
+  loop invariant (c < b/2) ==> ((q - t) % 3 == 0);
+  loop invariant (c >= b/2) ==> ((t - q) % 4 == 0);
+  loop invariant c == a;
+  loop invariant (\at(a, Pre) < \at(a, Pre)/2) ==> ((t - \at(q, Pre)) % 3 == 0);
+  loop invariant (\at(a, Pre) >= \at(a, Pre)/2) ==> ((t - \at(q, Pre)) % 4 == 0);
+  loop invariant (c < b/2) ==> t <= q;
+  loop invariant (c >= b/2) ==> t >= q;
+  loop assigns t;
 */
-while (v<=c/3) {
-      v = v*3;
+while (c>=1) {
+      if (c<b/2) {
+          t = t+v;
+      }
+      else {
+          t = t+1;
+      }
+      t = t+3;
   }
 /*@
-  assert !(v<=c/3) &&
-         (v >= 1);
+  assert !(c>=1) &&
+         (a == \at(a, Pre));
 */
 
 

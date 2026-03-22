@@ -1,32 +1,41 @@
-int main1(int k,int m){
-  int t, u, v;
+int main1(int m,int n){
+  int o, x, d, c;
 
-  t=(m%14)+15;
-  u=0;
-  v=k;
+  o=n+25;
+  x=0;
+  d=o;
+  c=m;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= u && u <= t && (u == 0 ==> v == k) && t == (m % 14) + 15;
-  loop invariant k == \at(k,Pre);
-  loop invariant m == \at(m,Pre);
-  loop invariant u >= 0;
-  loop invariant u <= t;
-  loop invariant t == (\at(m,Pre) % 14) + 15;
-  loop invariant (u == 0) ==> v == \at(k,Pre);
-  loop invariant u > 0 ==> v >= 0;
-  loop invariant t == (m % 14) + 15;
-  loop invariant 0 <= u;
-  loop invariant u == 0 ==> v == \at(k, Pre);
-  loop assigns v, u;
+  loop invariant o == n + 25;
+  loop invariant (d - o) % 6 == 0;
+  loop invariant c - m == (2 + x) * ((d - o) / 6);
+  loop invariant c == m + ((d - o) / 6) * (2 + x);
+  loop invariant x == 0;
+  loop invariant m == \at(m, Pre);
+  loop invariant n == \at(n, Pre);
+  loop invariant (c - m) % (2 + x) == 0;
+  loop invariant c - m <= 2;
+  loop invariant d >= o;
+  loop invariant c >= m;
+  loop invariant d <= o + 5;
+  loop invariant c <= m + 2;
+  loop invariant d >= o - 1;
+  loop invariant (c - m) % 2 == 0;
+  loop assigns c, d;
 */
-while (u<t) {
-      v = v*v;
-      u = u+1;
+while (d<o) {
+      if (d<o) {
+          d = d+1;
+      }
+      d = d+5;
+      c = c+2;
+      c = c+x;
   }
 /*@
-  assert !(u<t) &&
-         (0 <= u && u <= t && (u == 0 ==> v == k) && t == (m % 14) + 15);
+  assert !(d<o) &&
+         (o == n + 25);
 */
 
 
