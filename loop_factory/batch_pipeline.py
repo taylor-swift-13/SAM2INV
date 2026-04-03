@@ -5,6 +5,7 @@ import argparse
 import atexit
 import copy
 import concurrent.futures
+import importlib.util
 import os
 import hashlib
 import json
@@ -35,6 +36,7 @@ from output_verify import OutputVerifier  # type: ignore
 USER_CFG = getattr(config, "LOOP_FACTORY_USER_CONFIG", {})
 HOUDINI_CFG = getattr(config, "HOUDINI_CONFIG", {})
 GEN_CFG = getattr(config, "PARALLEL_GENERATION_CONFIG", {})
+_LOOP_FACTORY_MODULE = None
 
 
 def _lf_cfg(name: str, default):
@@ -43,6 +45,37 @@ def _lf_cfg(name: str, default):
         return USER_CFG[name]
     legacy = f"lf_{name}"
     return USER_CFG.get(legacy, default)
+
+
+def _load_loop_factory_module():
+    global _LOOP_FACTORY_MODULE
+    if _LOOP_FACTORY_MODULE is not None:
+        return _LOOP_FACTORY_MODULE
+
+    spec = importlib.util.spec_from_file_location("loop_factory_batch_runtime", ROOT / "loop_factory.py")
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Failed to load loop_factory.py")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    _LOOP_FACTORY_MODULE = module
+    return module
+
+
+def pick_attempt_core_candidates(allowed_templates: str, max_vars: int) -> List[str]:
+    module = _load_loop_factory_module()
+    declared = list(module._declared_semantic_cores())
+    items = [x.strip() for x in allowed_templates.split(",") if x.strip()]
+    if not items:
+        base = declared
+    else:
+        allowed = sorted(module._resolve_allowed_cores(items))
+        # Mirror loop_factory semantics: if selectors resolve to nothing, fall back to unrestricted cores.
+        base = allowed if allowed else declared
+    state_cap = max(1, int(max_vars) - 2)
+    core_min_state_vars = getattr(module, "CORE_MIN_STATE_VARS", {})
+    filtered = [c for c in base if int(core_min_state_vars.get(c, 1)) <= state_cap]
+    return filtered if filtered else base
 
 
 # Class-level Chatbot patch: intercepts ALL Chatbot.chat calls in the current thread
@@ -688,7 +721,10 @@ def _loop_factory_base_cmd(hp: Dict[str, object], force_core: Optional[str] = No
 
 
 def probe_usable_semantic_cores(seed: int, lf_overrides: Dict[str, object], probe_max_resample: int = 128) -> List[str]:
-    hp = loop_factory_hyperparams(seed, ROOT / "generated" / "_core_probe_tmp", lf_overrides)
+    probe_overrides = dict(lf_overrides)
+    # Probe should be a local feasibility check only; avoid any LLM-backed core generation here.
+    probe_overrides["llm_core_gen"] = False
+    hp = loop_factory_hyperparams(seed, ROOT / "generated" / "_core_probe_tmp", probe_overrides)
     cmd = _loop_factory_base_cmd(hp)
     cmd.extend(["--print-usable-cores-json", "--probe-max-resample", str(max(1, probe_max_resample))])
     out = subprocess.check_output(cmd, text=True).strip()
@@ -999,6 +1035,18 @@ def main() -> None:
     for d in [raw_dir, ann_dir, tmp_loops, logs_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
+    main_log_path = logs_dir / "batch_pipeline.log"
+
+    def _emit_runtime_log(msg: str, level: str = "INFO") -> None:
+        print(msg, flush=True)
+        ts = time.strftime("%Y-%m-%d %H:%M:%S")
+        line = f"{ts} - {level} - {msg}\n"
+        try:
+            with main_log_path.open("a", encoding="utf-8") as f:
+                f.write(line)
+        except Exception:
+            pass
+
     config.PARALLEL_GENERATION_CONFIG["num_candidates"] = max(1, args.num_candidates)
     config.PARALLEL_GENERATION_CONFIG["use_threading"] = False
     config.PARALLEL_GENERATION_CONFIG["max_workers"] = 1
@@ -1039,6 +1087,13 @@ def main() -> None:
         "llm_core_gen": args.llm_core_gen,
     }
 
+    _emit_runtime_log(
+        "Batch start: "
+        f"work_root={work_root}, target_count={args.target_count}, workers={args.workers}, "
+        f"num_candidates={args.num_candidates}, append={args.append}, model={args.model}, "
+        f"llm_core_gen={args.llm_core_gen}, allowed_templates={args.allowed_templates or 'ALL'}"
+    )
+
     # Build in-memory skeleton-count index from existing corpus.
     loop_skeleton_counts: Dict[str, int] = {}
     existing_max_idx = 0
@@ -1064,18 +1119,14 @@ def main() -> None:
     if args.max_attempts > 0:
         total_candidates = min(total_candidates, args.max_attempts)
 
-    usable_cores = probe_usable_semantic_cores(args.seed, lf_overrides, probe_max_resample=128)
-    core_plan = build_even_core_plan(total_candidates, usable_cores)
-    core_quota: Dict[str, int] = {c: core_plan.count(c) for c in usable_cores}
-    if usable_cores:
-        print(
-            f"Template balancing enabled: usable_cores={len(usable_cores)}, "
-            f"attempts={total_candidates}, min_quota={min(core_quota.values())}, max_quota={max(core_quota.values())}"
-        )
-    else:
-        print("Template balancing disabled: no usable semantic core found under current parameters.")
+    core_candidates = pick_attempt_core_candidates(args.allowed_templates, args.max_vars)
+    _emit_runtime_log(
+        f"Core scheduling mode: per-attempt random forced core (no probe), "
+        f"candidate_cores={len(core_candidates)}, state_cap={max(1, args.max_vars - 2)}, "
+        f"allowed_templates={args.allowed_templates or 'ALL'}"
+    )
     if args.append and existing_raw_only_count > 0:
-        print(
+        _emit_runtime_log(
             f"Append dedup note: loaded {existing_raw_only_count} raw-only historical files "
             f"(without annotated pair) into dedup index."
         )
@@ -1100,12 +1151,15 @@ def main() -> None:
     # - append mode shifts RNG stream to reduce overlap with previously accepted files
     seed_offset = existing_max_idx if args.append else 0
     seed_rng = random.Random(args.seed + seed_offset)
+    core_rng = random.Random(args.seed + seed_offset + 0x5F3759DF)
     used_attempt_seeds: Set[int] = set()
     next_attempt = 1
     pending: Dict[concurrent.futures.Future, Tuple[int, int, Optional[str]]] = {}
     stop_event = threading.Event()
     file_mode = "a" if args.append else "w"
     distill_count = 0
+    heartbeat_interval = 30.0
+    rejected_count = 0
     with api_jsonl_path.open(file_mode, encoding="utf-8") as api_jsonl_file, \
          dpo_teacher_jsonl_path.open(file_mode, encoding="utf-8") as dpo_teacher_jsonl_file, \
          dpo_aug_jsonl_path.open(file_mode, encoding="utf-8") as dpo_aug_jsonl_file, \
@@ -1120,7 +1174,7 @@ def main() -> None:
                     while seed in used_attempt_seeds:
                         seed = seed_rng.randint(1, 2_147_483_647)
                     used_attempt_seeds.add(seed)
-                    forced_core = core_plan[attempt - 1] if attempt - 1 < len(core_plan) else None
+                    forced_core = core_rng.choice(core_candidates) if core_candidates else None
                     forced_raw = None
                     fut = ex.submit(
                         run_one_attempt,
@@ -1138,35 +1192,70 @@ def main() -> None:
                         forced_raw,
                     )
                     pending[fut] = (attempt, seed, forced_core)
+                    _emit_runtime_log(
+                        f"Attempt scheduled: attempt={attempt}/{total_candidates}, seed={seed}, "
+                        f"forced_core={forced_core or 'none'}, pending={len(pending)}"
+                    )
 
                 if not pending:
                     break
 
                 done, _ = concurrent.futures.wait(
                     pending.keys(),
+                    timeout=heartbeat_interval,
                     return_when=concurrent.futures.FIRST_COMPLETED,
                 )
+                if not done:
+                    pending_desc = ", ".join(
+                        f"{attempt}:{forced_core or 'none'}"
+                        for attempt, _seed, forced_core in list(pending.values())[:8]
+                    )
+                    if len(pending) > 8:
+                        pending_desc += ", ..."
+                    _emit_runtime_log(
+                        f"Heartbeat: no completed attempts in {int(heartbeat_interval)}s; "
+                        f"scheduled={next_attempt - 1}/{total_candidates}, pending={len(pending)}, "
+                        f"accepted={len(accepted_records)}, rejected={rejected_count}, pending_attempts=[{pending_desc}]"
+                    )
+                    continue
                 for fut in done:
                     attempt, seed, forced_core = pending.pop(fut)
                     try:
                         result = fut.result()
                     except Exception as e:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": f"exception: {e}"})
+                        rejected_count += 1
+                        _emit_runtime_log(
+                            f"Attempt exception: attempt={attempt}, seed={seed}, forced_core={forced_core or 'none'}, error={e}",
+                            level="WARNING",
+                        )
                         continue
 
                     if not result.get("ok"):
+                        reason = result.get("reason", "unknown")
                         reject_log.append(
                             {
                                 "attempt": result.get("attempt", attempt),
                                 "seed": result.get("seed", seed),
-                                "reason": result.get("reason", "unknown"),
+                                "reason": reason,
                             }
+                        )
+                        rejected_count += 1
+                        _emit_runtime_log(
+                            f"Attempt rejected: attempt={attempt}, seed={seed}, forced_core={forced_core or 'none'}, reason={reason}",
+                            level="WARNING",
                         )
                         continue
 
                     skeleton_key = compute_loop_skeleton_key(result["raw_code"])
                     if loop_skeleton_counts.get(skeleton_key, 0) >= max(1, args.max_skeleton_repeat):
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "duplicate loop skeleton"})
+                        rejected_count += 1
+                        _emit_runtime_log(
+                            f"Attempt rejected: attempt={attempt}, seed={seed}, forced_core={forced_core or 'none'}, "
+                            "reason=duplicate loop skeleton",
+                            level="WARNING",
+                        )
                         continue
 
                     loop_skeleton_counts[skeleton_key] = loop_skeleton_counts.get(skeleton_key, 0) + 1
@@ -1204,6 +1293,11 @@ def main() -> None:
                             "loop_factory_hyperparams": result["loop_factory_hyperparams"],
                             "augmentation": {"type": "none"},
                         }
+                    )
+                    _emit_runtime_log(
+                        f"Attempt accepted: attempt={attempt}, seed={seed}, output_id=loop_factory_{idx}, "
+                        f"selected_core={result.get('selected_core', 'none')}, forced_core={forced_core or 'none'}, "
+                        f"accepted={len(accepted_records)}, rejected={rejected_count}, pending={len(pending)}"
                     )
                     # Distill SFT: write all raw candidate (prompt, response) pairs
                     # without verification — enables pure knowledge-distillation training.
@@ -1308,13 +1402,19 @@ def main() -> None:
                         dpo_aug_jsonl_file.flush()
                     else:
                         reject_log.append({"attempt": attempt, "seed": seed, "reason": "accepted sample has no dpo rejects"})
+                        _emit_runtime_log(
+                            f"Accepted sample missing DPO rejects: attempt={attempt}, seed={seed}, output_id=loop_factory_{idx}",
+                            level="WARNING",
+                        )
 
     # ── Phase 2: Reverse-COT generation ────────────────────────────────────
     def _emit_cot_log(msg: str, level: str = "INFO") -> None:
-        print(msg)
+        print(msg, flush=True)
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
         line = f"{ts} - {level} - {msg}\n"
         try:
+            with main_log_path.open("a", encoding="utf-8") as f:
+                f.write(line)
             with (logs_dir / "cot_phase.log").open("a", encoding="utf-8") as f:
                 f.write(line)
             for p in sorted(logs_dir.glob("attempt_*.log")):
@@ -1462,7 +1562,9 @@ def main() -> None:
             f"COT Phase#2: generating rejected reverse-COTs for {len(aug_rejected_tasks)} "
             f"unique dpo_aug.rejected code pieces (existing={len(aug_rejected_cot_by_code)})..."
         )
-    for code, task in aug_rejected_tasks.items():
+    for idx, (code, task) in enumerate(aug_rejected_tasks.items(), start=1):
+        if idx == 1 or idx % 25 == 0 or idx == len(aug_rejected_tasks):
+            _emit_cot_log(f"COT Phase#2 progress: {idx}/{len(aug_rejected_tasks)}")
         cot = generate_reverse_cot_rejected(reverse_cot_context, task["user_prompt"], code, cot_client, cot_model)
         if cot:
             aug_rejected_cot_by_code[code] = cot
@@ -1474,7 +1576,9 @@ def main() -> None:
             f"COT Phase#3: generating rejected reverse-COTs for {len(teacher_rejected_tasks)} "
             f"unique dpo_teacher.rejected code pieces (existing={len(teacher_rejected_cot_by_code)})..."
         )
-    for code, task in teacher_rejected_tasks.items():
+    for idx, (code, task) in enumerate(teacher_rejected_tasks.items(), start=1):
+        if idx == 1 or idx % 25 == 0 or idx == len(teacher_rejected_tasks):
+            _emit_cot_log(f"COT Phase#3 progress: {idx}/{len(teacher_rejected_tasks)}")
         cot = generate_reverse_cot_rejected(reverse_cot_context, task["user_prompt"], code, cot_client, cot_model)
         if cot:
             teacher_rejected_cot_by_code[code] = cot
@@ -1618,7 +1722,7 @@ def main() -> None:
     reject_path.write_text(json.dumps(reject_log, ensure_ascii=False, indent=2), encoding="utf-8")
     attempted = total_candidates
     accept_rate = (len(accepted_records) / attempted * 100.0) if attempted > 0 else 0.0
-    print(
+    _emit_runtime_log(
         f"Done: attempted={attempted}, accepted={len(accepted_records)} ({accept_rate:.1f}%), "
         f"new={len(accepted_records)}, existing={existing_count}, total={total}"
     )
