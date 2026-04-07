@@ -1,1973 +1,513 @@
-2026-03-22 22:25:14,716 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 22:25:14,786 - INFO - Found 1 loops
-2026-03-22 22:25:14,790 - INFO - 
+2026-04-07 09:24:35,710 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:24:35,719 - INFO - Found 1 loops
+2026-04-07 09:24:35,720 - INFO - 
 ============================================================
-2026-03-22 22:25:14,791 - INFO - Main generation pass 1/1
-2026-03-22 22:25:14,791 - INFO - ============================================================
-2026-03-22 22:25:14,791 - INFO - Loaded single prompt template: simple
-2026-03-22 22:25:14,791 - INFO - Generating 20 candidate invariant sets with temperature=1.0
-2026-03-22 22:25:14,791 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 22:25:14,817 - INFO -   Generating candidate 1/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:26:27,958 - INFO - 
------ Candidate 1/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. The loop updates several variables in a fixed pattern; a strong, helpful invariant should capture the essential, verifiable relationship that is preserved every iteration and is easy for WP to discharge.
+2026-04-07 09:24:35,720 - INFO - Main generation pass 1/1
+2026-04-07 09:24:35,720 - INFO - ============================================================
+2026-04-07 09:24:35,720 - INFO - Loaded single prompt template: simple
+2026-04-07 09:24:35,720 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:24:35,720 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:24:35,779 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:26:19,925 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>
+I chose invariants that are (1) true at loop entry, (2) preserved by each iteration's updates (inductive), and (3) together expose the key facts needed at loop exit.
 
-Two invariant facts are both strong and simple to prove inductively:
+Core relational equality (conservation law)
+- n == \at(n, Pre) + l
+  - Each iteration increments both l and n by 1, so n always stays equal to the initial n plus the current l. This is the primary conservation relation that explains the synchronized updates of l and n.
 
-1) A core conservation/relational equality for y and ap:
-   - Since y is increased by 3 every iteration and ap is increased by 1 every iteration (start ap=1, loop continues while ap<=vr), the relation
-     y == \at(y,Pre) + 3*(ap - 1)
-   holds at every loop head. At the start (t=0 iterations), ap=1 and y equals its initial value; after t iterations, ap=1+t and y= y0 + 3t, so the relation remains valid. Using \at(y,Pre) refers to the initial value of y, which is allowed for function parameters.
+Auxiliary precise relations (explain arithmetic/state evolution)
+- yn == \at(n, Pre) - (l % 2)
+  - yn alternates between \at(n,Pre) and (\at(n,Pre)-1) as l increases. This closed-form is the invariant of the repeated yn update yn := yn + (l%2)*2 - 1.
+- ofs == \at(c, Pre) + (l + 1) / 2
+  - ofs accumulates (new) l's parity: on the k-th iteration it adds (k%2) for k=1..l. The sum of odd indicators in 1..l is (l+1)/2 (integer division).
+- xioj == (l/2) * (((\at(n, Pre) - 1) % 7) + (\at(n, Pre) % 7)) + (l % 2) * ((\at(n, Pre) - 1) % 7)
+  - xioj accumulates the updated yn (mod 7) each iteration; since yn alternates between (\at(n,Pre)-1) and \at(n,Pre), I express the closed-form sum of the repeating two-element pattern without quantifiers: floor(l/2) times the pair sum, plus the extra term when l is odd.
+  - This gives an exact, quantifier-free description suitable for WP.
 
-2) Progress and bounds on the loop counter ap:
-   - The loop guard is ap <= vr. An invariant that is preserved is 1 <= ap <= vr + 1, which is true at the start (ap=1) and remains true at each loop head, because ap only increments by 1 each iteration and the loop stops when ap becomes vr+1.
+Bounds / Progress
+- 0 <= l && l <= r0
+  - Lower bound (l starts at 0) and upper bound needed for induction and to justify the variant.
+- loop variant (r0 - l)
+  - Decreases by 1 each iteration (since l increases by 1) and is non-negative because l <= r0; it proves termination w.r.t. the loop bound.
 
-Additionally, we must provide a precise loop assigns clause that lists all variables that are updated within the loop body. The loop writes to: j, jkc, rr, hu, ap, y, d, i. No other variables are modified inside.
+Complete assigns
+- loop assigns l, yn, ofs, xioj, n;
+  - This lists exactly the variables that are modified inside the loop.
 
-I include a loop variant to help the verifier terminate reasoning: vr - ap decreases by 1 each iteration while the loop guard holds (ap <= vr), so it is a valid decreasing expression.
+All invariants are expressed using only available variables and \at(...) only on function parameters (\at(n, Pre) and \at(c, Pre)), as required. They are strong (closed-form) and sufficient to show inductiveness of the loop updates.
+</reasoning>
+<code>
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
 
-The resulting annotations are designed to be inductive, non-trivial, and verification-friendly, and they rely only on variables allowed in the available set (including the function parameters j and y, and the initial value of y via \at(y,Pre)). They do not modify the code, only annotate the loop. The unknown() calls are not touched, and the \at(.,Pre) usage is restricted to function parameters, as required. </reasoning>
-<code>int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
 
   /*@
-    loop invariant 1 <= ap <= vr + 1;
-    loop invariant y == \at(y,Pre) + 3*(ap - 1);
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap;
+    loop invariant 0 <= l && l <= r0;
+    loop invariant n == (\at(n, Pre) + l);
+    loop invariant yn == (\at(n, Pre) - (l % 2));
+    loop invariant ofs == (\at(c, Pre) + (l + 1) / 2);
+    loop invariant xioj == ((l / 2) * (((\at(n, Pre) - 1) % 7) + (\at(n, Pre) % 7)) + (l % 2) * ((\at(n, Pre) - 1) % 7));
+    loop assigns l, yn, ofs, xioj, n;
+    loop variant (r0 - l);
   */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
+  while (l < r0) {
+        yn = yn + (l % 2) * 2 - 1;
+        l = l + 1;
+        ofs = ofs+(l%2);
+        xioj = xioj+(yn%7);
+        n += 1;
   }
 
-}</code>
------ Candidate 1/20 raw response end -----
-2026-03-22 22:26:27,960 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 22:26:27,975 - INFO -   Generating candidate 2/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:27:13,849 - INFO - 
------ Candidate 2/20 raw response begin -----
+}
+</code>
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:26:19,926 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:26:19,995 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:27:40,219 - INFO - 
+----- Candidate 2/5 raw response begin -----
 <reasoning>
-I chose invariants that are inductive, simple, and useful for proving properties about the loop without introducing quantifiers or undefined symbols.
+I selected invariants that are inductive and explain the state changes in the loop.
 
-Core conservation equality:
-- y - \at(y,Pre) == 3*(ap - 1)
-  - Rationale: At function entry ap is 1 and y equals \at(y,Pre), so the equality holds initially. Each loop iteration increments ap by 1 and y by 3, so the equality is preserved exactly by the loop body. This provides a clear state-transition law (relating ap and y) that is easy for WP to check and helps reason about the number of iterations.
+Core conservation law
+- n == \at(n, Pre) + l
+  This explains the per-iteration state transition: both l and n are incremented by 1 each iteration, so their difference to the initial parameter \at(n, Pre) is preserved. This is the primary relational equality describing loop updates.
 
-Progress bounds and domain facts:
-- ap >= 1
-  - Rationale: ap is initialized to 1 and increases by 1 each iteration; this lower bound is true initially and preserved, and it helps WP with some integer arithmetic reasoning.
+Precise arithmetic/relational invariants
+- yn == \at(n, Pre) - (l % 2)
+  Derived by unfolding the update yn = yn + (l % 2) * 2 - 1: each iteration (with l = i before increment) adds -1 for even i and +1 for odd i, hence after l iterations yn equals the entry value of n minus (l % 2). Note that yn was initialized to n before the loop, and at loop entry n == \at(n, Pre).
 
-- (rr == 1) || (rr == -1)
-  - Rationale: rr is set to either 1 or -1 inside the loop; asserting this domain property is strong (and preserved) and avoids weak/tautological invariants.
+- ofs == c + (l + 1) / 2
+  ofs increases by (new l % 2) each iteration; summing (i+1)%2 for i=0..l-1 yields the count of odd numbers in 1..l, equal to (l+1)/2 (integer division). This gives an exact closed-form for ofs.
+
+Bounds and progress
+- 0 <= l && l <= r0
+  l is initialized to 0 and increases by 1 up to r0. Use non-strict upper bound (<=) so invariance is preserved after the increment that may reach r0.
+- loop variant r0 - l
+  Shows the loop terminates: this is a natural number that decreases each iteration.
+
+Assigns
+- The loop explicitly assigns yn, l, ofs, xioj, n — exactly the modified variables.
+
+I avoided quantifiers and \at() on locals (only used \at(n, Pre) which is allowed). The loop guard l < r0 is not asserted as an invariant; instead a non-strict bound l <= r0 is used so the invariant is preserved after the increment.
+</reasoning>
+<code>
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
+
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
+
+  /*@
+    loop invariant 0 <= l && l <= r0;
+    loop invariant n == \at(n, Pre) + l;
+    loop invariant yn == \at(n, Pre) - (l % 2);
+    loop invariant ofs == c + (l + 1) / 2;
+    loop assigns yn, l, ofs, xioj, n;
+    loop variant r0 - l;
+  */
+  while (l < r0) {
+        yn = yn + (l % 2) * 2 - 1;
+        l = l + 1;
+        ofs = ofs+(l%2);
+        xioj = xioj+(yn%7);
+        n += 1;
+  }
+
+}
+</code>
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:27:40,222 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:27:40,298 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:29:17,770 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I derived invariants that are inductive (hold initially and are preserved) and that expose the loop's state transition laws to WP:
+
+- Core relational equality (state transition law):
+  n - \at(n, Pre) == l
+  Reason: n and l are both incremented exactly once per iteration in the same order, so the difference between current n and initial n equals the current l. This is true at initialization (both 0) and preserved by each iteration.
+
+- Exact closed-form for yn:
+  yn == \at(n, Pre) - (l % 2)
+  Reason: yn is updated by ((old l % 2) * 2 - 1) each iteration; summing these gives a simple parity-based closed form: after k iterations yn = initial_n - (k % 2). This is strong and inductive.
+
+- Exact closed-form for ofs (counting odd new l values):
+  ofs - \at(c, Pre) == (l + 1) / 2
+  Reason: ofs is increased by (new l % 2) where new l runs from 1..l; the count of odd integers in 1..l is (l+1)/2 (integer division). This equality holds initially and is preserved.
+
+- Bounds and progress:
+  0 <= l && l <= r0
+  loop variant: r0 - l
+  Reason: l starts at 0 and is increased by 1 each iteration up to r0; weakening the strict guard l < r0 to l <= r0 makes it inductive. The variant r0 - l shows termination.
+
+- Safe bounds for xioj:
+  -6 * l <= xioj && xioj <= 6 * l
+  Reason: each iteration xioj is increased by (yn % 7), which is in [-6,6], so xioj is bounded linearly by l. This is a simple, inductive numeric bound helpful for WP.
+
+All these invariants are expressible using only the available variables and \at(...) only on parameters (c and n). The loop assigns list is exact (yn, l, ofs, xioj, n). The variant r0 - l is a natural number and strictly decreases each iteration.
+</reasoning>
+<code>
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
+
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
+
+  /*@
+    loop invariant n - \at(n, Pre) == l;
+    loop invariant 0 <= l && l <= r0;
+    loop invariant yn == \at(n, Pre) - (l % 2);
+    loop invariant ofs - \at(c, Pre) == (l + 1) / 2;
+    loop invariant -6 * l <= xioj && xioj <= 6 * l;
+    loop assigns yn, l, ofs, xioj, n;
+    loop variant (r0 - l);
+  */
+while (l < r0) {
+      yn = yn + (l % 2) * 2 - 1;
+      l = l + 1;
+      ofs = ofs+(l%2);
+      xioj = xioj+(yn%7);
+      n += 1;
+  }
+
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:29:17,772 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:29:17,838 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:30:38,532 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I chose invariants that are strong, inductive, and directly reflect the loop's state-transition laws, while avoiding quantifiers and any use of \at(...) on local variables.
+
+Core conservation law (relational equality):
+- yn == \at(n, Pre) - (l % 2)
+  - Reason: each iteration adds (old_l % 2)*2 - 1 to yn. The partial sum S(l) = sum_{k=0..l-1} ((k%2)*2 - 1) equals - (l % 2). This equality holds initially (l = 0) and is preserved by the update pattern (check algebraically).
+
+Exact update for ofs:
+- ofs == \at(c, Pre) + (l + 1) / 2
+  - Reason: ofs is increased by (new l % 2) after l is incremented each iteration. Summing those contributions yields the number of odd indices in 1..l, i.e. ceil(l/2) which equals (l+1)/2 in integer arithmetic. This is an exact, inductive relation explaining ofs.
+
+Synchronization of n and l:
+- n == \at(n, Pre) + l
+  - Reason: n is incremented once per iteration, as is l. This gives a simple linear relation helpful for reasoning about n.
+
+Bounds and progress:
+- 0 <= l && l <= r0
+  - Keeps l within the expected range and is required for inductiveness.
+- -6 * l <= xioj && xioj <= 6 * l
+  - Each iteration xioj increases by (yn % 7), which lies in [-6,6], so xioj is bounded by these linear limits (xioj starts at 0). This is a useful, quantifier-free bound for WP.
+
+Assigns and variant:
+- loop assigns yn, l, ofs, xioj, n;
+  - Exact list of variables modified by the loop body.
+- loop variant r0 - l;
+  - A natural decreasing measure (r0 is fixed to 52) that proves termination: l increases by 1 every iteration.
+
+All invariants use only available variables and \at(...) on function parameters (c and n) as allowed. They are inductive (I sketched the algebraic preservation checks above) and sufficient to explain the loop updates and to help WP discharge verification obligations.
+</reasoning>
+<code>
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
+
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
+
+  /*@
+    loop invariant yn == \at(n, Pre) - (l % 2);
+    loop invariant ofs == \at(c, Pre) + (l + 1) / 2;
+    loop invariant n == \at(n, Pre) + l;
+    loop invariant 0 <= l && l <= r0;
+    loop invariant -6 * l <= xioj && xioj <= 6 * l;
+    loop assigns yn, l, ofs, xioj, n;
+    loop variant r0 - l;
+  */
+  while (l < r0) {
+        yn = yn + (l % 2) * 2 - 1;
+        l = l + 1;
+        ofs = ofs+(l%2);
+        xioj = xioj+(yn%7);
+        n += 1;
+  }
+
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:30:38,535 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:30:38,603 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:31:44,563 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I propose invariants that (1) capture the core conservation laws produced by the loop updates, (2) bound the arithmetic variables that change by at most a fixed amount per iteration, and (3) provide a natural WP variant for termination.
+
+Core conservation / relational equalities:
+- n == \at(n, Pre) + l
+  - Initially l == 0 and n equals the entry parameter, so this holds.
+  - Each iteration increments both l and n by 1, so the equality is preserved. This explains the tight coupling between l and n (strong invariant).
+- yn == \at(n, Pre) - (l % 2)
+  - yn is updated by -1 on even l and +1 on odd l (using the old l each iteration), so after k iterations yn = initial_n - (k % 2). This is inductive and strong.
+
+Progress / bounds:
+- 0 <= l <= r0  (weaken the strict guard l < r0 to non-strict at loop head)
+- ofs is increased by either 0 or 1 each iteration, so ofs stays in [\at(c,Pre), \at(c,Pre) + l].
+  - initial ofs == c, and each iteration adds (l % 2) ∈ {0,1}, hence the bounds are inductive.
+- xioj increases by (yn' % 7) each iteration; since yn' % 7 ∈ [-6,6], xioj is bounded by [-6*l, 6*l].
+  - initial xioj == 0, and the bound scales linearly with the number of iterations.
 
 Loop assigns:
-- The exact set of variables modified by the loop body is given: jkc, rr, hu, ap, j, y, d, i. This is complete and exact (vr and others are not modified).
+- The loop modifies yn, l, ofs, xioj and n: list them exactly.
 
-Loop variant:
-- vr - ap + 1
-  - Rationale: When the guard ap <= vr holds, vr - ap + 1 is a non-negative integer and decreases by 1 each iteration because ap increases by 1. This is a standard termination measure.
+Variant:
+- r0 - l is a natural decreasing variant (non-negative at the loop head and decreases by 1 per iteration), ensuring termination is provable by WP.
 
-I avoided any \at(...) on local variables (only used \at(y,Pre) which is allowed because y is a parameter), and I did not introduce quantifiers, predicates, or other forbidden constructs. The annotations are minimal, inductive, and verification-friendly for Frama-C/WP.
+All invariants avoid quantifiers, do not use \at on local variables, and are inductive with respect to the concrete loop body.
 </reasoning>
 <code>
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
 
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant (y - \at(y,Pre)) == 3*(ap - 1);
-    loop invariant ap >= 1;
-    loop invariant (rr == 1) || (rr == -1);
-    loop assigns jkc, rr, hu, ap, j, y, d, i;
-    loop variant (vr - ap + 1);
+    loop invariant 0 <= l && l <= r0;
+    loop invariant n == \at(n, Pre) + l;
+    loop invariant yn == \at(n, Pre) - (l % 2);
+    loop invariant ofs >= \at(c, Pre) && ofs <= \at(c, Pre) + l;
+    loop invariant xioj >= -6 * l && xioj <= 6 * l;
+    loop assigns yn, l, ofs, xioj, n;
+    loop variant r0 - l;
   */
-while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
+while (l < r0) {
+      yn = yn + (l % 2) * 2 - 1;
+      l = l + 1;
+      ofs = ofs+(l%2);
+      xioj = xioj+(yn%7);
+      n += 1;
   }
 
 }
 </code>
------ Candidate 2/20 raw response end -----
-2026-03-22 22:27:13,850 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 22:27:13,865 - INFO -   Generating candidate 3/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:28:57,538 - INFO - 
------ Candidate 3/20 raw response begin -----
-<reasoning>
-I analyzed the loop to produce inductive, verification-friendly invariants that respect the available variables and the given update pattern. The loop performs a predictable counter progression and a deterministic update on rr, hu, jkc, ap, y, d, and i. To ensure inductiveness and a verifiable termination argument, I chose:
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:31:44,565 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
 
-- A tight counter bound invariant: 1 <= ap <= vr + 1. This captures the loop’s progression where ap starts at 1 and is incremented by 1 each iteration, and the loop exits when ap > vr.
-- A non-negativity progress invariant derived from the loop guard: 0 <= vr - ap. Under the loop guard ap <= vr, this is non-negative and thus provides a natural progress bound that decreases as ap increases.
-- A simple, always-preserved invariant on the sign of rr: rr == 1 || rr == -1. rr is assigned to either 1 or -1 in every iteration, so this invariant is trivially inductive and verified.
-- A precise assigns set: loop assigns j, jkc, hu, ap, y, d, i, rr. These are all modified inside the loop body (plus vr and j are not modified inside; vr is a constant for the loop frame).
-- A loop variant for termination: vr - ap, which decreases by 1 each iteration while the loop guard holds (ap <= vr), ensuring termination with respect to the loop counter.
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
 
-These invariants are strong, directly reflect the state updates, and do not rely on unsupported constructs. They also avoid using \at on local variables and respect the available variables.
-</reasoning>
-<code>
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 1 <= ap <= vr + 1;
-    loop invariant 0 <= vr - ap;
-    loop invariant rr == 1 || rr == -1;
-    loop assigns j, jkc, hu, ap, y, d, i, rr;
-    loop variant vr - ap;
+    loop invariant 0 <= l && l <= r0;
+    loop invariant n == (\at(n, Pre) + l);
+    loop invariant yn == (\at(n, Pre) - (l % 2));
+    loop invariant ofs == (\at(c, Pre) + (l + 1) / 2);
+    loop invariant xioj == ((l / 2) * (((\at(n, Pre) - 1) % 7) + (\at(n, Pre) % 7)) + (l % 2) * ((\at(n, Pre) - 1) % 7));
+    loop assigns l, yn, ofs, xioj, n;
+    loop variant (r0 - l);
   */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
+  while (l < r0) {
+        yn = yn + (l % 2) * 2 - 1;
+        l = l + 1;
+        ofs = ofs+(l%2);
+        xioj = xioj+(yn%7);
+        n += 1;
   }
 
 }
-</code>
------ Candidate 3/20 raw response end -----
-2026-03-22 22:28:57,542 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 22:28:57,574 - INFO -   Generating candidate 4/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:29:38,129 - INFO - 
------ Candidate 4/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop in main1. Since many internals are stateful, we aim for a small, robust set of loop invariants that are easy for WP to discharge, while still being strong enough to guide verification without overconstraining the code.
+----- Candidate 1/5 full code end -----
+2026-04-07 09:31:44,565 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
 
-Key observations to guide invariants:
-- vr is assigned once as vr = j - 7 and never updated; thus vr == j - 7 is an invariant.
-- ap starts at 1 and is incremented by 1 each iteration; a safe inductive bound is ap >= 1.
-- y is incremented by a constant amount (3) every iteration, so y is monotonically non-decreasing with respect to its initial value; we can express this as y >= \at(y, Pre).
-- rr is set to either 1 or -1 in every iteration, so rr ∈ {1, -1} always; we encode as (rr == 1) || (rr == -1).
-- The function parameter j is not modified except inside the loop (j is updated when the condition holds). Including a simple invariant about j is optional; we rely on the existing loop assigns to capture its updates. We do not add a separate invariant that would over-constrain j beyond what the loop updates already establish.
-- A loop variant is provided to ensure termination: vr - ap + 1 decreases by 1 each iteration (when the loop runs) and is non-negative at the start of each iteration (guarded by ap <= vr). This is standard and helps Frama-C WP reason about termination.
-
-Invariants chosen:
-- vr == j - 7 (vr is fixed by initial computation and remains constant)
-- ap >= 1 (ap starts at 1 and only increases)
-- (rr == 1) || (rr == -1) (rr is always set to 1 or -1)
-- y >= \at(y, Pre) (y never decreases; it starts at its initial value and only increases)
-- loop variant vr - ap + 1 (decreases by 1 each iteration; non-negative when an iteration occurs)
-
-Loop assigns:
-- ap, jkc, rr, hu, j, y, d, i (these are the variables modified inside the loop body)
-
-These invariants are inductive (preserved by each iteration) and non-tautological; they rely only on variables available in the loop and the function parameters (via \at for y’s initial value). They should be friendly to Frama-C/WP while staying faithful to the code’s behavior.</reasoning>
-<code>/*@
-  loop invariant vr == j - 7;
-  loop invariant ap >= 1;
-  loop invariant (rr == 1) || (rr == -1);
-  loop invariant y >= \at(y, Pre);
-  loop variant vr - ap + 1;
-
-  loop assigns ap, jkc, rr, hu, j, y, d, i;
-*/ 
-while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }</code>
------ Candidate 4/20 raw response end -----
-2026-03-22 22:29:38,133 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 22:29:38,160 - INFO -   Generating candidate 5/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:30:27,131 - INFO - 
------ Candidate 5/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants that are strong enough to aid WP without over-constraining inputs. From the loop body:
-
-- ap starts at 1 and increments by 1 each iteration while ap <= vr. A safe, non-tautological bound is ap >= 1, which holds before the first iteration and is preserved.
-- rr is assigned to either 1 or -1 every iteration (based on (ap/2)%2). So invariant rr ∈ {1, -1} is preserved; initially rr is 1, so the invariant holds from entry and after each iteration.
-- y increases by 3 every iteration (y = y + 3). Therefore, y tracks the initial value y0 = \at(y,Pre) and grows by 3 per iteration. This gives a strong relational invariant: y = \at(y,Pre) + 3*(ap - 1). This is valid because at entry ap = 1 and y = \at(y,Pre); after t iterations, ap = 1 + t and y = y0 + 3t, matching the relation.
-
-We also add a termination-friendly loop variant: vr - ap + 1. Given the guard ap <= vr, this quantity is non-negative and strictly decreases by 1 each iteration (since ap increases by 1). These invariants are consistent with the code and do not rely on non-parameter locals beyond what's allowed.
-
-Loop assigns must reflect all modified variables inside the loop: j, jkc, rr, hu, ap, y, d, i. vr is not modified, so it should not be listed.
-
-Thus the invariants chosen are:
-- ap >= 1
-- rr == 1 || rr == -1
-- y == \at(y,Pre) + 3*(ap - 1)
-
-And the loop variant:
-- vr - ap + 1
-
-These are inductive, tight, and verification-friendly.
-
-</reasoning>
-<code>int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
 
   /*@
-    loop invariant ap >= 1;
-    loop invariant rr == 1 || rr == -1;
-    loop invariant y == \at(y,Pre) + 3*(ap - 1);
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap + 1;
-  @*/
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}</code>
------ Candidate 5/20 raw response end -----
-2026-03-22 22:30:27,133 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 22:30:27,151 - INFO -   Generating candidate 6/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:31:04,533 - INFO - 
------ Candidate 6/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for Frama-C/WP. The loop updates several local variables, but we should keep the invariant strong and easy to prove while not over-constraining. A robust approach is to create a core, explicit relation that is preserved each iteration and relates to loop progress.
-
-Key observations:
-- ap starts at 1 and is incremented by 1 each iteration, with the loop condition ap <= vr.
-- y is incremented by 3 each iteration.
-Thus, a simple, strong invariant can capture the exact per-iteration progress of y relative to ap, independent of other updates inside the loop. Since the initial value of y is a function parameter, its initial value is accessible as \at(y, Pre). Therefore:
-- y = Initial_y + 3*(ap - 1) is preserved every iteration, i.e., y == \at(y, Pre) + 3*(ap - 1).
-- ap starts at 1 and must stay within the loop bounds: 1 <= ap <= vr+1 (the upper bound allows ap to reach vr+1 at loop exit).
-This gives a core conservation/relational equality (y increments by 3 per iteration) that is maintained inductively.
-
-We also declare loop assigns to cover all variables that may be modified inside the loop: j, jkc, rr, hu, ap, y, d, i. The invariants are chosen to be strong but safe, not over-constraining unrelated variables like j or jkc in ways that would be fragile to the complex updates inside the body. A loop variant vr - ap ensures termination, since ap increases by 1 each iteration while ap <= vr holds at the start of iterations.
-
-This approach provides a concise, inductive invariant set that Frama-C/WP can verify while keeping the original code otherwise unchanged.</reasoning>
-<code>/*@
-  loop invariant 1 <= ap && ap <= vr + 1;
-  loop invariant y == \at(y, Pre) + 3*(ap - 1);
-  loop assigns j, jkc, rr, hu, ap, y, d, i;
-  loop variant vr - ap;
-*/  
-while (ap <= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }</code>
------ Candidate 6/20 raw response end -----
-2026-03-22 22:31:04,538 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 22:31:04,565 - INFO -   Generating candidate 7/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:31:31,388 - INFO - 
------ Candidate 7/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants for the given loop. The loop progresses by increasing ap by 1 each iteration while ap <= vr. A simple yet strong invariant is to bound ap relative to vr and to express a conserved relation between y and ap: since y is increased by 3 every iteration, and ap increases by 1 each iteration, the quantity y - 3*(ap - 1) remains equal to its initial value (\at(y, Pre)). This provides a core state-transition relation that explains the updates of y and ap. Additionally, the loop guard implies 1 <= ap <= vr + 1 during execution, giving a tight bound on ap. We also specify the complete set of loop assigns to reflect all mutated variables inside the loop: jkc, rr, hu, ap, j, y, d, i. Finally, we include a loop variant to help termination proof: vr - ap + 1 decreases by 1 each iteration (as ap increments), and is non-negative while the loop guard holds. The chosen invariants are inductive (stable under each iteration) and do not rely on non-parameter locals beyond the allowed set. They are compatible with the available variables and constraints. </reasoning>
-<code>/*@
-  loop invariant 1 <= ap && ap <= vr + 1;
-  loop invariant y - 3*(ap - 1) == \at(y, Pre);
-  loop assigns jkc, rr, hu, ap, j, y, d, i;
-  loop variant vr - ap + 1;
-*/
-while (ap &lt;= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }</code>
------ Candidate 7/20 raw response end -----
-2026-03-22 22:31:31,388 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 22:31:31,403 - INFO -   Generating candidate 8/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:32:06,893 - INFO - 
------ Candidate 8/20 raw response begin -----
-<reasoning>The loop updates a number of integers, with a predictable, linear progress on two quantities:
-- ap is a loop counter that starts at 1 and is incremented by 1 each iteration. Therefore, ap is a monotone increasing counter with a simple progress bound ap >= 1.
-- y is updated unconditionally by +3 in every iteration. Since ap starts at 1 and increases by 1 per iteration, the number of iterations k equals ap - 1. Thus y advances by 3 for every increment of ap, yielding the exact relational equality:
-  y = y0 + 3*(ap - 1), where y0 is the initial value of y at function entry, i.e., \at(y,Pre).
-This gives a strong, inductive invariant that couples y and ap and is preserved by each iteration.
-
-A minimal but useful invariant about a loop-controlled flag that is reassigned deterministically each iteration is rr ∈ {1, -1}. Initially rr = 1, and in every iteration rr is assigned to either 1 or -1 depending on (ap/2)%2. Hence rr == 1 || rr == -1 holds at loop entry and is preserved.
-
-Thus we add:
-- ap >= 1 (progress bound for the loop counter)
-- y == \at(y,Pre) + 3*(ap - 1) (core conservation/relational invariant tying y and ap)
-- rr == 1 || rr == -1 (well-defined alternating update)
-
-We also declare the loop assigns to all variables that are modified inside the loop: ap, j, jkc, hu, y, d, i, rr.
-
-These invariants are inductive and verify the stated loop behavior without altering the original code. They avoid introducing unrelated facts, and they remain valid for all possible inputs of the function parameters j and y. The \at(y,Pre) usage is allowed since y is a function parameter.
-</reasoning>
-<code>/*@
-  loop invariant ap &gt;= 1;
-  loop invariant y == \at(y,Pre) + 3*(ap - 1);
-  loop invariant rr == 1 || rr == -1;
-  loop assigns ap, j, jkc, hu, y, d, i, rr;
-*/
-while (ap&deg;vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }</code>
------ Candidate 8/20 raw response end -----
-2026-03-22 22:32:06,895 - INFO -   Candidate 9 selected prompt: simple_cot.txt
-2026-03-22 22:32:06,912 - INFO -   Generating candidate 9/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:32:45,224 - INFO - 
------ Candidate 9/20 raw response begin -----
-<reasoning>We derive inductive, verification-friendly invariants for the loop.
-
-Key observations:
-- The loop counter ap starts at 1 and increments by 1 each iteration, with the guard ap <= vr. A natural, strong progress measure is vr - ap, which decreases by 1 each iteration while the loop runs.
-- The variable y increases by a fixed amount (3) on every iteration: y = y + 3.
-- Therefore, a simple, inductive relation between y at the start of an iteration and the initial y is:
-  y_current = y_at_entry + 3 * (number_of_iterations_so_far) = \at(y, Pre) + 3 * (ap - 1)
-  This is preserved across iterations because ap increments by 1 and y increments by 3 in each iteration.
-
-Thus we propose:
-- A core conservation/invariant: y == \at(y, Pre) + 3*(ap - 1)
-- A minimal progress bound on the loop counter: loop variant vr - ap (valid when ap <= vr)
-- A simple lower bound on ap to ensure nonnegative progression: ap >= 1
-- Additionally, to aid termination reasoning, a bound ap <= vr + 1 holds whenever the loop body is reachable (since the guard ensures ap <= vr at loop entry). We avoid using it to minimize potential issues at initialization, but we focus on the safe, inductive invariant above.
-
-We also declare the complete, exact loop assigns: jkc, rr, hu, ap, j, y, d, i. The invariant uses only allowed variables and the function parameter y via \at(y, Pre) (since y is a parameter), per the constraints.
-
-The resulting annotations ensure the invariant is true at loop entry, preserved by each iteration, and helps with verification in Frama-C/WP. The code itself is unchanged except for the added ACSL block. </reasoning>
-<code>/*@
-  loop invariant y == \at(y, Pre) + 3 * (ap - 1);
-  loop invariant ap &ge; 1;
-  loop variant (vr - ap);
-  loop assigns jkc, rr, hu, ap, j, y, d, i;
-*/
-while (ap &lt;= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }</code>
------ Candidate 9/20 raw response end -----
-2026-03-22 22:32:45,224 - INFO -   Candidate 10 selected prompt: simple_cot.txt
-2026-03-22 22:32:45,241 - INFO -   Generating candidate 10/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:33:35,055 - INFO - 
------ Candidate 10/20 raw response begin -----
-<reasoning>The loop operates on several variables and has a clear, monotone progression in certain values. To provide inductive, verification-friendly annotations, I chose:
-
-- A core conservation/relational equality that is preserved across iterations: the relation between y and ap. Since y is increased by 3 every iteration and ap is increased by 1 every iteration, the quantity y - 3*(ap - 1) remains equal to its initial value \at(y, Pre). This gives a strong, exact invariant tying two moving parts of the state.
-
-- Simple, safety-friendly bounds on state evolution:
-  - ap is always >= 1 (initialized to 1 and incremented by 1 each iteration).
-  - rr is always either 1 or -1 (set to exactly 1 or -1 in each iteration).
-
-- A termination/measure hint: a loop variant (vr + 1) - ap, which decreases by 1 each iteration while the loop guard holds (ap <= vr) and remains non-negative during loop execution.
-
-- A precise loop assigns listing: all variables that can be modified inside the loop (ap, j, jkc, rr, hu, y, d, i).
-
-All invariants are chosen to be true at loop entry (including the initial entry when the loop is entered) and preserved by each iteration, while using only allowed variables and the function parameter initial value \at(y, Pre). The result is a compact, strong, verification-friendly set of loop invariants and assigns that align with Frama-C/WP capabilities. </reasoning>
-<code>/* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant ap >= 1;
-  loop invariant rr == 1 || rr == -1;
-  loop invariant y - 3 * (ap - 1) == \at(y, Pre);
-  loop assigns ap, j, jkc, rr, hu, y, d, i;
-  loop variant (vr + 1) - ap;
-*/
-while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }</code>
------ Candidate 10/20 raw response end -----
-2026-03-22 22:33:35,057 - INFO -   Candidate 11 selected prompt: simple_cot.txt
-2026-03-22 22:33:35,072 - INFO -   Generating candidate 11/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:34:46,750 - INFO - 
------ Candidate 11/20 raw response begin -----
-<reasoning>
-I selected invariants that are (a) true at function entry with the given initializations, (b) preserved by each loop iteration, and (c) useful for WP to reason about termination and deterministic updates.
-
-Core conservation equality:
-- y is incremented by exactly +3 on every iteration, independent of any conditional. This gives the precise relation y == \at(y, Pre) + 3*(ap - 1). It is strong, simple, and inductive: initially ap==1 and y equals its initial value; each iteration increments ap and y consistently.
-
-Other helpful invariants:
-- vr is set before the loop as j-7 using the initial parameter j; vr does not change in the loop. So vr == \at(j, Pre) - 7 is a stable conservation fact (it uses \at on the parameter j, allowed).
-- rr is always either 1 or -1 (it is assigned only to 1 or -1 inside the loop).
-- ap is a 1-based iteration counter: it starts at 1 and increases by 1 each iteration. To keep the invariant true regardless of whether the loop is entered, I use ap >= 1 and the disjunction (ap == 1) || ap <= vr + 1. This form is true initially (ap == 1) and, when the guard holds (ap <= vr), ensures ap stays bounded during iterations.
-- For proving termination WP needs a non-negative variant; vr - ap + 1 decreases by 1 each iteration. I include the variant and also the invariant (ap == 1) || (vr - ap + 1 >= 0) to guarantee non-negativity in states where the invariant must hold.
-
-Loop assigns:
-- I list exactly the variables that the loop body writes: jkc, rr, hu, ap, j, y, d, i.
-
-These annotations are intentionally minimal, avoid quantifiers or any forbidden constructs, and use only available variables and \at(...) on parameters as allowed.
-</reasoning>
-<code>
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant ap >= 1;
-    loop invariant (ap == 1) || ap <= vr + 1;
-    loop invariant y == \at(y, Pre) + 3*(ap - 1);
-    loop invariant vr == \at(j, Pre) - 7;
-    loop invariant rr == 1 || rr == -1;
-    loop invariant (ap == 1) || (vr - ap + 1 >= 0);
-    loop assigns jkc, rr, hu, ap, j, y, d, i;
-    loop variant vr - ap + 1;
+    loop invariant 0 <= l && l <= r0;
+    loop invariant n == \at(n, Pre) + l;
+    loop invariant yn == \at(n, Pre) - (l % 2);
+    loop invariant ofs == c + (l + 1) / 2;
+    loop assigns yn, l, ofs, xioj, n;
+    loop variant r0 - l;
   */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
+  while (l < r0) {
+        yn = yn + (l % 2) * 2 - 1;
+        l = l + 1;
+        ofs = ofs+(l%2);
+        xioj = xioj+(yn%7);
+        n += 1;
   }
 
 }
-</code>
------ Candidate 11/20 raw response end -----
-2026-03-22 22:34:46,751 - INFO -   Candidate 12 selected prompt: simple_cot.txt
-2026-03-22 22:34:46,763 - INFO -   Generating candidate 12/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:35:41,104 - INFO - 
------ Candidate 12/20 raw response begin -----
-<reasoning>
-Goal: provide inductive, verification-friendly loop invariants for the given loop, keeping the original code intact and avoiding any unrelated or over-assertive properties.
+----- Candidate 2/5 full code end -----
+2026-04-07 09:31:44,565 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
 
-Key observations from the loop:
-- ap is initialized to 1 and incremented by 1 every iteration, with the loop guard ap <= vr. This yields a natural progress measure.
-- y is incremented by 3 every iteration. Initially y is its entry value; after k iterations, y = y_initial + 3*k. Since ap starts at 1 and increases by 1 per iteration, k = ap - 1.
-- vr is computed once before the loop as vr = j - 7 and is never modified inside the loop.
-- Other variables (j, jkc, hu, rr, d, i) are modified in more complex ways, making robust exact relational invariants about them harder and less robust. It's better to keep invariants focused on stable, accumulative quantities.
-
-Therefore, proponed invariants:
-- ap >= 1: ensures a basic lower bound on the loop counter, valid from entry and preserved since ap only increases.
-- y == \at(y, Pre) + 3 * (ap - 1): this strong, inductive invariant exactly captures the linear growth of y per iteration, using the initial value of y via \at(y, Pre).
-- vr == \at(j, Pre) - 7: vr is fixed at initialization as j - 7, and referencing the initial j via \at(j, Pre) correctly captures this constant relationship across iterations.
-- loop assigns: all variables that the loop may modify: j, jkc, hu, ap, rr, y, d, i.
-- loop variant: vr - ap + 1, which decreases by 1 every iteration (since ap increments by 1) and is non-negative during the loop (because the loop condition is ap <= vr).
-
-These invariants are inductive, directly related to the loop updates, and do not rely on unknowns or non-parameter state. They also avoid unsupported constructs and stay within the allowed variable usage.
-
-</reasoning>
-<code>int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
 
   /*@
-    loop invariant ap >= 1;
-    loop invariant y == \at(y, Pre) + 3 * (ap - 1);
-    loop invariant vr == \at(j, Pre) - 7;
-    loop assigns j, jkc, hu, ap, rr, y, d, i;
-    loop variant vr - ap + 1;
+    loop invariant n - \at(n, Pre) == l;
+    loop invariant 0 <= l && l <= r0;
+    loop invariant yn == \at(n, Pre) - (l % 2);
+    loop invariant ofs - \at(c, Pre) == (l + 1) / 2;
+    loop invariant -6 * l <= xioj && xioj <= 6 * l;
+    loop assigns yn, l, ofs, xioj, n;
+    loop variant (r0 - l);
   */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}</code>
------ Candidate 12/20 raw response end -----
-2026-03-22 22:35:41,105 - INFO -   Candidate 13 selected prompt: simple_cot.txt
-2026-03-22 22:35:41,117 - INFO -   Generating candidate 13/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:36:14,663 - INFO - 
------ Candidate 13/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop in main1. I chose invariants that are strong, composable, and easy for the WP prover to discharge, without modifying the code body.
-
-Key choices:
-- Core conservation/relational equality: y is incremented by 3 every iteration. Therefore, after ap-1 iterations, y equals its initial value plus 3*(ap-1). This gives the invariant y == \at(y, Pre) + 3*(ap - 1), which is preserved by each loop step.
-- Progress/invariance of loop counter: ap starts at 1 and increases by 1 each iteration while ap <= vr. A minimal, non-decreasing counter invariant is 1 <= ap. This is always true across iterations and supports the loop’s progression.
-- Loop variant for termination: vr - ap decreases by 1 each iteration (when the loop guard ap <= vr holds). The loop variant vr - ap ensures well-foundedness.
-- Loop assigns: The loop mutates j, jkc, hu, ap, y, d, i, rr. We explicitly declare these as the loop assigns.
-
-These invariants stay within the allowed variable set (ap, y, Pre value of y via \at(y, Pre), vr, j, jkc, hu, d, i, rr), and do not rely on disallowed constructs. The invariant about y uses \at(y, Pre) to reference the initial function argument value, as permitted for parameters. The invariants are intended to be strong enough to help Frama-C/WP discharge the verification conditions while remaining inductive and non-contrived. They are also compatible with the given loop guard and the exact updates performed inside the loop.</reasoning>
-<code>int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant y == \at(y, Pre) + 3*(ap - 1);
-    loop invariant 1 <= ap;
-    loop assigns j, jkc, hu, ap, y, d, i, rr;
-    loop variant vr - ap;
-  */
-while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}</code>
------ Candidate 13/20 raw response end -----
-2026-03-22 22:36:14,665 - INFO -   Candidate 14 selected prompt: simple_cot.txt
-2026-03-22 22:36:14,679 - INFO -   Generating candidate 14/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:36:59,548 - INFO - 
------ Candidate 14/20 raw response begin -----
-<reasoning>We need inductive loop annotations that are verification-friendly for Frama-C/WP. The loop updates several variables: jkc, rr, hu, ap, j, y, d, i. A strong, simple invariant that stays true across iterations is:
-
-- The relationship between y and ap: since y is increased by 3 every iteration and ap is increased by 1, y tracks the initial value of y via y - 3*(ap - 1) = initial_y. This uses the function parameter y and the initial value is expressible as \at(y,Pre). This gives a clean, exact conservation relation:
-  y - 3*(ap - 1) == \at(y,Pre)
-
-This invariant is preserved by each iteration (check by substituting y' = y + 3 and ap' = ap + 1).
-
-Additionally, a simple, global progress bound helps termination reasoning without depending on particular values that may cause corner cases. A minimal progress bound is:
-- loop variant vr - ap + 1
-where vr is computed from j (vr = j - 7). This value decreases by 1 each iteration (since ap increments by 1) and remains non-negative while the loop can execute (ap <= vr). This is a standard, verification-friendly variant for this loop.
-
-For loop assigns, we list all the variables that are modified inside the loop: j, jkc, rr, hu, ap, y, d, i.
-
-Plan:
-- Provide two invariants:
-  1) y - 3*(ap - 1) == \at(y,Pre)
-  2) ap >= 1 (kept simple to ensure a baseline truth; the combination with the variant ensures progress)
-  Note: The first invariant is the core conservation/equality; the second is a minimal, non-pathological bound.
-- Provide the loop variant: vr - ap + 1
-- Provide loop assigns: j, jkc, rr, hu, ap, y, d, i
-
-This set is inductive (preserved by every iteration under the loop guard) and helps formal verification without altering the program semantics or using unsupported constructs. The unknown() calls remain untouched, and \at(y,Pre) refers to the initial parameter value of y as allowed.
-
-</reasoning>
-<code>int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@ 
-    loop invariant y - 3*(ap - 1) == \at(y,Pre);
-    loop invariant ap >= 1;
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap + 1;
-  @*/
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}</code>
------ Candidate 14/20 raw response end -----
-2026-03-22 22:36:59,549 - INFO -   Candidate 15 selected prompt: simple_cot.txt
-2026-03-22 22:36:59,562 - INFO -   Generating candidate 15/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:37:40,008 - INFO - 
------ Candidate 15/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants for the given loop. Key observations:
-- ap is the loop counter; it starts at 1 and increments by 1 each iteration, and the loop runs while ap <= vr. Therefore, across iterations, ap progresses deterministically by +1 and is always >= 1 at loop heads.
-- rr is updated every iteration based on the current ap value, via rr = 1 if ((ap/2)%2==0) else rr = -1. Since the invariant must hold at loop heads (i.e., after the previous iteration finished), rr corresponds to the previous ap value, which is (ap-1) used in the computation. A robust relation is rr depends on (ap-1) via (ap-1)/2 and its parity. The invariant that rr == 1 iff ((ap-1)/2) % 2 == 0 (and conversely rr == -1 iff ((ap-1)/2) % 2 != 0) captures this consistent relation across iterations without needing to reference intermediate steps.
-- y is increased by 3 each iteration, starting from its initial value. After k iterations, ap = 1 + k, and y = y0 + 3k. Hence y == y0 + 3*(ap - 1) at loop heads, where y0 is the initial value of the parameter y. Using \at(y, Pre) allows capturing the initial value of y.
-- We must list exact loop assigns: jkc, rr, hu, ap, j, y, d, i (these are the variables updated within the loop).
-
-Thus, the invariants we add are:
-- 1 <= ap
-- ((ap - 1) / 2) % 2 == 0 ==> (rr == 1)
-- ((ap - 1) / 2) % 2 != 0 ==> (rr == -1)
-- y == \at(y, Pre) + 3*(ap - 1)
-
-These invariants are strong, inductive, and rely only on the variables available. They don't introduce unrelated facts and do not modify the code. The loop assigns are exactly the variables modified inside the loop. </reasoning>
-<code>int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant 1 <= ap;
-    loop invariant ((ap - 1) / 2) % 2 == 0 ==> (rr == 1);
-    loop invariant ((ap - 1) / 2) % 2 != 0 ==> (rr == -1);
-    loop invariant y == \at(y, Pre) + 3*(ap - 1);
-    loop assigns jkc, rr, hu, ap, j, y, d, i;
-  */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}</code>
------ Candidate 15/20 raw response end -----
-2026-03-22 22:37:40,010 - INFO -   Candidate 16 selected prompt: simple_cot.txt
-2026-03-22 22:37:40,025 - INFO -   Generating candidate 16/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:38:25,714 - INFO - 
------ Candidate 16/20 raw response begin -----
-<reasoning>The loop is driven by ap, starting at 1, with the guard ap <= vr and ap++, so a simple, inductive, verification-friendly set of invariants is:
-
-- 1 <= ap: guaranteed by initialization (ap = 1) and preserved because ap is incremented by 1 inside the loop when the guard holds.
-- rr == 1 || rr == -1: rr is explicitly assigned to either 1 or -1 in every iteration (depending on the parity condition). This invariant asserts that rr always remains one of those two values.
-- loop assigns lists all variables that can be modified within the loop body (j, jkc, rr, hu, ap, y, d, i). This is a standard, complete assigns set to help Frama-C WP reason about side effects.
-- loop variant vr - ap: a decreasing quantity guaranteed to be non-negative whenever the loop guard holds (since ap <= vr in the loop). This ensures termination (progress measure).
-
-These invariants are inductive: they hold before the first iteration (from initialization) and are preserved by every iteration of the loop body, given the code as written. They avoid relying on complex, hard-to-prove relationships between i, d, hu, jkc, etc., while still being helpful for verification. They respect the constraint that loop guard is not treated as an invariant, use only allowed variables, and avoid tautologies or forbidden constructs. </reasoning>
-<code>int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant 1 <= ap;
-    loop invariant rr == 1 || rr == -1;
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap;
-  */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}</code>
------ Candidate 16/20 raw response end -----
-2026-03-22 22:38:25,714 - INFO -   Candidate 17 selected prompt: simple_cot.txt
-2026-03-22 22:38:25,727 - INFO -   Generating candidate 17/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:39:23,872 - INFO - 
------ Candidate 17/20 raw response begin -----
-<reasoning>We need inductive loop annotations that are verification-friendly for Frama-C/WP. The loop uses a simple counter-like variable ap that starts at 1 and increments by 1 each iteration while ap <= vr. A minimal but strong invariant pattern is to capture the counter bounds that are preserved across iterations and to provide a decreasing loop variant to guarantee termination.
-
-- Core conservation/relational equality: Although the loop updates many variables, a predictable, inductive property we can safely maintain is the ap counter range. Since ap starts at 1 and is incremented by 1 each iteration, and the loop continues only while ap <= vr, a natural inductive invariant is that ap always stays within [1, vr+1] during the loop. We express this as two simple invariants: 1 <= ap and ap <= vr + 1. Together they are preserved by each iteration whenever the loop continues.
-- Minimal progress bounds: The loop counter ap strictly increases by 1 per iteration, so vr - ap decreases by 1 each time the loop proceeds. We provide a loop variant vr - ap to satisfy termination reasoning.
-- Loop assigns: The loop modifies the variables j, jkc, hu, ap, y, d, i, rr. We explicitly declare these as assigned by the loop.
-- No modification to the original code; only ACSL annotations are added.
-
-These invariants are intended to be strong enough to guide the WP prover without over-constraining or relying on unlikely exact arithmetic forms for the more complex expressions inside the loop body (like d, i, and hu evolution). They leverage the loop’s counter nature and are preserved across iterations when the loop guard holds.
-
-</reasoning>
-<code>/*@
-  loop invariant 1 <= ap;
-  loop invariant ap <= vr + 1;
-  loop assigns j, jkc, hu, ap, y, d, i, rr;
-  loop variant vr - ap;
-*/
-while (ap &lt;= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }</code>
------ Candidate 17/20 raw response end -----
-2026-03-22 22:39:23,873 - INFO -   Candidate 18 selected prompt: simple_cot.txt
-2026-03-22 22:39:23,888 - INFO -   Generating candidate 18/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:39:51,315 - INFO - 
------ Candidate 18/20 raw response begin -----
-<reasoning>To synthesize inductive loop invariants that are verification-friendly for Frama-C/WP, I focused on a core conservation relation that is actually preserved by every iteration and a simple progress bound for the loop counter. The loop deterministically updates y by +3 each iteration, so we can express y in terms of its initial value and the number of iterations. Since ap starts at 1 and increases by 1 each iteration while ap <= vr, the number of iterations is (ap - 1) when the loop guard is evaluated, making the relation exact: y == y0 + 3*(ap - 1) where y0 is the initial value of y (captured via \at(y, Pre)). This provides a strong, exact invariant.
-
-Additionally, ap is bounded by the loop guard: whenever the loop guard is true, ap <= vr, which implies ap <= vr + 1. This is a natural progress bound that helps the verifier reason about loop progression without over-constraining the state.
-
-I also provide a loop variant to aid termination proof: vr - ap + 1 decreases by 1 every iteration (since ap increases by 1) and is non-negative while the loop can execute. Finally, the loop assigns list includes all variables explicitly modified in the loop body: ap, jkc, hu, rr, j, y, d, i. This ensures the loop’s side effects are fully captured.
-
-These invariants are inductive (preserved by the body) and do not rely on uncertain or local-state-only facts. They also respect the constraint of not modifying the original function code, and they avoid forbidden constructs. </reasoning>
-<code>int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant y == \at(y, Pre) + 3*(ap - 1);
-    loop invariant ap <= vr + 1;
-    loop assigns ap, jkc, hu, rr, j, y, d, i;
-    loop variant vr - ap + 1;
-  @*/
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}</code>
------ Candidate 18/20 raw response end -----
-2026-03-22 22:39:51,315 - INFO -   Candidate 19 selected prompt: simple_cot.txt
-2026-03-22 22:39:51,329 - INFO -   Generating candidate 19/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:40:37,786 - INFO - 
------ Candidate 19/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations. I identified a concise, exact relational invariant that captures the core state progression across iterations:
-
-- i - vr == d
-  This holds initially since i = vr and d = 0. Suppose it holds before an iteration (i_head - vr = d_head). Inside the iteration, d is updated to d_next = d_head + jkc_next + ap_head and i is updated to i_next = i_head + d_next. Therefore i_next - vr = d_next, so the invariant holds at the start of the next iteration. By induction, (i - vr) == d is preserved every iteration.
-
-Additionally, a simple, strong bound on the loop counter ap helps terminate reasoning and is generally useful for WP:
-
-- 1 <= ap <= vr + 1
-  ap starts at 1 and is incremented each iteration. The loop guard is ap <= vr, so the loop executes at most vr times, yielding ap ∈ [1, vr+1] during the loop.
-
-These two invariants are inductive and help reason about progression, while the required set of loop assigns is exact for the mutated variables inside the loop: jkc, rr, hu, ap, j, y, d, i.
-
-I did not introduce any unrelated invariants, and I kept the code unchanged apart from the ACSL annotations. The invariant i - vr == d is tight and explains the primary state progression (i grows by the accumulating d), and the ap bound provides a straightforward progress measure. The loop – assigns list is complete for all variables that can be modified inside the loop. No use of at-Pre on local variables is needed here.
-
-</reasoning>
-<code>/*@ 
-  loop invariant (i - vr) == d;
-  loop invariant 1 &lt;= ap &amp;  vr + 1;
-  loop assigns jkc, rr, hu, ap, j, y, d, i;
-*/
-while (ap &lt;= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }</code>
------ Candidate 19/20 raw response end -----
-2026-03-22 22:40:37,787 - INFO -   Candidate 20 selected prompt: simple_cot.txt
-2026-03-22 22:40:37,802 - INFO -   Generating candidate 20/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 20/20 raw response begin -----
-<reasoning>
-To make the loop verification-friendly in Frama-C/WP, I keep the invariants tight and termination-guiding while avoiding dependence on complex internal state that is hard to prove invariant for inductiveness.
-
-Key points:
-- The loop guard is ap <= vr. A natural inductive measure is vr - ap, which decreases by 1 every iteration while the loop runs, and is non-negative whenever the loop body executes. This gives a clean loop_variant for termination.
-- The loop has several state updates (ap, jkc, rr, hu, y, d, i, and possibly j through the conditional). To be safe and not overcommit on proving more intricate relational properties, I provide a minimal but sound invariant that does not rely on the potentially unbounded arithmetic of j, hu, or i. A simple invariant that always holds is a basic bound on ap, which is always non-decreasing from a known starting point.
-- I include a complete loop assigns list covering all modified variables: j, jkc, rr, hu, ap, y, d, i.
-- I avoid using unknown() or unknownN(), and I do not use \at() on local variables (only function parameters would be allowed with \at, but we keep the invariant independent of those since they are not necessary for termination reasoning here).
-
-The resulting invariants are inductive (they hold initially and are preserved by each iteration) and help WP prove loop termination via the loop_variant vr - ap.
-</reasoning>
-<code>
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant 1 <= ap;
-    loop invariant 0 <= ap;
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap;
-  */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
+while (l < r0) {
+      yn = yn + (l % 2) * 2 - 1;
+      l = l + 1;
+      ofs = ofs+(l%2);
+      xioj = xioj+(yn%7);
+      n += 1;
   }
 
 }
-</code>
------ Candidate 20/20 raw response end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 1/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
+----- Candidate 3/5 full code end -----
+2026-04-07 09:31:44,565 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
 
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
 
   /*@
-    loop invariant 1 <= ap <= vr + 1;
-    loop invariant y == \at(y,Pre) + 3*(ap - 1);
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap;
+    loop invariant yn == \at(n, Pre) - (l % 2);
+    loop invariant ofs == \at(c, Pre) + (l + 1) / 2;
+    loop invariant n == \at(n, Pre) + l;
+    loop invariant 0 <= l && l <= r0;
+    loop invariant -6 * l <= xioj && xioj <= 6 * l;
+    loop assigns yn, l, ofs, xioj, n;
+    loop variant r0 - l;
   */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
+  while (l < r0) {
+        yn = yn + (l % 2) * 2 - 1;
+        l = l + 1;
+        ofs = ofs+(l%2);
+        xioj = xioj+(yn%7);
+        n += 1;
   }
 
 }
------ Candidate 1/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 2/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
+----- Candidate 4/5 full code end -----
+2026-04-07 09:31:44,565 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int c,int n){
+  int r0, l, yn, ofs, xioj;
 
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
+  r0=52;
+  l=0;
+  yn=n;
+  ofs=c;
+  xioj=l;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant (y - \at(y,Pre)) == 3*(ap - 1);
-    loop invariant ap >= 1;
-    loop invariant (rr == 1) || (rr == -1);
-    loop assigns jkc, rr, hu, ap, j, y, d, i;
-    loop variant (vr - ap + 1);
+    loop invariant 0 <= l && l <= r0;
+    loop invariant n == \at(n, Pre) + l;
+    loop invariant yn == \at(n, Pre) - (l % 2);
+    loop invariant ofs >= \at(c, Pre) && ofs <= \at(c, Pre) + l;
+    loop invariant xioj >= -6 * l && xioj <= 6 * l;
+    loop assigns yn, l, ofs, xioj, n;
+    loop variant r0 - l;
   */
-while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
+while (l < r0) {
+      yn = yn + (l % 2) * 2 - 1;
+      l = l + 1;
+      ofs = ofs+(l%2);
+      xioj = xioj+(yn%7);
+      n += 1;
   }
 
 }
------ Candidate 2/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 3/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 1 <= ap <= vr + 1;
-    loop invariant 0 <= vr - ap;
-    loop invariant rr == 1 || rr == -1;
-    loop assigns j, jkc, hu, ap, y, d, i, rr;
-    loop variant vr - ap;
-  */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 3/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 4/20 full code begin -----
-/*@
-  loop invariant vr == j - 7;
-  loop invariant ap >= 1;
-  loop invariant (rr == 1) || (rr == -1);
-  loop invariant y >= \at(y, Pre);
-  loop variant vr - ap + 1;
-
-  loop assigns ap, jkc, rr, hu, j, y, d, i;
-*/ 
-while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
------ Candidate 4/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 5/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant ap >= 1;
-    loop invariant rr == 1 || rr == -1;
-    loop invariant y == \at(y,Pre) + 3*(ap - 1);
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap + 1;
-  @*/
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 5/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 6/20 full code begin -----
-/*@
-  loop invariant 1 <= ap && ap <= vr + 1;
-  loop invariant y == \at(y, Pre) + 3*(ap - 1);
-  loop assigns j, jkc, rr, hu, ap, y, d, i;
-  loop variant vr - ap;
-*/  
-while (ap <= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
------ Candidate 6/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 7/20 full code begin -----
-/*@
-  loop invariant 1 <= ap && ap <= vr + 1;
-  loop invariant y - 3*(ap - 1) == \at(y, Pre);
-  loop assigns jkc, rr, hu, ap, j, y, d, i;
-  loop variant vr - ap + 1;
-*/
-while (ap &lt;= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
------ Candidate 7/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 8/20 full code begin -----
-/*@
-  loop invariant ap &gt;= 1;
-  loop invariant y == \at(y,Pre) + 3*(ap - 1);
-  loop invariant rr == 1 || rr == -1;
-  loop assigns ap, j, jkc, hu, y, d, i, rr;
-*/
-while (ap&deg;vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
------ Candidate 8/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 9/20 full code begin -----
-/*@
-  loop invariant y == \at(y, Pre) + 3 * (ap - 1);
-  loop invariant ap &ge; 1;
-  loop variant (vr - ap);
-  loop assigns jkc, rr, hu, ap, j, y, d, i;
-*/
-while (ap &lt;= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
------ Candidate 9/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 10/20 full code begin -----
-/* >>> LOOP INVARIANT TO FILL <<< */
-/*@
-  loop invariant ap >= 1;
-  loop invariant rr == 1 || rr == -1;
-  loop invariant y - 3 * (ap - 1) == \at(y, Pre);
-  loop assigns ap, j, jkc, rr, hu, y, d, i;
-  loop variant (vr + 1) - ap;
-*/
-while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
------ Candidate 10/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 11/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant ap >= 1;
-    loop invariant (ap == 1) || ap <= vr + 1;
-    loop invariant y == \at(y, Pre) + 3*(ap - 1);
-    loop invariant vr == \at(j, Pre) - 7;
-    loop invariant rr == 1 || rr == -1;
-    loop invariant (ap == 1) || (vr - ap + 1 >= 0);
-    loop assigns jkc, rr, hu, ap, j, y, d, i;
-    loop variant vr - ap + 1;
-  */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 11/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 12/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant ap >= 1;
-    loop invariant y == \at(y, Pre) + 3 * (ap - 1);
-    loop invariant vr == \at(j, Pre) - 7;
-    loop assigns j, jkc, hu, ap, rr, y, d, i;
-    loop variant vr - ap + 1;
-  */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 12/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 13/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant y == \at(y, Pre) + 3*(ap - 1);
-    loop invariant 1 <= ap;
-    loop assigns j, jkc, hu, ap, y, d, i, rr;
-    loop variant vr - ap;
-  */
-while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 13/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 14/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@ 
-    loop invariant y - 3*(ap - 1) == \at(y,Pre);
-    loop invariant ap >= 1;
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap + 1;
-  @*/
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 14/20 full code end -----
-2026-03-22 22:41:36,920 - INFO - 
------ Candidate 15/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant 1 <= ap;
-    loop invariant ((ap - 1) / 2) % 2 == 0 ==> (rr == 1);
-    loop invariant ((ap - 1) / 2) % 2 != 0 ==> (rr == -1);
-    loop invariant y == \at(y, Pre) + 3*(ap - 1);
-    loop assigns jkc, rr, hu, ap, j, y, d, i;
-  */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 15/20 full code end -----
-2026-03-22 22:41:36,921 - INFO - 
------ Candidate 16/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant 1 <= ap;
-    loop invariant rr == 1 || rr == -1;
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap;
-  */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 16/20 full code end -----
-2026-03-22 22:41:36,921 - INFO - 
------ Candidate 17/20 full code begin -----
-/*@
-  loop invariant 1 <= ap;
-  loop invariant ap <= vr + 1;
-  loop assigns j, jkc, hu, ap, y, d, i, rr;
-  loop variant vr - ap;
-*/
-while (ap &lt;= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
------ Candidate 17/20 full code end -----
-2026-03-22 22:41:36,921 - INFO - 
------ Candidate 18/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant y == \at(y, Pre) + 3*(ap - 1);
-    loop invariant ap <= vr + 1;
-    loop assigns ap, jkc, hu, rr, j, y, d, i;
-    loop variant vr - ap + 1;
-  @*/
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 18/20 full code end -----
-2026-03-22 22:41:36,921 - INFO - 
------ Candidate 19/20 full code begin -----
-/*@ 
-  loop invariant (i - vr) == d;
-  loop invariant 1 &lt;= ap &amp;  vr + 1;
-  loop assigns jkc, rr, hu, ap, j, y, d, i;
-*/
-while (ap &lt;= vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
------ Candidate 19/20 full code end -----
-2026-03-22 22:41:36,921 - INFO - 
------ Candidate 20/20 full code begin -----
-int main1(int j,int y){
-  int vr, u, jkc, hu, ap, rr, i, d;
-
-  vr=j-7;
-  u=0;
-  jkc=1;
-  hu=1;
-  ap=1;
-  rr=1;
-  i=vr;
-  d=u;
-
-  /*@
-    loop invariant 1 <= ap;
-    loop invariant 0 <= ap;
-    loop assigns j, jkc, rr, hu, ap, y, d, i;
-    loop variant vr - ap;
-  */
-  while (ap<=vr) {
-      jkc = jkc*(j/ap);
-      if ((ap/2)%2==0) {
-          rr = 1;
-      }
-      else {
-          rr = -1;
-      }
-      hu = hu+rr*jkc;
-      ap += 1;
-      jkc = jkc*(j/ap);
-      if (hu*hu<=vr+4) {
-          j = j*2;
-      }
-      y = y + 3;
-      d = d+jkc+ap;
-      i += d;
-      d += j;
-  }
-
-}
------ Candidate 20/20 full code end -----
-2026-03-22 22:41:36,921 - INFO - Successfully generated 20/20 candidates
-2026-03-22 22:41:36,923 - INFO - Checking 20 invariants for conflicts...
-2026-03-22 22:41:36,925 - INFO -   Conflict detected:
-2026-03-22 22:41:36,925 - INFO -     [5] (rr == 1) || (rr == -1)
-2026-03-22 22:41:36,925 - INFO -     [17] ((ap - 1) / 2) % 2 != 0 ==> (rr == -1)
-2026-03-22 22:41:36,927 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 22:41:36,928 - INFO -   1: int main1(int j,int y){
-2026-03-22 22:41:36,928 - INFO -   2:   int vr, u, jkc, hu, ap, rr, i, d;
-2026-03-22 22:41:36,928 - INFO -   3: 
-2026-03-22 22:41:36,928 - INFO -   4:   vr=j-7;
-2026-03-22 22:41:36,928 - INFO -   5:   u=0;
-2026-03-22 22:41:36,928 - INFO -   6:   jkc=1;
-2026-03-22 22:41:36,928 - INFO -   7:   hu=1;
-2026-03-22 22:41:36,928 - INFO -   8:   ap=1;
-2026-03-22 22:41:36,928 - INFO -   9:   rr=1;
-2026-03-22 22:41:36,928 - INFO -   10:   i=vr;
-2026-03-22 22:41:36,928 - INFO - DEBUG: Total lines: 57
-2026-03-22 22:41:37,209 - INFO - syntax Correct
-2026-03-22 22:42:38,741 - INFO - Validate:
-2026-03-22 22:42:38,742 - INFO - [False, True, True, True, True, False, True, False, True, True, True, True, True, True, True, True, True, False, True]
-2026-03-22 22:42:38,742 - INFO - 
-2026-03-22 22:42:38,743 - INFO - Verify:
-2026-03-22 22:42:38,743 - INFO - []
-2026-03-22 22:42:38,743 - INFO - 
-2026-03-22 22:42:38,743 - INFO - Houdini iteration 1: Removed 4 failed invariants
-2026-03-22 22:42:38,743 - INFO -   Before: 19 invariants
-2026-03-22 22:42:38,743 - INFO -   After: 15 invariants
-2026-03-22 22:42:38,743 - INFO -   Remaining invariants:
-2026-03-22 22:42:38,743 - INFO -     [1] y == \at(y,Pre) + 3*(ap - 1)
-2026-03-22 22:42:38,743 - INFO -     [2] (y - \at(y,Pre)) == 3*(ap - 1)
-2026-03-22 22:42:38,743 - INFO -     [3] ap >= 1
-2026-03-22 22:42:38,743 - INFO -     [4] (rr == 1) || (rr == -1)
-2026-03-22 22:42:38,743 - INFO -     [5] rr == 1 || rr == -1
-2026-03-22 22:42:38,743 - INFO -     [6] y >= \at(y, Pre)
-2026-03-22 22:42:38,743 - INFO -     [7] 1 <= ap && ap <= vr + 1
-2026-03-22 22:42:38,743 - INFO -     [8] y - 3*(ap - 1) == \at(y, Pre)
-2026-03-22 22:42:38,743 - INFO -     [9] (ap == 1) || ap <= vr + 1
-2026-03-22 22:42:38,743 - INFO -     [10] vr == \at(j, Pre) - 7
-2026-03-22 22:42:38,743 - INFO -     [11] (ap == 1) || (vr - ap + 1 >= 0)
-2026-03-22 22:42:38,743 - INFO -     [12] 1 <= ap
-2026-03-22 22:42:38,743 - INFO -     [13] ((ap - 1) / 2) % 2 == 0 ==> (rr == 1)
-2026-03-22 22:42:38,743 - INFO -     [14] ap <= vr + 1
-2026-03-22 22:42:38,743 - INFO -     [15] 0 <= ap
-2026-03-22 22:42:38,969 - INFO - syntax Correct
-2026-03-22 22:43:10,103 - INFO - Validate:
-2026-03-22 22:43:10,104 - INFO - [True, True, True, True, True, True, False, True, True, True, True, True, True, True, True]
-2026-03-22 22:43:10,104 - INFO - 
-2026-03-22 22:43:10,104 - INFO - Verify:
-2026-03-22 22:43:10,104 - INFO - []
-2026-03-22 22:43:10,104 - INFO - 
-2026-03-22 22:43:10,104 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-22 22:43:10,104 - INFO -   Before: 15 invariants
-2026-03-22 22:43:10,104 - INFO -   After: 14 invariants
-2026-03-22 22:43:10,104 - INFO -   Remaining invariants:
-2026-03-22 22:43:10,104 - INFO -     [1] y == \at(y,Pre) + 3*(ap - 1)
-2026-03-22 22:43:10,104 - INFO -     [2] (y - \at(y,Pre)) == 3*(ap - 1)
-2026-03-22 22:43:10,104 - INFO -     [3] ap >= 1
-2026-03-22 22:43:10,104 - INFO -     [4] (rr == 1) || (rr == -1)
-2026-03-22 22:43:10,104 - INFO -     [5] rr == 1 || rr == -1
-2026-03-22 22:43:10,104 - INFO -     [6] y >= \at(y, Pre)
-2026-03-22 22:43:10,104 - INFO -     [7] y - 3*(ap - 1) == \at(y, Pre)
-2026-03-22 22:43:10,104 - INFO -     [8] (ap == 1) || ap <= vr + 1
-2026-03-22 22:43:10,104 - INFO -     [9] vr == \at(j, Pre) - 7
-2026-03-22 22:43:10,104 - INFO -     [10] (ap == 1) || (vr - ap + 1 >= 0)
-2026-03-22 22:43:10,104 - INFO -     [11] 1 <= ap
-2026-03-22 22:43:10,104 - INFO -     [12] ((ap - 1) / 2) % 2 == 0 ==> (rr == 1)
-2026-03-22 22:43:10,104 - INFO -     [13] ap <= vr + 1
-2026-03-22 22:43:10,104 - INFO -     [14] 0 <= ap
-2026-03-22 22:43:10,351 - INFO - syntax Correct
-2026-03-22 22:43:41,484 - INFO - Validate:
-2026-03-22 22:43:41,484 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, False, True]
-2026-03-22 22:43:41,484 - INFO - 
-2026-03-22 22:43:41,485 - INFO - Verify:
-2026-03-22 22:43:41,485 - INFO - []
-2026-03-22 22:43:41,485 - INFO - 
-2026-03-22 22:43:41,485 - INFO - Houdini iteration 3: Removed 1 failed invariants
-2026-03-22 22:43:41,485 - INFO -   Before: 14 invariants
-2026-03-22 22:43:41,485 - INFO -   After: 13 invariants
-2026-03-22 22:43:41,485 - INFO -   Remaining invariants:
-2026-03-22 22:43:41,485 - INFO -     [1] y == \at(y,Pre) + 3*(ap - 1)
-2026-03-22 22:43:41,485 - INFO -     [2] (y - \at(y,Pre)) == 3*(ap - 1)
-2026-03-22 22:43:41,485 - INFO -     [3] ap >= 1
-2026-03-22 22:43:41,485 - INFO -     [4] (rr == 1) || (rr == -1)
-2026-03-22 22:43:41,485 - INFO -     [5] rr == 1 || rr == -1
-2026-03-22 22:43:41,485 - INFO -     [6] y >= \at(y, Pre)
-2026-03-22 22:43:41,485 - INFO -     [7] y - 3*(ap - 1) == \at(y, Pre)
-2026-03-22 22:43:41,485 - INFO -     [8] (ap == 1) || ap <= vr + 1
-2026-03-22 22:43:41,485 - INFO -     [9] vr == \at(j, Pre) - 7
-2026-03-22 22:43:41,485 - INFO -     [10] (ap == 1) || (vr - ap + 1 >= 0)
-2026-03-22 22:43:41,485 - INFO -     [11] 1 <= ap
-2026-03-22 22:43:41,485 - INFO -     [12] ((ap - 1) / 2) % 2 == 0 ==> (rr == 1)
-2026-03-22 22:43:41,485 - INFO -     [13] 0 <= ap
-2026-03-22 22:43:41,731 - INFO - syntax Correct
-2026-03-22 22:44:12,826 - INFO - Validate:
-2026-03-22 22:44:12,827 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:44:12,827 - INFO - 
-2026-03-22 22:44:12,827 - INFO - Verify:
-2026-03-22 22:44:12,827 - INFO - []
-2026-03-22 22:44:12,827 - INFO - 
-2026-03-22 22:44:12,827 - INFO - Houdini iteration 4: All invariants are valid
-2026-03-22 22:44:13,111 - INFO - syntax Correct
-2026-03-22 22:44:44,260 - INFO - Validate:
-2026-03-22 22:44:44,260 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:44:44,260 - INFO - 
-2026-03-22 22:44:44,260 - INFO - Verify:
-2026-03-22 22:44:44,260 - INFO - []
-2026-03-22 22:44:44,260 - INFO - 
-2026-03-22 22:45:03,785 - INFO - Deduplicated 7 loop invariants in final code
-2026-03-22 22:45:04,046 - INFO - syntax Correct
-2026-03-22 22:45:34,956 - INFO - Validate:
-2026-03-22 22:45:34,956 - INFO - [True, True, True, True, True, True]
-2026-03-22 22:45:34,956 - INFO - 
-2026-03-22 22:45:34,957 - INFO - Verify:
-2026-03-22 22:45:34,957 - INFO - []
-2026-03-22 22:45:34,957 - INFO - 
-2026-03-22 22:45:34,957 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 22:45:34,957 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_1/1.c
-2026-03-22 22:45:34,957 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_1/1_invariants.txt
-2026-03-22 22:45:34,957 - INFO - 
+----- Candidate 5/5 full code end -----
+2026-04-07 09:31:44,565 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:31:44,566 - INFO - Checking 14 invariants for conflicts...
+2026-04-07 09:31:44,572 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:31:44,572 - INFO -   1: int main1(int c,int n){
+2026-04-07 09:31:44,572 - INFO -   2:   int r0, l, yn, ofs, xioj;
+2026-04-07 09:31:44,572 - INFO -   3: 
+2026-04-07 09:31:44,572 - INFO -   4:   r0=52;
+2026-04-07 09:31:44,572 - INFO -   5:   l=0;
+2026-04-07 09:31:44,572 - INFO -   6:   yn=n;
+2026-04-07 09:31:44,572 - INFO -   7:   ofs=c;
+2026-04-07 09:31:44,572 - INFO -   8:   xioj=l;
+2026-04-07 09:31:44,572 - INFO -   9: 
+2026-04-07 09:31:44,573 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-04-07 09:31:44,573 - INFO - DEBUG: Total lines: 37
+2026-04-07 09:31:44,595 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:31:44,595 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:31:44,595 - INFO - Houdini iteration 1: Removed 14 failed invariants
+2026-04-07 09:31:44,595 - INFO -   Before: 14 invariants
+2026-04-07 09:31:44,595 - INFO -   After: 0 invariants
+2026-04-07 09:31:44,595 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:31:44,621 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:32:15,690 - INFO - Deduplicated 13 loop invariants in final code
+2026-04-07 09:32:15,722 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:32:15,722 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:32:15,723 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:32:15,723 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_1/1.c
+2026-04-07 09:32:15,723 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_1/1_invariants.txt
+2026-04-07 09:32:15,723 - INFO - 
 ============================================================
-2026-03-22 22:45:34,957 - INFO - Final first_pass results:
-2026-03-22 22:45:34,957 - INFO -   syntax=1
-2026-03-22 22:45:34,957 - INFO -   valid=1
-2026-03-22 22:45:34,957 - INFO -   satisfy=None
-2026-03-22 22:45:34,957 - INFO - ============================================================
-2026-03-22 22:45:34,957 - INFO - 
+2026-04-07 09:32:15,723 - INFO - Final first_pass results:
+2026-04-07 09:32:15,723 - INFO -   syntax=None
+2026-04-07 09:32:15,723 - INFO -   valid=None
+2026-04-07 09:32:15,723 - INFO -   satisfy=None
+2026-04-07 09:32:15,723 - INFO - ============================================================
+2026-04-07 09:32:15,723 - INFO - 
 ============================================================
-2026-03-22 22:45:34,957 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 22:45:34,957 - INFO -   Total API calls: 5
-2026-03-22 22:45:34,957 - INFO -   Total prompt tokens (input): 5,963
-2026-03-22 22:45:34,957 - INFO -   Total completion tokens (output): 43,460
-2026-03-22 22:45:34,957 - INFO -   Total tokens: 49,423
-2026-03-22 22:45:34,957 - INFO -   Average per call:
-2026-03-22 22:45:34,957 - INFO -     Prompt: 1192.6 tokens
-2026-03-22 22:45:34,957 - INFO -     Completion: 8692.0 tokens
-2026-03-22 22:45:34,957 - INFO -     Total: 9884.6 tokens
-2026-03-22 22:45:34,957 - INFO - ============================================================
-2026-03-22 22:45:34,958 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_1/1.c
-2026-03-22 22:45:34,958 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_1/1_invariants.txt
-2026-03-22 22:45:58,503 - INFO - LLM quality-gate raw response: {
-  "ok": false,
-  "reason": "The invariant ((ap - 1) / 2) % 2 == 0 ==> (rr == 1) is not inductive: when ap == 2 the antecedent is true but rr is set to -1 in the loop body, violating the consequent. Hence the invariant isn't preserved by iterations. Also there is no explicit loop-variant to certify termination; progress bounds are insufficient for a robust termination argument."
-}
+2026-04-07 09:32:15,723 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:32:15,723 - INFO -   Total API calls: 2
+2026-04-07 09:32:15,723 - INFO -   Total prompt tokens (input): 2,192
+2026-04-07 09:32:15,723 - INFO -   Total completion tokens (output): 5,822
+2026-04-07 09:32:15,723 - INFO -   Total tokens: 8,014
+2026-04-07 09:32:15,723 - INFO -   Average per call:
+2026-04-07 09:32:15,723 - INFO -     Prompt: 1096.0 tokens
+2026-04-07 09:32:15,723 - INFO -     Completion: 2911.0 tokens
+2026-04-07 09:32:15,723 - INFO -     Total: 4007.0 tokens
+2026-04-07 09:32:15,723 - INFO - ============================================================
+2026-04-07 09:32:15,723 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_1/1.c
+2026-04-07 09:32:15,724 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_1/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

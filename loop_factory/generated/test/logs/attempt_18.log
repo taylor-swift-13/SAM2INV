@@ -1,706 +1,500 @@
-2026-03-22 23:15:59,646 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 23:15:59,704 - INFO - Found 1 loops
-2026-03-22 23:15:59,705 - INFO - 
+2026-04-07 09:25:08,578 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:25:08,589 - INFO - Found 1 loops
+2026-04-07 09:25:08,590 - INFO - 
 ============================================================
-2026-03-22 23:15:59,706 - INFO - Main generation pass 1/1
-2026-03-22 23:15:59,706 - INFO - ============================================================
-2026-03-22 23:15:59,706 - INFO - Loaded single prompt template: simple
-2026-03-22 23:15:59,706 - INFO - Generating 20 candidate invariant sets with temperature=1.0
-2026-03-22 23:15:59,706 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 23:15:59,719 - INFO -   Generating candidate 1/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:16:42,116 - INFO - 
------ Candidate 1/20 raw response begin -----
+2026-04-07 09:25:08,590 - INFO - Main generation pass 1/1
+2026-04-07 09:25:08,590 - INFO - ============================================================
+2026-04-07 09:25:08,590 - INFO - Loaded single prompt template: simple
+2026-04-07 09:25:08,590 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:25:08,590 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:25:08,649 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:26:03,853 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-I analyzed the loop to derive inductive, verification-friendly invariants that capture the conserved state relations and progress measures.
+I choose invariants that are (1) inductive (preserved by the loop body), (2) hold initially, and (3) are strong enough to explain the updates and to allow deriving exit facts.
 
-Key observations from the loop:
-- i8a and p8 are initialized to 24 and never modified in the loop; thus p8 == i8a == 24 and p8 stays constant.
-- x starts at 6 (since (1%18) + 5 = 6) and is decremented by 1 every iteration, so x decreases strictly by 1 each iteration.
-- mk starts at 0 and increments by 1 each iteration.
-- is starts at 0 and increments by 1 each iteration; hence is == mk for all loop states.
-- li starts at 24 and is decremented by 1 each iteration, so li + mk remains 24.
-- kx starts at 24 and is incremented by 2 and then by 1 each iteration, so kx increases by 3 per iteration: kx == 24 + 3*mk.
-- t7 starts at 24 and is updated as t7 += is each iteration. Since is == mk, t7 = 24 + sum_{i=1..mk} i = 24 + mk*(mk+1)/2.
-- The first inner if (x0+7 < i8a) is effectively never taken with the given initial values (x0 = 24, i8a = 24), so x0 remains 24 and thus x0 == p8 holds throughout. The second inner if (p8+3 <= x0+i8a) is always true under these constants, so opo is incremented by kx every iteration. An exact closed-form for opo in terms of mk is:
-  opo = -1 + sum_{i=0}^{mk-1} (24 + 3*i) = -1 + 24*mk + 3*(mk-1)*mk/2.
-  The second inner if never triggers for these constants, so we can leave it out of the core invariant.
+Core conservation / relational equality
+- jo7 + kx * v2e == 0
+  - initial: 0 + 36*0 == 0 holds.
+  - preservation: if jo7' = jo7 - kx and v2e' = v2e + 1 then jo7' + kx*v2e' = (jo7 - kx) + kx*(v2e+1) = jo7 + kx*v2e.
 
-From these, I designed strong, exact invariants that are preserved by each iteration (inductive) and capture the exact relationships between key variables:
-- x + mk == 6
-- li + mk == 24
-- kx == 24 + 3*mk
-- is == mk
-- t7 == 24 + mk*(mk+1)/2
-- opo == -1 + 24*mk + (3*(mk - 1)*mk)/2
-- x0 == p8
-- p8 == i8a
+Relational equality explaining x updates
+- 2*(x + 1) == v2e*(v2e + 1)
+  - initial: 2*(-1 + 1) = 0 = 0*(0+1).
+  - preservation: x' = x + (v2e+1), v2e' = v2e+1 ⇒
+    2*(x' + 1) = 2*(x + 1) + 2*(v2e+1) = v2e*(v2e+1) + 2*(v2e+1) = v2e'*(v2e'+1).
 
-These invariants are all true initially (mk = 0) and preserved by each iteration given the loop body, including the unconditional updates and the specific branches observed with the given constants.
+Progress / bounds (small and useful)
+- v2e >= 0 (v2e starts at 0 and increments by 1).
+- 0 <= ax <= 4 * v2e (each step adds (v2e+1) % 5 ∈ {0..4}).
+- 0 <= lh6 <= 2 * v2e (each step adds (v2e+1) % 3 ∈ {0..2}).
 
-Loop assigns: mk, x, is, rd, x0, opo, kx, t7, li.
+These bounds are preserved by the updates: ax and lh6 increase by a small non-negative amount bounded by 4 and 2 respectively per increment of v2e.
 
-Loop variant: x (since x decreases by 1 each iteration while x >= 1).
+Loop assigns
+- The loop modifies jo7, v2e, x, ax, lh6. kx is never modified.
 
-The invariants are strong and non-tautological, and they align with the actual transitions observed in the code. They do not require changing the original loop structure or the unknown() calls, and they stay within the allowed variable set.
-
-</reasoning>
-<code>/*@
-  loop invariant x + mk == 6;
-  loop invariant li + mk == 24;
-  loop invariant kx == 24 + 3*mk;
-  loop invariant is == mk;
-  loop invariant t7 == 24 + (mk*(mk+1))/2;
-  loop invariant opo == -1 + 24*mk + (3*(mk - 1)*mk)/2;
-  loop invariant x0 == p8;
-  loop invariant p8 == i8a;
-  loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-  loop variant x;
-*/</code>
------ Candidate 1/20 raw response end -----
-2026-03-22 23:16:42,119 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 23:16:42,132 - INFO -   Generating candidate 2/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:17:17,372 - INFO - 
------ Candidate 2/20 raw response begin -----
-<reasoning>We need strong, inductive loop invariants that capture the exact state evolution of the loop using only available variables. The loop updates a number of locals in a deterministic way each iteration. We derive exact relational invariants that hold before the first iteration and are preserved by every iteration, ensuring verification with Frama-C/WP.
-
-Core conservation / relational equalities:
-- mk and is increment uniformly by 1 each iteration, so mk == is throughout the loop.
-- rd increments by 1 each iteration, so rd == is as well.
-- t7 accumulates the running sum of is, starting from an initial 24. Since is == mk, t7 can be expressed as t7 == 24 + mk*(mk+1)/2.
-- x starts at 6 and decreases by 1 each iteration, so x == 6 - mk.
-- x0 starts at p8 (24) and, given the guarded update, remains equal to p8 throughout (x0 == p8).
-- li starts at p8 (24) and decrements by 1 per iteration, so li == p8 - mk.
-- kx starts at 24 and increases by 3 each iteration, so kx == 24 + 3*mk.
-- opo is updated by adding the current kx when certain guards hold (and initially opo == -1). The net effect is a predictable quadratic formula in mk: opo == -1 + 24*mk + 3*(mk*(mk-1))/2.
-- i8a and p8 remain constant (24), so i8a == 24 and p8 == 24.
-
-With these invariants, all loop variables’ values are tied to the iteration count mk, ensuring a closed, inductive reasoning. The loop variant is x, which decreases by 1 each iteration and reaches 0 when the loop ends.
-
-Invariants chosen are strong and avoid tautologies, and they rely only on available variables. No function parameters are used, so there is no use of \at(,Pre). The loop assigns list includes all variables actually modified inside the loop: mk, x, is, rd, x0, opo, kx, t7, li. The core algebraic relations provide a clear, verification-friendly proof that the loop is correct and terminates.
-</reasoning>
-<code>/*@
-  loop invariant i8a == 24;
-  loop invariant p8 == 24;
-  loop invariant x == 6 - mk;
-  loop invariant x0 == p8;
-  loop invariant li == p8 - mk;
-  loop invariant kx == 24 + 3*mk;
-  loop invariant is == mk;
-  loop invariant rd == is;
-  loop invariant t7 == 24 + mk*(mk+1)/2;
-  loop invariant opo == -1 + 24*mk + (3*(mk*(mk-1)))/2;
-  loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-  loop variant x;
-*/ 
-while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
-  }</code>
------ Candidate 2/20 raw response end -----
-2026-03-22 23:17:17,372 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 23:17:17,387 - INFO -   Generating candidate 3/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:17:47,873 - INFO - 
------ Candidate 3/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants for the given loop. We select invariants that are easy to prove by induction and capture the essential state evolution without over-specifying dynamic variables.
-
-Key observations from the loop:
-- Several variables are effectively constants across the loop: i8a, p8, x0, and i8a equals 24; x0 starts at 24 and, due to the if condition, remains 24 (the condition x0 + 7 < i8a is never true here since 24 + 7 < 24 is false). So we can assert:
-  - x0 == 24
-  - p8 == 24
-  - i8a == 24
-- The loop control variable x is decremented by 1 each iteration, and mk is incremented by 1 each iteration. Starting values are x = 6 and mk = 0, so after n iterations:
-  - x = 6 - n
-  - mk = n
-  Therefore the invariant x + mk == 6 holds, and is == mk as both increment by 1 per iteration.
-- t7 is updated with t7 += is, and is increments by 1 each iteration (is starts at 0). Hence after n iterations, is = n and t7 = 24 + sum_{i=1..n} i = 24 + n(n+1)/2. Since mk = n, we can express:
-  - t7 == 24 + mk*(mk+1)/2
-- We provide a loop variant to show progress toward termination: x decreases by 1 each iteration, so variant x is suitable.
-
-Loop assigns must reflect all variables that can be modified inside the loop body. The loop can modify: mk, x, is, rd, x0, opo, kx, t7, li. We list exactly these as the assigns set.
-
-These invariants are strong (non-tautological) and are inductive given the loop's updates. They do not rely on parameters or Pre-state annotations beyond the current variables, and they avoid forbidden constructs.
-
-</reasoning>
-<code>/*@
-  loop invariant x0 == 24;
-  loop invariant p8 == 24;
-  loop invariant i8a == 24;
-  loop invariant x + mk == 6;
-  loop invariant is == mk;
-  loop invariant t7 == 24 + mk*(mk+1)/2;
-  loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-  loop variant x;
-*/
-while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
-  }</code>
------ Candidate 3/20 raw response end -----
-2026-03-22 23:17:47,876 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 23:17:47,903 - INFO -   Generating candidate 4/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:18:49,889 - INFO - 
------ Candidate 4/20 raw response begin -----
-<reasoning>
-I analyzed the loop to derive inductive, verification-friendly invariants that explain the state updates and provide meaningful progress measures, without altering the program logic.
-
-Key observations:
-- Each iteration increments mk by 1 and decrements x by 1. Therefore mk + x remains constant and equals the initial x value, which is (1 % 18) + 5 = 6. This yields a solid conservation invariant.
-- is is incremented by 1 every iteration, and there is no other change to it except through that update. Hence is == mk holds throughout.
-- rd is also incremented by 1 per iteration, so rd == mk holds as well.
-- li starts at 24 and is decremented by 1 each iteration; thus li + mk remains constant and equals the initial i8a (24). So li + mk == i8a is a robust invariant.
-- kx is increased by 2 and then by 1 each iteration, i.e., by 3 per iteration. Since kx starts at i8a (24), a precise invariant is kx == i8a + 3*mk.
-- t7 is increased by is each iteration, while is grows as mk grows (is == mk). The net effect is t7 == i8a + mk*(mk+1)/2.
-- x0 is never modified in this loop given the conditions (x0 starts at 24 and the condition for changing it requires x0 < 17, which never becomes true here). As a consequence, x0 remains 24; we can include x0 == 24 as an invariant.
-- The loop variant for termination can be the loop counter x, which strictly decreases by 1 each iteration, ensuring termination.
-
-So I propose the following inductive invariants and progress measures:
-- mk + x == (1 % 18) + 5
-- is == mk
-- rd == mk
-- li + mk == i8a
-- kx == i8a + 3*mk
-- t7 == i8a + mk*(mk+1)/2
-- x0 == 24
-- loop variant x
-- loop assigns mk, x, is, rd, x0, opo, kx, t7, li
-
-These invariants are strong, preserve the intended relationships between variables, and are aligned with the actual updates in the loop body.
+I omit a loop variant: the loop is unreachable in the given initial state (jo7==0 < kx==36), so a termination variant is unnecessary for verification here. The invariants given are inductive and verification-friendly for WP.
 </reasoning>
 <code>
 int main1(){
-  int i8a, p8, rd, mk, is, x, kx, li, t7, x0, opo;
+  int kx, jo7, v2e, lh6, x, ax;
 
-  i8a=24;
-  p8=i8a;
-  rd=0;
-  mk=0;
-  is=0;
-  x=(1%18)+5;
-  kx=i8a;
-  li=p8;
-  t7=p8;
-  x0=p8;
-  opo=-1;
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant (mk + x) == ((1 % 18) + 5);
-    loop invariant (is == mk);
-    loop invariant (rd == mk);
-    loop invariant (li + mk) == i8a;
-    loop invariant (kx == i8a + 3*mk);
-    loop invariant (t7 == i8a + mk*(mk+1)/2);
-    loop invariant (x0 == 24);
-    loop variant x;
-    loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-  @*/
-while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
+    loop invariant jo7 + kx * v2e == 0;
+    loop invariant v2e >= 0;
+    loop invariant 2 * (x + 1) == v2e * (v2e + 1);
+    loop invariant 0 <= ax && ax <= 4 * v2e;
+    loop invariant 0 <= lh6 && lh6 <= 2 * v2e;
+    loop assigns jo7, v2e, x, ax, lh6;
+  */
+  while (jo7 >= kx) {
+        jo7 = jo7 - kx;
+        v2e += 1;
+        x = x + v2e;
+        ax = ax+(v2e%5);
+        lh6 = lh6+(v2e%3);
   }
 
 }
 </code>
------ Candidate 4/20 raw response end -----
-2026-03-22 23:18:49,890 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 23:18:49,902 - INFO -   Generating candidate 5/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:19:22,636 - INFO - 
------ Candidate 5/20 raw response begin -----
-<reasoning>The loop changes many state variables but follows a compact, regular progression. To obtain inductive, verification-friendly invariants, I identified a small set of core conservation relations that hold across iterations:
-
-- is and mk increment in lockstep: is == mk. Since both start at 0 and mk increments every iteration and is increments every iteration, this equality is preserved.
-- rd tracks mk: rd == mk. Both start at 0 and increment once per iteration, so this is preserved.
-- li and mk together maintain a fixed sum equal to the initial value of li (which is p8, i.e., 24): li + mk == p8. li decreases by 1 each iteration, mk increases by 1, so the sum stays constant.
-- kx grows by a fixed amount per iteration: kx == i8a + 3*mk. Initially kx == i8a, and each iteration increases kx by 3 (due to the two successive increments of 2 and 1). Since mk also increases by 1 per iteration, this relation holds inductively.
-- t7 accumulates as a function of mk: t7 == p8 + mk*(mk+1)/2. Initially t7 == p8; with each iteration is == mk, so t7 increases by the new is value; the closed form is preserved across iterations.
-- Termination is guaranteed by a loop variant: x decreases by 1 each iteration, so using loop variant x ensures progress to termination.
-
-The loop assigns list includes all variables that are modified inside the loop body.
-
-These invariants are strong (not tautological), cohesive (all derived from the observed state updates), inductive, and use only available variables. They also align with the requirement to keep the original code unchanged except for the loop annotations. No \at on non-parameters is used. </reasoning>
-
-<code>/*@
-  loop invariant is == mk;
-  loop invariant rd == mk;
-  loop invariant li + mk == p8;
-  loop invariant kx == i8a + 3*mk;
-  loop invariant t7 == p8 + mk*(mk+1)/2;
-  loop variant x;
-  loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-*/ 
-while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
-  }</code>
------ Candidate 5/20 raw response end -----
-2026-03-22 23:19:22,636 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 23:19:22,649 - INFO -   Generating candidate 6/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:20:19,198 - INFO - 
------ Candidate 6/20 raw response begin -----
-<reasoning>We analyze the loop to identify a strong, inductive relationship between the loop variables that is preserved every iteration. The loop begins with x = (1%18)+5 = 6 and decrements x by 1 every iteration. Many other variables move in a coordinated way:
-- is, rd, and mk all increment by 1 per iteration.
-- kx increases by 3 per iteration (2 early, 1 after).
-- li decreases by 1 per iteration.
-- t7 accumulates the sum of is, i.e., t7 = initial_t7 + sum(is over iterations) = 24 + t(t+1)/2 where t = 6 - x (the number of iterations so far).
-These lead to a compact, inductive set of invariants that relate the evolving state to the current x value, without needing to reference Pre or function parameters. We can express these invariants as exact equalities that hold before every loop iteration and are preserved by the loop body:
-- is == 6 - x
-- rd == 6 - x
-- mk == 6 - x
-- li == 18 + x
-- kx == 42 - 3*x
-- t7 == 24 + (6 - x)*(7 - x)/2
-These are all consistent with initial values (x=6, is=0, rd=0, mk=0, li=24, kx=24, t7=24) and the per-iteration updates.
-
-Using these invariants keeps reasoning precise and verification-friendly for Frama-C WP, since they capture the exact state progression with minimal, strong equalities. We also declare the loop assigns to reflect all loop-modified variables: mk, x, is, rd, x0, opo, kx, t7, li. A loop variant of x enforces termination since x decreases by 1 each iteration and starts at 6, eventually reaching 0 and exiting the loop.
-
-The chosen invariants are non-tautological, inductive, and express the core conservation/relational updates driving the loop state. They do not rely on any non-available variables and comply with the specified constraints. </reasoning>
-<code>int main1(){
-  int i8a, p8, rd, mk, is, x, kx, li, t7, x0, opo;
-
-  i8a=24;
-  p8=i8a;
-  rd=0;
-  mk=0;
-  is=0;
-  x=(1%18)+5;
-  kx=i8a;
-  li=p8;
-  t7=p8;
-  x0=p8;
-  opo=-1;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant is == 6 - x;
-    loop invariant rd == 6 - x;
-    loop invariant mk == 6 - x;
-    loop invariant li == 18 + x;
-    loop invariant kx == 42 - 3*x;
-    loop invariant t7 == 24 + (6 - x)*(7 - x)/2;
-    loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-    loop variant x;
-  */
-  while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
-  }
-
-}</code>
------ Candidate 6/20 raw response end -----
-2026-03-22 23:20:19,198 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 23:20:19,217 - INFO -   Generating candidate 7/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:20:57,592 - INFO - 
------ Candidate 7/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations that capture the loop's state progression without modifying the code. The loop updates several variables in a deterministic way, allowing us to derive strong invariants:
-
-- Core conservation/relational equality:
-  - x is decremented by 1 each iteration and rd is incremented by 1. Therefore x + rd remains constant. With the given initial values (x = 6, rd = 0), we have x + rd == 6 at every loop entry.
-- Other linear relations driven by the same iteration count:
-  - is is incremented in lockstep with rd, so is == rd at all times.
-  - mk is also incremented every iteration, so mk == rd.
-  - kx is incremented by 3 each iteration (kx += 2; then kx += 1), starting from 24. Hence kx == 24 + 3*rd.
-  - t7 is updated by the current is value each iteration: t7 += is, with initial t7 == 24. By induction, t7 == 24 + is*(is+1)/2, and since is == rd, equivalently t7 == 24 + rd*(rd+1)/2.
-- Basic bounds on loop counters:
-  - 0 <= li and li <= 24 (li only decrements; starting at 24).
-  - x <= 6 (x starts at 6 and only decreases).
-- Loop progression:
-  - Use loop variant x, since x decreases by 1 each iteration and bounds guarantee termination.
-
-All invariants rely only on available variables and are preserved by the loop body, including the conditional updates to x0 and opo (which do not affect the derived relations above). The loop assigns clause will include every variable the loop writes: mk, x, is, rd, x0, opo, kx, t7, li. No changes to the code are made beyond adding ACSL annotations. </reasoning>
-<code>int main1(){
-  int i8a, p8, rd, mk, is, x, kx, li, t7, x0, opo;
-
-  i8a=24;
-  p8=i8a;
-  rd=0;
-  mk=0;
-  is=0;
-  x=(1%18)+5;
-  kx=i8a;
-  li=p8;
-  t7=p8;
-  x0=p8;
-  opo=-1;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant x + rd == 6;
-    loop invariant is == rd;
-    loop invariant mk == rd;
-    loop invariant kx == 24 + 3*rd;
-    loop invariant t7 == 24 + is*(is+1)/2;
-    loop invariant 0 <= li;
-    loop invariant li <= 24;
-    loop invariant x <= 6;
-    loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-    loop variant x;
-  @*/
-  while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
-  }
-
-}</code>
------ Candidate 7/20 raw response end -----
-2026-03-22 23:20:57,593 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 23:20:57,607 - INFO -   Generating candidate 8/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:24:06,469 - INFO - 
------ Candidate 8/20 raw response begin -----
-<reasoning>We need to provide inductive, verification-friendly ACSL loop annotations that accurately capture the state evolution inside the loop, using only available variables. I derive a set of strong, exact relations that hold at every loop iteration and are preserved:
-
-- x == 6 - mk: x starts at 6 and is decremented by 1 each iteration while mk is incremented by 1; thus x and mk satisfy this relation throughout.
-- is == mk: both are incremented by 1 per iteration; this invariant holds from initialization and is preserved.
-- rd == mk: both increment by 1 per iteration; also preserved.
-- li == 24 - mk: li starts at 24 and decrements by 1 per iteration; since mk increments by 1 per iteration, this relation holds throughout.
-- kx == 24 + 3*mk: kx starts at 24 and, per iteration, effectively increases by 3; this invariant tracks the net per-iteration increase.
-- t7 == is*(is+1)/2: t7 accumulates a running sum equal to the triangular number of the current is (and since is == mk, it is also mk*(mk+1)/2). This invariant is preserved by the fact that t7 is increased by the new is value each iteration.
-- x0 == 24: x0 is never changed in a path that can occur with the given constants (the if condition requires x0 < 17 to trigger, which never happens here), so x0 remains 24; we capture this exact constant behavior.
-- opo == -1 + 24*mk + (3*mk*(mk-1))/2: given the observed updates (opo increases by the current kx each iteration, with kx evolving as 24, 27, 30, ... and the second if never triggering), opo follows a closed-form sum that depends only on mk. This invariant matches the actual transitions for all iterations.
-- loop assigns: mk, x, is, rd, x0, opo, kx, t7, li are the variables modified by the loop, so they must be listed.
-
-- loop variant: x is a strictly decreasing integer (it starts at 6 and is decremented by 1 each iteration until the guard fails when x becomes 0), which is appropriate for proving termination.
-
-All invariants use only available variables and reflect exact state transitions without introducing unsafe constructs. The invariants are strong and mutually consistent, and they remain valid from the loop initialization through every iteration (inductive). The loop assigns list includes all variables actually modified inside the loop. The approach adheres to the rules (no parameters, no \at on local vars, etc.). </reasoning>
-<code>int main1(){
-  int i8a, p8, rd, mk, is, x, kx, li, t7, x0, opo;
-
-  i8a=24;
-  p8=i8a;
-  rd=0;
-  mk=0;
-  is=0;
-  x=(1%18)+5;
-  kx=i8a;
-  li=p8;
-  t7=p8;
-  x0=p8;
-  opo=-1;
-
-  /*@ 
-    loop invariant x == 6 - mk;
-    loop invariant is == mk;
-    loop invariant rd == mk;
-    loop invariant li == 24 - mk;
-    loop invariant kx == 24 + 3*mk;
-    loop invariant t7 == is*(is+1)/2;
-    loop invariant x0 == 24;
-    loop invariant opo == -1 + 24*mk + (3*mk*(mk-1))/2;
-    loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-    loop variant x;
-  */
-  while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
-  }
-
-}</code>
------ Candidate 8/20 raw response end -----
-2026-03-22 23:24:06,469 - INFO -   Candidate 9 selected prompt: simple_cot.txt
-2026-03-22 23:24:06,482 - INFO -   Generating candidate 9/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:24:47,306 - INFO - 
------ Candidate 9/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants that capture the core state evolution of the loop without modifying code. From the loop, i8a and p8 are constants. The loop body updates several locals in a predictable pattern, notably:
-
-- x decreases by 1 each iteration (loop guard x >= 1).
-- mk, is, rd each increment by 1 per iteration.
-- kx increases by 3 per iteration (two increments inside the body: +2, then +1).
-- li decreases by 1 per iteration.
-- t7 accumulates as t7 += is, with is itself equal to the number of iterations so far.
-- x0 only increases when a condition holds; with given constants, that condition is never true, so x0 stays at 24.
-
-We can derive closed-form invariants that relate these variables to the loop counter (via x, since each iteration reduces x by 1). A solid set of invariants that are provable from the initial state and preserved by iterations are:
-
-- x0 == 24 (x0 does not change with these constants)
-- is == 6 - x (number of iterations so far)
-- mk == 6 - x (same reason as is)
-- rd == 6 - x (same reason as is)
-- li == x + 18 (initial 24, decreases by 1 per iteration; equals 24 - (6 - x) = x + 18)
-- kx == 42 - 3*x (start at 24 when x=6; increases by 3 per iteration)
-- t7 == 24 + (6 - x) * (7 - x) / 2 (triangular sum of is over iterations)
-
-These invariants are strong, non-tautological, and directly tie the evolving state to x (the loop variable). They also provide a simple core relation that explains the loop updates (kx and x together), which is the requested conservation/relational equation.
-
-Additionally, we declare loop assigns for all variables mutated in the loop: mk, x, is, rd, x0, opo, kx, t7, li. A loop variant is also provided as x, which strictly decreases each iteration.
-
-Notes:
-- We avoid any references to Pre for local variables (no function parameters exist).
-- We keep the invariants simple and strictly related to the observed state changes.
-- We do not modify the loop body, only annotations.
-
-</reasoning>
-<code>int main1(){
-  int i8a, p8, rd, mk, is, x, kx, li, t7, x0, opo;
-
-  i8a=24;
-  p8=i8a;
-  rd=0;
-  mk=0;
-  is=0;
-  x=(1%18)+5;
-  kx=i8a;
-  li=p8;
-  t7=p8;
-  x0=p8;
-  opo=-1;
-
-  /*@
-     loop invariant x0 == 24;
-     loop invariant kx == 42 - 3*x;
-     loop invariant is == 6 - x;
-     loop invariant mk == 6 - x;
-     loop invariant rd == 6 - x;
-     loop invariant li == x + 18;
-     loop invariant t7 == 24 + (6 - x) * (7 - x) / 2;
-     loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-     loop variant x;
-  */
-  while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
-  }
-
-}</code>
------ Candidate 9/20 raw response end -----
-2026-03-22 23:24:47,307 - INFO -   Candidate 10 selected prompt: simple_cot.txt
-2026-03-22 23:24:47,320 - INFO -   Generating candidate 10/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:25:40,314 - INFO - 
------ Candidate 10/20 raw response begin -----
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:26:03,853 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:26:03,936 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:27:06,195 - INFO - 
+----- Candidate 2/5 raw response begin -----
 <reasoning>
-I analyzed the loop to derive inductive, verification-friendly invariants that are supported by the existing variable updates. The goal is to capture exact, provable state transitions without modifying the code, ensuring the WP plugin can discharge the proof.
+I chose invariants that are inductive, explain the core state transition, and give useful arithmetic bounds:
 
-Key observations from the loop:
-- is increments by 1 every iteration and x decrements by 1; thus is + x remains constant (initially 0 + 6 = 6). This gives a strong conservation relation: is + x == 6.
-- t7 is updated by t7 += is each iteration. With initial t7 = 24 and is starting at 0, we get t7 = 24 + sum_{j=1..n} j = 24 + is*(is+1)/2, where is is the current iteration count.
-- x0 starts at 24 and, given the conditions, effectively remains constant at 24 in this specific code path; therefore x0 == 24 is a valid invariant.
-- li is decremented by 1 each iteration, while is is incremented by 1; hence li + is == 24.
-- mk and rd both increment by 1 each iteration; hence mk == rd.
-- kx starts at 24 and increases by 3 per iteration (first by +2, then by +1). It is used to update opo, but at loop head it equals 24 + 3*is.
-- opo starts at -1 and every iteration, due to the stated conditions (with the given constants, the if condition is effectively always true), receives an increment of kx_old, which leads to a closed-form in terms of is: opo == -1 + p8*is + (3*(is*(is-1)))/2. Here p8 is 24, reflecting the constant increment sequence.
+- Core conservation equality: (v2e * kx + jo7) == 0.
+  - Reason: each loop iteration does jo7 := jo7 - kx and v2e := v2e + 1, so v2e*kx + jo7 is preserved. This captures the relation between jo7, v2e and the constant kx and is the main relational explanation of the loop updates.
 
-Based on these relations, I propose the following inductive loop invariants:
-- is + x == 6
-- t7 == 24 + (is*(is+1))/2
-- x0 == 24
-- li + is == 24
-- mk == rd
-- kx == 24 + 3*is
-- opo == -1 + p8*is + (3*(is*(is-1)))/2
+- Exact relational invariant for x: (2*(x + 1)) == (v2e * (v2e + 1)).
+  - Reason: v2e is incremented to 1,2,... each iteration and x accumulates these values. This quadratic equality expresses x = -1 + sum_{i=1..v2e} i and is inductive (it holds initially and is preserved by the update x := x + v2e after v2e increments).
 
-These invariants are strong (not tautological), they hold at loop entry and are preserved by each iteration, and they enable WP to reason about the loop exit as well. I also include a loop variant to aid termination reasoning: loop variant x (since x decreases by 1 each iteration and the loop guard is x >= 1).
+- Non-negativity of v2e: v2e >= 0.
+  - Reason: v2e starts at 0 and increases by 1 each iteration; it's needed to reason about bounds.
 
-I will replace the placeholder invariant block with these invariants, and specify the complete loop assigns to include all variables modified inside the loop.
+- Bounds for ax and lh6:
+  - 0 <= ax <= 4*v2e because each iteration ax increases by (v2e % 5) which is in [0,4].
+  - 0 <= lh6 <= 2*v2e because each iteration lh6 increases by (v2e % 3) which is in [0,2].
+  These are simple, useful progress bounds and are inductive.
+
+- Exact loop assigns: jo7, v2e, x, ax, lh6.
+  - Reason: the loop modifies precisely these variables; kx is not modified.
+
+- Loop variant: (jo7 - kx + 1).
+  - Reason: when the guard jo7 >= kx holds, jo7 - kx >= 0, so variant >= 1; each iteration decreases jo7 by kx, so the variant strictly decreases by kx (>0). This provides a well-founded decreasing measure.
+
+All invariants are expressed only with the variables available in the function (no \at or quantifiers), are verification-friendly (preserved by the transition), and are not tautological.
 </reasoning>
-<code>/*@
-  loop invariant is + x == 6;
-  loop invariant t7 == 24 + (is*(is+1))/2;
-  loop invariant x0 == 24;
-  loop invariant li + is == 24;
-  loop invariant mk == rd;
-  loop invariant kx == 24 + 3*is;
-  loop invariant opo == -1 + p8*is + (3*(is*(is-1)))/2;
-  loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-  loop variant x;
-*/
-while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
-  }</code>
------ Candidate 10/20 raw response end -----
-2026-03-22 23:25:40,314 - INFO -   Candidate 11 selected prompt: simple_cot.txt
-2026-03-22 23:25:40,328 - INFO -   Generating candidate 11/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 23:26:26,361 - INFO - 
------ Candidate 11/20 raw response begin -----
-<reasoning>We need inductive loop invariants that relate the evolving state of the loop while keeping the original code intact. The loop updates several variables in lockstep with the iteration count (the number of iterations so far). The following invariants are chosen for their simplicity, faithfulness, and usefulness for Frama-C/WP:
+<code>
+int main1(){
+  int kx, jo7, v2e, lh6, x, ax;
 
-- is == mk and rd == mk (and is == rd): mk and is both increment by 1 per iteration; rd also increments by 1 per iteration. These equalities hold from initialization and are preserved by each iteration.
-- li + mk == p8: li starts at p8 and decrements by 1 each iteration, while mk increments by 1; their sum remains constant at p8.
-- x + is == 6: x starts at 6 and is decremented by 1 each iteration; is increments by 1 per iteration; their sum stays at the initial x value, which is 6.
-- t7 == 24 + is*(is+1)/2: t7 starts at 24 and is increased by the current is value each iteration, yielding the classic triangular number relation with is.
-- loop assigns lists all variables that are modified inside the loop body: mk, x, is, rd, x0, opo, kx, t7, li.
-- loop variant x: x strictly decreases by 1 each iteration, ensuring termination under the loop guard x >= 1.
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
 
-These invariants are strong and directly reflect the linear updates in the loop. They do not rely on function parameters (there are none) or on Pre-values of locals, and they use only the Available Variables. They are designed to be inductive (preserved by each iteration) and verification-friendly for Frama-C/WP. They do not attempt to constrain unrelated variables (like the exact value of x0 or opo) beyond what is necessary for induction. </reasoning>
-<code>int main1(){
-  int i8a, p8, rd, mk, is, x, kx, li, t7, x0, opo;
-
-  i8a=24;
-  p8=i8a;
-  rd=0;
-  mk=0;
-  is=0;
-  x=(1%18)+5;
-  kx=i8a;
-  li=p8;
-  t7=p8;
-  x0=p8;
-  opo=-1;
-
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant is == mk;
-    loop invariant rd == mk;
-    loop invariant is == rd;
-    loop invariant li + mk == p8;
-    loop invariant x + is == 6;
-    loop invariant t7 == 24 + is*(is+1)/2;
-    loop assigns mk, x, is, rd, x0, opo, kx, t7, li;
-    loop variant x;
+    loop invariant (v2e * kx + jo7) == 0;
+    loop invariant (2*(x + 1)) == (v2e * (v2e + 1));
+    loop invariant v2e >= 0;
+    loop invariant 0 <= ax <= (4 * v2e);
+    loop invariant 0 <= lh6 <= (2 * v2e);
+    loop assigns jo7, v2e, x, ax, lh6;
+    loop variant (jo7 - kx + 1);
   */
-  while (x>=1) {
-      mk = mk+1*1;
-      x--;
-      is = is+1*1;
-      rd = rd+1*1;
-      if (x0+7<i8a) {
-          x0 += 4;
-      }
-      if (p8+3<=x0+i8a) {
-          opo = opo + kx;
-      }
-      kx += 2;
-      t7 += is;
-      li--;
-      kx += 1;
-      if (opo+3<i8a) {
-          opo += p8;
-      }
+while (jo7 >= kx) {
+      jo7 = jo7 - kx;
+      v2e += 1;
+      x = x + v2e;
+      ax = ax+(v2e%5);
+      lh6 = lh6+(v2e%3);
   }
 
-}</code>
------ Candidate 11/20 raw response end -----
-2026-03-22 23:26:26,361 - INFO -   Candidate 12 selected prompt: simple_cot.txt
-2026-03-22 23:26:26,374 - INFO -   Generating candidate 12/20 with model=gpt-5-nano, prompt=simple_cot.txt...
+}
+</code>
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:27:06,196 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:27:06,285 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:28:01,000 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I choose invariants that are (a) inductive given the body updates, (b) strong enough to explain how variables evolve, and (c) minimal and relevant.
+
+Core conservation law
+- (jo7 + kx * v2e) remains constant across the body because each iteration does "jo7 := jo7 - kx" and "v2e := v2e + 1". This gives the exact relational equality (jo7 + kx * v2e) == 0 (it equals its initial value 0 here).
+
+Exact closed-form for x
+- x accumulates the sequence 1 + 2 + ... + v2e. With x initialized to -1, the exact relation is
+  x == -1 + v2e*(v2e+1)/2.
+  This is preserved by x := x + (v2e+1) when v2e increases by 1.
+
+Progress / bounds
+- v2e is a non-negative loop counter (initially 0 and increased by 1 each time): (v2e >= 0).
+- ax and lh6 accumulate bounded remainders. Each iteration adds (v2e+1) % 5 (in 0..4) to ax and (v2e+1) % 3 (in 0..2) to lh6; therefore 0 <= ax <= 4*v2e and 0 <= lh6 <= 2*v2e are natural, inductive bounds (they hold initially and are preserved by the per-iteration bounded increments).
+
+Exactness and assigns
+- The loop assigns only the five variables that the body modifies: jo7, v2e, x, ax, lh6.
+
+Notes on inductiveness
+- Because the conservation law links jo7 and v2e to the initial value, the loop guard (jo7 >= kx) is impossible in reachable states of this function (initial jo7 = 0, kx = 36), so invariants are vacuously preserved when the guard is true; nevertheless they are all true at loop entry and are preserved by the body (the algebraic invariants are exact per-step).
+
+I therefore provide the conservation equality, the exact formula for x, non-negativity for v2e, and tight bounds for ax and lh6, together with the precise loop assigns clause.
+</reasoning>
+<code>
+int main1(){
+  int kx, jo7, v2e, lh6, x, ax;
+
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
+
+  /*@
+    loop invariant (jo7 + kx * v2e) == 0;
+    loop invariant (v2e >= 0);
+    loop invariant (x == (-1 + v2e * (v2e + 1) / 2));
+    loop invariant ((0 <= ax) && (ax <= 4 * v2e));
+    loop invariant ((0 <= lh6) && (lh6 <= 2 * v2e));
+    loop assigns jo7, v2e, x, ax, lh6;
+  */
+  while (jo7 >= kx) {
+        jo7 = jo7 - kx;
+        v2e += 1;
+        x = x + v2e;
+        ax = ax+(v2e%5);
+        lh6 = lh6+(v2e%3);
+  }
+
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:28:01,001 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:28:01,081 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:28:41,899 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I choose a precise relational invariant that captures the core state transition: jo7 is decreased by kx exactly once per increment of v2e, so jo7 == - kx * v2e. This directly follows from the one-step transition and is preserved by the loop (jo7' = jo7 - kx and v2e' = v2e + 1).
+
+I also provide an exact closed-form relation for x: x accumulates the successive integers added by each iteration, so x == -1 + v2e*(v2e+1)/2. This is inductive because x is increased by the new v2e each step.
+
+For ax and lh6, exact closed forms would require modular summation; instead I give tight, inductive bounds derived from the modulus ranges:
+- each (v2e%5) contribution is in [0,4], so 0 <= ax <= 4*v2e.
+- each (v2e%3) contribution is in [0,2], so 0 <= lh6 <= 2*v2e.
+
+I also assert v2e >= 0 as the loop counter is initialized to 0 and only increases. These invariants are all true at loop entry (given the initializations) and are preserved by the body (each update increases v2e by 1 and adds a non-negative bounded amount to ax/lh6; x's formula follows the arithmetic series recurrence; jo7 equality updates consistently). The loop assigns lists all and only the variables modified inside the loop.
+
+No \at(...) is used (no function parameters). I omitted a loop variant because the guard is false in the initial state and the optional variant is not required here.
+</reasoning>
+<code>
+int main1(){
+  int kx, jo7, v2e, lh6, x, ax;
+
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
+
+  /*@
+    loop invariant jo7 == - kx * v2e;
+    loop invariant x == -1 + (v2e * (v2e + 1)) / 2;
+    loop invariant 0 <= v2e;
+    loop invariant 0 <= ax && ax <= 4 * v2e;
+    loop invariant 0 <= lh6 && lh6 <= 2 * v2e;
+    loop assigns jo7, v2e, x, ax, lh6;
+  */
+  while (jo7 >= kx) {
+        jo7 = jo7 - kx;
+        v2e += 1;
+        x = x + v2e;
+        ax = ax+(v2e%5);
+        lh6 = lh6+(v2e%3);
+  }
+
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:28:41,901 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:28:41,976 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:29:52,848 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I derived invariants that are inductive (hold initially and are preserved by the body) and useful for verification:
+
+- Core conservation / relational equality:
+  jo7 + kx * v2e == 0
+  This captures the exact relation between the decrement of jo7 by kx and the increment of v2e by 1. It holds initially (0 + 36*0 == 0) and is preserved: new_jo7 + kx*new_v2e = (old_jo7 - kx) + kx*(old_v2e+1) = old_jo7 + kx*old_v2e.
+
+- Exact arithmetic relation for x:
+  2*(x + 1) == v2e*(v2e + 1)
+  This encodes x = -1 + sum_{i=1..v2e} i (i.e. triangular numbers). It holds initially and is preserved by the update x += v2e+1.
+
+- Progress and bounds:
+  v2e >= 0
+  0 <= ax && ax <= v2e * 4
+  0 <= lh6 && lh6 <= v2e * 2
+  These give minimal progress and safety bounds: v2e never decreases; ax and lh6 accumulate bounded residues since (i % 5) in [0,4] and (i % 3) in [0,2].
+
+- Loop assigns:
+  The loop modifies exactly jo7, v2e, x, ax, lh6.
+
+- Variant:
+  I use variant (jo7 - kx + 1). Under the loop guard jo7 >= kx this is >= 1, and it strictly decreases by kx (>0) each iteration, so it proves termination when the guard is true.
+
+All invariants use only the available local variables and allowed operators, avoid quantifiers and \at, and are preserved by the given transition relation.
+</reasoning>
+<code>
+int main1(){
+  int kx, jo7, v2e, lh6, x, ax;
+
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
+
+  /*@
+    loop invariant jo7 + kx * v2e == 0;
+    loop invariant 2*(x + 1) == v2e*(v2e + 1);
+    loop invariant v2e >= 0;
+    loop invariant 0 <= ax && ax <= v2e * 4;
+    loop invariant 0 <= lh6 && lh6 <= v2e * 2;
+    loop assigns jo7, v2e, x, ax, lh6;
+    loop variant (jo7 - kx + 1);
+  */
+  while (jo7 >= kx) {
+        jo7 = jo7 - kx;
+        v2e += 1;
+        x = x + v2e;
+        ax = ax+(v2e%5);
+        lh6 = lh6+(v2e%3);
+  }
+
+}
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:29:52,850 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(){
+  int kx, jo7, v2e, lh6, x, ax;
+
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
+
+  /*@
+    loop invariant jo7 + kx * v2e == 0;
+    loop invariant v2e >= 0;
+    loop invariant 2 * (x + 1) == v2e * (v2e + 1);
+    loop invariant 0 <= ax && ax <= 4 * v2e;
+    loop invariant 0 <= lh6 && lh6 <= 2 * v2e;
+    loop assigns jo7, v2e, x, ax, lh6;
+  */
+  while (jo7 >= kx) {
+        jo7 = jo7 - kx;
+        v2e += 1;
+        x = x + v2e;
+        ax = ax+(v2e%5);
+        lh6 = lh6+(v2e%3);
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-04-07 09:29:52,850 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(){
+  int kx, jo7, v2e, lh6, x, ax;
+
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant (v2e * kx + jo7) == 0;
+    loop invariant (2*(x + 1)) == (v2e * (v2e + 1));
+    loop invariant v2e >= 0;
+    loop invariant 0 <= ax <= (4 * v2e);
+    loop invariant 0 <= lh6 <= (2 * v2e);
+    loop assigns jo7, v2e, x, ax, lh6;
+    loop variant (jo7 - kx + 1);
+  */
+while (jo7 >= kx) {
+      jo7 = jo7 - kx;
+      v2e += 1;
+      x = x + v2e;
+      ax = ax+(v2e%5);
+      lh6 = lh6+(v2e%3);
+  }
+
+}
+----- Candidate 2/5 full code end -----
+2026-04-07 09:29:52,850 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(){
+  int kx, jo7, v2e, lh6, x, ax;
+
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
+
+  /*@
+    loop invariant (jo7 + kx * v2e) == 0;
+    loop invariant (v2e >= 0);
+    loop invariant (x == (-1 + v2e * (v2e + 1) / 2));
+    loop invariant ((0 <= ax) && (ax <= 4 * v2e));
+    loop invariant ((0 <= lh6) && (lh6 <= 2 * v2e));
+    loop assigns jo7, v2e, x, ax, lh6;
+  */
+  while (jo7 >= kx) {
+        jo7 = jo7 - kx;
+        v2e += 1;
+        x = x + v2e;
+        ax = ax+(v2e%5);
+        lh6 = lh6+(v2e%3);
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-04-07 09:29:52,850 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(){
+  int kx, jo7, v2e, lh6, x, ax;
+
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
+
+  /*@
+    loop invariant jo7 == - kx * v2e;
+    loop invariant x == -1 + (v2e * (v2e + 1)) / 2;
+    loop invariant 0 <= v2e;
+    loop invariant 0 <= ax && ax <= 4 * v2e;
+    loop invariant 0 <= lh6 && lh6 <= 2 * v2e;
+    loop assigns jo7, v2e, x, ax, lh6;
+  */
+  while (jo7 >= kx) {
+        jo7 = jo7 - kx;
+        v2e += 1;
+        x = x + v2e;
+        ax = ax+(v2e%5);
+        lh6 = lh6+(v2e%3);
+  }
+
+}
+----- Candidate 4/5 full code end -----
+2026-04-07 09:29:52,850 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(){
+  int kx, jo7, v2e, lh6, x, ax;
+
+  kx=36;
+  jo7=0;
+  v2e=0;
+  lh6=jo7;
+  x=-1;
+  ax=jo7;
+
+  /*@
+    loop invariant jo7 + kx * v2e == 0;
+    loop invariant 2*(x + 1) == v2e*(v2e + 1);
+    loop invariant v2e >= 0;
+    loop invariant 0 <= ax && ax <= v2e * 4;
+    loop invariant 0 <= lh6 && lh6 <= v2e * 2;
+    loop assigns jo7, v2e, x, ax, lh6;
+    loop variant (jo7 - kx + 1);
+  */
+  while (jo7 >= kx) {
+        jo7 = jo7 - kx;
+        v2e += 1;
+        x = x + v2e;
+        ax = ax+(v2e%5);
+        lh6 = lh6+(v2e%3);
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-04-07 09:29:52,850 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:29:52,851 - INFO - Checking 18 invariants for conflicts...
+2026-04-07 09:29:52,858 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:29:52,859 - INFO -   1: int main1(){
+2026-04-07 09:29:52,859 - INFO -   2:   int kx, jo7, v2e, lh6, x, ax;
+2026-04-07 09:29:52,859 - INFO -   3: 
+2026-04-07 09:29:52,859 - INFO -   4:   kx=36;
+2026-04-07 09:29:52,859 - INFO -   5:   jo7=0;
+2026-04-07 09:29:52,859 - INFO -   6:   v2e=0;
+2026-04-07 09:29:52,859 - INFO -   7:   lh6=jo7;
+2026-04-07 09:29:52,859 - INFO -   8:   x=-1;
+2026-04-07 09:29:52,859 - INFO -   9:   ax=jo7;
+2026-04-07 09:29:52,859 - INFO -   10: 
+2026-04-07 09:29:52,859 - INFO - DEBUG: Total lines: 42
+2026-04-07 09:29:52,888 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:29:52,889 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:29:52,889 - INFO - Houdini iteration 1: Removed 18 failed invariants
+2026-04-07 09:29:52,889 - INFO -   Before: 18 invariants
+2026-04-07 09:29:52,889 - INFO -   After: 0 invariants
+2026-04-07 09:29:52,889 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:29:52,921 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:30:50,773 - INFO - Deduplicated 18 loop invariants in final code
+2026-04-07 09:30:50,802 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:30:50,802 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:30:50,803 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:30:50,803 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_18/1.c
+2026-04-07 09:30:50,803 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_18/1_invariants.txt
+2026-04-07 09:30:50,803 - INFO - 
+============================================================
+2026-04-07 09:30:50,803 - INFO - Final first_pass results:
+2026-04-07 09:30:50,803 - INFO -   syntax=None
+2026-04-07 09:30:50,803 - INFO -   valid=None
+2026-04-07 09:30:50,803 - INFO -   satisfy=None
+2026-04-07 09:30:50,803 - INFO - ============================================================
+2026-04-07 09:30:50,803 - INFO - 
+============================================================
+2026-04-07 09:30:50,803 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:30:50,803 - INFO -   Total API calls: 7
+2026-04-07 09:30:50,803 - INFO -   Total prompt tokens (input): 8,137
+2026-04-07 09:30:50,803 - INFO -   Total completion tokens (output): 26,568
+2026-04-07 09:30:50,803 - INFO -   Total tokens: 34,705
+2026-04-07 09:30:50,803 - INFO -   Average per call:
+2026-04-07 09:30:50,803 - INFO -     Prompt: 1162.4 tokens
+2026-04-07 09:30:50,803 - INFO -     Completion: 3795.4 tokens
+2026-04-07 09:30:50,803 - INFO -     Total: 4957.9 tokens
+2026-04-07 09:30:50,803 - INFO - ============================================================
+2026-04-07 09:30:50,804 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_18/1.c
+2026-04-07 09:30:50,804 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_18/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

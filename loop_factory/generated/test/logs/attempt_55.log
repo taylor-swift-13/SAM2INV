@@ -1,896 +1,549 @@
-2026-03-22 13:42:54,512 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 13:42:54,560 - INFO - Found 1 loops
-2026-03-22 13:42:54,561 - INFO - 
+2026-04-07 09:40:33,226 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:40:33,239 - INFO - Found 1 loops
+2026-04-07 09:40:33,240 - INFO - 
 ============================================================
-2026-03-22 13:42:54,561 - INFO - Main generation pass 1/1
-2026-03-22 13:42:54,561 - INFO - ============================================================
-2026-03-22 13:42:54,561 - INFO - Loaded single prompt template: simple
-2026-03-22 13:42:54,561 - INFO - Generating 8 candidate invariant sets with temperature=1.0
-2026-03-22 13:42:54,561 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 13:42:54,575 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:43:53,795 - INFO - 
------ Candidate 1/8 raw response begin -----
-<reasoning>The loop updates aic by +2 each iteration, and g by the new aic value plus an extra +1. Since vnt is initialized to 0 and never modified, the condition (vnt % 3) == 0 holds on every iteration, so x is incremented every time. These observations allow a strong, inductive invariant that ties g to the initial value of x and the number of iterations performed.
-
-Key inductive facts to encode:
-- vnt remains 0: vnt == 0
-- aic is always even (starts at 0 and increases by 2): aic % 2 == 0
-- aic is non-negative and grows by 2 each loop: 0 <= aic
-- If k is the number of iterations so far, then aic = 2k, and g has been incremented by sum over i=0..k-1 of (2i + 3) = k^2 + 2k. Therefore g = g0 + k^2 + 2k, where g0 is the initial value of g, i.e., the initial x value: g0 = \at(x, Pre)
-  This yields the compact invariant g == \at(x, Pre) + (aic/2)*(aic/2) + aic.
-- yn never increases above its initial bound 8: yn <= 8
-- The loop assigns the set {aic, g, yn, x, tm, ksy, oms, x5} (i.e., all variables that the loop body can modify).
-
-For termination, use a loop variant that decreases with each iteration. Since aic increases by 2 each iteration, zk - aic decreases by 2; after aic reaches zk or more, the loop ends. Thus loop variant (zk - aic) is appropriate and non-negative whenever the loop guard aic < zk holds.
-
-Using these, we provide a strong, inductive, verification-friendly set of invariants and a precise loop assigns list that reflect the actual state updates without modifying the original program structure (besides annotations).
-
-</reasoning>
-<code>int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
-
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
-
-  /*@
-    loop invariant vnt == 0;
-    loop invariant aic % 2 == 0;
-    loop invariant 0 <= aic;
-    loop invariant g == \at(x, Pre) + (aic/2)*(aic/2) + aic;
-    loop invariant yn <= 8;
-    loop assigns aic, g, yn, x, tm, ksy, oms, x5;
-    loop variant (zk - aic);
-  */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }
-
-}</code>
------ Candidate 1/8 raw response end -----
-2026-03-22 13:43:53,796 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 13:43:53,808 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:46:06,497 - INFO - 
------ Candidate 2/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop in Frama-C/WP. The loop updates aic by +2 each iteration and, due to vnt being fixed at 0, x is incremented by 1 every iteration (the condition (vnt%3)==0 is always true). The other variables (tm, ksy, yn, oms, x5) change as part of the body, but for a concise inductive invariant we should capture a core conservation law relating the rich state updates that happen predictably.
-
-Core conservation/relational equality (invariant):
-- (g - x) == ((aic/2) * ((aic/2) + 1))
-Reasoning: After i iterations, aic = 2*i. x increases by 1 per iteration, so x = x0 + i and g increases by aic (2*i) plus 1 per iteration, so g = g0 + (sum_{t=1..i} (2*t + 1)) = x0 + i^2 + 2i. Thus g - x = (x0 + i^2 + 2i) - (x0 + i) = i^2 + i = (aic/2) * ((aic/2) + 1). This invariant holds at loop entry (i=0) and is preserved by each iteration.
-
-Other invariant for robustness:
-- aic is even: aic % 2 == 0
-This is preserved because aic increments by 2 each iteration.
-
-Progress bound (loop variant):
-- loop variant (zk - aic)
-Since guard is aic < zk, this value decreases by 2 each iteration and stays non-negative while the loop executes, ensuring termination reasoning.
-
-Loop assigns (all modified locals inside the loop):
-- aic, g, x, tm, ksy, yn, oms, x5
-
-The invariants above are non-tautological, rely only on the function’s parameters/locals, and do not introduce unrelated facts. The Pre-values of q and x are not needed directly in the chosen invariants, so there is no reliance on \at(.., Pre) beyond what’s necessary.
-
-</reasoning>
-<code>/*@
-  loop invariant (g - x) == ((aic/2) * ((aic/2) + 1));
-  loop invariant (aic % 2 == 0);
-  loop assigns aic, g, x, tm, ksy, yn, oms, x5;
-  loop variant (zk - aic);
-*/
-while (aic&lt;zk) {
-      aic += 2;
-      if (ksy&le;yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }</code>
------ Candidate 2/8 raw response end -----
-2026-03-22 13:46:06,498 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 13:46:06,510 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:47:01,473 - INFO - 
------ Candidate 3/8 raw response begin -----
-<reasoning>We need inductive loop invariants for the given loop in main1 that are friendly to Frama-C/WP. Key observations:
-- vnt is initialized to 0 and never modified inside the loop, so vnt == 0 is preserved.
-- The statement if ((vnt%3)==0) { x = x + 1; } is effectively always true (since vnt == 0 always), so x increases by 1 every iteration.
-- aic starts at 0 and increases by 2 each iteration, and the loop runs while aic < zk. This makes aic always even and non-decreasing. To make a sound invariant, we avoid overcommitting on a bound that could be violated after the last iteration (when aic might overshoot zk if zk is odd). A robust bound is aic <= zk + 1, which holds at the start of every iteration and also after each iteration.
-- We can relate x to its initial value using the exact per-iteration change: since x increments by 1 every iteration and aic increments by 2 each iteration, the relation x = x0 + (aic/2) holds at loop headers, where x0 is the initial value of x. We express this using \at(x, Pre) for the initial x and rely on aic being even (aic % 2 == 0) to keep the division integral.
-- A single core conservation/relational equality is captured by x == \at(x, Pre) + aic/2. This explains the state update of x across iterations.
-- For progress, we provide a loop_variant that strictly descends: (zk + 1 - aic) decreases by 2 each iteration, starting from zk+1 and ending when the loop exits.
-- loop assigns must reflect all variables modified inside the loop: aic, g, yn, x, tm, ksy, oms, x5.
-
-Taken together, the invariants are inductive and verification-friendly, capturing the essential state evolution without over-constraining the loop. They do not modify the original code outside of adding annotations. The unknown() calls are not touched, and parameter usage follows ACSL rules. </reasoning>
-<code>int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
-
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
-
-  /*@
-    loop invariant vnt == 0;
-    loop invariant (aic % 2) == 0;
-    loop invariant aic >= 0;
-    loop invariant aic <= zk + 1;
-    loop invariant x == \at(x, Pre) + aic/2;
-    loop assigns aic, g, yn, x, tm, ksy, oms, x5;
-    loop variant (zk + 1 - aic);
-  */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }
-
-}</code>
------ Candidate 3/8 raw response end -----
-2026-03-22 13:47:01,473 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 13:47:01,486 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:48:02,006 - INFO - 
------ Candidate 4/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. The loop updates several variables and has a constant bound zk = q+15, with aic starting at 0 and increasing by 2 each iteration while aic < zk. We should provide invariants that are preserved across iterations (inductive), are strong enough to aid verification, and do not modify the original code. We also must specify a complete and exact set of loop assigns.
-
-Chosen invariants focus on stable, monotone properties that hold before and after each iteration:
-- aic remains between 0 and zk, and stays even (aic increments by 2 each iteration).
-- yn never exceeds its initial bound (yn <= 8); when ksy <= yn, yn is updated to ksy, thus maintaining yn <= 8.
-- g and x are non-decreasing with respect to the initial value of x (i.e., their values are never less than the initial x at function entry). We express this using \at(x, Pre), since x is a function parameter. This helps capture the “progress” nature of the updates (g grows as a result of aic updates and the x value grows only non-decreasingly when vnt%3==0).
-- Provide a precise loop assigns: all variables that can be modified inside the loop.
-
-We also include a loop variant (zk - aic) to ensure termination as aic increases by 2 every iteration until reaching zk. This set of invariants is inductive and verification-friendly for Frama-C/WP.
-
-Note: The constraints require using \at(param, Pre) only for function parameters; we reference \at(x, Pre) (initial value of x) in the invariants. We avoid modifying the original code beyond adding the loop annotations. No unknown() calls are introduced. The loop guard itself is not an invariant; we weaken it by expressing non-strict bounds (e.g., 0 <= aic <= zk) and rely on the loop guard for termination. </reasoning>
-
-<code>int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
-
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
-
-  /*@ 
-    loop invariant 0 <= aic <= zk;
-    loop invariant (aic % 2) == 0;
-    loop invariant yn <= 8;
-    loop invariant x >= \at(x, Pre);
-    loop invariant g >= \at(x, Pre);
-    loop assigns aic, g, yn, x, tm, ksy, oms, x5;
-    loop variant zk - aic;
-  */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }
-
-}</code>
------ Candidate 4/8 raw response end -----
-2026-03-22 13:48:02,007 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 13:48:02,019 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:48:54,820 - INFO - 
------ Candidate 5/8 raw response begin -----
+2026-04-07 09:40:33,240 - INFO - Main generation pass 1/1
+2026-04-07 09:40:33,240 - INFO - ============================================================
+2026-04-07 09:40:33,240 - INFO - Loaded single prompt template: simple
+2026-04-07 09:40:33,240 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:40:33,240 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:40:33,296 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:42:11,514 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-Design goals:
-- Provide a strong, inductive invariant that is easy for Frama-C/WP to discharge and that tightly tracks the main loop state.
-- Introduce a core conservation/relational equality capturing the primary state update: the relation between g, aic, and the initial x value.
-- Add minimal, sound progression bounds for loop termination.
-- Specify complete and exact loop assigns to reflect all modified variables.
-Rationale:
-- Core equality: g evolves deterministically with aic each iteration (aic increases by 2, then g is incremented by the new aic and by an extra 1). A closed-form invariant holds:
-  g = initial_x + (aic/2)^2 + aic
-  This can be derived by noting that after t iterations (aic = 2t), g increases by (aic_old + 3) each time, yielding g = initial_x + t^2 + 2t, which is equivalent to initial_x + (aic/2)^2 + aic when aic is even.
-  We express it with initial value of x: \at(x, Pre).
-- Parity and bound: aic starts at 0 and increases by 2, so aic is always even; also aic <= zk holds whenever the loop is about to execute (the loop guard is aic < zk, and after the body aic becomes aic+2, maintaining a non-odd bound).
-- Loop variant: zk - aic is a natural decreasing measure (decreases by 2 each iteration) and remains non-negative while the loop could execute, ensuring termination.
-- Assigns: The loop updates aic, g, yn, ksy, tm, oms, x, x5, so the assigns list includes exactly these identifiers.
-- The invariant uses only parameters q and x via \at for the initial value of x: \at(x, Pre). This adheres to the constraint that \at() may only be used on function parameters.
+I chose invariants that are strong, inductive, and directly reflect the per-iteration state transitions:
+
+- Core conservation law: (y == -8 + v). This directly captures the synchronous increment of y and v in each iteration (y is initialized to -8 and increased by 1 exactly when v is increased by 1). This is a clear, arithmetic conservation that explains the y/v update relation.
+
+- Relational/transition law for gvr: (v == 0 && gvr == -1) || (v > 0 && gvr == ((v - 1) % c)). This encodes that gvr holds the remainder computed from the previous loop index: after an iteration finishes with v'=v_old+1, gvr == v_old % c == (v' - 1) % c. It also preserves the initial sentinel value gvr == -1 when v == 0.
+
+- Progress and bounds: 0 <= v && v <= mt and loop variant mt - v ensure termination (v increases by 1 each loop and is bounded by mt). v1 is always in 0..4 because it is updated modulo 5; this is useful to avoid spurious proof obligations about v1. For ovo we must be careful: at function entry ovo == \at(c, Pre) (it may be outside 0..8), but immediately after the first iteration it becomes reduced modulo 9. So I use a conditional invariant: when v==0 we keep the initial relation ovo == \at(c, Pre), and when v>0 we know 0 <= ovo < 9.
+
+- mt fact: mt is constant across the loop and equals (\at(c, Pre) % 20) + 10 as established before the loop; recording that supports reasoning about mt and the variant.
+
+- loop assigns lists exactly the variables modified in the loop body: gvr, y, ovo, v, v1.
+
+All invariants are true at loop entry (checked from initial state) and preserved by the loop body:
+- gvr relation is preserved because gvr is set to v % c before v is incremented, so after increment its value equals (v' - 1) % c.
+- y == -8 + v is preserved because both y and v are incremented by 1 in the body.
+- 0 <= v <= mt is preserved because the body is executed only when v < mt and then v is incremented by 1.
+- The modular bounds for v1 and ovo are preserved by the respective %5 and %9 updates (with the conditional for ovo covering the initial non-reduced value).
+- The variant mt - v is non-negative by 0 <= v <= mt and decreases by 1 each loop iteration, proving termination.
+
+I avoided quantifiers, new logic definitions, or any use of \at(...) on local variables, and used only the available variables (and \at(c, Pre) for the function parameter initial value).
 </reasoning>
-<code>int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
+<code>
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
 
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
 
   /*@
-    loop invariant aic % 2 == 0 && aic <= zk;
-    loop invariant g == \at(x, Pre) + (aic/2) * (aic/2) + aic;
-    loop assigns aic, g, yn, ksy, tm, oms, x, x5;
-    loop variant zk - aic;
+    loop invariant mt == (\at(c, Pre) % 20) + 10;
+    loop invariant 0 <= v && v <= mt;
+    loop invariant (v == 0 && gvr == -1) || (v > 0 && gvr == ((v - 1) % c));
+    loop invariant (y == (-8 + v));
+    loop invariant 0 <= v1 && v1 < 5;
+    loop invariant (v == 0 ==> ovo == \at(c, Pre)) && (v > 0 ==> 0 <= ovo && ovo < 9);
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant mt - v;
   */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
+  while (1) {
+      if (!(v < mt)) {
+          break;
       }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
+      gvr = v % c;
+      y = (1)+(y);
+      ovo = (ovo+gvr)%9;
+      v++;
+      v1 = (v1+gvr)%5;
   }
 
-}</code>
------ Candidate 5/8 raw response end -----
-2026-03-22 13:48:54,821 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 13:48:54,837 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:49:32,010 - INFO - 
------ Candidate 6/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants and a complete loop assigns for the given loop in main1. Observations to guide invariants:
-
-- Loop guard: aic < zk, with aic starting at 0 and increasing by 2 each iteration. A natural loop variant is zk - aic, which strictly decreases by 2 every iteration and stays non-negative while the loop condition holds.
-- The statement inside the loop that affects x is the unconditional increment inside the condition if ((vnt%3)==0) { x = x + 1; }. Since vnt is initialized to 0 and never changed, this condition is always true, so x increases by 1 every iteration. Therefore, after t iterations, aic = 2t and x = x0 + t, where x0 is the initial value of x.
-- Combining these, we can express a strong invariant tying x and aic to the initial x: x = \at(x, Pre) + aic/2. This holds initially (aic = 0) and is preserved since aic increases by 2 and x increases by 1 per iteration.
-- The variable vnt is never updated inside the loop, so vnt remains 0 throughout. This is useful to justify the previous invariant for x.
-- We should also declare the loop assigns to reflect all modified variables: aic, g, ksy, tm, oms, x, x5, yn.
-
-With these, we provide a tight, inductive invariant set that is helpful for Frama-C WP, plus a loop variant to ensure termination. The invariants avoid unrelated facts and stay within the allowed syntax and variables. </reasoning>
-
-<code>int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
-
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
-
-  /*@
-    loop invariant aic >= 0;
-    loop invariant (aic % 2) == 0;
-    loop invariant x == \at(x, Pre) + aic/2;
-    loop invariant vnt == 0;
-    loop assigns aic, g, ksy, tm, oms, x, x5, yn;
-    loop variant zk - aic;
-  */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }
-
-}</code>
------ Candidate 6/8 raw response end -----
-2026-03-22 13:49:32,011 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 13:49:32,026 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:50:12,684 - INFO - 
------ Candidate 7/8 raw response begin -----
-<reasoning>Chosen invariant strategy:
-- Core conservation/relational equality: Track the cumulative effect of loop updates through a single relation between g, x, and aic. Because aic increases by 2 every iteration and x increases by 1 every iteration (vnt is 0, hence vnt%3==0 always true), g increments by the new aic value plus 1. This yields a closed-form invariant:
-  g - x equals i*(i+1), where i = aic/2 (the number of iterations performed so far).
-  In ACSL form: g - x == (aic/2) * ((aic/2) + 1).
-  This captures the exact cumulative effect of the loop updates and is preserved by every iteration.
-
-- Initialization check: At loop entry, aic = 0, x equals its initial value, and g equals its initial value. The invariant evaluates to 0 == 0, which holds.
-
-- Inductiveness: Assume g - x == (aic/2) * ((aic/2) + 1) at the start of an iteration. Within the loop body:
-  - aic becomes aic + 2, so (aic/2) becomes (aic/2) + 1.
-  - x becomes x + 1 (since vnt%3 == 0 given vnt == 0).
-  - g becomes g + aic_new + 1, where aic_new = aic + 2.
-  Then g_new - x_new becomes (g - x) + (aic + 2) = (aic/2)*(aic/2 + 1) + aic + 2 = (aic_new/2)*((aic_new/2) + 1). So the invariant is preserved.
-
-- Progress bound: Provide a loop variant to ensure termination: zk - aic strictly decreases by 2 each iteration (since aic += 2) and remains non-negative while the loop guard aic < zk holds. Hence, the loop cannot run forever.
-
-- Loop assigns: All variables that can be modified inside the loop are listed to aid verification: aic, yn, x, g, tm, ksy, oms, x5.
-
-- Guard handling: The invariant is linked to the loop head; the loop guard is not itself an invariant. We weaken non-strict progress as needed via the loop variant.
-
-This set of invariants is strong, precise, and verification-friendly for Frama-C/WP. It uses only allowed operators and variables, and does not introduce any non-parameter-at-Pre constructs. </reasoning>
-<code>int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
-
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
-
-  /*@
-    loop invariant g - x == (aic/2) * ((aic/2) + 1);
-    loop invariant aic <= zk;
-    loop assigns aic, yn, x, g, tm, ksy, oms, x5;
-    loop variant (zk - aic);
-  @*/
-while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }
-
-}</code>
------ Candidate 7/8 raw response end -----
-2026-03-22 13:50:12,684 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 13:50:12,699 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:50:54,032 - INFO - 
------ Candidate 8/8 raw response begin -----
+}
+</code>
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:42:11,516 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:42:11,571 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:43:49,136 - INFO - 
+----- Candidate 2/5 raw response begin -----
 <reasoning>
-The loop updates are:
+I choose invariants that are inductive, explain the state transitions, and are friendly to WP:
 
-- aic increases by 2 each iteration: aic := aic + 2.
-- x increases by 1 every iteration because vnt is initialized to 0 and never changes, so (vnt % 3) == 0 is always true.
-- Therefore, after t iterations: aic = 2t and x = x0 + t, where x0 is the initial value of x (i.e., \at(x, Pre)).
-- This suggests a strong inductive relation: x - \at(x,Pre) == aic/2. It holds initially (t=0): 0 == 0, and is preserved since aic increases by 2 and x increases by 1 each iteration (so the difference x - x0 increases by 1 exactly when aic increases by 2, i.e., aic/2 increases by 1).
-- We also capture basic properties that are invariant under the loop:
-  - aic is always even: aic % 2 == 0.
-  - vnt remains 0 throughout the loop: vnt == 0.
-- We declare the loop assigns precisely the variables altered inside the loop: aic, g, ksy, yn, tm, oms, x, x5.
-- A loop variant (zk - aic) decreases by 2 each iteration (since aic increases by 2) and is non-negative at loop entry (guard aic < zk). This ensures termination for Frama-C WP.
-These invariants are inductive, non-trivial, and verification-friendly for WP.
+- Core conservation equality: y == -8 + v. y is initialized to -8 and is incremented by 1 exactly when v is incremented; this equality holds before the loop and is preserved by the loop body, so it explains the coupled update of y and v.
+
+- Progress / bounds: 0 <= v <= mt and the loop variant mt - v. v is the loop counter, it starts at 0 and increases by 1 each iteration, and mt is constant; these facts make termination obvious to WP.
+
+- Constant fact: mt == (c % 20) + 10. mt is initialized before the loop and never modified; asserting it as an invariant makes reasoning about mt explicit.
+
+- Relation for gvr: (v==0 && gvr == -1) || (v > 0 && gvr == (v-1) % c). gvr is assigned to v % c at the start of each iteration. After an iteration finishes, gvr holds the remainder computed from the previous v. The disjunction accounts for the initial value gvr == -1 before any iteration. This captures the state-transition law for gvr without using quantifiers.
+
+- Safety for modulo: I include c != 0 as an invariant so that the uses of `% c` in the code and in the invariant are well-defined for WP. (This is a necessary assumption for verifying the modular equalities; if c can be zero in the intended usage, a precondition should be added at function level instead.)
+
+- Exact assigns: the loop assigns only the variables that are written in the loop body: gvr, y, ovo, v, v1.
+
+- Variant: mt - v (non-negative by the 0 <= v && v <= mt invariant) and decreases by 1 every iteration (as v++ is executed).
+
+I avoided quantifiers and auxiliary predicates and kept invariants minimal but strong enough to be inductive and to explain the main state transitions.
 </reasoning>
-<code>/*@
-  loop invariant (aic % 2 == 0);
-  loop invariant (vnt == 0);
-  loop invariant (x - \at(x, Pre)) == (aic / 2);
-  loop assigns aic, g, ksy, yn, tm, oms, x, x5;
-  loop variant (zk - aic);
-@*/
-while (aic&lt;zk) {
-      aic += 2;
-      if (ksy&lt;=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }</code>
------ Candidate 8/8 raw response end -----
-2026-03-22 13:50:54,032 - INFO - 
------ Candidate 1/8 full code begin -----
-int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
+<code>
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
 
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
 
   /*@
-    loop invariant vnt == 0;
-    loop invariant aic % 2 == 0;
-    loop invariant 0 <= aic;
-    loop invariant g == \at(x, Pre) + (aic/2)*(aic/2) + aic;
-    loop invariant yn <= 8;
-    loop assigns aic, g, yn, x, tm, ksy, oms, x5;
-    loop variant (zk - aic);
+    loop invariant mt == (c % 20) + 10;
+    loop invariant 0 <= v && v <= mt;
+    loop invariant y == (-8 + v);
+    loop invariant c != 0;
+    loop invariant (v == 0 && gvr == -1) || (v > 0 && gvr == (v-1) % c);
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant (mt - v);
   */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }
+  while (1) {
+        if (!(v < mt)) {
+            break;
+        }
+        gvr = v % c;
+        y = (1)+(y);
+        ovo = (ovo+gvr)%9;
+        v++;
+        v1 = (v1+gvr)%5;
+    }
 
 }
------ Candidate 1/8 full code end -----
-2026-03-22 13:50:54,032 - INFO - 
------ Candidate 2/8 full code begin -----
-/*@
-  loop invariant (g - x) == ((aic/2) * ((aic/2) + 1));
-  loop invariant (aic % 2 == 0);
-  loop assigns aic, g, x, tm, ksy, yn, oms, x5;
-  loop variant (zk - aic);
-*/
-while (aic&lt;zk) {
-      aic += 2;
-      if (ksy&le;yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }
------ Candidate 2/8 full code end -----
-2026-03-22 13:50:54,032 - INFO - 
------ Candidate 3/8 full code begin -----
-int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
+</code>
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:43:49,138 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:43:49,199 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:44:44,575 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I chose a small set of strong, directly checkable invariants that are inductive and explain the loop state transitions without introducing quantifiers or auxiliary logic.
 
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
+Core relational equality (state transition law)
+- y == -8 + v
+  - y is incremented exactly once per loop iteration and v is also incremented exactly once. This gives the exact linear relation y = initial_y + v (initial_y = -8). This invariant is true before the loop (v=0,y=-8), and is preserved by the body: y is increased by 1 at the same time that v is eventually increased by 1.
+
+Relational equality for gvr (explains the update of gvr)
+- (v == 0 && gvr == -1) || (v > 0 && gvr == (v - 1) % c)
+  - gvr is initialized to -1. In the loop body gvr is assigned v % c where v is the current loop index before the increment; after the iteration finishes v has been incremented, so the stored gvr equals (v-1) % c for v>0. This invariant captures that exact relation and is inductive.
+
+Progress / bounds
+- 0 <= v && v <= mt
+  - Expresses that v starts at 0 and never exceeds mt. It is preserved by the body (v increments by 1) and it gives the necessary non-strict bound at loop exit (v == mt when the loop terminates).
+- mt == ((\at(c, Pre) % 20) + 10)
+  - mt is not modified in the loop; this ties it to the function parameter's initial value and is useful for reasoning about mt externally.
+
+Loop assigns and variant
+- The loop writes exactly gvr, y, ovo, v, v1.
+- The natural variant mt - v is non-negative by the 0 <= v <= mt invariant and decreases by 1 on every executed iteration; it ensures termination proof obligations.
+
+I intentionally avoided modulo-range invariants for ovo and v1 because the C % operator behavior depends on signs of operands and could be problematic for reasoning unless further preconditions on c are known. The chosen invariants are sufficient to be inductive and to explain the main state transitions (counter and y) and the behavior of gvr produced by the loop code.
+
+All annotations use only available variables and use \at(c, Pre) only for the parameter c, as required.
+</reasoning>
+<code>
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
+
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
 
   /*@
-    loop invariant vnt == 0;
-    loop invariant (aic % 2) == 0;
-    loop invariant aic >= 0;
-    loop invariant aic <= zk + 1;
-    loop invariant x == \at(x, Pre) + aic/2;
-    loop assigns aic, g, yn, x, tm, ksy, oms, x5;
-    loop variant (zk + 1 - aic);
+    loop invariant (mt == ((\at(c, Pre) % 20) + 10));
+    loop invariant 0 <= v && v <= mt;
+    loop invariant y == (-8 + v);
+    loop invariant ((v == 0 && gvr == -1) || (v > 0 && gvr == (v - 1) % c));
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant (mt - v);
   */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
+while (1) {
+      if (!(v < mt)) {
+          break;
       }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
+      gvr = v % c;
+      y = (1)+(y);
+      ovo = (ovo+gvr)%9;
+      v++;
+      v1 = (v1+gvr)%5;
   }
 
 }
------ Candidate 3/8 full code end -----
-2026-03-22 13:50:54,032 - INFO - 
------ Candidate 4/8 full code begin -----
-int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:44:44,577 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:44:44,647 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:45:35,214 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I choose invariants that are inductive, minimal, and directly explain the loop state changes.
 
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
+Core conservation / relational equality:
+- y == -8 + v
+  - y is incremented exactly once per loop iteration and v is incremented exactly once per loop iteration. This equality holds at loop entry (y == -8, v == 0) and is preserved by the body; it documents the state transition law for y relative to v.
 
-  /*@ 
-    loop invariant 0 <= aic <= zk;
-    loop invariant (aic % 2) == 0;
-    loop invariant yn <= 8;
-    loop invariant x >= \at(x, Pre);
-    loop invariant g >= \at(x, Pre);
-    loop assigns aic, g, yn, x, tm, ksy, oms, x5;
-    loop variant zk - aic;
+Relational equality for gvr:
+- (v == 0 && gvr == -1) || (v > 0 && gvr == (v - 1) % c)
+  - gvr is set inside the body to v % c before v is incremented, so at the next loop head gvr equals (v-1) % c. The special-case v == 0 records the initial -1 value. This makes the evolving relation between v and gvr explicit and inductive.
+
+Progress / bounds:
+- 0 <= v && v <= mt
+  - v starts at 0 and is increased by 1 until it reaches mt; this bounds v and helps reason about loop exit.
+- loop variant: mt - v
+  - decreases by 1 each iteration (v++), ensuring termination reasoning.
+
+Additional useful facts:
+- 0 <= v1 && v1 < 5
+  - v1 is updated via (v1 + gvr) % 5; starting at 0, v1 remains in 0..4. This is a small, exact bound useful to WP.
+- mt == (\at(c,Pre) % 20) + 10
+  - mt is computed once before the loop and not modified by the loop; recording its value in terms of the initial parameter helps verification goals that refer back to the initial c.
+
+Loop assigns:
+- The loop writes gvr, y, ovo, v, v1 — this is the exact set of modified variables.
+
+I avoid quantifiers, predicates, or \at on local variables. All invariants are true at loop entry, preserved by each iteration, and combined with the negation of the guard (v >= mt) will yield useful exit facts (e.g., y == -8 + v and v >= mt).
+</reasoning>
+<code>
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
+
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant 0 <= v && v <= mt;
+    loop invariant y == -8 + v;
+    loop invariant (v == 0 && gvr == -1) || (v > 0 && gvr == (v - 1) % c);
+    loop invariant 0 <= v1 && v1 < 5;
+    loop invariant mt == (\at(c,Pre) % 20) + 10;
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant mt - v;
   */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
+  while (1) {
+        if (!(v < mt)) {
+            break;
+        }
+        gvr = v % c;
+        y = (1)+(y);
+        ovo = (ovo+gvr)%9;
+        v++;
+        v1 = (v1+gvr)%5;
   }
 
 }
------ Candidate 4/8 full code end -----
-2026-03-22 13:50:54,032 - INFO - 
------ Candidate 5/8 full code begin -----
-int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
+</code>
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:45:35,216 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:45:35,293 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:46:36,348 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I designed invariants to be strong, inductive, and directly tied to the loop updates while avoiding any forbidden constructs.
 
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
+Key choices and justification:
+- Core conservation / relational equality:
+  - mt == (\at(c, Pre) % 20) + 10
+    - mt is initialized from the input parameter c and never changes; making this explicit helps the prover use mt as a constant.
+  - y == -8 + v
+    - y and v are incremented together (y = y+1; v++), so the linear relation y = -8 + v holds initially and is preserved by the loop body. This captures the exact evolution of y relative to v.
+  - (v == 0 && gvr == -1) || (v > 0 && gvr == ((v-1) % c))
+    - This captures precisely how gvr relates to v: before any iteration (v == 0) gvr keeps its initial value -1; after k iterations gvr holds the remainder of the previous v (i.e. (v-1) % c). The disjunction avoids a ternary operator (forbidden) and is preserved by the assignment gvr = v % c followed by v++.
+- Progress bound (loop variant):
+  - mt - v
+    - v increases by 1 each iteration while mt is constant; mt - v is a natural, non-negative decreasing variant that proves termination of the v-driven loop.
+- Minimal arithmetic bounds:
+  - 0 <= v && v <= mt
+    - Ensures v is within a known range. It holds initially and is preserved (if v < mt before iteration then v+1 <= mt afterwards).
+  - 0 <= v1 && v1 < 5
+    - v1 is updated as (v1 + gvr) % 5, so it always stays within 0..4; this bound holds initially and is preserved.
+- Exact assigns:
+  - loop assigns gvr, y, ovo, v, v1;
+    - These are exactly the variables modified in the loop body, which is required.
+
+I avoided:
+- Any quantifiers (\forall, \exists).
+- Ternary expressions.
+- Using \at on local variables (only used \at(c, Pre) for the function parameter).
+- Any unrelated or tautological invariants.
+
+Note: The invariant about gvr uses the C modulus operator with c; the original loop performs v % c, so the invariant mirrors the program behavior. If c == 0 the program's behavior is undefined (as in the original program), and that is not changed here.
+</reasoning>
+<code>
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
+
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
 
   /*@
-    loop invariant aic % 2 == 0 && aic <= zk;
-    loop invariant g == \at(x, Pre) + (aic/2) * (aic/2) + aic;
-    loop assigns aic, g, yn, ksy, tm, oms, x, x5;
-    loop variant zk - aic;
+    loop invariant mt == (\at(c, Pre) % 20) + 10;
+    loop invariant 0 <= v && v <= mt;
+    loop invariant y == (-8 + v);
+    loop invariant (v == 0 && gvr == -1) || (v > 0 && gvr == ((v-1) % c));
+    loop invariant 0 <= v1 && v1 < 5;
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant mt - v;
   */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
-  }
+  while (1) {
+        if (!(v < mt)) {
+            break;
+        }
+        gvr = v % c;
+        y = (1)+(y);
+        ovo = (ovo+gvr)%9;
+        v++;
+        v1 = (v1+gvr)%5;
+    }
 
 }
------ Candidate 5/8 full code end -----
-2026-03-22 13:50:54,032 - INFO - 
------ Candidate 6/8 full code begin -----
-int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:46:36,350 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
 
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
 
   /*@
-    loop invariant aic >= 0;
-    loop invariant (aic % 2) == 0;
-    loop invariant x == \at(x, Pre) + aic/2;
-    loop invariant vnt == 0;
-    loop assigns aic, g, ksy, tm, oms, x, x5, yn;
-    loop variant zk - aic;
+    loop invariant mt == (\at(c, Pre) % 20) + 10;
+    loop invariant 0 <= v && v <= mt;
+    loop invariant (v == 0 && gvr == -1) || (v > 0 && gvr == ((v - 1) % c));
+    loop invariant (y == (-8 + v));
+    loop invariant 0 <= v1 && v1 < 5;
+    loop invariant (v == 0 ==> ovo == \at(c, Pre)) && (v > 0 ==> 0 <= ovo && ovo < 9);
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant mt - v;
   */
-  while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
+  while (1) {
+      if (!(v < mt)) {
+          break;
       }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
+      gvr = v % c;
+      y = (1)+(y);
+      ovo = (ovo+gvr)%9;
+      v++;
+      v1 = (v1+gvr)%5;
   }
 
 }
------ Candidate 6/8 full code end -----
-2026-03-22 13:50:54,032 - INFO - 
------ Candidate 7/8 full code begin -----
-int main1(int x,int q){
-  int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
+----- Candidate 1/5 full code end -----
+2026-04-07 09:46:36,350 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
 
-  zk=q+15;
-  vnt=0;
-  aic=0;
-  g=x;
-  yn=8;
-  ksy=x;
-  oms=-1;
-  x5=q;
-  tm=q+5;
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
 
   /*@
-    loop invariant g - x == (aic/2) * ((aic/2) + 1);
-    loop invariant aic <= zk;
-    loop assigns aic, yn, x, g, tm, ksy, oms, x5;
-    loop variant (zk - aic);
-  @*/
-while (aic<zk) {
-      aic += 2;
-      if (ksy<=yn) {
-          yn = ksy;
+    loop invariant mt == (c % 20) + 10;
+    loop invariant 0 <= v && v <= mt;
+    loop invariant y == (-8 + v);
+    loop invariant c != 0;
+    loop invariant (v == 0 && gvr == -1) || (v > 0 && gvr == (v-1) % c);
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant (mt - v);
+  */
+  while (1) {
+        if (!(v < mt)) {
+            break;
+        }
+        gvr = v % c;
+        y = (1)+(y);
+        ovo = (ovo+gvr)%9;
+        v++;
+        v1 = (v1+gvr)%5;
+    }
+
+}
+----- Candidate 2/5 full code end -----
+2026-04-07 09:46:36,350 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
+
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
+
+  /*@
+    loop invariant (mt == ((\at(c, Pre) % 20) + 10));
+    loop invariant 0 <= v && v <= mt;
+    loop invariant y == (-8 + v);
+    loop invariant ((v == 0 && gvr == -1) || (v > 0 && gvr == (v - 1) % c));
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant (mt - v);
+  */
+while (1) {
+      if (!(v < mt)) {
+          break;
       }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
+      gvr = v % c;
+      y = (1)+(y);
+      ovo = (ovo+gvr)%9;
+      v++;
+      v1 = (v1+gvr)%5;
   }
 
 }
------ Candidate 7/8 full code end -----
-2026-03-22 13:50:54,032 - INFO - 
------ Candidate 8/8 full code begin -----
-/*@
-  loop invariant (aic % 2 == 0);
-  loop invariant (vnt == 0);
-  loop invariant (x - \at(x, Pre)) == (aic / 2);
-  loop assigns aic, g, ksy, yn, tm, oms, x, x5;
-  loop variant (zk - aic);
-@*/
-while (aic&lt;zk) {
-      aic += 2;
-      if (ksy&lt;=yn) {
-          yn = ksy;
-      }
-      if ((vnt%3)==0) {
-          x = x + 1;
-      }
-      g = g + aic;
-      tm = tm + yn;
-      ksy = ksy + yn;
-      g++;
-      ksy -= 1;
-      oms = oms + tm;
-      x5 = x5 + aic;
+----- Candidate 3/5 full code end -----
+2026-04-07 09:46:36,350 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
+
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+  /*@
+    loop invariant 0 <= v && v <= mt;
+    loop invariant y == -8 + v;
+    loop invariant (v == 0 && gvr == -1) || (v > 0 && gvr == (v - 1) % c);
+    loop invariant 0 <= v1 && v1 < 5;
+    loop invariant mt == (\at(c,Pre) % 20) + 10;
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant mt - v;
+  */
+  while (1) {
+        if (!(v < mt)) {
+            break;
+        }
+        gvr = v % c;
+        y = (1)+(y);
+        ovo = (ovo+gvr)%9;
+        v++;
+        v1 = (v1+gvr)%5;
   }
------ Candidate 8/8 full code end -----
-2026-03-22 13:50:54,032 - INFO - Successfully generated 8/8 candidates
-2026-03-22 13:50:54,034 - INFO - Checking 19 invariants for conflicts...
-2026-03-22 13:50:54,037 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 13:50:54,037 - INFO -   1: int main1(int x,int q){
-2026-03-22 13:50:54,037 - INFO -   2:   int zk, vnt, aic, g, yn, ksy, oms, x5, tm;
-2026-03-22 13:50:54,037 - INFO -   3: 
-2026-03-22 13:50:54,037 - INFO -   4:   zk=q+15;
-2026-03-22 13:50:54,037 - INFO -   5:   vnt=0;
-2026-03-22 13:50:54,037 - INFO -   6:   aic=0;
-2026-03-22 13:50:54,037 - INFO -   7:   g=x;
-2026-03-22 13:50:54,037 - INFO -   8:   yn=8;
-2026-03-22 13:50:54,037 - INFO -   9:   ksy=x;
-2026-03-22 13:50:54,037 - INFO -   10:   oms=-1;
-2026-03-22 13:50:54,037 - INFO - DEBUG: Total lines: 55
-2026-03-22 13:50:54,231 - INFO - syntax Correct
-2026-03-22 13:51:26,532 - INFO - Validate:
-2026-03-22 13:51:26,532 - INFO - [True, True, True, True, True, True, True, True, True, False, True, False, True, True, True, True, True, True, True]
-2026-03-22 13:51:26,532 - INFO - 
-2026-03-22 13:51:26,532 - INFO - Verify:
-2026-03-22 13:51:26,532 - INFO - []
-2026-03-22 13:51:26,532 - INFO - 
-2026-03-22 13:51:26,532 - INFO - Houdini iteration 1: Removed 2 failed invariants
-2026-03-22 13:51:26,532 - INFO -   Before: 19 invariants
-2026-03-22 13:51:26,532 - INFO -   After: 17 invariants
-2026-03-22 13:51:26,532 - INFO -   Remaining invariants:
-2026-03-22 13:51:26,532 - INFO -     [1] vnt == 0
-2026-03-22 13:51:26,532 - INFO -     [2] aic % 2 == 0
-2026-03-22 13:51:26,532 - INFO -     [3] 0 <= aic
-2026-03-22 13:51:26,532 - INFO -     [4] g == \at(x, Pre) + (aic/2)*(aic/2) + aic
-2026-03-22 13:51:26,532 - INFO -     [5] yn <= 8
-2026-03-22 13:51:26,532 - INFO -     [6] (g - x) == ((aic/2) * ((aic/2) + 1))
-2026-03-22 13:51:26,532 - INFO -     [7] (aic % 2 == 0)
-2026-03-22 13:51:26,532 - INFO -     [8] (aic % 2) == 0
-2026-03-22 13:51:26,532 - INFO -     [9] aic >= 0
-2026-03-22 13:51:26,532 - INFO -     [10] x == \at(x, Pre) + aic/2
-2026-03-22 13:51:26,532 - INFO -     [11] x >= \at(x, Pre)
-2026-03-22 13:51:26,532 - INFO -     [12] g >= \at(x, Pre)
-2026-03-22 13:51:26,532 - INFO -     [13] aic % 2 == 0 && aic <= zk
-2026-03-22 13:51:26,532 - INFO -     [14] g - x == (aic/2) * ((aic/2) + 1)
-2026-03-22 13:51:26,532 - INFO -     [15] aic <= zk
-2026-03-22 13:51:26,532 - INFO -     [16] (vnt == 0)
-2026-03-22 13:51:26,532 - INFO -     [17] (x - \at(x, Pre)) == (aic / 2)
-2026-03-22 13:51:26,732 - INFO - syntax Correct
-2026-03-22 13:51:58,439 - INFO - Validate:
-2026-03-22 13:51:58,439 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True]
-2026-03-22 13:51:58,439 - INFO - 
-2026-03-22 13:51:58,440 - INFO - Verify:
-2026-03-22 13:51:58,440 - INFO - []
-2026-03-22 13:51:58,440 - INFO - 
-2026-03-22 13:51:58,440 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-22 13:51:58,440 - INFO -   Before: 17 invariants
-2026-03-22 13:51:58,440 - INFO -   After: 16 invariants
-2026-03-22 13:51:58,440 - INFO -   Remaining invariants:
-2026-03-22 13:51:58,440 - INFO -     [1] vnt == 0
-2026-03-22 13:51:58,440 - INFO -     [2] aic % 2 == 0
-2026-03-22 13:51:58,440 - INFO -     [3] 0 <= aic
-2026-03-22 13:51:58,440 - INFO -     [4] g == \at(x, Pre) + (aic/2)*(aic/2) + aic
-2026-03-22 13:51:58,440 - INFO -     [5] yn <= 8
-2026-03-22 13:51:58,440 - INFO -     [6] (g - x) == ((aic/2) * ((aic/2) + 1))
-2026-03-22 13:51:58,440 - INFO -     [7] (aic % 2 == 0)
-2026-03-22 13:51:58,440 - INFO -     [8] (aic % 2) == 0
-2026-03-22 13:51:58,440 - INFO -     [9] aic >= 0
-2026-03-22 13:51:58,440 - INFO -     [10] x == \at(x, Pre) + aic/2
-2026-03-22 13:51:58,440 - INFO -     [11] x >= \at(x, Pre)
-2026-03-22 13:51:58,440 - INFO -     [12] g >= \at(x, Pre)
-2026-03-22 13:51:58,440 - INFO -     [13] g - x == (aic/2) * ((aic/2) + 1)
-2026-03-22 13:51:58,440 - INFO -     [14] aic <= zk
-2026-03-22 13:51:58,440 - INFO -     [15] (vnt == 0)
-2026-03-22 13:51:58,440 - INFO -     [16] (x - \at(x, Pre)) == (aic / 2)
-2026-03-22 13:51:58,638 - INFO - syntax Correct
-2026-03-22 13:52:30,251 - INFO - Validate:
-2026-03-22 13:52:30,251 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True]
-2026-03-22 13:52:30,251 - INFO - 
-2026-03-22 13:52:30,251 - INFO - Verify:
-2026-03-22 13:52:30,251 - INFO - []
-2026-03-22 13:52:30,251 - INFO - 
-2026-03-22 13:52:30,251 - INFO - Houdini iteration 3: Removed 1 failed invariants
-2026-03-22 13:52:30,251 - INFO -   Before: 16 invariants
-2026-03-22 13:52:30,251 - INFO -   After: 15 invariants
-2026-03-22 13:52:30,251 - INFO -   Remaining invariants:
-2026-03-22 13:52:30,251 - INFO -     [1] vnt == 0
-2026-03-22 13:52:30,251 - INFO -     [2] aic % 2 == 0
-2026-03-22 13:52:30,251 - INFO -     [3] 0 <= aic
-2026-03-22 13:52:30,251 - INFO -     [4] g == \at(x, Pre) + (aic/2)*(aic/2) + aic
-2026-03-22 13:52:30,251 - INFO -     [5] yn <= 8
-2026-03-22 13:52:30,251 - INFO -     [6] (g - x) == ((aic/2) * ((aic/2) + 1))
-2026-03-22 13:52:30,251 - INFO -     [7] (aic % 2 == 0)
-2026-03-22 13:52:30,252 - INFO -     [8] (aic % 2) == 0
-2026-03-22 13:52:30,252 - INFO -     [9] aic >= 0
-2026-03-22 13:52:30,252 - INFO -     [10] x == \at(x, Pre) + aic/2
-2026-03-22 13:52:30,252 - INFO -     [11] x >= \at(x, Pre)
-2026-03-22 13:52:30,252 - INFO -     [12] g >= \at(x, Pre)
-2026-03-22 13:52:30,252 - INFO -     [13] g - x == (aic/2) * ((aic/2) + 1)
-2026-03-22 13:52:30,252 - INFO -     [14] (vnt == 0)
-2026-03-22 13:52:30,252 - INFO -     [15] (x - \at(x, Pre)) == (aic / 2)
-2026-03-22 13:52:30,466 - INFO - syntax Correct
-2026-03-22 13:53:01,924 - INFO - Validate:
-2026-03-22 13:53:01,924 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 13:53:01,924 - INFO - 
-2026-03-22 13:53:01,924 - INFO - Verify:
-2026-03-22 13:53:01,924 - INFO - []
-2026-03-22 13:53:01,924 - INFO - 
-2026-03-22 13:53:01,924 - INFO - Houdini iteration 4: All invariants are valid
-2026-03-22 13:53:02,139 - INFO - syntax Correct
-2026-03-22 13:53:33,574 - INFO - Validate:
-2026-03-22 13:53:33,574 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 13:53:33,574 - INFO - 
-2026-03-22 13:53:33,574 - INFO - Verify:
-2026-03-22 13:53:33,574 - INFO - []
-2026-03-22 13:53:33,574 - INFO - 
-2026-03-22 13:53:52,832 - INFO - Deduplicated 9 loop invariants in final code
-2026-03-22 13:53:53,032 - INFO - syntax Correct
-2026-03-22 13:54:24,070 - INFO - Validate:
-2026-03-22 13:54:24,070 - INFO - [True, True, True, True, True, True]
-2026-03-22 13:54:24,070 - INFO - 
-2026-03-22 13:54:24,070 - INFO - Verify:
-2026-03-22 13:54:24,070 - INFO - []
-2026-03-22 13:54:24,070 - INFO - 
-2026-03-22 13:54:24,070 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 13:54:24,070 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_55/1.c
-2026-03-22 13:54:24,070 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_55/1_invariants.txt
-2026-03-22 13:54:24,071 - INFO - 
+
+}
+----- Candidate 4/5 full code end -----
+2026-04-07 09:46:36,350 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int c){
+  int mt, v, gvr, y, ovo, v1;
+
+  mt=(c%20)+10;
+  v=0;
+  gvr=-1;
+  y=-8;
+  ovo=c;
+  v1=v;
+
+  /*@
+    loop invariant mt == (\at(c, Pre) % 20) + 10;
+    loop invariant 0 <= v && v <= mt;
+    loop invariant y == (-8 + v);
+    loop invariant (v == 0 && gvr == -1) || (v > 0 && gvr == ((v-1) % c));
+    loop invariant 0 <= v1 && v1 < 5;
+    loop assigns gvr, y, ovo, v, v1;
+    loop variant mt - v;
+  */
+  while (1) {
+        if (!(v < mt)) {
+            break;
+        }
+        gvr = v % c;
+        y = (1)+(y);
+        ovo = (ovo+gvr)%9;
+        v++;
+        v1 = (v1+gvr)%5;
+    }
+
+}
+----- Candidate 5/5 full code end -----
+2026-04-07 09:46:36,350 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:46:36,352 - INFO - Checking 9 invariants for conflicts...
+2026-04-07 09:46:36,355 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:46:36,355 - INFO -   1: int main1(int c){
+2026-04-07 09:46:36,355 - INFO -   2:   int mt, v, gvr, y, ovo, v1;
+2026-04-07 09:46:36,355 - INFO -   3: 
+2026-04-07 09:46:36,355 - INFO -   4:   mt=(c%20)+10;
+2026-04-07 09:46:36,355 - INFO -   5:   v=0;
+2026-04-07 09:46:36,355 - INFO -   6:   gvr=-1;
+2026-04-07 09:46:36,355 - INFO -   7:   y=-8;
+2026-04-07 09:46:36,355 - INFO -   8:   ovo=c;
+2026-04-07 09:46:36,355 - INFO -   9:   v1=v;
+2026-04-07 09:46:36,355 - INFO -   10: 
+2026-04-07 09:46:36,355 - INFO - DEBUG: Total lines: 36
+2026-04-07 09:46:36,381 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:46:36,382 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:46:36,382 - INFO - Houdini iteration 1: Removed 9 failed invariants
+2026-04-07 09:46:36,382 - INFO -   Before: 9 invariants
+2026-04-07 09:46:36,382 - INFO -   After: 0 invariants
+2026-04-07 09:46:36,382 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:46:36,407 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:46:48,081 - INFO - Deduplicated 4 loop invariants in final code
+2026-04-07 09:46:48,109 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:46:48,110 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:46:48,110 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:46:48,110 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_55/1.c
+2026-04-07 09:46:48,110 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_55/1_invariants.txt
+2026-04-07 09:46:48,110 - INFO - 
 ============================================================
-2026-03-22 13:54:24,071 - INFO - Final first_pass results:
-2026-03-22 13:54:24,071 - INFO -   syntax=1
-2026-03-22 13:54:24,071 - INFO -   valid=1
-2026-03-22 13:54:24,071 - INFO -   satisfy=None
-2026-03-22 13:54:24,071 - INFO - ============================================================
-2026-03-22 13:54:24,071 - INFO - 
+2026-04-07 09:46:48,110 - INFO - Final first_pass results:
+2026-04-07 09:46:48,110 - INFO -   syntax=None
+2026-04-07 09:46:48,110 - INFO -   valid=None
+2026-04-07 09:46:48,110 - INFO -   satisfy=None
+2026-04-07 09:46:48,110 - INFO - ============================================================
+2026-04-07 09:46:48,110 - INFO - 
 ============================================================
-2026-03-22 13:54:24,071 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 13:54:24,071 - INFO -   Total API calls: 3
-2026-03-22 13:54:24,071 - INFO -   Total prompt tokens (input): 3,192
-2026-03-22 13:54:24,071 - INFO -   Total completion tokens (output): 17,748
-2026-03-22 13:54:24,071 - INFO -   Total tokens: 20,940
-2026-03-22 13:54:24,071 - INFO -   Average per call:
-2026-03-22 13:54:24,071 - INFO -     Prompt: 1064.0 tokens
-2026-03-22 13:54:24,071 - INFO -     Completion: 5916.0 tokens
-2026-03-22 13:54:24,071 - INFO -     Total: 6980.0 tokens
-2026-03-22 13:54:24,071 - INFO - ============================================================
-2026-03-22 13:54:24,071 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_55/1.c
-2026-03-22 13:54:24,071 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_55/1_invariants.txt
-2026-03-22 13:54:54,969 - INFO - LLM quality-gate raw response: {
-  "ok": true,
-  "reason": "pass"
-}
-2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
-2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
-2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...
+2026-04-07 09:46:48,110 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:46:48,110 - INFO -   Total API calls: 19
+2026-04-07 09:46:48,110 - INFO -   Total prompt tokens (input): 21,239
+2026-04-07 09:46:48,110 - INFO -   Total completion tokens (output): 72,669
+2026-04-07 09:46:48,110 - INFO -   Total tokens: 93,908
+2026-04-07 09:46:48,110 - INFO -   Average per call:
+2026-04-07 09:46:48,110 - INFO -     Prompt: 1117.8 tokens
+2026-04-07 09:46:48,110 - INFO -     Completion: 3824.7 tokens
+2026-04-07 09:46:48,110 - INFO -     Total: 4942.5 tokens
+2026-04-07 09:46:48,110 - INFO - ============================================================
+2026-04-07 09:46:48,111 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_55/1.c
+2026-04-07 09:46:48,111 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_55/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

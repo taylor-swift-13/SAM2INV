@@ -1,1088 +1,462 @@
-2026-03-22 14:38:11,052 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 14:38:11,091 - INFO - Found 1 loops
-2026-03-22 14:38:11,092 - INFO - 
+2026-04-07 09:50:15,011 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:50:15,026 - INFO - Found 1 loops
+2026-04-07 09:50:15,027 - INFO - 
 ============================================================
-2026-03-22 14:38:11,093 - INFO - Main generation pass 1/1
-2026-03-22 14:38:11,093 - INFO - ============================================================
-2026-03-22 14:38:11,093 - INFO - Loaded single prompt template: simple
-2026-03-22 14:38:11,093 - INFO - Generating 8 candidate invariant sets with temperature=1.0
-2026-03-22 14:38:11,093 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 14:38:11,106 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:39:03,061 - INFO - 
------ Candidate 1/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop. The loop touches several state variables and has a clear loop counter: rmk, which increments every iteration until the guard rmk < l4a becomes false. A strong, useful invariant is to relate rmk with p8j (another per-iteration counter): since both start at 0 and are incremented by 1 each iteration, we have the core relational invariant rmk == p8j. This single conservation, together with loop bounds and simple monotonicity properties, greatly helps WP reasoning without overconstraining the state.
-
-Key inductive facts to capture:
-- Core relation: rmk == p8j is preserved each iteration.
-- Guard-related bounds: 0 <= rmk and rmk <= l4a hold; l4a itself is fixed during the loop.
-- Progress bound on arithmetic variables: p increases by vf (which is >= 0) and then by a constant 3 each iteration, so p is at least 4 + 3*rmk (since initial p = 4 and rmk starts at 0). This gives a simple, exact lower bound that scales with the loop counter.
-- Bounds on other variables to prevent unsound reasoning: wq0 >= 0 and wq0 <= p (wq0 only decreases if >0 or increases when it’s below p), g0 >= 3 (initial value) and nondecreasing, vf >= 0, uv >= 2, lgo >= 0.
-- Loop variant for termination: l4a - rmk decreases by 1 each iteration and remains non-negative while the loop is active.
-
-We also provide a complete and exact loop assigns list: all variables modified inside the loop: wq0, vf, g0, p, p8j, rmk, lgo, uv. This helps Frama-C WP precisely track side effects.
-
-The resulting invariants are designed to be strong, non-tautological, and inductive, while keeping the original code unchanged. The at annotation is not used on local variables, only on the function parameters if needed (we do not rely on that here). The loop variant is included to aid termination reasoning. </reasoning>
-<code>int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
-
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
-
-  /*@ 
-    loop invariant rmk == p8j;
-    loop invariant 0 <= rmk;
-    loop invariant rmk <= l4a;
-    loop invariant p >= 4 + 3 * rmk;
-    loop invariant wq0 >= 0;
-    loop invariant wq0 <= p;
-    loop invariant g0 >= 3;
-    loop invariant vf >= 0;
-    loop invariant uv >= 2;
-    loop invariant lgo >= 0;
-    loop assigns wq0, vf, g0, p, p8j, rmk, lgo, uv;
-    loop variant l4a - rmk;
-  */
-while (rmk&lt;l4a) {
-      if (rmk%3==0) {
-          if (wq0&gt;0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0&lt;p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
-  }
-
-}</code>
------ Candidate 1/8 raw response end -----
-2026-03-22 14:39:03,061 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 14:39:03,075 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:39:55,533 - INFO - 
------ Candidate 2/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. The loop progresses by incrementing rmk every iteration until rmk reaches l4a, and various state variables are updated depending on rmk%3 and wq0 vs p. A strong invariant should capture the key relational update that is preserved by each iteration.
-
-Key choices:
-- Core equality / relational update: p8j is incremented every iteration, and rmk is incremented every iteration; hence p8j == rmk is a natural, exact invariant that links the loop counter to a. This is a strong, inductive relation describing the primary progress of the loop.
-- Bridge to initial state: l4a is assigned from e at entry and never changes; express this relationship via l4a == \at(e, Pre). This makes the link to the loop guard robust for verification.
-- Minimal progress bounds: rmk is constrained by 0 <= rmk <= l4a to ensure the counter does not go out of the loop bound and to document progress toward termination.
-- Arithmetic progress bound: p increases by either 3 or 4 each iteration (due to the p += vf; then p += 3; and vf possibly incrementing). So p >= 4 + 3*rmk is a reasonable, inductive lower bound on p.
-- Loop variant for termination: use a natural decreasing variant, l4a - rmk, which strictly decreases by 1 each iteration as rmk increments.
-
-Assigns:
-- The loop touches and potentially modifies wq0, vf, p, p8j, rmk, lgo, uv, g0. Other variables (e, l4a, g0 kept, etc.) are not assigned inside the loop (e is a parameter; l4a, g0 stay as in code). So we specify these as the loop assigns.
-
-These invariants are strong, non-tautological, and inductive, and they help Frama-C/WP reason about the loop without modifying the original code except for annotations. They do not rely on forbidden constructs or on \at applied to locals, and they respect the available variable scope. </reasoning>
-<code>/*@
-  loop invariant l4a == \at(e, Pre) && p8j == rmk;
-  loop invariant 0 <= rmk && rmk <= l4a;
-  loop invariant p >= 4 + 3*rmk;
-  loop variant l4a - rmk;
-  loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-*/</code>
------ Candidate 2/8 raw response end -----
-2026-03-22 14:39:55,533 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 14:39:55,549 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:40:36,432 - INFO - 
------ Candidate 3/8 raw response begin -----
+2026-04-07 09:50:15,027 - INFO - Main generation pass 1/1
+2026-04-07 09:50:15,027 - INFO - ============================================================
+2026-04-07 09:50:15,027 - INFO - Loaded single prompt template: simple
+2026-04-07 09:50:15,027 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:50:15,028 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:50:15,092 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:51:31,645 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-I chose invariants that are (1) provable from the pre-loop state, (2) preserved by each branch of the loop body, (3) capture the main conservation/relational law of the loop, and (4) provide simple non-negativity/progress bounds needed by WP.
+I inspected the loop and the initial state. Key observations:
 
-Core relational equality:
-- p8j == rmk : both p8j and rmk are initialized to 0 and are incremented exactly once per iteration, so this equality explains the per-iteration coupling (conservation relation) and is strong and inductive.
+- s8sh is initialized once to the incoming parameter u and never modified. So s8sh == \at(u, Pre) is a stable relational equality that explains the loop bound source.
+- The variable sn is a loop counter started at 0 and incremented by 1 each iteration. We therefore provide a non-negativity invariant for sn and a safe bound that accommodates the possibility that the initial s8sh might be non-positive: (s8sh <= 0 || sn <= s8sh). This keeps the invariant valid at loop entry even if the parameter u (hence s8sh) is negative.
+- The variable s is increased by the new value of sn every iteration (sn is incremented first). This yields an exact closed-form conservation law: after k iterations, s = s0 + k*(k+1)/2. I encode that as s == \at(s, Pre) + sn*(sn+1)/2. This is a strong, inductive invariant and captures the loop update law for s.
+- cnof starts as -6 and is replaced by cnof%5 each iteration. For the concrete initial value -6 we have -6%5 == -1 (in C), and thereafter -1%5 == -1, so cnof is either the initial -6 (only before any iteration) or -1 (from the first iteration on). This is expressed compactly and inductively with the equivalence (cnof == -6) <==> (sn == 0).
+- The loop modifies exactly sn, x, u, s, cnof; s8sh is unchanged. I provide a precise loop assigns clause.
+- For termination/progress I provide the natural integer variant s8sh - sn. Given the guard sn < s8sh, this variant is non-negative when the loop executes and decreases by 1 each iteration.
 
-Progress / bounds (minimal and directly useful):
-- rmk >= 0 and p8j == rmk imply p8j >= 0: number of iterations is non-negative.
-- l4a == \at(e,Pre) is a stability fact: l4a is initialized from the function parameter and never modified; expressing it with \at(e,Pre) ties the local l4a to the function parameter initial value (allowed).
-- wq0 >= 0, vf >= 0, g0 >= 3, p >= 4, lgo >= 0, uv >= 2: these are simple monotonicity / lower-bound facts that hold initially and are preserved by the loop body (the code only increments these variables or decrements wq0 under the guard wq0>0). They are helpful to discharge WP obligations about arithmetic underflows and to show non-negativity where needed.
-
-Variant:
-- (l4a - rmk) is the loop variant: when the loop guard holds we have rmk < l4a, so this variant is a non-negative integer that decreases by 1 each iteration, proving termination.
-
-Loop assigns:
-- The list rmk, wq0, vf, p, p8j, lgo, uv, g0 exactly matches variables mutated inside the loop (no extras).
-
-I avoided any quantifiers, new logic/predicate definitions, or \at() on local variables. All invariants are provable at loop entry from the given initial state and are straightforward to check for preservation by the body.
+I avoided quantifiers and any use of \at on local variables. The invariants are inductive and verification-friendly for Frama-C/WP: the s formula is the main conservation equality; sn bounds and cnof equivalence are simple arithmetic facts that are easy for WP to discharge; assigns and variant are exact.
 </reasoning>
 <code>
-int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
 
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
 
   /*@
-    loop invariant (l4a == \at(e,Pre));
-    loop invariant (p8j == rmk);
-    loop invariant (rmk >= 0);
-    loop invariant (wq0 >= 0);
-    loop invariant (vf >= 0);
-    loop invariant (g0 >= 3);
-    loop invariant (p >= 4);
-    loop invariant (lgo >= 0);
-    loop invariant (uv >= 2);
-    loop assigns rmk, wq0, vf, p, p8j, lgo, uv, g0;
-    loop variant (l4a - rmk);
+    loop invariant s8sh == \at(u, Pre);
+    loop invariant sn >= 0 && (s8sh <= 0 || sn <= s8sh);
+    loop invariant s == \at(s, Pre) + sn*(sn+1)/2;
+    loop invariant (cnof == -6) <==> (sn == 0);
+    loop assigns sn, x, u, s, cnof;
+    loop variant s8sh - sn;
   */
-while (rmk<l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
+while (sn < s8sh) {
+      sn = sn + 1;
+      x = x + u;
+      u = u*u+cnof;
+      s = s + sn;
+      cnof = cnof%5;
   }
 
 }
 </code>
------ Candidate 3/8 raw response end -----
-2026-03-22 14:40:36,432 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 14:40:36,447 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:42:22,234 - INFO - 
------ Candidate 4/8 raw response begin -----
-<reasoning>The loop updates provide a few robust, verification-friendly invariants.
-
-Key observations:
-- p8j and rmk are both incremented by exactly 1 in every loop iteration. Therefore, p8j == rmk holds at all times (an exact relational invariant that directly explains part of the state update).
-- All variables involved are non-decreasing or non-negative through the loop:
-  - wq0 starts at 3 and never goes negative (decrement only when >0; otherwise increment under a guard). So 0 <= wq0 is preserved.
-  - g0 starts at 3 and only increases; so 3 <= g0 is preserved.
-  - vf starts at 0 and only increases (when wq0 > 0 and rmk % 3 == 0); so vf >= 0 is preserved.
-  - p starts at 4 and is updated by adding vf (>= 0) and then +3, so p >= 4 is preserved. More strongly, p >= 4 + 3*rmk holds, since each iteration increases p by at least 3 and rmq increases by 1.
-  - uv and lgo are non-decreasing and start non-negative.
-  - lgo is updated by adding g0, which is non-negative, so lgo >= 0.
-
-We add a strong conservation-like relation: p >= 4 + 3*rmk. This follows from the initial values (p0 = 4) and the fact that every iteration increases p by vf + 3 with vf >= 0. Since rmk increments by 1 each iteration, p grows at least by 3 per iteration, so p >= 4 + 3*rmk after k iterations.
-
-Progress bound: loop variant l4a - rmk decreases by 1 each iteration (since rmk increments by 1 and l4a is constant). The loop guard rm k < l4a ensures the variant is non-negative during iterations, giving a valid well-founded measure.
-
-We also add the exact relational invariant p8j == rmk to strictly capture the synchrony of those two counters.
-
-Overall, the invariants are inductive, strong, and do not introduce unrelated properties. The loop assigns set is exact: wq0, vf, p, p8j, rmk, lgo, uv, g0 are the variables modified inside the loop.
-
-</reasoning>
-<code>/*@
-  loop invariant p8j == rmk;
-  loop invariant 0 <= rmk;
-  loop invariant 0 <= wq0;
-  loop invariant 3 <= g0;
-  loop invariant 0 <= vf;
-  loop invariant p >= 4 + 3 * rmk;
-  loop invariant 0 <= p8j;
-  loop invariant 0 <= uv;
-  loop invariant 0 <= lgo;
-  loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-  loop variant l4a - rmk;
-*/ 
-while (rmk&lt;l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
-  }</code>
------ Candidate 4/8 raw response end -----
-2026-03-22 14:42:22,234 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 14:42:22,247 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:43:47,524 - INFO - 
------ Candidate 5/8 raw response begin -----
-<reasoning>We aim for inductive, verification-friendly invariants that are strong yet maintainable for Frama-C/WP. Observations from the loop:
-
-- rmk is always incremented by 1 each iteration, and p8j is also incremented by 1 every iteration. Therefore, rmk and p8j stay in lockstep: rmk == p8j is an exact invariant.
-- The loop guard is rmk < l4a. To ensure a safe bound at loop head, we can assert 0 <= rmk and rmk <= l4a; the latter is implied by the guard but is helpful as a constraining invariant.
-- All arithmetic variables (p, wq0, uv, lgo, vf, g0) originate non-negative values and are only ever increased or decreased in non-decreasing ways, except wq0 can decrease by 1 in a guarded branch but never below 0 if guarded by wq0 > 0. A conservative, safe invariant is that these variables remain >= 0 throughout the loop.
-- To guarantee termination, provide a loop variant that strictly decreases each iteration. Since rmk is incremented by 1 on every iteration and the loop executes while rmk < l4a, a natural decreasing measure is l4a - rmk.
-
-In summary, the core conservation is rmk == p8j; additional non-negativity invariants and a termination variant l4a - rmk support verification without altering program semantics. The loop assigns should include all variables that get modified inside the loop body. This yields a concise, strong, inductive set of invariants for Frama-C/WP.</reasoning>
-<code>/*@
-  loop invariant rmk == p8j;
-  loop invariant 0 <= rmk;
-  loop invariant rmk <= l4a;
-  loop invariant p >= 0;
-  loop invariant wq0 >= 0;
-  loop invariant uv >= 0;
-  loop invariant lgo >= 0;
-  loop invariant vf >= 0;
-  loop invariant g0 >= 0;
-  loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-  loop variant (l4a - rmk);
-*/ 
-while (rmk&lt;l4a) {
-      if (rmk%3==0) {
-          if (wq0&gt;0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0&lt;p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
-  }</code>
------ Candidate 5/8 raw response end -----
-2026-03-22 14:43:47,524 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 14:43:47,537 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:44:32,330 - INFO - 
------ Candidate 6/8 raw response begin -----
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:51:31,648 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:51:31,702 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:52:35,490 - INFO - 
+----- Candidate 2/5 raw response begin -----
 <reasoning>
-I add invariants that are inductive, concise, and explain how the state evolves across iterations.
+I choose invariants that are inductive, explain the key state changes, and are friendly for WP:
 
-Key choices and reasoning:
-- Core relational equality: p8j == rmk. Both are initialized to 0 and incremented exactly once per iteration, so this exact equality is preserved and explains their joint step.
-- Loop counter bounds / progress: 0 <= rmk <= l4a and variant (l4a - rmk). These ensure termination reasoning and are preserved because the loop guard is rmk < l4a and rmk increments by 1 each iteration.
-- Useful monotonicity / bounds:
-  - 0 <= wq0 && wq0 <= p: wq0 never becomes negative (decrement guarded by wq0>0) and it is only incremented when wq0 < p, so the inequality wq0 <= p holds initially and is preserved; p never decreases.
-  - vf >= 0 && vf <= rmk: vf only increases by at most 1 per iteration, so it is bounded above by the number of iterations executed so far.
-  - 3 <= g0 && g0 <= 3 + rmk: g0 starts at 3 and can increase by at most 1 per iteration.
-  - lgo >= 3 * rmk: each iteration adds at least 3 to lgo (g0 >= 3), so lgo grows by at least 3 per iteration; this is a useful lower bound.
-  - p >= 4 + 3 * rmk + vf: p starts at 4 and each iteration increases p by (vf' + 3) where vf' >= vf, hence this lower bound is inductive and helps relate p growth to rmk and vf.
-  - uv >= 2 + rmk: uv increases by at least 1 per iteration (uv++), so this simple progress bound is preserved.
-- Stable relation to the original parameter: l4a == \at(e, Pre). l4a was set to e before the loop and never modified, so this equality helps tie loop limits to the function parameter.
+- Core relational equality (state transition law) for s:
+  s increases by the sequence 1,2,...,sn over sn iterations, so the exact conserved relation is
+    s == \at(s, Pre) + sn*(sn+1)/2.
+  This is a strong, arithmetic invariant that precisely captures the cumulative effect of the s update and is preserved by each iteration.
 
-All invariants use only available variables, avoid quantifiers and forbidden constructs, and are chosen to be strong enough for WP to reason about modified variables and termination. The loop assigns clause precisely lists all variables modified in the loop. The loop variant (l4a - rmk) is a natural decreasing integer measure.
+- Loop counter and bounds:
+  - 0 <= sn ensures a non-negative counter.
+  - (s8sh >= 0) ==> (sn <= s8sh) weakens the natural bound to avoid requiring a particular sign of the parameter \at(u, Pre) before the loop; when s8sh < 0 the loop does not run and the implication is vacuously true. This makes the invariant hold at initialization and be preserved by every iteration.
+  - I expose that s8sh is constant and equal to the initial parameter: s8sh == \at(u, Pre). This explains why we compare sn with s8sh and lets WP reason about the loop bound w.r.t. the function parameter.
+
+- cnof range:
+  cnof is initialized to -6; after the first iteration it is assigned cnof%5 which yields a remainder in the range [-4,4]. I express this as a simple case-split invariant:
+    if sn == 0 then cnof == -6 else (sn >= 1) implies -4 <= cnof <= 4.
+  This is enough to bound cnof for reasoning and is inductive.
+
+- Assigns and variant:
+  - The loop assigns exactly the variables that are written in the loop: sn, x, u, s, cnof.
+  - A natural variant is (s8sh - sn). To avoid forcing s8sh to be non-negative in all states, the invariant uses an implication (s8sh >= 0) ==> (sn <= s8sh). This ensures the variant is non-negative whenever the loop can run (i.e., when s8sh >= 0), and if s8sh < 0 the loop guard prevents entry. This is a pragmatic choice that WP can discharge in typical proofs.
+
+I avoided quantifiers and logic definitions, used only available variables and \at(...) on parameters, and kept the original code unchanged except for annotations.
 </reasoning>
 <code>
-int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
 
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
 
   /*@
-    loop invariant 0 <= rmk && rmk <= l4a;
-    loop invariant p8j == rmk;
-    loop invariant 0 <= wq0 && wq0 <= p;
-    loop invariant vf >= 0 && vf <= rmk;
-    loop invariant 3 <= g0 && g0 <= 3 + rmk;
-    loop invariant lgo >= 3 * rmk;
-    loop invariant p >= 4 + 3 * rmk + vf;
-    loop invariant uv >= 2 + rmk;
-    loop invariant l4a == \at(e, Pre);
-    loop assigns wq0, vf, g0, p, p8j, rmk, lgo, uv;
-    loop variant (l4a - rmk);
+    loop invariant s8sh == \at(u, Pre);
+    loop invariant 0 <= sn;
+    loop invariant (s8sh >= 0) ==> (sn <= s8sh);
+    loop invariant s == \at(s, Pre) + (sn*(sn + 1))/2;
+    loop invariant ((sn == 0) ==> (cnof == -6)) && ((sn >= 1) ==> ((-4 <= cnof) && (cnof <= 4)));
+    loop assigns sn, x, u, s, cnof;
+    loop variant (s8sh - sn);
   */
-  while (rmk<l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
+while (sn < s8sh) {
+      sn = sn + 1;
+      x = x + u;
+      u = u*u+cnof;
+      s = s + sn;
+      cnof = cnof%5;
   }
 
 }
 </code>
------ Candidate 6/8 raw response end -----
-2026-03-22 14:44:32,331 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 14:44:32,345 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:48:52,906 - INFO - 
------ Candidate 7/8 raw response begin -----
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:52:35,491 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:52:35,562 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:53:37,942 - INFO - 
+----- Candidate 3/5 raw response begin -----
 <reasoning>
-I selected invariants that are inductive (hold initially and are preserved by each iteration), are verification-friendly, and give strong information about the loop behavior while respecting the restrictions (no quantifiers, no new logic definitions, only \at(e, Pre) on the parameter).
+I selected a small set of strong, provable invariants that are inductive and useful for WP:
 
-Core relational equality (conservation law)
-- p8j == rmk
-  Both p8j and rmk are initialized to 0 and both are incremented exactly once per iteration (p8j++ then rmk = rmk + 1), so this equality is preserved and explains their synchronized update.
+- Core relational equality (conservation law) for s:
+  2*(s - \at(s, Pre)) == sn*(sn+1)
+  This captures exactly the effect of the update "s = s + sn" together with "sn = sn + 1": after k iterations s equals initial_s + 1+2+...+k, i.e. the triangular number. Writing it as 2*(...) == sn*(sn+1) avoids division and is preserved by the loop step.
 
-Progress bound (loop variant)
-- l4a - rmk
-  rmk increases by 1 each iteration while l4a is unchanged, so this natural variant decreases and proves termination (when l4a is the initial parameter value).
+- Bounds and progress for the loop counter sn:
+  sn >= 0 && (s8sh <= 0 || sn <= s8sh)
+  This formulation is true before the first iteration (sn is 0 and either s8sh<=0 or sn<=s8sh), and when the guard holds gives the non-negative integer bound needed for the variant. It is preserved by the increment sn = sn + 1.
 
-Other useful invariants (minimal and strong)
-- 0 <= rmk <= l4a
-  rmk is a non-negative counter that never exceeds l4a during loop execution (we use non-strict <= at the head).
-- l4a == \at(e, Pre)
-  l4a is constant (initialized from the parameter e). Using \at(e, Pre) is allowed because e is a function parameter.
-- g0 >= 3
-  g0 starts at 3 and only increases (g0++), so it is a non-decreasing lower bound useful to reason about lgo changes.
-- lgo >= 3 * rmk
-  Each iteration adds at least g0 >= 3 to lgo, so lgo is bounded below by 3*rmk; this is inductive.
-- p >= 4 + 3 * rmk
-  p starts at 4 and in every iteration p increases by at least 3 (plus non-negative vf), so p >= 4 + 3*rmk holds inductively.
-- vf >= 0, wq0 >= 0, uv >= 2
-  Non-negativity and simple lower bounds are preserved (vf starts 0 and only increments; wq0 starts 3 and the code protects from going negative; uv starts 2 and only increases). These help the WP prover with arithmetic facts.
+- Invariant for the unmodified capture s8sh:
+  s8sh == \at(u, Pre)
+  s8sh is initialized to the initial u and never modified; exposing this fact helps reasoning about the loop bound and the variant.
 
-Loop assigns
-- Exactly the variables that the loop body may modify: wq0, vf, p, p8j, rmk, lgo, uv, g0.
+- Simple bounding invariant for cnof:
+  cnof == -6 || (cnof >= -4 && cnof <= 4)
+  This reflects the initialization to -6 and the effect of cnof = cnof % 5: after one iteration cnof becomes -1 and thereafter remains in [-4,4]. This invariant is inductive and helpful to bound arithmetic involving cnof.
 
-All invariants are written without quantifiers, do not introduce new logic definitions, and only use \at(e, Pre) on the function parameter e as allowed.
+- loop assigns lists exactly the variables modified in the loop: sn, x, u, s, cnof.
+
+- loop variant s8sh - sn
+  When the guard (sn < s8sh) holds and the invariant above holds, s8sh - sn is a non-negative integer that strictly decreases each iteration, proving termination.
+
+I avoided quantifiers and any \at on local variables (only used \at on function parameters u and s per the rules). The core conservation equality is the s-triangle law; it is strong and directly explains the repeated addition update to s. Other invariants give necessary bounds and factual equalities to help the WP prover.
 </reasoning>
 <code>
-int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
 
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
 
   /*@
-    loop invariant p8j == rmk;
-    loop invariant 0 <= rmk <= l4a;
-    loop invariant l4a == \at(e, Pre);
-    loop invariant g0 >= 3;
-    loop invariant lgo >= 3 * rmk;
-    loop invariant p >= 4 + 3 * rmk;
-    loop invariant vf >= 0;
-    loop invariant wq0 >= 0;
-    loop invariant uv >= 2;
-    loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-    loop variant (l4a - rmk);
+    loop invariant s8sh == \at(u, Pre);
+    loop invariant sn >= 0 && (s8sh <= 0 || sn <= s8sh);
+    loop invariant 2*(s - \at(s, Pre)) == sn*(sn+1);
+    loop invariant (cnof == -6) || (cnof >= -4 && cnof <= 4);
+    loop assigns sn, x, u, s, cnof;
+    loop variant s8sh - sn;
   */
-  while (rmk<l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
+  while (sn < s8sh) {
+        sn = sn + 1;
+        x = x + u;
+        u = u*u+cnof;
+        s = s + sn;
+        cnof = cnof%5;
+    }
+
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:53:37,943 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:53:38,002 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:54:47,016 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I need invariants that are inductive, explain the loop state changes, and are verification-friendly for WP.
+
+Key observations from the loop:
+- s8sh is set once before the loop from the original parameter u and never modified. So s8sh == \at(u, Pre) is a simple conservation equality explaining the loop bound.
+- sn starts at 0 and is incremented by 1 each iteration; a natural progress bound / variant is (s8sh - sn).
+- s is updated by adding the new sn (sn is incremented before adding). If after k iterations sn == k, then s increased by 1+2+...+k = k*(k+1)/2. Thus the exact relational invariant s == \at(s, Pre) + (sn*(sn+1))/2 is a strong, inductive equality that explains the arithmetic accumulation.
+- cnof is -6 initially; after the first iteration cnof becomes -6 % 5 = -1, and (-1) % 5 = -1, so cnof is either -6 exactly when sn == 0, or -1 when sn >= 1. The disjunction (sn == 0 && cnof == -6) || (sn >= 1 && cnof == -1) is inductive and precise.
+- x and u follow a nonlinear recurrence (x accumulates previous u values; u is updated as u*u+cnof). Expressing x as a closed-form sum of evolving u_i would require quantifiers or logic sequences (forbidden), so I avoid an explicit quantified equality for x. Instead I keep the assigns clause precise and rely on the other exact relations plus the assigns/variant to help WP reasoning.
+
+I therefore provide:
+- s8sh == \at(u, Pre) as the core conservation equality for the loop bound.
+- s == \at(s, Pre) + (sn*(sn+1))/2 as the exact relational equality for s accumulation (strong, inductive).
+- A precise case-based invariant for cnof.
+- Bounds on sn: 0 <= sn && sn <= s8sh (a non-strict bound as required).
+- Exact loop assigns list: sn, x, u, s, cnof.
+- Loop variant: (s8sh - sn) to show progress (decreases by 1 each iteration).
+
+These invariants are inductive:
+- s-invariant holds before the loop (sn==0 gives s==\at(s,Pre)) and is preserved by the updates.
+- cnof-invariant holds initially and is preserved by cnof := cnof%5.
+- s8sh being equal to the initial u is preserved (s8sh not modified).
+- sn bounds and variant are compatible and guarantee termination when s8sh is non-negative.
+
+I avoid using quantifiers or additional logic/lemma constructs and I do not change any code or calls to unknown functions.
+</reasoning>
+<code>
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
+
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
+
+  /*@
+    loop invariant (s8sh == \at(u, Pre));
+    loop invariant (0 <= sn) && (sn <= s8sh);
+    loop invariant (s == \at(s, Pre) + (sn * (sn + 1)) / 2);
+    loop invariant ((sn == 0 && cnof == -6) || (sn >= 1 && cnof == -1));
+    loop assigns sn, x, u, s, cnof;
+    loop variant (s8sh - sn);
+  */
+  while (sn < s8sh) {
+        sn = sn + 1;
+        x = x + u;
+        u = u*u+cnof;
+        s = s + sn;
+        cnof = cnof%5;
   }
 
 }
 </code>
------ Candidate 7/8 raw response end -----
-2026-03-22 14:48:52,907 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 14:48:52,930 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:50:40,944 - INFO - 
------ Candidate 8/8 raw response begin -----
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:54:47,018 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:54:47,085 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:56:08,725 - INFO - 
+----- Candidate 5/5 raw response begin -----
 <reasoning>
-I selected invariants that are strong, inductive, and directly reflect how the loop updates variables, while keeping to the allowed ACSL constructs and the restriction that \at(...) is used only on the function parameter e.
+I choose invariants that are (1) inductive with respect to the loop body, (2) useful to prove loop termination/progress, and (3) minimal and precise.
 
-Core relational equality (state-transition law):
-- p8j == rmk — both p8j and rmk are incremented exactly once per iteration, so this equality holds initially and is preserved.
+Key points from the code:
+- s8sh is initialized from the incoming parameter u and then never modified. So the equality s8sh == \at(u, Pre) is a stable, useful relational fact.
+- sn starts at 0 and is incremented by 1 each iteration; s is increased by the new sn each iteration. This gives an exact closed-form relation between s and sn: after k iterations s = \at(s, Pre) + sum_{i=1..k} i = \at(s, Pre) + k*(k+1)/2. Expressing that equality is the required "core conservation/relational equality" explaining loop updates.
+- Minimal progress/bounds: sn is non-negative and, when the loop can run, it is bounded by s8sh. I encode the bound guarded by s8sh >= 0 to remain valid also when the initial s8sh (i.e. initial u) is negative (in that case the loop is not entered and the implication is vacuously true).
+- I provide the exact loop assigns clause listing exactly the variables updated in the loop: sn, x, u, s, cnof.
+- I omitted a loop variant because s8sh may be negative (it comes from the parameter \at(u,Pre)) and a simple variant like (s8sh - sn) would not be provably non-negative in all entry states unless we force s8sh >= 0; keeping the variant out avoids unsoundness while keeping the invariants strong enough for verification of the arithmetic relation and bounds.
 
-Conservation of the input:
-- l4a == \at(e, Pre) — l4a is initialized from the parameter e and never modified inside the loop; this ties the loop bound to the function parameter.
-
-Counters and monotonic bounds (progress / non-negativity):
-- 0 <= rmk <= l4a — rmk is the loop counter and cannot exceed the stored bound l4a.
-- loop variant: l4a - rmk — decreases by 1 each iteration, proving termination.
-
-Per-iteration single-step bounds (each variable changes at most by 1 or grows in a controlled way):
-- 0 <= vf <= rmk — vf only increments by at most 1 per iteration, so it cannot exceed rmk.
-- 0 <= wq0 <= 3 + rmk — wq0 starts at 3 and is incremented at most once per iteration (and never goes negative).
-- 3 <= g0 <= 3 + rmk — g0 starts at 3 and is incremented at most once per iteration.
-- p >= 4 + 3*rmk — p starts at 4 and each iteration increases by at least 3 (plus nonnegative vf), so this lower bound is preserved.
-- lgo >= 3*rmk — lgo accumulates at least 3 each iteration (since g0 >= 3).
-- uv >= 2 + 8*rmk — uv increases by p_start + vf + 4 each iteration; using p >= 4 + 3*rmk and vf >= 0 gives a per-iteration increase of at least 8 + 3*rmk which implies the simpler inductive lower bound uv >= 2 + 8*rmk (sufficiently strong and inductive).
-
-Assigns:
-- The exact set of variables modified in the loop is listed: wq0, vf, p, p8j, rmk, lgo, uv, g0.
-
-All invariants are true on entry and preserved by the loop body (they are chosen to match the update pattern). They avoid quantifiers, new predicates or logic definitions, and do not use \at on local variables (only \at(e, Pre) is used for the parameter).
+All invariants use only the available variables and \at(...) only on function parameters (\at(u, Pre), \at(s, Pre)), as required.
 </reasoning>
 <code>
-int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
 
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant l4a == \at(e, Pre);
-    loop invariant 0 <= rmk <= l4a;
-    loop invariant p8j == rmk;
-    loop invariant 0 <= vf <= rmk;
-    loop invariant 0 <= wq0 <= 3 + rmk;
-    loop invariant 3 <= g0 <= 3 + rmk;
-    loop invariant p >= 4 + 3 * rmk;
-    loop invariant lgo >= 3 * rmk;
-    loop invariant uv >= 2 + 8 * rmk;
-    loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-    loop variant l4a - rmk;
+    loop invariant (s8sh == \at(u, Pre));
+    loop invariant (0 <= sn);
+    loop invariant ((s8sh >= 0) ==> (sn <= s8sh));
+    loop invariant (s == \at(s, Pre) + ((sn*(sn+1))/2));
+    loop assigns sn, x, u, s, cnof;
   */
-while (rmk<l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
+  while (sn < s8sh) {
+      sn = sn + 1;
+      x = x + u;
+      u = u*u+cnof;
+      s = s + sn;
+      cnof = cnof%5;
   }
 
 }
 </code>
------ Candidate 8/8 raw response end -----
-2026-03-22 14:50:40,944 - INFO - 
------ Candidate 1/8 full code begin -----
-int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:56:08,726 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
 
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
-
-  /*@ 
-    loop invariant rmk == p8j;
-    loop invariant 0 <= rmk;
-    loop invariant rmk <= l4a;
-    loop invariant p >= 4 + 3 * rmk;
-    loop invariant wq0 >= 0;
-    loop invariant wq0 <= p;
-    loop invariant g0 >= 3;
-    loop invariant vf >= 0;
-    loop invariant uv >= 2;
-    loop invariant lgo >= 0;
-    loop assigns wq0, vf, g0, p, p8j, rmk, lgo, uv;
-    loop variant l4a - rmk;
-  */
-while (rmk&lt;l4a) {
-      if (rmk%3==0) {
-          if (wq0&gt;0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0&lt;p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
-  }
-
-}
------ Candidate 1/8 full code end -----
-2026-03-22 14:50:40,944 - INFO - 
------ Candidate 2/8 full code begin -----
-/*@
-  loop invariant l4a == \at(e, Pre) && p8j == rmk;
-  loop invariant 0 <= rmk && rmk <= l4a;
-  loop invariant p >= 4 + 3*rmk;
-  loop variant l4a - rmk;
-  loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-*/
------ Candidate 2/8 full code end -----
-2026-03-22 14:50:40,944 - INFO - 
------ Candidate 3/8 full code begin -----
-int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
-
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
 
   /*@
-    loop invariant (l4a == \at(e,Pre));
-    loop invariant (p8j == rmk);
-    loop invariant (rmk >= 0);
-    loop invariant (wq0 >= 0);
-    loop invariant (vf >= 0);
-    loop invariant (g0 >= 3);
-    loop invariant (p >= 4);
-    loop invariant (lgo >= 0);
-    loop invariant (uv >= 2);
-    loop assigns rmk, wq0, vf, p, p8j, lgo, uv, g0;
-    loop variant (l4a - rmk);
+    loop invariant s8sh == \at(u, Pre);
+    loop invariant sn >= 0 && (s8sh <= 0 || sn <= s8sh);
+    loop invariant s == \at(s, Pre) + sn*(sn+1)/2;
+    loop invariant (cnof == -6) <==> (sn == 0);
+    loop assigns sn, x, u, s, cnof;
+    loop variant s8sh - sn;
   */
-while (rmk<l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
+while (sn < s8sh) {
+      sn = sn + 1;
+      x = x + u;
+      u = u*u+cnof;
+      s = s + sn;
+      cnof = cnof%5;
   }
 
 }
------ Candidate 3/8 full code end -----
-2026-03-22 14:50:40,944 - INFO - 
------ Candidate 4/8 full code begin -----
-/*@
-  loop invariant p8j == rmk;
-  loop invariant 0 <= rmk;
-  loop invariant 0 <= wq0;
-  loop invariant 3 <= g0;
-  loop invariant 0 <= vf;
-  loop invariant p >= 4 + 3 * rmk;
-  loop invariant 0 <= p8j;
-  loop invariant 0 <= uv;
-  loop invariant 0 <= lgo;
-  loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-  loop variant l4a - rmk;
-*/ 
-while (rmk&lt;l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
-  }
------ Candidate 4/8 full code end -----
-2026-03-22 14:50:40,944 - INFO - 
------ Candidate 5/8 full code begin -----
-/*@
-  loop invariant rmk == p8j;
-  loop invariant 0 <= rmk;
-  loop invariant rmk <= l4a;
-  loop invariant p >= 0;
-  loop invariant wq0 >= 0;
-  loop invariant uv >= 0;
-  loop invariant lgo >= 0;
-  loop invariant vf >= 0;
-  loop invariant g0 >= 0;
-  loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-  loop variant (l4a - rmk);
-*/ 
-while (rmk&lt;l4a) {
-      if (rmk%3==0) {
-          if (wq0&gt;0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0&lt;p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
-  }
------ Candidate 5/8 full code end -----
-2026-03-22 14:50:40,944 - INFO - 
------ Candidate 6/8 full code begin -----
-int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
+----- Candidate 1/5 full code end -----
+2026-04-07 09:56:08,726 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
 
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
 
   /*@
-    loop invariant 0 <= rmk && rmk <= l4a;
-    loop invariant p8j == rmk;
-    loop invariant 0 <= wq0 && wq0 <= p;
-    loop invariant vf >= 0 && vf <= rmk;
-    loop invariant 3 <= g0 && g0 <= 3 + rmk;
-    loop invariant lgo >= 3 * rmk;
-    loop invariant p >= 4 + 3 * rmk + vf;
-    loop invariant uv >= 2 + rmk;
-    loop invariant l4a == \at(e, Pre);
-    loop assigns wq0, vf, g0, p, p8j, rmk, lgo, uv;
-    loop variant (l4a - rmk);
+    loop invariant s8sh == \at(u, Pre);
+    loop invariant 0 <= sn;
+    loop invariant (s8sh >= 0) ==> (sn <= s8sh);
+    loop invariant s == \at(s, Pre) + (sn*(sn + 1))/2;
+    loop invariant ((sn == 0) ==> (cnof == -6)) && ((sn >= 1) ==> ((-4 <= cnof) && (cnof <= 4)));
+    loop assigns sn, x, u, s, cnof;
+    loop variant (s8sh - sn);
   */
-  while (rmk<l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
+while (sn < s8sh) {
+      sn = sn + 1;
+      x = x + u;
+      u = u*u+cnof;
+      s = s + sn;
+      cnof = cnof%5;
   }
 
 }
------ Candidate 6/8 full code end -----
-2026-03-22 14:50:40,944 - INFO - 
------ Candidate 7/8 full code begin -----
-int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
+----- Candidate 2/5 full code end -----
+2026-04-07 09:56:08,726 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
 
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
 
   /*@
-    loop invariant p8j == rmk;
-    loop invariant 0 <= rmk <= l4a;
-    loop invariant l4a == \at(e, Pre);
-    loop invariant g0 >= 3;
-    loop invariant lgo >= 3 * rmk;
-    loop invariant p >= 4 + 3 * rmk;
-    loop invariant vf >= 0;
-    loop invariant wq0 >= 0;
-    loop invariant uv >= 2;
-    loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-    loop variant (l4a - rmk);
+    loop invariant s8sh == \at(u, Pre);
+    loop invariant sn >= 0 && (s8sh <= 0 || sn <= s8sh);
+    loop invariant 2*(s - \at(s, Pre)) == sn*(sn+1);
+    loop invariant (cnof == -6) || (cnof >= -4 && cnof <= 4);
+    loop assigns sn, x, u, s, cnof;
+    loop variant s8sh - sn;
   */
-  while (rmk<l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
-  }
+  while (sn < s8sh) {
+        sn = sn + 1;
+        x = x + u;
+        u = u*u+cnof;
+        s = s + sn;
+        cnof = cnof%5;
+    }
 
 }
------ Candidate 7/8 full code end -----
-2026-03-22 14:50:40,944 - INFO - 
------ Candidate 8/8 full code begin -----
-int main1(int e){
-  int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
+----- Candidate 3/5 full code end -----
+2026-04-07 09:56:08,726 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
 
-  l4a=e;
-  rmk=0;
-  wq0=3;
-  g0=3;
-  vf=0;
-  p=4;
-  p8j=0;
-  uv=2;
-  lgo=0;
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant l4a == \at(e, Pre);
-    loop invariant 0 <= rmk <= l4a;
-    loop invariant p8j == rmk;
-    loop invariant 0 <= vf <= rmk;
-    loop invariant 0 <= wq0 <= 3 + rmk;
-    loop invariant 3 <= g0 <= 3 + rmk;
-    loop invariant p >= 4 + 3 * rmk;
-    loop invariant lgo >= 3 * rmk;
-    loop invariant uv >= 2 + 8 * rmk;
-    loop assigns wq0, vf, p, p8j, rmk, lgo, uv, g0;
-    loop variant l4a - rmk;
+    loop invariant (s8sh == \at(u, Pre));
+    loop invariant (0 <= sn) && (sn <= s8sh);
+    loop invariant (s == \at(s, Pre) + (sn * (sn + 1)) / 2);
+    loop invariant ((sn == 0 && cnof == -6) || (sn >= 1 && cnof == -1));
+    loop assigns sn, x, u, s, cnof;
+    loop variant (s8sh - sn);
   */
-while (rmk<l4a) {
-      if (rmk%3==0) {
-          if (wq0>0) {
-              wq0 -= 1;
-              vf++;
-          }
-      }
-      else {
-          if (wq0<p) {
-              wq0++;
-              g0++;
-          }
-      }
-      p += vf;
-      p8j++;
-      rmk = rmk + 1;
-      lgo = lgo + g0;
-      uv++;
-      p = p + 3;
-      uv += p;
+  while (sn < s8sh) {
+        sn = sn + 1;
+        x = x + u;
+        u = u*u+cnof;
+        s = s + sn;
+        cnof = cnof%5;
   }
 
 }
------ Candidate 8/8 full code end -----
-2026-03-22 14:50:40,944 - INFO - Successfully generated 8/8 candidates
-2026-03-22 14:50:40,946 - INFO - Checking 42 invariants for conflicts...
-2026-03-22 14:50:40,951 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 14:50:40,951 - INFO -   1: int main1(int e){
-2026-03-22 14:50:40,951 - INFO -   2:   int l4a, rmk, wq0, g0, vf, p, p8j, uv, lgo;
-2026-03-22 14:50:40,951 - INFO -   3: 
-2026-03-22 14:50:40,951 - INFO -   4:   l4a=e;
-2026-03-22 14:50:40,951 - INFO -   5:   rmk=0;
-2026-03-22 14:50:40,951 - INFO -   6:   wq0=3;
-2026-03-22 14:50:40,951 - INFO -   7:   g0=3;
-2026-03-22 14:50:40,951 - INFO -   8:   vf=0;
-2026-03-22 14:50:40,951 - INFO -   9:   p=4;
-2026-03-22 14:50:40,951 - INFO -   10:   p8j=0;
-2026-03-22 14:50:40,951 - INFO - DEBUG: Total lines: 83
-2026-03-22 14:50:41,148 - INFO - syntax Correct
-2026-03-22 14:51:15,425 - INFO - Validate:
-2026-03-22 14:51:15,425 - INFO - [True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 14:51:15,425 - INFO - 
-2026-03-22 14:51:15,425 - INFO - Verify:
-2026-03-22 14:51:15,425 - INFO - []
-2026-03-22 14:51:15,425 - INFO - 
-2026-03-22 14:51:15,426 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-22 14:51:15,426 - INFO -   Before: 42 invariants
-2026-03-22 14:51:15,426 - INFO -   After: 41 invariants
-2026-03-22 14:51:15,426 - INFO -   Remaining invariants:
-2026-03-22 14:51:15,426 - INFO -     [1] rmk == p8j
-2026-03-22 14:51:15,426 - INFO -     [2] 0 <= rmk
-2026-03-22 14:51:15,426 - INFO -     [3] p >= 4 + 3 * rmk
-2026-03-22 14:51:15,426 - INFO -     [4] wq0 >= 0
-2026-03-22 14:51:15,426 - INFO -     [5] wq0 <= p
-2026-03-22 14:51:15,426 - INFO -     [6] g0 >= 3
-2026-03-22 14:51:15,426 - INFO -     [7] vf >= 0
-2026-03-22 14:51:15,426 - INFO -     [8] uv >= 2
-2026-03-22 14:51:15,426 - INFO -     [9] lgo >= 0
-2026-03-22 14:51:15,426 - INFO -     [10] (l4a == \at(e,Pre))
-2026-03-22 14:51:15,426 - INFO -     [11] (p8j == rmk)
-2026-03-22 14:51:15,426 - INFO -     [12] (rmk >= 0)
-2026-03-22 14:51:15,426 - INFO -     [13] (wq0 >= 0)
-2026-03-22 14:51:15,426 - INFO -     [14] (vf >= 0)
-2026-03-22 14:51:15,426 - INFO -     [15] (g0 >= 3)
-2026-03-22 14:51:15,426 - INFO -     [16] (p >= 4)
-2026-03-22 14:51:15,426 - INFO -     [17] (lgo >= 0)
-2026-03-22 14:51:15,426 - INFO -     [18] (uv >= 2)
-2026-03-22 14:51:15,426 - INFO -     [19] p8j == rmk
-2026-03-22 14:51:15,426 - INFO -     [20] 0 <= wq0
-2026-03-22 14:51:15,426 - INFO -     [21] 3 <= g0
-2026-03-22 14:51:15,426 - INFO -     [22] 0 <= vf
-2026-03-22 14:51:15,426 - INFO -     [23] 0 <= p8j
-2026-03-22 14:51:15,426 - INFO -     [24] 0 <= uv
-2026-03-22 14:51:15,426 - INFO -     [25] 0 <= lgo
-2026-03-22 14:51:15,426 - INFO -     [26] p >= 0
-2026-03-22 14:51:15,426 - INFO -     [27] uv >= 0
-2026-03-22 14:51:15,426 - INFO -     [28] g0 >= 0
-2026-03-22 14:51:15,426 - INFO -     [29] 0 <= rmk && rmk <= l4a
-2026-03-22 14:51:15,426 - INFO -     [30] 0 <= wq0 && wq0 <= p
-2026-03-22 14:51:15,426 - INFO -     [31] vf >= 0 && vf <= rmk
-2026-03-22 14:51:15,426 - INFO -     [32] 3 <= g0 && g0 <= 3 + rmk
-2026-03-22 14:51:15,426 - INFO -     [33] lgo >= 3 * rmk
-2026-03-22 14:51:15,426 - INFO -     [34] p >= 4 + 3 * rmk + vf
-2026-03-22 14:51:15,426 - INFO -     [35] uv >= 2 + rmk
-2026-03-22 14:51:15,426 - INFO -     [36] l4a == \at(e, Pre)
-2026-03-22 14:51:15,426 - INFO -     [37] 0 <= rmk <= l4a
-2026-03-22 14:51:15,426 - INFO -     [38] 0 <= vf <= rmk
-2026-03-22 14:51:15,426 - INFO -     [39] 0 <= wq0 <= 3 + rmk
-2026-03-22 14:51:15,426 - INFO -     [40] 3 <= g0 <= 3 + rmk
-2026-03-22 14:51:15,426 - INFO -     [41] uv >= 2 + 8 * rmk
-2026-03-22 14:51:15,623 - INFO - syntax Correct
-2026-03-22 14:51:49,580 - INFO - Validate:
-2026-03-22 14:51:49,580 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 14:51:49,580 - INFO - 
-2026-03-22 14:51:49,580 - INFO - Verify:
-2026-03-22 14:51:49,580 - INFO - []
-2026-03-22 14:51:49,581 - INFO - 
-2026-03-22 14:51:49,581 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-22 14:51:49,581 - INFO -   Before: 41 invariants
-2026-03-22 14:51:49,581 - INFO -   After: 40 invariants
-2026-03-22 14:51:49,581 - INFO -   Remaining invariants:
-2026-03-22 14:51:49,581 - INFO -     [1] rmk == p8j
-2026-03-22 14:51:49,581 - INFO -     [2] 0 <= rmk
-2026-03-22 14:51:49,581 - INFO -     [3] p >= 4 + 3 * rmk
-2026-03-22 14:51:49,581 - INFO -     [4] wq0 >= 0
-2026-03-22 14:51:49,581 - INFO -     [5] wq0 <= p
-2026-03-22 14:51:49,581 - INFO -     [6] g0 >= 3
-2026-03-22 14:51:49,581 - INFO -     [7] vf >= 0
-2026-03-22 14:51:49,581 - INFO -     [8] uv >= 2
-2026-03-22 14:51:49,581 - INFO -     [9] lgo >= 0
-2026-03-22 14:51:49,581 - INFO -     [10] (l4a == \at(e,Pre))
-2026-03-22 14:51:49,581 - INFO -     [11] (p8j == rmk)
-2026-03-22 14:51:49,581 - INFO -     [12] (rmk >= 0)
-2026-03-22 14:51:49,581 - INFO -     [13] (wq0 >= 0)
-2026-03-22 14:51:49,581 - INFO -     [14] (vf >= 0)
-2026-03-22 14:51:49,581 - INFO -     [15] (g0 >= 3)
-2026-03-22 14:51:49,581 - INFO -     [16] (p >= 4)
-2026-03-22 14:51:49,581 - INFO -     [17] (lgo >= 0)
-2026-03-22 14:51:49,581 - INFO -     [18] (uv >= 2)
-2026-03-22 14:51:49,581 - INFO -     [19] p8j == rmk
-2026-03-22 14:51:49,581 - INFO -     [20] 0 <= wq0
-2026-03-22 14:51:49,581 - INFO -     [21] 3 <= g0
-2026-03-22 14:51:49,581 - INFO -     [22] 0 <= vf
-2026-03-22 14:51:49,581 - INFO -     [23] 0 <= p8j
-2026-03-22 14:51:49,581 - INFO -     [24] 0 <= uv
-2026-03-22 14:51:49,581 - INFO -     [25] 0 <= lgo
-2026-03-22 14:51:49,581 - INFO -     [26] p >= 0
-2026-03-22 14:51:49,581 - INFO -     [27] uv >= 0
-2026-03-22 14:51:49,581 - INFO -     [28] g0 >= 0
-2026-03-22 14:51:49,581 - INFO -     [29] 0 <= wq0 && wq0 <= p
-2026-03-22 14:51:49,581 - INFO -     [30] vf >= 0 && vf <= rmk
-2026-03-22 14:51:49,581 - INFO -     [31] 3 <= g0 && g0 <= 3 + rmk
-2026-03-22 14:51:49,581 - INFO -     [32] lgo >= 3 * rmk
-2026-03-22 14:51:49,581 - INFO -     [33] p >= 4 + 3 * rmk + vf
-2026-03-22 14:51:49,581 - INFO -     [34] uv >= 2 + rmk
-2026-03-22 14:51:49,581 - INFO -     [35] l4a == \at(e, Pre)
-2026-03-22 14:51:49,581 - INFO -     [36] 0 <= rmk <= l4a
-2026-03-22 14:51:49,581 - INFO -     [37] 0 <= vf <= rmk
-2026-03-22 14:51:49,581 - INFO -     [38] 0 <= wq0 <= 3 + rmk
-2026-03-22 14:51:49,581 - INFO -     [39] 3 <= g0 <= 3 + rmk
-2026-03-22 14:51:49,581 - INFO -     [40] uv >= 2 + 8 * rmk
-2026-03-22 14:51:49,781 - INFO - syntax Correct
-2026-03-22 14:52:23,514 - INFO - Validate:
-2026-03-22 14:52:23,514 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True]
-2026-03-22 14:52:23,514 - INFO - 
-2026-03-22 14:52:23,514 - INFO - Verify:
-2026-03-22 14:52:23,514 - INFO - []
-2026-03-22 14:52:23,514 - INFO - 
-2026-03-22 14:52:23,514 - INFO - Houdini iteration 3: Removed 1 failed invariants
-2026-03-22 14:52:23,515 - INFO -   Before: 40 invariants
-2026-03-22 14:52:23,515 - INFO -   After: 39 invariants
-2026-03-22 14:52:23,515 - INFO -   Remaining invariants:
-2026-03-22 14:52:23,515 - INFO -     [1] rmk == p8j
-2026-03-22 14:52:23,515 - INFO -     [2] 0 <= rmk
-2026-03-22 14:52:23,515 - INFO -     [3] p >= 4 + 3 * rmk
-2026-03-22 14:52:23,515 - INFO -     [4] wq0 >= 0
-2026-03-22 14:52:23,515 - INFO -     [5] wq0 <= p
-2026-03-22 14:52:23,515 - INFO -     [6] g0 >= 3
-2026-03-22 14:52:23,515 - INFO -     [7] vf >= 0
-2026-03-22 14:52:23,515 - INFO -     [8] uv >= 2
-2026-03-22 14:52:23,515 - INFO -     [9] lgo >= 0
-2026-03-22 14:52:23,515 - INFO -     [10] (l4a == \at(e,Pre))
-2026-03-22 14:52:23,515 - INFO -     [11] (p8j == rmk)
-2026-03-22 14:52:23,515 - INFO -     [12] (rmk >= 0)
-2026-03-22 14:52:23,515 - INFO -     [13] (wq0 >= 0)
-2026-03-22 14:52:23,515 - INFO -     [14] (vf >= 0)
-2026-03-22 14:52:23,515 - INFO -     [15] (g0 >= 3)
-2026-03-22 14:52:23,515 - INFO -     [16] (p >= 4)
-2026-03-22 14:52:23,515 - INFO -     [17] (lgo >= 0)
-2026-03-22 14:52:23,515 - INFO -     [18] (uv >= 2)
-2026-03-22 14:52:23,515 - INFO -     [19] p8j == rmk
-2026-03-22 14:52:23,515 - INFO -     [20] 0 <= wq0
-2026-03-22 14:52:23,515 - INFO -     [21] 3 <= g0
-2026-03-22 14:52:23,515 - INFO -     [22] 0 <= vf
-2026-03-22 14:52:23,515 - INFO -     [23] 0 <= p8j
-2026-03-22 14:52:23,515 - INFO -     [24] 0 <= uv
-2026-03-22 14:52:23,515 - INFO -     [25] 0 <= lgo
-2026-03-22 14:52:23,515 - INFO -     [26] p >= 0
-2026-03-22 14:52:23,515 - INFO -     [27] uv >= 0
-2026-03-22 14:52:23,515 - INFO -     [28] g0 >= 0
-2026-03-22 14:52:23,515 - INFO -     [29] 0 <= wq0 && wq0 <= p
-2026-03-22 14:52:23,515 - INFO -     [30] vf >= 0 && vf <= rmk
-2026-03-22 14:52:23,515 - INFO -     [31] 3 <= g0 && g0 <= 3 + rmk
-2026-03-22 14:52:23,515 - INFO -     [32] lgo >= 3 * rmk
-2026-03-22 14:52:23,515 - INFO -     [33] p >= 4 + 3 * rmk + vf
-2026-03-22 14:52:23,515 - INFO -     [34] uv >= 2 + rmk
-2026-03-22 14:52:23,515 - INFO -     [35] l4a == \at(e, Pre)
-2026-03-22 14:52:23,515 - INFO -     [36] 0 <= vf <= rmk
-2026-03-22 14:52:23,515 - INFO -     [37] 0 <= wq0 <= 3 + rmk
-2026-03-22 14:52:23,515 - INFO -     [38] 3 <= g0 <= 3 + rmk
-2026-03-22 14:52:23,515 - INFO -     [39] uv >= 2 + 8 * rmk
-2026-03-22 14:52:23,709 - INFO - syntax Correct
-2026-03-22 14:52:57,445 - INFO - Validate:
-2026-03-22 14:52:57,445 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 14:52:57,445 - INFO - 
-2026-03-22 14:52:57,445 - INFO - Verify:
-2026-03-22 14:52:57,445 - INFO - []
-2026-03-22 14:52:57,445 - INFO - 
-2026-03-22 14:52:57,445 - INFO - Houdini iteration 4: All invariants are valid
-2026-03-22 14:52:57,642 - INFO - syntax Correct
-2026-03-22 14:53:31,315 - INFO - Validate:
-2026-03-22 14:53:31,315 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 14:53:31,315 - INFO - 
-2026-03-22 14:53:31,315 - INFO - Verify:
-2026-03-22 14:53:31,315 - INFO - []
-2026-03-22 14:53:31,315 - INFO - 
-2026-03-22 14:54:22,433 - INFO - Deduplicated 34 loop invariants in final code
-2026-03-22 14:54:22,658 - INFO - syntax Correct
-2026-03-22 14:54:54,343 - INFO - Validate:
-2026-03-22 14:54:54,344 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 14:54:54,344 - INFO - 
-2026-03-22 14:54:54,344 - INFO - Verify:
-2026-03-22 14:54:54,344 - INFO - []
-2026-03-22 14:54:54,344 - INFO - 
-2026-03-22 14:54:54,344 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 14:54:54,344 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_86/1.c
-2026-03-22 14:54:54,344 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_86/1_invariants.txt
-2026-03-22 14:54:54,344 - INFO - 
+----- Candidate 4/5 full code end -----
+2026-04-07 09:56:08,726 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int u,int s){
+  int s8sh, sn, cnof, x;
+
+  s8sh=u;
+  sn=0;
+  cnof=-6;
+  x=u;
+
+  /*@
+    loop invariant (s8sh == \at(u, Pre));
+    loop invariant (0 <= sn);
+    loop invariant ((s8sh >= 0) ==> (sn <= s8sh));
+    loop invariant (s == \at(s, Pre) + ((sn*(sn+1))/2));
+    loop assigns sn, x, u, s, cnof;
+  */
+  while (sn < s8sh) {
+      sn = sn + 1;
+      x = x + u;
+      u = u*u+cnof;
+      s = s + sn;
+      cnof = cnof%5;
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-04-07 09:56:08,726 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:56:08,728 - INFO - Checking 15 invariants for conflicts...
+2026-04-07 09:56:08,733 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:56:08,733 - INFO -   1: int main1(int u,int s){
+2026-04-07 09:56:08,733 - INFO -   2:   int s8sh, sn, cnof, x;
+2026-04-07 09:56:08,733 - INFO -   3: 
+2026-04-07 09:56:08,733 - INFO -   4:   s8sh=u;
+2026-04-07 09:56:08,733 - INFO -   5:   sn=0;
+2026-04-07 09:56:08,733 - INFO -   6:   cnof=-6;
+2026-04-07 09:56:08,733 - INFO -   7:   x=u;
+2026-04-07 09:56:08,733 - INFO -   8: 
+2026-04-07 09:56:08,733 - INFO -   9:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-04-07 09:56:08,733 - INFO -   10: /*@
+2026-04-07 09:56:08,733 - INFO - DEBUG: Total lines: 37
+2026-04-07 09:56:08,762 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:56:08,762 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:56:08,763 - INFO - Houdini iteration 1: Removed 15 failed invariants
+2026-04-07 09:56:08,763 - INFO -   Before: 15 invariants
+2026-04-07 09:56:08,763 - INFO -   After: 0 invariants
+2026-04-07 09:56:08,763 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:56:08,792 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:56:34,038 - INFO - Deduplicated 12 loop invariants in final code
+2026-04-07 09:56:34,070 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:56:34,070 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:56:34,070 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:56:34,070 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_86/1.c
+2026-04-07 09:56:34,070 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_86/1_invariants.txt
+2026-04-07 09:56:34,071 - INFO - 
 ============================================================
-2026-03-22 14:54:54,344 - INFO - Final first_pass results:
-2026-03-22 14:54:54,344 - INFO -   syntax=1
-2026-03-22 14:54:54,344 - INFO -   valid=1
-2026-03-22 14:54:54,344 - INFO -   satisfy=None
-2026-03-22 14:54:54,344 - INFO - ============================================================
-2026-03-22 14:54:54,344 - INFO - 
+2026-04-07 09:56:34,071 - INFO - Final first_pass results:
+2026-04-07 09:56:34,071 - INFO -   syntax=None
+2026-04-07 09:56:34,071 - INFO -   valid=None
+2026-04-07 09:56:34,071 - INFO -   satisfy=None
+2026-04-07 09:56:34,071 - INFO - ============================================================
+2026-04-07 09:56:34,071 - INFO - 
 ============================================================
-2026-03-22 14:54:54,344 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 14:54:54,344 - INFO -   Total API calls: 24
-2026-03-22 14:54:54,344 - INFO -   Total prompt tokens (input): 34,029
-2026-03-22 14:54:54,344 - INFO -   Total completion tokens (output): 152,794
-2026-03-22 14:54:54,344 - INFO -   Total tokens: 186,823
-2026-03-22 14:54:54,344 - INFO -   Average per call:
-2026-03-22 14:54:54,344 - INFO -     Prompt: 1417.9 tokens
-2026-03-22 14:54:54,344 - INFO -     Completion: 6366.4 tokens
-2026-03-22 14:54:54,344 - INFO -     Total: 7784.3 tokens
-2026-03-22 14:54:54,344 - INFO - ============================================================
-2026-03-22 14:54:54,344 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_86/1.c
-2026-03-22 14:54:54,345 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_86/1_invariants.txt
-2026-03-22 14:55:51,939 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
-2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
-2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
-2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...
+2026-04-07 09:56:34,071 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:56:34,071 - INFO -   Total API calls: 1
+2026-04-07 09:56:34,071 - INFO -   Total prompt tokens (input): 963
+2026-04-07 09:56:34,071 - INFO -   Total completion tokens (output): 4,007
+2026-04-07 09:56:34,071 - INFO -   Total tokens: 4,970
+2026-04-07 09:56:34,071 - INFO -   Average per call:
+2026-04-07 09:56:34,071 - INFO -     Prompt: 963.0 tokens
+2026-04-07 09:56:34,071 - INFO -     Completion: 4007.0 tokens
+2026-04-07 09:56:34,071 - INFO -     Total: 4970.0 tokens
+2026-04-07 09:56:34,071 - INFO - ============================================================
+2026-04-07 09:56:34,071 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_86/1.c
+2026-04-07 09:56:34,071 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_86/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

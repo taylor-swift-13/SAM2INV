@@ -1,817 +1,477 @@
-2026-03-22 12:14:46,150 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 12:14:46,182 - INFO - Found 1 loops
-2026-03-22 12:14:46,184 - INFO - 
+2026-04-07 09:30:24,112 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:30:24,134 - INFO - Found 1 loops
+2026-04-07 09:30:24,137 - INFO - 
 ============================================================
-2026-03-22 12:14:46,184 - INFO - Main generation pass 1/1
-2026-03-22 12:14:46,184 - INFO - ============================================================
-2026-03-22 12:14:46,184 - INFO - Loaded single prompt template: simple
-2026-03-22 12:14:46,184 - INFO - Generating 8 candidate invariant sets with temperature=1.0
-2026-03-22 12:14:46,184 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 12:14:46,199 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:15:58,547 - INFO - 
------ Candidate 1/8 raw response begin -----
+2026-04-07 09:30:24,137 - INFO - Main generation pass 1/1
+2026-04-07 09:30:24,137 - INFO - ============================================================
+2026-04-07 09:30:24,137 - INFO - Loaded single prompt template: simple
+2026-04-07 09:30:24,137 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:30:24,137 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:30:24,211 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:31:21,915 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-Key observations:
-- The loop body modifies w and rd by exactly +1 each iteration (w += 1; rd++). No other operation changes w or rd.
-- Therefore the difference rd - w remains constant across iterations. With initial values rd = 11 and w = 2 (since w is initialized from k42 and k42 = 1*2 = 2), this constant is 9. Hence the relational invariant rd - w == 9 is a strong and exact description of the loop’s progress.
-- Other state variables (dvw, v89, n5l, d02d, l) are updated in ways that preserve non-negativity or monotonicity where appropriate:
-  - dvw >= 0 (never goes negative)
-  - v89 >= 0 (never goes negative)
-  - w remains within [0, k42] (and since k42 is 2, w stays within that bound during the loop)
-  - rd >= 11 (rd starts at 11 and only increments)
-  - n5l >= 2 (n5l starts at w, which is 2, and increases by v89 >= 0)
-  - k42 == 2 (k42 is never modified inside the loop)
-- A loop variant to help termination reasoning: k42 - w decreases by 1 each iteration (since w increments by 1 and k42 is constant).
+I need invariants that (1) hold before the first iteration, (2) are preserved by the body when the guard is true, and (3) with loop exit provide exact facts about the final state.
 
-Using these, we provide inductive, verification-friendly invariants and a complete loop assigns set.
-</reasoning>
-<code>/*@
-  loop invariant rd - w == 9;          // core conservation/relational equality: rd and w both increment by 1, preserving their difference
-  loop invariant 0 <= w && w <= k42;    // w remains bounded by the loop header condition
-  loop invariant dvw >= 0;               // dvw never goes negative
-  loop invariant v89 >= 0;               // v89 never goes negative
-  loop invariant 11 <= rd;                // rd starts at 11 and only increases
-  loop invariant 2 <= n5l;               // n5l starts at 2 and only increases (by v89)
-  loop invariant k42 == 2;                // k42 is constant in this function
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-  loop variant k42 - w;                   // since w increases by 1 each iteration, this decreases
-*/
-while (w<k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }</code>
------ Candidate 1/8 raw response end -----
-2026-03-22 12:15:58,547 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 12:15:58,560 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:16:45,123 - INFO - 
------ Candidate 2/8 raw response begin -----
-<reasoning>The goal is to provide inductive, verification-friendly loop annotations for the given loop, using the available variables. Two invariants are used:
+Observations about the loop:
+- Initially ryp == 0, f75 == 6, kwj == \at(w, Pre), u8 == \at(w, Pre), e == \at(w, Pre), w == \at(w, Pre).
+- The body executes at most once because it ends with ryp = e, so ryp becomes e and the guard ryp < e becomes false.
+- The body computes deterministically:
+    f75_new = f75_old*2 + u8 = 6*2 + u8 = 12 + u8
+    w_new = w_old + f75_new = \at(w,Pre) + (12 + u8)
+    kwj_new = (kwj_old + (f75_new % 3)) * 2 + 3 = ((\at(w,Pre) + ((12 + u8) % 3)) * 2 + 3)
+    ryp_new = e
 
-1) Core conservation/relational equality (state transition law): l evolves exactly by the fixed amount 11 per loop iteration, with w increasing by 1 each iteration, starting from the initial relation l = -5 at w = k42. Since the loop body increments w by 1 and increments l by vtc8 (which is 11), the exact invariant l == -5 + 11*(w - k42) holds before every iteration, given the initial conditions (l = -5 when w = k42). This is a strong, exact invariant that explains the loop updates for l and w.
+I therefore use the loop-control variable ryp as a case discriminator: before the loop ryp == 0, after one iteration ryp == e. This yields precise equalities for f75, w, kwj in each case. These invariants are inductive: if ryp < e then ryp must be 0 (given ryp == 0 || ryp == e), the body produces the ryp == e case equalities. They are also useful at exit: on exit ryp < e is false, and combined with ryp ∈ {0,e} we get ryp == e and exact final values.
 
-2) Minimal progress bounds: provide simple bounds on loop counters and arithmetic variables to ensure progress and non-negativity where appropriate. Specifically, w is bounded by k42 (the loop guard is w < k42, so at most it can be k42), dvw and v89 are non-negative (dv w is decreased only when >0 and v89 is increased only when certain conditions hold, never dropping below 0 due to the guard), and n5l is non-decreasing with a starting value of 2.
-
-Loop assigns must include all variables that can be modified inside the loop body: dvw, v89, w, n5l, d02d, l, rd.
-
-These invariants are inductive given the body’s updates, and the chosen assigns cover all updated variables without modifying any code outside the loop. The invariant l = -5 + 11*(w - k42) is explicitly tied to the observed updates (w increments by 1 and l increments by 11), while the second invariant provides necessary progress bounds. The invariant uses only available variables and constants, and follows the ACSL syntax rules provided. </reasoning>
-<code>/*@
-  loop invariant l == -5 + 11*(w - k42);
-  loop invariant w &lt;= k42 &amp;&amp; dvw &gt;= 0 &amp;&amp; v89 &gt;= 0 &amp;&amp; n5l &gt;= 2;
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-*/
-while (w&lt;k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }</code>
------ Candidate 2/8 raw response end -----
-2026-03-22 12:16:45,123 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 12:16:45,137 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:17:51,378 - INFO - 
------ Candidate 3/8 raw response begin -----
-<reasoning>  
-Core invariant chosen:
-- dvw + v89 == 13. This is a precise conservation law given the two in-loop updates:
-  - If w is even and dvw > 0, we do dvw' = dvw - 1 and v89' = v89 + 1, so the sum stays the same.
-  - If w is odd and v89 > 0, we do v89' = v89 - 1 and dvw' = dvw + 1, so again the sum stays the same.
-  - If neither update happens, the sum remains unchanged.
-  Since initial values are dvw = 13 and v89 = 0, the sum is consistently 13 throughout the loop.
-
-Progress bounds and additional invariants:
-- 0 <= w <= k42 keeps the loop counter within bounds (k42 is a constant, 2 in this program).
-- 0 <= dvw and 0 <= v89 ensure non-negativity of those two critical counters that participate in the updates.
-- l >= -5 since l starts at -5 and increases by a fixed vtc8 every iteration (vtc8 is 11 here).
-- 0 <= rd ensures the read counter remains non-negative as it is incremented each iteration.
-
-Loop assigns:
-- Precisely the variables that can be modified inside the loop: dvw, v89, w, n5l, d02d, l, rd.
-
-Loop variant:
-- k42 - w decreases by 1 each iteration, ensuring termination when w reaches k42.
-
-This combination yields a verification-friendly, inductive invariant set that explains the state transition (conservation of dvw+v89) while providing minimal, meaningful progress bounds.
-
-</reasoning>
-<code>int main1(){
-  int k42, w, dvw, v89, vtc8, d02d, l, n5l, rd;
-
-  k42=1*2;
-  w=k42;
-  dvw=13;
-  v89=0;
-  vtc8=11;
-  d02d=k42;
-  l=-5;
-  n5l=w;
-  rd=11;
-
-  /*@
-     loop invariant dvw + v89 == 13;
-     loop invariant 0 <= w <= k42;
-     loop invariant 0 <= dvw;
-     loop invariant 0 <= v89;
-     loop invariant l >= -5;
-     loop invariant 0 <= rd;
-     loop invariant 0 <= n5l;
-     loop assigns dvw, v89, w, n5l, d02d, l, rd;
-     loop variant k42 - w;
-  @*/
-  while (w<k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }
-
-}</code>
------ Candidate 3/8 raw response end -----
-2026-03-22 12:17:51,378 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 12:17:51,393 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:18:42,822 - INFO - 
------ Candidate 4/8 raw response begin -----
-<reasoning>We need inductive loop invariants that are proven to hold before and after each iteration, given the loop body and the available variables. From the code, several state-update patterns are clear:
-
-- A core conserved relation exists between the two counter-like variables dvw and v89: in every iteration, either dvw decreases by 1 and v89 increases by 1 (when w is even and dvw>0) or dvw increases by 1 and v89 decreases by 1 (when w is odd and v89>0) or neither changes. In all cases, dvw + v89 remains constant. Given the initial values dvw = 13 and v89 = 0, this sum is always 13.
-- The loop increments both rd and w by 1 each iteration, so their difference is invariant: rd - w remains equal to its initial value (11 - 2 = 9, assuming the provided pre-state). Therefore rd - w == 9 holds at every loop head.
-- The loop condition guarantees w <= k42 throughout the loop, and since w increments by 1 each iteration, the standard bound w <= k42 is preserved. Additionally, dvw and v89 never become negative, since decrements occur only when the corresponding counter is positive.
-- We also include a straightforward progress bound via a loop variant: k42 - w, which decreases by 1 each iteration and ensures termination as long as w < k42.
-
-Using these, we define strong, inductive invariants that are preserved by every iteration and are verification-friendly for Frama-C/WP. The loop assigns include all variables modified inside the loop: dvw, v89, w, n5l, d02d, l, rd. </reasoning>
-
-<code>/*@
-  loop invariant dvw + v89 == 13;
-  loop invariant rd - w == 9;
-  loop invariant w &lt;= k42;
-  loop invariant dvw &gt;= 0;
-  loop invariant v89 &gt;= 0;
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-  loop variant (k42 - w);
-*/
-while (w&lt;k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }</code>
------ Candidate 4/8 raw response end -----
-2026-03-22 12:18:42,822 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 12:18:42,835 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:19:54,792 - INFO - 
------ Candidate 5/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. The updates inside the loop modify several variables (dvw, v89, w, n5l, d02d, l, rd). A good invariant set should be strong enough to be preserved by every iteration and help verification, while not relying on function parameters (there are none) or on outside states. We add:
-
-- a progression/progress-bounds set of invariants to bound key arithmetic state across iterations:
-  - 0 <= w <= k42 (since w is incremented and the loop guard is w < k42)
-  - dvw >= 0 (dvw only decreases while > 0 and otherwise increases; it never becomes negative)
-  - v89 >= 0 (v89 is incremented when dvw > 0 and decremented only when v89 > 0, so it cannot go negative)
-  - n5l >= 0 (initialized to a non-negative value and incremented by v89 which is non-negative)
-  - rd >= 0 (starts at 11 and only increments)
-
-- complete loop assigns: list all variables modified inside the loop: dvw, v89, w, n5l, d02d, l, rd.
-
-- a loop variant to prove termination: k42 - w decreases as w increments until the guard fails.
-
-Note: The loop’s exact per-iteration relational update for d02d is d02d' = rd' - (d02d + l). This is a core transition relation that explains how d02d is updated together with rd, l, and w. While the invariant set above captures bounds and monotonic behavior, the explicit one-step relational equality is best described in reasoning (and the code’s transition embodies it). The invariants chosen are inductive and verification-friendly for Frama-C WP, and they do not rely on function parameters or on forbidden constructs. The original code is not modified except for the added ACSL annotations. </reasoning>
-<code>/*@
-  loop invariant 0 &lt;= w &amp; &amp; w &lt;= k42;
-  loop invariant dvw &gt;= 0;
-  loop invariant v89 &gt;= 0;
-  loop invariant n5l &gt;= 0;
-  loop invariant rd &gt;= 0;
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-  loop variant k42 - w;
-*/
-while (w&lt;k42) {
-      if (w%2==0) {
-          if (dvw&gt;0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89&gt;0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }</code>
------ Candidate 5/8 raw response end -----
-2026-03-22 12:19:54,793 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 12:19:54,805 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:20:34,581 - INFO - 
------ Candidate 6/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants that capture the loop's state updates without modifying the code. Identify modified variables inside the loop: dvw, v89, w, n5l, d02d, l, rd. The loop guard is w < k42; k42 is never changed, so we can express a simple bound: w <= k42 holds while the loop is active and remains preserved after each iteration since w increments by 1.
-
-Key invariant concepts:
-- A core conservation/equality that describes the state transition: both rd and w increase by 1 each iteration, with initial values rd = 11 and w = 2. Thus their difference remains constant: rd - w == 9, i.e., rd == w + 9.
-- A linear relation tying l to w due to l being updated by a constant 11 each iteration: l starts at -5 and increments by 11 every iteration, while w starts at 2 and increments by 1. This yields l == 11*(w - 2) - 5.
-- Non-negativity and progress bounds: v89 >= 0, dvw >= 0, n5l >= 0, and w <= k42 (progress bound from the loop guard).
-- Assignments: the loop may modify dvw, v89, w, n5l, d02d, l, rd.
-
-These invariants are strong and inductive, avoid tautologies, and align with the exact loop updates. They only reference available variables and do not rely on parameters or Pre-state annotations. They also stay valid regardless of whether the loop executes (which it does not in this particular initialization, but the invariants remain correct for the loop in general).
-
-</reasoning>
-<code>/*@
-  loop invariant rd == w + 9;
-  loop invariant l == 11*(w - 2) - 5;
-  loop invariant v89 &gt;= 0;
-  loop invariant dvw &gt;= 0;
-  loop invariant n5l &gt;= 0;
-  loop invariant w &lt;= k42; /* w <= k42 is preserved by w := w + 1 each iteration when the loop runs */
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-*/
-while (w&lt;k42) {
-      if (w%2==0) {
-          if (dvw&gt;0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89&gt;0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }</code>
------ Candidate 6/8 raw response end -----
-2026-03-22 12:20:34,581 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 12:20:34,594 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:21:25,765 - INFO - 
------ Candidate 7/8 raw response begin -----
-<reasoning>
-I selected invariants that are inductive (hold before the first iteration and are preserved by the body) and that are useful to verify the loop:
-
-- Core conservation equality: dvw + v89 == 13.
-  - Rationale: initially dvw=13 and v89=0, and each branch that updates dvw and v89 does so as a paired decrement/increment (dvw-- & v89++ or v89-- & dvw++). Thus the sum is preserved exactly by every iteration and explains the mutual updates of dvw and v89.
-
-- Non-negativity bounds: dvw >= 0 && v89 >= 0.
-  - Rationale: both variables only change under guarded decrements (dvw decremented only if dvw>0; v89 decremented only if v89>0). These guards ensure they stay non-negative; making it explicit helps WP reason about safety of decrements.
-
-- Loop progress/termination and guard weakening: w <= k42 and loop variant k42 - w.
-  - Rationale: the loop guard is w < k42, which is not an invariant itself; we weaken it to the non-strict inequality w <= k42 so it holds initially and is preserved (w increases by 1 but never surpasses k42). The variant k42 - w is a natural decreasing integer measure (decreases by 1 each iteration) to help prove termination.
-
-- Constants preserved by the loop: k42 == 2 and vtc8 == 11.
-  - Rationale: k42 and vtc8 are initialized to constant values and never modified, so stating them as equal to their initial constants is a strong and verification-friendly invariant.
-
-- Monotonicity of rd: rd >= 11.
-  - Rationale: rd is initialized to 11 and only incremented; expressing this lower bound helps proving properties that rely on rd increasing.
-
-- Complete assigns clause: lists all variables modified in the loop (dvw, v89, w, n5l, d02d, l, rd). k42 and vtc8 are intentionally omitted because they are not modified.
-
-These invariants are all expressed only with variables available in the function (no \at on locals) and avoid quantifiers or logic definitions. The sum invariant is the key relational equality explaining the updates to dvw and v89.
+I also include the obvious frame facts that do not change: u8 and e remain equal to the initial parameter value \at(w, Pre). Finally I add a standard variant e - ryp (decreases to 0 when the body executes) and a precise assigns clause listing exactly the variables modified by the loop.
 </reasoning>
 <code>
-int main1(){
-  int k42, w, dvw, v89, vtc8, d02d, l, n5l, rd;
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
 
-  k42=1*2;
-  w=k42;
-  dvw=13;
-  v89=0;
-  vtc8=11;
-  d02d=k42;
-  l=-5;
-  n5l=w;
-  rd=11;
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
 
   /*@
-    loop invariant dvw + v89 == 13;
-    loop invariant dvw >= 0 && v89 >= 0;
-    loop invariant k42 == 2;
-    loop invariant vtc8 == 11;
-    loop invariant rd >= 11;
-    loop invariant w <= k42;
-    loop assigns dvw, v89, w, n5l, d02d, l, rd;
-    loop variant (k42 - w);
+    loop invariant (u8 == \at(w, Pre));
+    loop invariant (e == \at(w, Pre));
+    loop invariant (ryp == 0 || ryp == e);
+    /* Core relational equalities explaining the state before/after the (single) iteration */
+    loop invariant ((ryp == 0) ==> (f75 == 6 && w == \at(w, Pre) && kwj == \at(w, Pre)));
+    loop invariant ((ryp == e) ==> (f75 == (12 + u8) && w == (\at(w, Pre) + (12 + u8)) && kwj == (((\at(w, Pre) + ((12 + u8) % 3)) * 2) + 3)));
+    loop assigns f75, w, kwj, ryp;
+    loop variant (e - ryp);
   */
-while (w<k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
+  while (ryp < e) {
+        f75 = f75*2 + u8;
+        w += f75;
+        kwj = kwj+(f75%3);
+        kwj = kwj*2+3;
+        ryp = e;
   }
 
 }
 </code>
------ Candidate 7/8 raw response end -----
-2026-03-22 12:21:25,765 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 12:21:25,780 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:23:44,568 - INFO - 
------ Candidate 8/8 raw response begin -----
-<reasoning>The loop is entered only if w < k42. From the initializations, k42 = 2 and w = 2, so the loop body will not execute in this particular run. Nevertheless, we must provide inductive, verification-friendly loop invariants that would hold if the loop were entered under a general scenario, using only the available variables and preserving the semantics of the updates.
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:31:21,915 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:31:21,971 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:32:15,552 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>
+I choose invariants that precisely capture the two possible stable states of this loop: the state before any iteration (ryp == 0) and the state after the single possible iteration (ryp == e). The loop body sets ryp := e unconditionally, so the loop can execute at most once; expressing this as a disjunction is both inductive and strong.
 
-Key observations for inductive invariants:
-- The loop body increments w by 1 each iteration, and rd by 1 as well. This yields a preserved linear relation rd - w = constant. With the initial values rd = 11 and w = 2, rd - w = 9 is preserved across iterations.
-- l starts at -5 and increases by vtc8 (which is 11) every iteration, so l increases by 11 each iteration. A simple invariant capturing this arithmetic progression is (l + 5) % 11 == 0.
-- dvw is updated nontrivially (it can both decrease and increase depending on parity of w and v89), but in this particular loop structure and given the non-negativity constraints (we only decrease dvw when dvw > 0), dvw remains non-negative. Also, dvw cannot exceed its initial value in the observed transition pattern (it starts at 13 and can oscillate but not exceed that ceiling in typical execution paths), so dvw >= 0 and dvw <= 13 are safe invariants.
-- v89 starts at 0 and remains non-negative because its decrement happens only when v89 > 0, and its increment can occur only when dvw > 0 in the even branch. Thus v89 >= 0.
-- n5l starts at w (2) and increases by the updated v89 each iteration, implying n5l >= initial value 2.
-- We must precisely specify the loop assigns: all variables that can be modified inside the loop body: dvw, v89, w, n5l, d02d, l, rd.
-- A natural loop variant is k42 - w, which decreases by 1 on each iteration while the loop guard allows more iterations, ensuring termination.
+Core conservation/relational equality:
+- When ryp == e (i.e. the loop has effectively been executed), f75, w and kwj have the exact values computed by one application of the body starting from the initial state. This equality explains the state transition law:
+  f75' = 2*6 + u8 (i.e. 12 + \at(w,Pre)),
+  w' = \at(w,Pre) + f75',
+  kwj' = (\at(w,Pre) + (f75' % 3)) * 2 + 3.
 
-These invariants are inductive for the loop: they hold at initialization, are preserved by each iteration under the loop guard, and together with the exit condition (not modeled here) would help prove loop-related properties. The invariants are kept strong and relevant to the actual state updates without introducing unrelated facts. </reasoning>
-<code>int main1(){
-  int k42, w, dvw, v89, vtc8, d02d, l, n5l, rd;
+Global constants:
+- u8 and e are set once before the loop to \at(w, Pre) and never modified; exposing these as loop invariants helps WP simplify the arithmetic.
 
-  k42=1*2;
-  w=k42;
-  dvw=13;
-  v89=0;
-  vtc8=11;
-  d02d=k42;
-  l=-5;
-  n5l=w;
-  rd=11;
+Assigns:
+- The loop modifies exactly f75, w, kwj and ryp, so loop assigns lists these four variables.
+
+Variant:
+- e - ryp is a valid loop variant because when the guard ryp < e holds it is a positive integer and after the body ryp becomes e (variant decreases to 0). This proves termination (the loop runs at most once).
+
+These invariants are inductive:
+- Initially ryp == 0 and the initial-equalities hold, so the first disjunct holds.
+- If the guard is true (ryp < e) then ryp must be 0 (so first disjunct holds before the body); after executing the body the computed equalities match the second disjunct (ryp == e and explicit post-values), so the invariant is preserved.
+- If ryp == e before the loop, the guard is false and induction requirement under the guard is vacuous.
+
+The annotations use only allowed constructs and \at(w, Pre) is used only on the function parameter w.
+</reasoning>
+<code>
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
+
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
+
+  /*@
+    loop invariant u8 == \at(w, Pre) && e == \at(w, Pre);
+    loop invariant (ryp == 0) ==> (w == \at(w, Pre) && kwj == \at(w, Pre) && f75 == 6);
+    loop invariant (ryp == e) ==> (f75 == (12 + \at(w, Pre)) &&
+                                   w == (\at(w, Pre) + (12 + \at(w, Pre))) &&
+                                   kwj == (((\at(w, Pre) + ((12 + \at(w, Pre)) % 3)) * 2) + 3));
+    loop assigns f75, w, kwj, ryp;
+    loop variant (e - ryp);
+  */
+  while (ryp < e) {
+        f75 = f75*2 + u8;
+        w += f75;
+        kwj = kwj+(f75%3);
+        kwj = kwj*2+3;
+        ryp = e;
+    }
+
+}
+</code>
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:32:15,554 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:32:15,623 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:33:24,912 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I examined the loop: it can execute at most once because ryp is set to e unconditionally in the body. To make the invariants strong and inductive I capture the two possible states of the loop frame:
+
+- "before any iteration" (ryp == 0), where all variables still have their initial values set just before the loop;
+- "after the (only) iteration" (ryp == e), where f75, w and kwj take their exact updated values computed by the body.
+
+These two cases cover all reachable states because ryp starts at 0 and the only assignment to ryp is ryp = e. The invariant ryp == 0 || ryp == e is therefore both true initially and preserved by the loop.
+
+I encoded exact relational equalities for f75, w and kwj conditional on whether the iteration has happened (implications rather than ternary operators because ternary is forbidden). This gives a clear conservation/transition law explaining how the body changes the state:
+- f75 goes from 6 to 6*2 + u8 (i.e. 12 + u8),
+- w is increased by that new f75 if the body executed,
+- kwj is transformed to (\at(w,Pre) + (u8 % 3)) * 2 + 3 when the body executed (note that (12+u8) % 3 equals u8 % 3, so I use that simplification).
+
+I used \at(w,Pre) only for the original value of the parameter w (allowed by the rules). The loop assigns clause exactly lists the variables modified by the loop body: f75, w, kwj, ryp. I omitted a loop variant (optional) to avoid introducing a value that might not be non-negative in all inputs; the progress property is expressed via ryp == 0 || ryp == e.
+
+All invariants are inductive: if ryp == 0 holds and the guard ryp < e is true, the body produces the state satisfying the "ryp == e" branch; if ryp == e then the guard is false and the loop does not execute, so the invariant is preserved.
+</reasoning>
+<code>
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
+
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
+
+  /*@
+    loop invariant ryp == 0 || ryp == e;
+    loop invariant (ryp == 0 ==> f75 == 6) && (ryp == e ==> f75 == (6*2 + u8));
+    loop invariant (ryp == 0 ==> w == \at(w,Pre)) && (ryp == e ==> w == \at(w,Pre) + (6*2 + u8));
+    loop invariant (ryp == 0 ==> kwj == \at(w,Pre)) && (ryp == e ==> kwj == (\at(w,Pre) + (u8 % 3)) * 2 + 3);
+    loop assigns f75, w, kwj, ryp;
+  */
+  while (ryp < e) {
+        f75 = f75*2 + u8;
+        w += f75;
+        kwj = kwj+(f75%3);
+        kwj = kwj*2+3;
+        ryp = e;
+    }
+
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:33:24,914 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:33:25,001 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:34:31,444 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+The loop assigns f75, w, kwj and ryp and, because ryp is initialized to 0 and the body sets ryp = e unconditionally, the loop can execute at most once. I therefore capture the exact two reachable states at loop entry / after one iteration with a precise disjunction:
+
+- Case ryp == 0: this is the state before any iteration; f75, w and kwj keep their initial values (f75 == 6, w == \at(w,Pre), kwj == \at(w,Pre)).
+- Case ryp == e: this is the state after one iteration; f75, w and kwj have the exact values computed by the body
+  (f75 == 6*2 + \at(w,Pre), w == \at(w,Pre) + (6*2 + \at(w,Pre)), kwj == ((\at(w,Pre) + ((6*2 + \at(w,Pre)) % 3)) * 2 + 3)).
+
+I also expose the program invariants that never change (e and u8 equal the initial parameter value \at(w,Pre)), and a small shape invariant that ryp is either 0 or e (since ryp only takes these two values). As the required single core relational equality (state transition law) I add (ryp == e) ==> (w == \at(w,Pre) + f75) which directly relates the updated w to the updated f75 in the post-iteration case.
+
+The loop assigns clause lists exactly the modified variables. No variant is provided (optional) because the loop is bounded by the one-step assignment ryp := e; the disjunctive invariant is inductive and precise.
+</reasoning>
+<code>
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
+
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant dvw >= 0;
-    loop invariant dvw <= 13;
-    loop invariant v89 >= 0;
-    loop invariant n5l >= 2;
-    loop invariant (rd - w) == 9;
-    loop invariant ((l + 5) % 11 == 0);
-    loop assigns dvw, v89, w, n5l, d02d, l, rd;
-    loop variant k42 - w;
+    loop invariant e == \at(w, Pre);
+    loop invariant u8 == \at(w, Pre);
+    loop invariant (ryp == 0) || (ryp == e);
+    loop invariant ( (ryp == 0) && (f75 == 6) && (w == \at(w, Pre)) && (kwj == \at(w, Pre)) )
+                   || ( (ryp == e)
+                        && (f75 == (6*2 + \at(w, Pre)))
+                        && (w == \at(w, Pre) + (6*2 + \at(w, Pre)))
+                        && (kwj == ((\at(w, Pre) + ((6*2 + \at(w, Pre)) % 3)) * 2 + 3)) );
+    /* core relational equality explaining the state update */
+    loop invariant (ryp == e) ==> (w == \at(w, Pre) + f75);
+    loop assigns f75, w, kwj, ryp;
   */
-  while (w<k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }
-
-}</code>
------ Candidate 8/8 raw response end -----
-2026-03-22 12:23:44,568 - INFO - 
------ Candidate 1/8 full code begin -----
-/*@
-  loop invariant rd - w == 9;          // core conservation/relational equality: rd and w both increment by 1, preserving their difference
-  loop invariant 0 <= w && w <= k42;    // w remains bounded by the loop header condition
-  loop invariant dvw >= 0;               // dvw never goes negative
-  loop invariant v89 >= 0;               // v89 never goes negative
-  loop invariant 11 <= rd;                // rd starts at 11 and only increases
-  loop invariant 2 <= n5l;               // n5l starts at 2 and only increases (by v89)
-  loop invariant k42 == 2;                // k42 is constant in this function
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-  loop variant k42 - w;                   // since w increases by 1 each iteration, this decreases
-*/
-while (w<k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }
------ Candidate 1/8 full code end -----
-2026-03-22 12:23:44,568 - INFO - 
------ Candidate 2/8 full code begin -----
-/*@
-  loop invariant l == -5 + 11*(w - k42);
-  loop invariant w &lt;= k42 &amp;&amp; dvw &gt;= 0 &amp;&amp; v89 &gt;= 0 &amp;&amp; n5l &gt;= 2;
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-*/
-while (w&lt;k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }
------ Candidate 2/8 full code end -----
-2026-03-22 12:23:44,568 - INFO - 
------ Candidate 3/8 full code begin -----
-int main1(){
-  int k42, w, dvw, v89, vtc8, d02d, l, n5l, rd;
-
-  k42=1*2;
-  w=k42;
-  dvw=13;
-  v89=0;
-  vtc8=11;
-  d02d=k42;
-  l=-5;
-  n5l=w;
-  rd=11;
-
-  /*@
-     loop invariant dvw + v89 == 13;
-     loop invariant 0 <= w <= k42;
-     loop invariant 0 <= dvw;
-     loop invariant 0 <= v89;
-     loop invariant l >= -5;
-     loop invariant 0 <= rd;
-     loop invariant 0 <= n5l;
-     loop assigns dvw, v89, w, n5l, d02d, l, rd;
-     loop variant k42 - w;
-  @*/
-  while (w<k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
+while (ryp < e) {
+      f75 = f75*2 + u8;
+      w += f75;
+      kwj = kwj+(f75%3);
+      kwj = kwj*2+3;
+      ryp = e;
   }
 
 }
------ Candidate 3/8 full code end -----
-2026-03-22 12:23:44,568 - INFO - 
------ Candidate 4/8 full code begin -----
-/*@
-  loop invariant dvw + v89 == 13;
-  loop invariant rd - w == 9;
-  loop invariant w &lt;= k42;
-  loop invariant dvw &gt;= 0;
-  loop invariant v89 &gt;= 0;
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-  loop variant (k42 - w);
-*/
-while (w&lt;k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }
------ Candidate 4/8 full code end -----
-2026-03-22 12:23:44,568 - INFO - 
------ Candidate 5/8 full code begin -----
-/*@
-  loop invariant 0 &lt;= w &amp; &amp; w &lt;= k42;
-  loop invariant dvw &gt;= 0;
-  loop invariant v89 &gt;= 0;
-  loop invariant n5l &gt;= 0;
-  loop invariant rd &gt;= 0;
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-  loop variant k42 - w;
-*/
-while (w&lt;k42) {
-      if (w%2==0) {
-          if (dvw&gt;0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89&gt;0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }
------ Candidate 5/8 full code end -----
-2026-03-22 12:23:44,568 - INFO - 
------ Candidate 6/8 full code begin -----
-/*@
-  loop invariant rd == w + 9;
-  loop invariant l == 11*(w - 2) - 5;
-  loop invariant v89 &gt;= 0;
-  loop invariant dvw &gt;= 0;
-  loop invariant n5l &gt;= 0;
-  loop invariant w &lt;= k42; /* w <= k42 is preserved by w := w + 1 each iteration when the loop runs */
-  loop assigns dvw, v89, w, n5l, d02d, l, rd;
-*/
-while (w&lt;k42) {
-      if (w%2==0) {
-          if (dvw&gt;0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89&gt;0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
-  }
------ Candidate 6/8 full code end -----
-2026-03-22 12:23:44,569 - INFO - 
------ Candidate 7/8 full code begin -----
-int main1(){
-  int k42, w, dvw, v89, vtc8, d02d, l, n5l, rd;
+</code>
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:34:31,445 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:34:31,512 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:35:47,876 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I derived invariants that are inductive and precise for this loop which executes at most once (because the body sets ryp = e). Key points:
 
-  k42=1*2;
-  w=k42;
-  dvw=13;
-  v89=0;
-  vtc8=11;
-  d02d=k42;
-  l=-5;
-  n5l=w;
-  rd=11;
+- State classification: before the loop ryp == 0; after a (possible) single iteration ryp == e. So the invariant ryp == 0 || ryp == e succinctly captures the only possible ryp values and is preserved.
+- Conservation facts: e and u8 never change in the loop, so e == \at(w, Pre) and u8 == \at(w, Pre) are stable facts that help express values in terms of the initial parameter.
+- Case-split invariants (expressed with ==>) distinguish the "not-yet-executed" case (ryp == 0) from the "executed" case (ryp == e && e > 0). This avoids false consequences when e == 0 (loop not executed) while still giving exact equalities after the body:
+  - If ryp == 0 then the preserved initial values f75 == 6, w == \at(w, Pre), kwj == \at(w, Pre) hold.
+  - If ryp == e and e > 0 (i.e., the loop has executed), we record the precise post-body relations:
+    f75 == 12 + u8, w == \at(w, Pre) + f75, and kwj == (\at(w, Pre) + (f75 % 3)) * 2 + 3.
+  These equalities follow directly from the body sequence:
+    f75 := f75*2 + u8  (6*2 + u8 = 12 + u8),
+    w := w + f75,
+    kwj := (kwj + (f75 % 3)) * 2 + 3 with kwj_old == \at(w, Pre).
+- The loop assigns clause exactly lists modified variables: f75, w, kwj, ryp.
+- I avoided a loop variant because e can be arbitrary (possibly negative), so a non-negative variant expressed simply as e - ryp would not be guaranteed non-negative by the invariant in all initial states.
+
+These invariants are inductive:
+- Initially ryp == 0 and the "ryp==0" antecedent gives the initial equalities.
+- If guard ryp < e holds, the only possible case from the invariant is ryp == 0 and e > 0; executing the body yields ryp == e and the consequent equalities, preserving the invariant.
+</reasoning>
+<code>
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
+
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+ /*@
+   loop invariant (ryp == 0) || (ryp == e);
+   loop invariant u8 == \at(w, Pre) && e == \at(w, Pre) &&
+     ((ryp == 0) ==> (f75 == 6 && w == \at(w, Pre) && kwj == \at(w, Pre))) &&
+     ((ryp == e && e > 0) ==> (f75 == 12 + u8 && w == \at(w, Pre) + f75 && kwj == (\at(w, Pre) + (f75 % 3)) * 2 + 3));
+   loop assigns f75, w, kwj, ryp;
+ */
+ while (ryp < e) {
+       f75 = f75*2 + u8;
+       w += f75;
+       kwj = kwj+(f75%3);
+       kwj = kwj*2+3;
+       ryp = e;
+   }
+
+}
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:35:47,877 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
+
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
 
   /*@
-    loop invariant dvw + v89 == 13;
-    loop invariant dvw >= 0 && v89 >= 0;
-    loop invariant k42 == 2;
-    loop invariant vtc8 == 11;
-    loop invariant rd >= 11;
-    loop invariant w <= k42;
-    loop assigns dvw, v89, w, n5l, d02d, l, rd;
-    loop variant (k42 - w);
+    loop invariant (u8 == \at(w, Pre));
+    loop invariant (e == \at(w, Pre));
+    loop invariant (ryp == 0 || ryp == e);
+    /* Core relational equalities explaining the state before/after the (single) iteration */
+    loop invariant ((ryp == 0) ==> (f75 == 6 && w == \at(w, Pre) && kwj == \at(w, Pre)));
+    loop invariant ((ryp == e) ==> (f75 == (12 + u8) && w == (\at(w, Pre) + (12 + u8)) && kwj == (((\at(w, Pre) + ((12 + u8) % 3)) * 2) + 3)));
+    loop assigns f75, w, kwj, ryp;
+    loop variant (e - ryp);
   */
-while (w<k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
+  while (ryp < e) {
+        f75 = f75*2 + u8;
+        w += f75;
+        kwj = kwj+(f75%3);
+        kwj = kwj*2+3;
+        ryp = e;
   }
 
 }
------ Candidate 7/8 full code end -----
-2026-03-22 12:23:44,569 - INFO - 
------ Candidate 8/8 full code begin -----
-int main1(){
-  int k42, w, dvw, v89, vtc8, d02d, l, n5l, rd;
+----- Candidate 1/5 full code end -----
+2026-04-07 09:35:47,877 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
 
-  k42=1*2;
-  w=k42;
-  dvw=13;
-  v89=0;
-  vtc8=11;
-  d02d=k42;
-  l=-5;
-  n5l=w;
-  rd=11;
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
+
+  /*@
+    loop invariant u8 == \at(w, Pre) && e == \at(w, Pre);
+    loop invariant (ryp == 0) ==> (w == \at(w, Pre) && kwj == \at(w, Pre) && f75 == 6);
+    loop invariant (ryp == e) ==> (f75 == (12 + \at(w, Pre)) &&
+                                   w == (\at(w, Pre) + (12 + \at(w, Pre))) &&
+                                   kwj == (((\at(w, Pre) + ((12 + \at(w, Pre)) % 3)) * 2) + 3));
+    loop assigns f75, w, kwj, ryp;
+    loop variant (e - ryp);
+  */
+  while (ryp < e) {
+        f75 = f75*2 + u8;
+        w += f75;
+        kwj = kwj+(f75%3);
+        kwj = kwj*2+3;
+        ryp = e;
+    }
+
+}
+----- Candidate 2/5 full code end -----
+2026-04-07 09:35:47,877 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
+
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
+
+  /*@
+    loop invariant ryp == 0 || ryp == e;
+    loop invariant (ryp == 0 ==> f75 == 6) && (ryp == e ==> f75 == (6*2 + u8));
+    loop invariant (ryp == 0 ==> w == \at(w,Pre)) && (ryp == e ==> w == \at(w,Pre) + (6*2 + u8));
+    loop invariant (ryp == 0 ==> kwj == \at(w,Pre)) && (ryp == e ==> kwj == (\at(w,Pre) + (u8 % 3)) * 2 + 3);
+    loop assigns f75, w, kwj, ryp;
+  */
+  while (ryp < e) {
+        f75 = f75*2 + u8;
+        w += f75;
+        kwj = kwj+(f75%3);
+        kwj = kwj*2+3;
+        ryp = e;
+    }
+
+}
+----- Candidate 3/5 full code end -----
+2026-04-07 09:35:47,877 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
+
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant dvw >= 0;
-    loop invariant dvw <= 13;
-    loop invariant v89 >= 0;
-    loop invariant n5l >= 2;
-    loop invariant (rd - w) == 9;
-    loop invariant ((l + 5) % 11 == 0);
-    loop assigns dvw, v89, w, n5l, d02d, l, rd;
-    loop variant k42 - w;
+    loop invariant e == \at(w, Pre);
+    loop invariant u8 == \at(w, Pre);
+    loop invariant (ryp == 0) || (ryp == e);
+    loop invariant ( (ryp == 0) && (f75 == 6) && (w == \at(w, Pre)) && (kwj == \at(w, Pre)) )
+                   || ( (ryp == e)
+                        && (f75 == (6*2 + \at(w, Pre)))
+                        && (w == \at(w, Pre) + (6*2 + \at(w, Pre)))
+                        && (kwj == ((\at(w, Pre) + ((6*2 + \at(w, Pre)) % 3)) * 2 + 3)) );
+    /* core relational equality explaining the state update */
+    loop invariant (ryp == e) ==> (w == \at(w, Pre) + f75);
+    loop assigns f75, w, kwj, ryp;
   */
-  while (w<k42) {
-      if (w%2==0) {
-          if (dvw>0) {
-              dvw -= 1;
-              v89 = v89 + 1;
-          }
-      }
-      else {
-          if (v89>0) {
-              v89--;
-              dvw++;
-          }
-      }
-      w += 1;
-      n5l = n5l + v89;
-      d02d += l;
-      l = l + vtc8;
-      rd++;
-      d02d = rd-d02d;
+while (ryp < e) {
+      f75 = f75*2 + u8;
+      w += f75;
+      kwj = kwj+(f75%3);
+      kwj = kwj*2+3;
+      ryp = e;
   }
 
 }
------ Candidate 8/8 full code end -----
-2026-03-22 12:23:44,569 - INFO - Successfully generated 8/8 candidates
-2026-03-22 12:23:44,571 - INFO - Checking 23 invariants for conflicts...
-2026-03-22 12:23:44,576 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 12:23:44,576 - INFO -   1: int main1(){
-2026-03-22 12:23:44,576 - INFO -   2:   int k42, w, dvw, v89, vtc8, d02d, l, n5l, rd;
-2026-03-22 12:23:44,576 - INFO -   3: 
-2026-03-22 12:23:44,576 - INFO -   4:   k42=1*2;
-2026-03-22 12:23:44,576 - INFO -   5:   w=k42;
-2026-03-22 12:23:44,576 - INFO -   6:   dvw=13;
-2026-03-22 12:23:44,576 - INFO -   7:   v89=0;
-2026-03-22 12:23:44,576 - INFO -   8:   vtc8=11;
-2026-03-22 12:23:44,576 - INFO -   9:   d02d=k42;
-2026-03-22 12:23:44,576 - INFO -   10:   l=-5;
-2026-03-22 12:23:44,576 - INFO - DEBUG: Total lines: 63
-2026-03-22 12:23:44,862 - INFO - syntax Correct
-2026-03-22 12:24:16,353 - INFO - Validate:
-2026-03-22 12:24:16,353 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 12:24:16,353 - INFO - 
-2026-03-22 12:24:16,353 - INFO - Verify:
-2026-03-22 12:24:16,353 - INFO - []
-2026-03-22 12:24:16,353 - INFO - 
-2026-03-22 12:24:16,353 - INFO - Houdini iteration 1: All invariants are valid
-2026-03-22 12:24:16,698 - INFO - syntax Correct
-2026-03-22 12:24:48,063 - INFO - Validate:
-2026-03-22 12:24:48,063 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 12:24:48,063 - INFO - 
-2026-03-22 12:24:48,063 - INFO - Verify:
-2026-03-22 12:24:48,063 - INFO - []
-2026-03-22 12:24:48,063 - INFO - 
-2026-03-22 12:26:05,453 - INFO - Deduplicated 16 loop invariants in final code
-2026-03-22 12:26:05,670 - INFO - syntax Correct
-2026-03-22 12:26:36,601 - INFO - Validate:
-2026-03-22 12:26:36,601 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 12:26:36,601 - INFO - 
-2026-03-22 12:26:36,601 - INFO - Verify:
-2026-03-22 12:26:36,601 - INFO - []
-2026-03-22 12:26:36,601 - INFO - 
-2026-03-22 12:26:36,601 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 12:26:36,601 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_24/1.c
-2026-03-22 12:26:36,601 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_24/1_invariants.txt
-2026-03-22 12:26:36,601 - INFO - 
-============================================================
-2026-03-22 12:26:36,601 - INFO - Final first_pass results:
-2026-03-22 12:26:36,601 - INFO -   syntax=1
-2026-03-22 12:26:36,601 - INFO -   valid=1
-2026-03-22 12:26:36,601 - INFO -   satisfy=None
-2026-03-22 12:26:36,601 - INFO - ============================================================
-2026-03-22 12:26:36,601 - INFO - 
-============================================================
-2026-03-22 12:26:36,601 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 12:26:36,601 - INFO -   Total API calls: 17
-2026-03-22 12:26:36,601 - INFO -   Total prompt tokens (input): 27,386
-2026-03-22 12:26:36,602 - INFO -   Total completion tokens (output): 111,826
-2026-03-22 12:26:36,602 - INFO -   Total tokens: 139,212
-2026-03-22 12:26:36,602 - INFO -   Average per call:
-2026-03-22 12:26:36,602 - INFO -     Prompt: 1610.9 tokens
-2026-03-22 12:26:36,602 - INFO -     Completion: 6578.0 tokens
-2026-03-22 12:26:36,602 - INFO -     Total: 8188.9 tokens
-2026-03-22 12:26:36,602 - INFO - ============================================================
-2026-03-22 12:26:36,602 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_24/1.c
-2026-03-22 12:26:36,602 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_24/1_invariants.txt
-2026-03-22 12:27:01,966 - INFO - LLM quality-gate raw response: {
-  "ok": true,
-  "reason": "pass"
+----- Candidate 4/5 full code end -----
+2026-04-07 09:35:47,877 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int w){
+  int e, ryp, f75, kwj, u8;
+
+  e=w;
+  ryp=0;
+  f75=6;
+  kwj=e;
+  u8=w;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+ /*@
+   loop invariant (ryp == 0) || (ryp == e);
+   loop invariant u8 == \at(w, Pre) && e == \at(w, Pre) &&
+     ((ryp == 0) ==> (f75 == 6 && w == \at(w, Pre) && kwj == \at(w, Pre))) &&
+     ((ryp == e && e > 0) ==> (f75 == 12 + u8 && w == \at(w, Pre) + f75 && kwj == (\at(w, Pre) + (f75 % 3)) * 2 + 3));
+   loop assigns f75, w, kwj, ryp;
+ */
+ while (ryp < e) {
+       f75 = f75*2 + u8;
+       w += f75;
+       kwj = kwj+(f75%3);
+       kwj = kwj*2+3;
+       ryp = e;
+   }
+
 }
-2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
-2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
-2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...
+----- Candidate 5/5 full code end -----
+2026-04-07 09:35:47,877 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:35:47,878 - INFO - Checking 6 invariants for conflicts...
+2026-04-07 09:35:47,882 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:35:47,882 - INFO -   1: int main1(int w){
+2026-04-07 09:35:47,882 - INFO -   2:   int e, ryp, f75, kwj, u8;
+2026-04-07 09:35:47,883 - INFO -   3: 
+2026-04-07 09:35:47,883 - INFO -   4:   e=w;
+2026-04-07 09:35:47,883 - INFO -   5:   ryp=0;
+2026-04-07 09:35:47,883 - INFO -   6:   f75=6;
+2026-04-07 09:35:47,883 - INFO -   7:   kwj=e;
+2026-04-07 09:35:47,883 - INFO -   8:   u8=w;
+2026-04-07 09:35:47,883 - INFO -   9: 
+2026-04-07 09:35:47,883 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-04-07 09:35:47,883 - INFO - DEBUG: Total lines: 31
+2026-04-07 09:35:47,914 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:35:47,915 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:35:47,915 - INFO - Houdini iteration 1: Removed 6 failed invariants
+2026-04-07 09:35:47,915 - INFO -   Before: 6 invariants
+2026-04-07 09:35:47,915 - INFO -   After: 0 invariants
+2026-04-07 09:35:47,915 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:35:47,940 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:35:54,594 - INFO - Deduplicated 2 loop invariants in final code
+2026-04-07 09:35:54,623 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:35:54,624 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:35:54,624 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:35:54,624 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_24/1.c
+2026-04-07 09:35:54,624 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_24/1_invariants.txt
+2026-04-07 09:35:54,624 - INFO - 
+============================================================
+2026-04-07 09:35:54,624 - INFO - Final first_pass results:
+2026-04-07 09:35:54,624 - INFO -   syntax=None
+2026-04-07 09:35:54,624 - INFO -   valid=None
+2026-04-07 09:35:54,624 - INFO -   satisfy=None
+2026-04-07 09:35:54,624 - INFO - ============================================================
+2026-04-07 09:35:54,624 - INFO - 
+============================================================
+2026-04-07 09:35:54,624 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:35:54,624 - INFO -   Total API calls: 13
+2026-04-07 09:35:54,624 - INFO -   Total prompt tokens (input): 15,144
+2026-04-07 09:35:54,624 - INFO -   Total completion tokens (output): 62,705
+2026-04-07 09:35:54,624 - INFO -   Total tokens: 77,849
+2026-04-07 09:35:54,624 - INFO -   Average per call:
+2026-04-07 09:35:54,624 - INFO -     Prompt: 1164.9 tokens
+2026-04-07 09:35:54,624 - INFO -     Completion: 4823.5 tokens
+2026-04-07 09:35:54,624 - INFO -     Total: 5988.4 tokens
+2026-04-07 09:35:54,624 - INFO - ============================================================
+2026-04-07 09:35:54,624 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_24/1.c
+2026-04-07 09:35:54,625 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_24/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

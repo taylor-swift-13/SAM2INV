@@ -1,2461 +1,550 @@
-2026-03-22 22:25:14,721 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 22:25:14,754 - INFO - Found 1 loops
-2026-03-22 22:25:14,770 - INFO - 
+2026-04-07 09:24:35,521 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:24:35,532 - INFO - Found 1 loops
+2026-04-07 09:24:35,533 - INFO - 
 ============================================================
-2026-03-22 22:25:14,772 - INFO - Main generation pass 1/1
-2026-03-22 22:25:14,772 - INFO - ============================================================
-2026-03-22 22:25:14,772 - INFO - Loaded single prompt template: simple
-2026-03-22 22:25:14,772 - INFO - Generating 20 candidate invariant sets with temperature=1.0
-2026-03-22 22:25:14,774 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 22:25:14,793 - INFO -   Generating candidate 1/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:26:55,261 - INFO - 
------ Candidate 1/20 raw response begin -----
-<reasoning>The loop is controlled by the guard g9 <= o, with o fixed at 55 in this function. We want inductive invariants that are easy for Frama-C/WP to discharge and that reflect the observed behavior without modifying the original code.
-
-Key observations:
-- o never changes, so invariant o == 55 is safe and helpful.
-- fo never changes in this run (the condition o*o <= o+4 is false for o = 55), so fo remains 12; we can express a simple invariant fo == 12. However, to keep the example compact and focused, we encode an inductive relational invariant that captures the core behavior of v in relation to g9: when g9 == 1, v == 1; for all subsequent heads (g9 >= 2), v == 0. This invariant is preserved because initially v = 1 and then v becomes 0 after the first iteration (due to integer division 1/g9 for g9 = 2), and thereafter v stays 0 (0 times anything is 0).
-- A loop variant o - g9 is a straightforward, non-negative integer that decreases by 1 each iteration, ensuring termination reasoning is straightforward.
-
-These invariants are inductive, do not rely on non-parameters or unknowns, and are verification-friendly in Frama-C/WP.
-
-Place the following invariant block at the indicated spot in the loop (keeping the code unchanged otherwise):
-
-</reasoning>
-<code>/*@
-  loop invariant o == 55;
-  loop invariant ((g9 == 1) ==> (v == 1)) && ((g9 >= 2) ==> (v == 0));
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o - g9;
-*/</code>
------ Candidate 1/20 raw response end -----
-2026-03-22 22:26:55,262 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 22:26:55,281 - INFO -   Generating candidate 2/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:27:41,616 - INFO - 
------ Candidate 2/20 raw response begin -----
+2026-04-07 09:24:35,533 - INFO - Main generation pass 1/1
+2026-04-07 09:24:35,533 - INFO - ============================================================
+2026-04-07 09:24:35,533 - INFO - Loaded single prompt template: simple
+2026-04-07 09:24:35,533 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:24:35,533 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:24:35,612 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:25:30,658 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-I examined the loop behavior with integer arithmetic. Important observations used to craft the invariants:
+I supply loop invariants that are inductive, express the precise state transition laws, and give useful bounds for the loop counter.
 
-- Integer division: 1/g9 is 1 only when g9==1, and 0 for all g9>=2. Thus v stays 1 only while g9==1, and becomes 0 afterwards and remains 0. This yields a precise, inductive relation between g9 and v: (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0).
+Key choices and justification:
+- Core conservation law: cb1 == (rgl - lx). This exactly captures how cb1 is updated each iteration (cb1 is always maintained as rgl - lx). It holds initially (lx == 0 gives cb1 == rgl) and is preserved by the body because lx is incremented and cb1 recomputed as rgl - lx.
+- Arithmetic relation for tc3: tc3 == (5 + 2*lx). tc3 starts at 5 and is increased by 2 exactly once per increment of lx, so this equality is preserved and is helpful to reason about tc3 precisely.
+- Closed-form for hm: hm == (-2 + lx * rgl - (lx * (lx + 1)) / 2). hm starts at -2 and accumulates cb1 each iteration; sum_{i=1..lx} (rgl - i) = lx*rgl - lx*(lx+1)/2, so this exact formula is maintained and avoids quantifiers.
+- Bounds on lx: lx >= 0 together with (rgl >= 0 ==> lx <= rgl) and (rgl < 0 ==> lx == 0). These ensure a non-negative loop counter and capture the fact that if rgl is negative the loop never executes (lx remains 0); otherwise lx never exceeds rgl. This is a minimal, precise progress/bounding invariant that holds initially and is preserved.
+- Keep rgl fixed: rgl == (\at(b, Pre) + 13). rgl is assigned once before the loop and never modified; exposing its relation to the initial parameter helps WP proofs that use the known constant base.
+- Exact loop assigns: the body only modifies lx, cb1, tc3, hm and cz, so these are listed precisely.
+- No variant is provided to avoid issues when rgl may be negative (in that case the loop is not entered); the invariants already support termination reasoning when rgl >= 0.
 
-- The test that could update fo is if (o*o <= o+4). With the given initial o==55 this condition is false and fo never changes; therefore fo == 12 is an invariant.
+All invariants are quantifier-free and use only available variables. They are inductive: they hold initially and the equalities are preserved by the loop updates (lx increment and recomputation of dependent variables). On loop exit (! (lx < rgl) ), combining invariants with exit condition yields the expected exit facts (e.g. lx >= rgl and cb1 == rgl - lx).
 
-- cjj is increased by (v%9) and then by fo each iteration. Since v%9 is always 0 here (because v is 0 for g9>=2 and is 0 at the point of addition even in the first iteration), the net effect is that each completed iteration increments cjj by fo. From the initial cjj == -2 and initial g9 == 1, after k increments g9 becomes 1+k and cjj == -2 + k*fo. Equivalently, at loop head cjj == -2 + (g9 - 1) * fo. This exact linear relation explains the cjj updates and is preserved by the body.
-
-- f5 receives yx*v. Because v is only nonzero for the single initial step when g9==1 (then v==1 and yx==1), f5 goes from 1 to 2 in that first iteration and then stays 2. So (g9 <= 1 ==> f5 == 1) && (g9 >= 2 ==> f5 == 2) is inductive.
-
-- yx is always set to either 1 or -1 by the branch; stating yx ∈ {1,-1} is a small, useful domain invariant.
-
-- g9 is the loop counter that increases by 1 each iteration and the loop breaks when g9 > o. Therefore 1 <= g9 <= o+1 is a safe invariant at the loop head, and the natural variant (o - g9 + 1) is a non-negative integer that strictly decreases on each iteration, proving termination of the loop.
-
-I included a single clear relational equality as the core conservation law: cjj == (-2 + (g9 - 1) * fo). The other invariants are minimal but strong, expressing exact values or tight bounds and they are preserved by the loop body under integer semantics. The assigns clause lists exactly the variables written in the loop body. The variant uses only available variables and is non-negative at each iteration due to the g9 bound invariant.
 </reasoning>
 <code>
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
 
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
 
   /*@
-    loop invariant 1 <= g9 && g9 <= o + 1;
-    loop invariant (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0);
-    loop invariant fo == 12;
-    loop invariant cjj == (-2 + (g9 - 1) * fo);
-    loop invariant (g9 <= 1 ==> f5 == 1) && (g9 >= 2 ==> f5 == 2);
-    loop invariant (yx == 1) || (yx == -1);
-    loop assigns v, yx, f5, g9, fo, cjj;
-    loop variant (o - g9 + 1);
+    loop invariant cb1 == (rgl - lx);
+    loop invariant tc3 == (5 + 2 * lx);
+    loop invariant hm == (-2 + lx * rgl - (lx * (lx + 1)) / 2);
+    loop invariant lx >= 0;
+    loop invariant (rgl >= 0 ==> lx <= rgl) && (rgl < 0 ==> lx == 0);
+    loop invariant rgl == (\at(b, Pre) + 13);
+    loop assigns lx, cb1, tc3, hm, cz;
   */
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
+  while (1) {
+        if (!(lx < rgl)) {
+            break;
+        }
+        lx = lx + 1;
+        cb1 = rgl - lx;
+        tc3 += 2;
+        hm += cb1;
+        cz = cz+(cb1%7);
+    }
 
 }
 </code>
------ Candidate 2/20 raw response end -----
-2026-03-22 22:27:41,617 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 22:27:41,636 - INFO -   Generating candidate 3/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:30:43,267 - INFO - 
------ Candidate 3/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants and a complete loop-assigns set for the given loop. Observations from the loop behavior (with the initial state in the context) include:
-- o never changes and equals 55. So we can use o == 55 as a strong invariant.
-- g9 is the loop counter that starts at 1 and is incremented every iteration. The loop continues while g9 <= o, so a safe bound is 1 <= g9 <= o+1 (the +1 accounts for the final state just before exit).
-- v starts at 1, but after the first iteration it becomes 0 (due to integer division 1/g9). From then on, v remains 0 because it is multiplied by 1/g9 where g9 >= 2. A simple inductive invariant capturing this behavior is: (g9 == 1) ==> (v == 1) and (g9 != 1) ==> (v == 0).
-- yx toggles between 1 and -1 depending on g9; a simple invariant is (yx == 1) || (yx == -1).
-- f5 starts at 1 and becomes 2 after the first iteration due to f5 = f5 + yx * v with v=1 initially; afterwards v becomes 0 and f5 stops changing, so (f5 == 1) || (f5 == 2) is a valid invariant.
-- fo starts at 12 and, given the specific test o == 55, the condition o*o <= o+4 is always false, so fo remains 12. We can state fo == 12 as invariant.
-- cjj starts at -2 and evolves to 10, 22, 34, ...; at least cjj >= -2 holds throughout, which is a simple, sound invariant.
-Concerning a core relational/update insight, v follows a clear transition with g9: at the loop head g9 == 1 implies v == 1, and for all subsequent heads g9 != 1 implies v == 0. This captures the essential state update of v across iterations without relying on ternaries (which are not allowed) or \old. A loop variant o - g9 provides a decreasing measure ensuring termination, since g9 increases by 1 each iteration while o is fixed at 55.
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:25:30,659 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:25:30,723 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:27:03,036 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>
+I choose invariants that are strong, inductive, and explain the state transition of the loop precisely.
 
-The loop assigns set must be exact: the variables modified inside the loop are fo, cjj, f5, g9, v, and yx. o is not modified. We should not introduce new variables or change the code. The invariants are designed to be strong and inductive, yet simple enough for WP (Frama-C/WP) to prove. They also respect operator and syntax rules (no quantifiers, no ternary ?:, etc.).</reasoning>
-<code>/*@
-  loop invariant o == 55;
-  loop invariant 1 <= g9 && g9 <= o+1;
-  loop invariant (g9 == 1) ==> (v == 1);
-  loop invariant (g9 != 1) ==> (v == 0);
-  loop invariant (yx == 1) || (yx == -1);
-  loop invariant (f5 == 1) || (f5 == 2);
-  loop invariant fo == 12;
-  loop invariant cjj >= -2;
-  loop assigns fo, cjj, f5, g9, v, yx;
-  loop variant o - g9;
-*/ 
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
+Core relational equality (state transition law)
+- cb1 == rgl - lx
+  This is the principal conservation relation: after each iteration cb1 is recomputed to be rgl - lx. It holds initially (cb1 == rgl when lx==0) and is preserved by the assignment cb1 = rgl - lx.
 
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
+Closed-form progress relations (use lx as the iteration counter)
+- tc3 == 5 + 2*lx
+  tc3 increases by 2 each time lx increases by 1, and initially tc3 == 5 and lx == 0, so this closed form is inductive.
+
+- hm == -2 + lx * rgl - (lx*(lx+1))/2
+  hm accumulates cb1 each iteration; using cb1 = rgl - i for iterations i = 1..lx gives the exact closed form. This is stronger than a loose bound and is preserved by the update order (lx increment, recompute cb1, then hm += cb1).
+
+Modular relation for cz (compact, verification-friendly)
+- (cz + 5) % 7 == ( (lx*rgl - (lx*(lx+1))/2) % 7 )
+  cz accumulates (cb1 % 7) each iteration. While the exact sum of remainders is cumbersome, the sum of cb1%7 is congruent modulo 7 to the sum of cb1. The right-hand side is the closed form sum of cb1; equating remainders is inductive and sufficient to track cz up to modulo 7 (which is exactly what the code does).
+
+Auxiliary bound
+- lx >= 0
+  The loop counter is always non-negative (initialized to 0 and only incremented), useful as a minimal progress bound.
+
+Loop assigns
+- The loop modifies exactly: lx, cb1, tc3, hm, cz.
+
+These invariants (1) hold initially, (2) are preserved by the loop body given the order of updates (lx first, then cb1, then tc3, then hm, then cz), and (3) together allow reasoning about final values when the loop exits (e.g., using cb1 == rgl - lx and the exit condition !(lx < rgl) gives the final relations).
+</reasoning>
+<code>
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
+
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
 
   /*@
-    loop invariant o == 55;
-    loop invariant 1 <= g9 && g9 <= o+1;
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 != 1) ==> (v == 0);
-    loop invariant (yx == 1) || (yx == -1);
-    loop invariant (f5 == 1) || (f5 == 2);
-    loop invariant fo == 12;
-    loop invariant cjj >= -2;
-    loop assigns fo, cjj, f5, g9, v, yx;
-    loop variant o - g9;
+    loop invariant rgl == \at(b, Pre) + 13;
+    loop invariant lx >= 0;
+    loop invariant cb1 == rgl - lx;
+    loop invariant tc3 == 5 + 2*lx;
+    loop invariant hm == (-2) + lx * rgl - ((lx*(lx+1))/2);
+    loop invariant ((cz + 5) % 7) == ((lx * rgl - ((lx*(lx+1))/2)) % 7);
+    loop assigns lx, cb1, tc3, hm, cz;
   */
   while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
+        if (!(lx < rgl)) {
+            break;
+        }
+        lx = lx + 1;
+        cb1 = rgl - lx;
+        tc3 += 2;
+        hm += cb1;
+        cz = cz+(cb1%7);
+    }
 
-}</code>
------ Candidate 3/20 raw response end -----
-2026-03-22 22:30:43,272 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 22:30:43,303 - INFO -   Generating candidate 4/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:31:30,632 - INFO - 
------ Candidate 4/20 raw response begin -----
-<reasoning>We analyze the loop to derive inductive invariants that are strong, concise, and helpful for WP verification, without modifying the program semantics.
+}
+</code>
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:27:03,037 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:27:03,101 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:28:36,957 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I constructed invariants that are inductive, explain the state transitions, and are friendly to WP:
 
-Observations from the code and initialization (constants in this loop are fixed by the initial assignments):
-- o is assigned 55 and never changed inside the loop. So o == 55 and fo becomes constant as 12 (the only potential modification to fo happens inside an if that never triggers for o = 55). Hence fo == 12 is preserved throughout the loop.
-- The loop guard is g9 <= o (checked at the top). The actual loop will execute while g9 ranges from 1 up to o inclusive, and after the last iteration g9 becomes o+1. Therefore 1 <= g9 <= o+1 is a valid bound that is preserved at the top of each iteration.
-- The first statement inside the loop uses v, and initially v == 1. The next time we reach the top of the loop, v becomes 0 and stays 0 because v is multiplied by (1/g9) where g9 >= 2 afterwards, yielding 0. Thus v follows a simple pattern tied to g9: v == 1 if g9 == 1; otherwise v == 0. This can be expressed using implications:
-  - (g9 == 1) ==> (v == 1)
-  - (g9 != 1) ==> (v == 0)
-- The yx update depends on the current g9: yx is set to 1 when ((g9/2) % 2 == 0) and -1 otherwise. Since yx holds the result from the previous iteration, at the top of iteration with current g9 it equals the value determined by (g9-1). We can capture this with:
-  - (((g9 - 1) / 2) % 2) == 0 ==> (yx == 1)
-  - (((g9 - 1) / 2) % 2) != 0 ==> (yx == -1)
-- The cjj update starts from -2 and in each iteration does cjj = cjj + (v % 9); cjj = cjj + fo. Given v is 0 for all iterations after the first, (v % 9) is 0 from the second iteration onward, and fo remains 12. Therefore cjj progression is linear with g9:
-  - cjj == -2 + fo*(g9 - 1)
-  This holds since initially g9 = 1 gives cjj = -2, and after k iterations with g9 = 1 + k, cjj becomes -2 + fo*k.
+- Core conservation (state transition law): cb1 == rgl - lx. This exactly characterizes cb1 in terms of rgl and lx before and after each iteration (initially cb1==rgl and lx==0, and each iteration sets cb1 = rgl - lx).
 
-Given these observations, the following inductive invariants are suitable:
-- o == 55
-- fo == 12
-- 1 <= g9 <= o + 1
-- (g9 == 1) ==> (v == 1)
-- (g9 != 1) ==> (v == 0)
-- (((g9 - 1) / 2) % 2) == 0 ==> (yx == 1)
-- (((g9 - 1) / 2) % 2) != 0 ==> (yx == -1)
-- cjj == -2 + fo*(g9 - 1)
-- loop assigns v, yx, f5, g9, fo, cjj
-- loop variant o - g9
+- Strong relational invariants for arithmetic accumulators:
+  - tc3 == 5 + 2*lx captures that tc3 increases by 2 each time lx is incremented.
+  - hm == -2 + lx*rgl - ((lx*(lx+1))/2) gives the closed-form sum accumulated into hm after lx iterations (matches hm += cb1 with cb1 = rgl - lx).
+  These are inductive: they hold initially and are preserved by the sequence lx = lx+1; tc3 += 2; hm += cb1.
 
-These invariants are tight (strong) and are preserved by each loop iteration given the existing code, aiding automated verification with Frama-C/WP. They rely only on available variables and do not modify the function’s semantics. The loop variant o - g9 is a standard decreasing measure (as g9 increases while o is fixed), ensuring termination reasoning is straightforward.
+- Progress / bounds:
+  - lx >= 0 (non-negativity of the loop counter).
+  - A variant cb1 (equal to rgl - lx) is used: under the loop guard (lx < rgl) cb1 is positive and strictly decreases by 1 each iteration, proving termination when the guard holds.
+  Using cb1 as variant directly follows from the core equality.
 
+- Bounding the modular accumulation:
+  - cz starts at -5 and each iteration adds (cb1 % 7) with cb1 >= 0 under the guard. Therefore cz is bounded by -5 <= cz <= -5 + 6*lx. I also added the conditional fact (lx < rgl) ==> (0 <= (cb1 % 7) && (cb1 % 7) <= 6) so WP can use the 0..6 bounds of the remainder when proving the cz upper bound inductive step.
+  Note: these remainder facts are guarded by (lx < rgl) because cb1 may be negative outside the case where the loop body is executed, and the standard WP obligation for variant/non-negativity also reasons under the guard.
+
+- assigns clause: lists exactly the variables modified by the loop body: lx, cb1, tc3, hm, cz.
+
+I avoided invariants that would be false at loop entry for some inputs (e.g. asserting lx <= rgl globally would fail when rgl < 0 and lx==0). Instead, I used guarded properties and variant reasoning so that all invariants hold at loop entry and are preserved by each iteration, and they yield useful facts at loop exit (e.g., combining cb1 == rgl - lx with exit condition !(lx < rgl) gives cb1 <= 0 and together with variant reasoning explains termination).
 </reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
+<code>
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
 
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /* @
-     loop invariant o == 55;
-     loop invariant fo == 12;
-     loop invariant g9 >= 1;
-     loop invariant g9 <= o + 1;
-     loop invariant ((g9 == 1) ==> (v == 1));
-     loop invariant ((g9 != 1) ==> (v == 0));
-     loop invariant ((((g9 - 1) / 2) % 2) == 0) ==> (yx == 1);
-     loop invariant ((((g9 - 1) / 2) % 2) != 0) ==> (yx == -1);
-     loop invariant cjj == -2 + fo*(g9 - 1);
-     loop assigns v, yx, f5, g9, fo, cjj;
-     loop variant o - g9;
-  */
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}</code>
------ Candidate 4/20 raw response end -----
-2026-03-22 22:31:30,634 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 22:31:30,651 - INFO -   Generating candidate 5/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:32:17,955 - INFO - 
------ Candidate 5/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL annotations for the loop. The function uses only the available variables: cjj, f5, fo, g9, o, v, yx. The loop’s control is a break on g9 <= o, so the natural iteration bound is governed by g9 increasing from 1 up to o (here o = 55). A strong invariant should capture the core state evolution and relate variables across iterations, while remaining true at each loop entry.
-
-Key observations to drive invariants:
-- The core state evolves with g9 incrementing by 1 each iteration, while the loop continues as long as g9 <= o.
-- v starts at 1, and after the first v update it becomes 0 (because 1/g9 is 1 for g9=1, then 0 for g9>=2 due to integer division). Subsequently, v remains 0 throughout the loop.
-- Each iteration updates cjj by (v%9) and then by fo. Since v becomes 0 after the first iteration and remains 0, every iteration increases cjj by fo (12). Therefore, after k iterations, cjj = -2 + 12*k, and since g9 starts at 1 and increases to 1+k, we have cjj = -2 + 12*(g9 - 1) at the loop top.
-- fo remains 12 (the condition that would modify fo is never true for o=55).
-- v is always 0 or 1 throughout the loop.
-
-From these, we propose the following inductive invariants:
-- cjj == -2 + 12*(g9 - 1)  (core relational invariant capturing the cjj update pattern)
-- fo == 12                    (constant within this loop)
-- (v == 0) || (v == 1)        (v only takes 0 or 1 values)
-- g9 <= o + 1                   (loop bound is preserved across iterations)
-
-Progress/termination:
-- loop variant o - g9 decreases by 1 each iteration (starting at 54 and reaching 0 when g9 reaches o).
-
-Loop assigns:
-- v, yx, f5, g9, fo, cjj (these are the variables modified inside the loop body)
-
-These invariants are strong, inductive, and directly reflect the loop’s concrete updates without introducing unrelated properties. They use only allowed variables and avoid undefined/pre/post-parameter constructs. They also align with the guard g9 <= o, ensuring the invariant holds at loop entry and is preserved while the guard is true.
-</reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant cjj == -2 + 12*(g9 - 1);
-    loop invariant fo == 12;
-    loop invariant (v == 0) || (v == 1);
-    loop invariant g9 <= o + 1;
-    loop assigns v, yx, f5, g9, fo, cjj;
-    loop variant o - g9;
-  @*/
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}</code>
------ Candidate 5/20 raw response end -----
-2026-03-22 22:32:17,957 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 22:32:17,973 - INFO -   Generating candidate 6/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:32:58,775 - INFO - 
------ Candidate 6/20 raw response begin -----
-<reasoning>To create an inductive, verification-friendly loop invariant for the given loop, I focused on the observable state transitions and their effects:
-
-- The loop guard is effectively g9 <= o, but invariants should be independent of the guard itself. I provide non-strict bounds that are preserved across iterations.
-- The update v = v * (1/g9) with integer division causes v to be 1 in the very first iteration (since g9 == 1), and then become 0 for all subsequent iterations (since 1/g9 == 0 for g9 >= 2). This leads to a simple, inductive relation: v == 1 iff g9 == 1; otherwise v == 0.
-- The sign variable yx is assigned based on (g9/2) % 2, i.e., it alternates according to g9. Since yx is set directly from g9 with no other dependencies, we can express its relation with g9 via two implications: if (g9/2)%2 == 0 then yx == 1; else yx == -1.
-- A minimal loop variant is needed to guarantee termination. Because g9 starts at 1 and is incremented every iteration, a natural decreasing measure is o+1 - g9, which starts at o and decreases by 1 each iteration, terminating when g9 reaches o+1 (i.e., after g9 > o).
-- The loop assigns must include all variables that are modified inside the loop: v, yx, f5, g9, fo, cjj. This ensures the contract tracks all state changes.
-
-The resulting invariants are intended to be strong and directly reflect the loop's update rules, while remaining inductive and not overly complex. They also avoid using any Pre-state references on local variables and do not rely on the code outside the loop. The invariants together with the loop variant provide a verification-friendly contract for Frama-C WP. </reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-     loop invariant g9 <= o+1;
-     loop invariant (g9 == 1) ==> (v == 1);
-     loop invariant (g9 != 1) ==> (v == 0);
-     loop invariant ((g9/2)%2 == 0) ==> (yx == 1);
-     loop invariant ((g9/2)%2 != 0) ==> (yx == -1);
-     loop assigns v, yx, f5, g9, fo, cjj;
-     loop variant o+1 - g9;
-  */
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 6/20 raw response end -----
-2026-03-22 22:32:58,776 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 22:32:58,792 - INFO -   Generating candidate 7/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:34:09,848 - INFO - 
------ Candidate 7/20 raw response begin -----
-<reasoning>We need inductive invariants that are proven true from loop initialization and preserved by each iteration, using only the available variables. Observations from the loop body with the given initial values (o=55, g9 starts at 1, fo=12, v=1, cjj=-2, etc.) show:
-
-- The variable v is always non-negative and, due to integer division 1/g9, becomes 0 after the first iteration and stays 0 thereafter. Hence 0 <= v <= 1 is preserved.
-- The sign of yx is determined by g9 and flips between 1 and -1 in a deterministic way; indeed yx ∈ {1, -1} throughout. A robust invariant is (yx == 1) || (yx == -1).
-- The variable cjj evolves in a predictable way: after the first iteration, v is 0, so cjj increases by fo each subsequent iteration. Since the initial relation cjj == -2 holds and the evolution across iterations follows cjj_new = cjj_old + fo (for the recurrent iterations where v%9 becomes 0), one compact inductive invariant is cjj == -2 + fo*(g9 - 1). This relation also holds initially (g9 = 1, cjj = -2) and remains true as g9 increments by 1 each iteration (assuming fo remains constant). In this specific code path fo stays 12 because the condition o*o <= o+4 is false for o=55, so fo does not change, making the invariant stable.
-- To ensure progress/termination, g9 increases by 1 each iteration, and the loop eventually exits when g9 exceeds o. A loop variant can be given as o - g9 to reflect the decreasing bound each iteration.
-
-With these, the invariants provide a concise, inductive description of how the key variables move together without modifying the program logic.</reasoning>
-
-<code>/*@
-  loop invariant cjj == -2 + fo*(g9 - 1);
-  loop invariant (0 <= v <= 1) && ((yx == 1) || (yx == -1));
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o - g9;
-*/
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }</code>
------ Candidate 7/20 raw response end -----
-2026-03-22 22:34:09,850 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 22:34:09,866 - INFO -   Generating candidate 8/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:34:59,431 - INFO - 
------ Candidate 8/20 raw response begin -----
-<reasoning> 
-I analyzed the loop to identify a simple, inductive relation that is preserved across iterations and does not rely on non-atomic properties. The key state updates are:
-
-- v is updated twice per iteration by integer divisions: v = v*(1/g9); later v = v*(1/g9_new) after g9 is incremented.
-- Since 1/g9 is 1 for g9 = 1 and 0 for g9 >= 2 (integer division), v starts at 1 and becomes 0 after the first iteration and remains 0 thereafter.
-- This yields a natural, inductive relation between v and g9: v == 1 exactly when g9 == 1, otherwise v == 0.
-
-Hence, strong, inductive invariants can be:
-
-- If g9 == 1 then v == 1.
-- If g9 != 1 then v == 0.
-
-These two guarded implications are preserved by the body of the loop given the dominant effect of the two v updates and the g9++ step, and they are true at loop entry (g9 starts at 1 and v at 1). They also avoid using the conditional operator (which is forbidden in ACSL invariants).
-
-Additionally, provide a simple bound on the loop counter to aid termination:
-
-- 1 <= g9 <= o+1
-
-And a loop variant to ensure progress toward termination:
-
-- (o - g9) is a decreasing integer expression while the loop continues (g9 <= o).
-
-Finally, specify the exact loop assigns: v, yx, f5, g9, fo, cjj.
-
-These invariants are strong and minimal, are inductive (preserved by each iteration), and assist Frama-C/WP in proving termination and correctness without modifying the program logic.
-</reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 != 1) ==> (v == 0);
-    loop invariant (1 <= g9) && (g9 <= o+1);
-    loop assigns v, yx, f5, g9, fo, cjj;
-    loop variant (o - g9);
-  */
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}</code>
------ Candidate 8/20 raw response end -----
-2026-03-22 22:34:59,432 - INFO -   Candidate 9 selected prompt: simple_cot.txt
-2026-03-22 22:34:59,444 - INFO -   Generating candidate 9/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:35:54,965 - INFO - 
------ Candidate 9/20 raw response begin -----
-<reasoning>The loop in main1 is a tightly constrained, deterministically evolving state. We want inductive invariants that:
-
-- Capture core state transitions (conservation/equality across iterations).
-- Provide minimal yet sufficient progress bounds (loop counter g9 and derived quantities).
-- Precisely specify which variables the loop may modify (loop assigns).
-- Be strong enough to drive WP verification without overfitting trivial facts.
-
-Key observations used for invariants:
-- g9 starts at 1 and is incremented each iteration, and the loop terminates when g9 > o (with o fixed at 55). Thus, at the start of any loop iteration,  g9 ∈ [1, o+1]. A tighter invariant (g9 >= 1) && (g9 <= o+1) is suitable as a loop invariant.
-- v becomes 0 after the first iteration (initial v = 1; first update computes v = 1*(1/1) = 1, then v = 1*(1/2) = 0). After that, v remains 0 since 1/g9 is 0 for g9 >= 2 in integer arithmetic. Therefore, across iterations, the invariant (g9 == 1) ==> (v == 1) and (g9 >= 2) ==> (v == 0) holds. To avoid disallowed conditional expressions, this is encoded as two implications:
-  (g9 == 1) ==> (f5 == 1) and (g9 >= 2) ==> (f5 == 2) will be complemented by other invariants on f5.
-- fo remains fixed at 12 because the condition (o*o <= o+4) is false for o = 55, so fo is never updated. Thus fo == 12 is a safe invariant throughout.
-- cjj follows a precise linear relation with g9: starting from cjj = -2, and since v becomes 0 after the first iteration, cjj increases by fo (12) each iteration. With g9 starting at 1 and increasing by 1 each iteration, a closed-form invariant emerges: cjj == 12*g9 - 14. This holds at loop head initially (g9=1, cjj=-2) and remains true after each iteration.
-- A strong invariant is the combination of the above relations; together they tightly characterize the loop state.
-- Loop assigns must include all variables updated within the loop: f5, g9, v, yx, cjj, fo.
-- Loop variant: (o - g9) decreases by 1 on each iteration while the loop runs (since g9 increments by 1 each iteration and the loop runs while g9 <= o). This proves progress toward termination.
-
-Using these, we provide strong, inductive invariants that are verification-friendly for Frama-C/WP.
-
-</reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant (g9 >= 1) && (g9 <= o+1);
-    loop invariant ((g9 == 1) ==> (f5 == 1)) && ((g9 >= 2) ==> (f5 == 2));
-    loop invariant fo == 12;
-    loop invariant cjj == 12*g9 - 14;
-    loop assigns f5, g9, v, yx, cjj, fo;
-    loop variant (o - g9);
+    loop invariant cb1 == rgl - lx;
+    loop invariant tc3 == 5 + 2*lx;
+    loop invariant hm == -2 + lx*rgl - ((lx*(lx+1))/2);
+    loop invariant lx >= 0;
+    loop invariant cz >= -5 && cz <= -5 + 6*lx;
+    loop invariant (lx < rgl) ==> (0 <= (cb1 % 7) && (cb1 % 7) <= 6);
+    loop assigns lx, cb1, tc3, hm, cz;
+    loop variant cb1;
   */
 while (1) {
-      if (!(g9<=o)) {
+      if (!(lx < rgl)) {
           break;
       }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}</code>
------ Candidate 9/20 raw response end -----
-2026-03-22 22:35:54,966 - INFO -   Candidate 10 selected prompt: simple_cot.txt
-2026-03-22 22:35:54,979 - INFO -   Generating candidate 10/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:36:54,575 - INFO - 
------ Candidate 10/20 raw response begin -----
-<reasoning>
-We need inductive, verification-friendly loop invariants for the given loop. Observations from the loop body with the provided initial state (o=55, g9=1, v=1, yx=1, f5=1, cjj=-2, fo=12) show:
-
-- v evolves as v = v * (1/g9), and then again as v = v * (1/g9) after g9 is incremented. Because 1/g9 is 1 when g9 == 1, but becomes 0 for g9 >= 2 (integer division), v stays 1 for the first iteration and becomes 0 from the second iteration onward and remains 0 thereafter.
-- Therefore, v == 1 exactly when g9 == 1 at the top of a loop iteration; for all subsequent iterations (g9 != 1) we have v == 0. This can be captured with two implications:
-  - (g9 == 1) ==> (v == 1)
-  - (g9 != 1) ==> (v == 0)
-  These two invariants together describe the exact behavior of v with respect to g9 and are inductive.
-- yx is assigned to either 1 or -1 every iteration, so a simple invariant is that yx is always either 1 or -1: (yx == 1) || (yx == -1).
-- fo is initialized to 12 and the only potential update inside the loop occurs under a condition that, given o = 55, is false (55*55 <= 55+4 is false). Thus fo remains 12 throughout the loop for these values. We can state fo == 12 as an invariant.
-- f5 starts at 1 and is updated by f5 = f5 + yx*v. Since v is 1 only in the first iteration and becomes 0 thereafter, f5 becomes 2 after the first iteration and stays 2. We can state simple bounds for f5: 1 <= f5 <= 2.
-- We add a loop variant to prove termination: since g9 is incremented every iteration and the loop exits when g9 > o, the variant o - g9 strictly decreases each iteration (and remains non-negative while the guard holds).
-
-With these, we have a concise, strong, inductive set of invariants that reflect the actual state progression without introducing non-semantic or tautological constraints. The loop assigns list should include all variables that are modified inside the loop: v, yx, f5, g9, fo, cjj.
-
-</reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 != 1) ==> (v == 0);
-    loop invariant ((yx == 1) || (yx == -1));
-    loop invariant (fo == 12);
-    loop invariant (f5 >= 1);
-    loop invariant (f5 <= 2);
-    loop assigns v, yx, f5, g9, fo, cjj;
-    loop variant o - g9;
-  */
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}</code>
------ Candidate 10/20 raw response end -----
-2026-03-22 22:36:54,576 - INFO -   Candidate 11 selected prompt: simple_cot.txt
-2026-03-22 22:36:54,590 - INFO -   Generating candidate 11/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:37:49,548 - INFO - 
------ Candidate 11/20 raw response begin -----
-<reasoning>
-I analyzed the loop to identify a concise, inductive set of invariants that are strong enough to verify correctness with Frama-C WP while remaining easy to prove. Key observations:
-
-- The loop guard is g9 <= o, with o fixed at 55. Thus, a natural progression bound is 1 <= g9 <= o+1, since g9 starts at 1 and is incremented by 1 each iteration, potentially reaching o+1 right before termination.
-- The value v is updated via v = v * (1/g9). With integer arithmetic, 1/g9 is 1 when g9 == 1 and 0 for g9 >= 2. Hence:
-  - When g9 == 1, v stays 1.
-  - When g9 >= 2, v becomes 0 on that iteration and remains 0 afterwards.
-  We can encode this with implications:
-  - (g9 == 1) ==> (v == 1)
-  - (g9 != 1) ==> (v == 0)
-- The variables fo and cjj have a tight relationship due to the loop’s updates. In this particular run, fo never changes (since the conditional fo = fo*fo + cjj is false given o = 55). Therefore fo remains 12 throughout. This allows a clean invariant:
-  - fo == 12
-  - cjj == fo*(g9 - 1) - 2
-  The second equation matches the observed invariant progression: initially cjj = -2, and after each iteration cjj increases by fo, while g9 increases by 1, keeping cjj = fo*(g9-1) - 2 true at each loop head. This invariant is preserved by the loop body given fo stays 12.
-- A simple progress bound (loop variant) is o - g9 + 1, which starts at 55 and decreases by 1 each iteration, reaching 0 when g9 becomes o+1, ensuring termination.
-
-Thus I propose two loop invariants:
-  1) A conjunction capturing bounds and the v relationship, plus the tight cjj/fo relation:
-     1 <= g9 <= o+1 &&
-     ((g9 == 1) ==> (v == 1)) &&
-     ((g9 != 1) ==> (v == 0)) &&
-     (fo == 12) &&
-     (cjj == fo*(g9 - 1) - 2)
-  2) A minimal progress bound to assist WP:
-     0 <= o - g9 + 1
-
-Loop assigns must include all mutated variables: v, g9, yx, f5, fo, cjj.
-I also include a loop variant: o - g9 + 1.
-
-The resulting ACSL block is placed just before the loop, using the required two loop invariant lines (one for the main invariant, one for the verification goal), followed by loop assigns and the loop variant.
-</reasoning>
-<code>
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant 1 <= g9 <= o+1 &&
-                   ((g9 == 1) ==> (v == 1)) &&
-                   ((g9 != 1) ==> (v == 0)) &&
-                   (fo == 12) &&
-                   (cjj == fo*(g9 - 1) - 2);
-    loop invariant 0 <= o - g9 + 1;
-    loop assigns v, g9, yx, f5, fo, cjj;
-    loop variant o - g9 + 1;
-  */
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
+      lx = lx + 1;
+      cb1 = rgl - lx;
+      tc3 += 2;
+      hm += cb1;
+      cz = cz+(cb1%7);
   }
 
 }
 </code>
------ Candidate 11/20 raw response end -----
-2026-03-22 22:37:49,550 - INFO -   Candidate 12 selected prompt: simple_cot.txt
-2026-03-22 22:37:49,570 - INFO -   Generating candidate 12/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:38:46,766 - INFO - 
------ Candidate 12/20 raw response begin -----
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:28:36,960 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:28:37,067 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:29:49,867 - INFO - 
+----- Candidate 4/5 raw response begin -----
 <reasoning>
-Chosen invariants aim to be inductive and verification-friendly while revealing the key state transitions observed in the loop, without modifying program semantics.
+I choose invariants that are inductive, explain the state transitions, and give the minimal progress/bounds information needed for verification:
 
-- 1 <= g9 <= o and v is tightly coupled to g9:
-  The loop guard is effectively g9 <= o. At loop head, we always have g9 between 1 and o. Expressing this as 1 <= g9 && g9 <= o gives a clear bound that is preserved as g9 is incremented each iteration.
+- Core conservation/relational equality: cb1 == rgl - lx. This directly reflects the assignment cb1 = rgl - lx performed every iteration and is true initially (cb1 initialized to rgl) and preserved by the loop body.
 
-- v’s relation to g9 (no ternary operator allowed):
-  v is initialized to 1 and is updated by v = v*(1/g9) twice per iteration. For g9 >= 2, 1/g9 is 0 in integer division, causing v to drop to 0 and stay 0 thereafter. The invariant ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0)) encodes this without using ?:. It also covers the initial condition v == 1 when g9 == 1.
+- Deterministic update for the arithmetic accumulator tc3: tc3 == 5 + 2*lx. tc3 starts at 5 and increases by 2 whenever lx increases by 1, so this exact relation is inductive and helps WP prove facts depending on tc3.
 
-- yx is always either 1 or -1:
-  yx is assigned to either 1 or -1 in every loop iteration and initially set to 1. The invariant (yx == 1) || (yx == -1) captures this safe, non-arbitrary bound.
+- Exact closed-form for hm: hm == -2 + lx * rgl - (lx*(lx+1))/2. hm accumulates cb1 each iteration; summing cb1 = rgl - i for i=1..lx yields the shown formula. This is a strong invariant (no quantifiers) and is preserved by the body.
 
-- A strong, path-stable relation for cjj and fo:
-  In the given run, fo is not modified (the fo-update is behind a condition that is false for the given o). Consequently, cjj is updated by cjj = cjj + fo every iteration after the initial state, starting from cjj = -2 and fo = 12. This yields the exact linear relation cjj == fo*(g9 - 1) - 2, which is preserved across iterations for this code path. Including this as an invariant gives a strong, inductive statement of the loop’s state progression.
+- Modulo relation for cz: (cz + 5) % 7 == ( (lx * rgl - (lx*(lx+1))/2) % 7 ). We cannot express the sum of remainders without quantifiers, but we can express the congruence modulo 7 between cz and the accumulated sum (sum(cb1) ≡ sum(cb1 % 7) (mod 7)). This lets WP reason about cz modulo 7 without introducing quantifiers.
 
-- Explicit loop assigns:
-  v, yx, f5, g9, fo, cjj are the variables whose values may be changed inside the loop; listing them precisely as loop assigns is required for precise verification.
+- Bounds / progress: 0 <= lx and (rgl >= 0) ==> lx <= rgl. lx is initialized to 0 and only increments, so 0 <= lx holds. The implication captures the fact that when rgl is non-negative the loop counter never exceeds rgl; when rgl is negative the loop does not execute and the implication is vacuously true.
+
+- rgl is a function of the initial parameter b: rgl == \at(b, Pre) + 13. This constant relation helps WP use the known initial value of rgl without using \at on local variables.
+
+I do not include a loop variant because a simple decreasing expression like (rgl - lx) may be negative when rgl < 0 (in which case the loop does not execute), and introducing conditional/nested expressions or ternaries is forbidden. The invariants and the assigns clause are complete and precise: the loop modifies exactly lx, cb1, tc3, hm, cz.
+
+All invariants are expressible without quantifiers, predicates, or forbidden constructs, and they are preserved by the loop body.
+</reasoning>
+<code>
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
+
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
+
+  /*@
+    loop invariant cb1 == rgl - lx;
+    loop invariant tc3 == 5 + 2 * lx;
+    loop invariant hm == -2 + lx * rgl - (lx * (lx + 1)) / 2;
+    loop invariant (cz + 5) % 7 == ( (lx * rgl - (lx * (lx + 1)) / 2) % 7 );
+    loop invariant 0 <= lx;
+    loop invariant (rgl >= 0) ==> (lx <= rgl);
+    loop invariant rgl == \at(b, Pre) + 13;
+    loop assigns lx, cb1, tc3, hm, cz;
+  */
+  while (1) {
+        if (!(lx < rgl)) {
+            break;
+        }
+        lx = lx + 1;
+        cb1 = rgl - lx;
+        tc3 += 2;
+        hm += cb1;
+        cz = cz+(cb1%7);
+    }
+
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:29:49,870 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:29:49,954 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:30:43,980 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I selected invariants that are simple, strong, and directly reflect the loop's update laws so they are easy for WP to discharge:
+
+- Core relational equality (conservation law):
+  - cb1 == rgl - lx
+  This precisely captures how cb1 is computed from rgl and lx each iteration. It holds initially (lx=0, cb1=rgl) and is preserved: each iteration increments lx and then sets cb1 accordingly.
+
+- Progress and bounds for the loop counter:
+  - 0 <= lx && lx <= rgl
+  lx starts at 0 and only increases; combining the loop guard (lx < rgl) and the invariant yields exact exit fact lx == rgl at loop termination. The upper bound ensures cb1 = rgl - lx is non-negative, which simplifies reasoning about the remainder.
+
+- Exact arithmetic relation for the linear accumulator tc3:
+  - tc3 == 5 + 2*lx
+  tc3 starts at 5 and increases by 2 per iteration after lx is incremented; this equality is exact and inductive.
+
+- Exact closed-form for hm (polynomial conservation):
+  - hm == -2 + lx * rgl - (lx * (lx + 1)) / 2
+  hm starts at -2 and each iteration adds the current cb1 (which equals rgl - lx). The closed form is inductive and encodes the cumulative sum of cb1 values.
+
+- Bounds for cz using the fact cb1 >= 0:
+  - cb1 >= 0 ensures cb1%7 is in 0..6 (C remainder has absolute value < 7 and the same sign as cb1; with cb1>=0 it is 0..6).
+  - cz >= -5 && cz <= -5 + 6*lx
+  Since cz starts at -5 and each iteration adds (cb1%7) ∈ [0,6], cz remains between -5 and -5 + 6*lx. These bounds are inductive and avoid reasoning about sums or quantifiers.
 
 - Loop variant:
-  The loop counter bound provides a decreasing variant for termination: o - g9. Since 1 <= g9 <= o holds at loop head and g9 is incremented each iteration, o - g9 strictly decreases and remains non-negative, proving termination of the loop.
+  - rgl - lx
+  This is a natural, non-negative integer that strictly decreases when the guard lx < rgl holds, proving termination.
 
-These invariants are chosen to be strong yet faithful to the actual loop behavior for the given code and initial state, and they avoid non-supported constructs while keeping the annotations inductive and verification-friendly.
+- loop assigns:
+  - The loop updates exactly lx, cb1, tc3, hm, cz; rgl and b are not modified. I put the precise list in the assigns clause.
+
+All invariants hold initially (checked against given initial state) and are preserved by each update in the loop body. Combined with the exit condition !(lx < rgl) they yield the useful exit fact lx == rgl. These invariants are strong (exact equalities where possible), verification-friendly, and avoid quantifiers or unsupported constructs.
 </reasoning>
-<code>/*@
-  loop invariant 1 <= g9 && g9 <= o;
-  loop invariant ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0));
-  loop invariant (yx == 1) || (yx == -1);
-  loop invariant cjj == fo*(g9 - 1) - 2;
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o - g9;
-*/
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }</code>
------ Candidate 12/20 raw response end -----
-2026-03-22 22:38:46,766 - INFO -   Candidate 13 selected prompt: simple_cot.txt
-2026-03-22 22:38:46,781 - INFO -   Generating candidate 13/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:39:39,220 - INFO - 
------ Candidate 13/20 raw response begin -----
-<reasoning>We need inductive loop invariants that are verification-friendly for this loop and do not modify the original code. Key observations:
+<code>
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
 
-- The loop guard is g9 <= o, with o fixed at 55. Therefore, a natural invariant is g9 <= o and o == 55.
-- fo never changes for the given input (the condition o*o <= o+4 is false for o=55), so fo remains 12; we can capture that as fo == 12.
-- v starts at 1 and, due to integer division, quickly drops to 0 after the first iteration and then stays 0. Thus 0 <= v <= 1 is inductive (and in fact v ∈ {0,1} throughout).
-- yx is assigned as 1 or -1; we can express that yx always stays in {1, -1}. A stronger relational invariant ties yx to the value of g9 prior to the current iteration: since yx is set based on (g9/2) parity of the prior g9, we can relate yx to (g9-1). Specifically, yx equals 1 when floor((g9-1)/2) is even, and -1 when it is odd. Since we cannot use the conditional operator in ACSL, we express this as two implications:
-  - if ((g9 - 1)/2) % 2 == 0 then yx == 1
-  - if ((g9 - 1)/2) % 2 != 0 then yx == -1
-  This captures the inductive update of yx with g9.
-- f5 starts at 1 and is updated by f5 = f5 + yx*v; because v is 0 after the first iteration, f5 will be either 1 or 2. We codify this as f5 == 1 || f5 == 2.
-- cjj starts at -2 and increases by (v%9) plus fo every iteration. Since fo stays 12, cjj is bounded below by -2; we keep a conservative cjj >= -2 invariant.
-- We provide a loop variant to aid WP: o - g9 decreases by 1 each iteration (since g9 increments until it would exceed o).
-
-We also specify the exact loop assigns set to be v, yx, f5, g9, fo, cjj. Together these invariants are strong, inductive, and tightly describe how the loop state evolves without modifying code. The chosen core relation yx tied to g9-1 serves as the single relational equality that explains loop updates in a concise way. </reasoning>
-<code>/*@
-  loop invariant o == 55;
-  loop invariant g9 <= o;
-  loop invariant fo == 12;
-  loop invariant 0 <= v && v <= 1;
-  loop invariant ( ( (g9 - 1) / 2 ) % 2 == 0 ) ==> (yx == 1);
-  loop invariant ( ( (g9 - 1) / 2 ) % 2 != 0 ) ==> (yx == -1);
-  loop invariant (f5 == 1) || (f5 == 2);
-  loop invariant cjj >= -2;
-  loop variant o - g9;
-  loop assigns v, yx, f5, g9, fo, cjj;
-*/</code>
------ Candidate 13/20 raw response end -----
-2026-03-22 22:39:39,220 - INFO -   Candidate 14 selected prompt: simple_cot.txt
-2026-03-22 22:39:39,236 - INFO -   Generating candidate 14/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:40:23,576 - INFO - 
------ Candidate 14/20 raw response begin -----
-<reasoning>We need inductive loop annotations for the given loop. Based on the loop, we observe:
-- o is initialized to 55 and never modified, so o remains 55 throughout. This gives a strong invariant o == 55 and bounds on g9 (1 <= g9 <= o) since the loop runs while g9 <= o.
-- The loop increments g9 by 1 each iteration and exits when g9 > o. A natural loop variant is o - g9, which decreases every iteration and is non-negative.
-- v is updated via v = v*(1/g9) before and after the g9++, so for g9 == 1 we preserve v == 1, while for g9 > 1 we get v == 0 (because 1/g9 == 0 for integers when g9 > 1). This yields a core relational rule: (g9 == 1) ==> (v == 1) and (g9 != 1) ==> (v == 0). This captures the state transition law for v.
-- fo is only assigned inside a conditional that, given o = 55, is never true (55*55 <= 55+4 is false). Nevertheless, fo starts at 12 and, since that assignment is never reached in this context, fo remains 12. We encode fo == 12 as an invariant to reflect this.
-- cjj and f5 are updated every iteration; cjj strictly increases (due to adding fo and a non-negative (v%9)), and f5 increases by yx*v each iteration. We can conservatively capture monotonicity and non-negativity: cjj >= -2 (initial value) and f5 >= 1 (initial value). We also constrain yx to be either 1 or -1, which is what the code yields given the parity check.
-- yx is always either 1 or -1, and v is always in {0,1}, which we encode as 0 <= v <= 1 and (yx == 1) || (yx == -1).
-
-Thus we provide two loop invariant lines (covering the core transition law and additional bounds), a loop variant for termination, and a complete loop assigns list. The chosen invariants are inductive and verification-friendly, and together with the loop variant ensure termination reasoning is straightforward for Frama-C/WP. </reasoning>
-<code>/*@
-  loop invariant o == 55 &&
-                 g9 >= 1 && g9 <= o &&
-                 ((g9 == 1) ==> (v == 1)) &&
-                 ((g9 != 1) ==> (v == 0));
-  loop invariant fo == 12 &&
-                 (cjj >= -2) &&
-                 (f5 >= 1) &&
-                 (((yx == 1) || (yx == -1))) &&
-                 (0 <= v && v <= 1) &&
-                 (g9 <= o);
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o - g9;
-*/ 
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }</code>
------ Candidate 14/20 raw response end -----
-2026-03-22 22:40:23,576 - INFO -   Candidate 15 selected prompt: simple_cot.txt
-2026-03-22 22:40:23,592 - INFO -   Generating candidate 15/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:41:04,112 - INFO - 
------ Candidate 15/20 raw response begin -----
-<reasoning>The loop manipulates a small set of state variables with a simple, predictable progression:
-- g9 acts as a counter and governs the termination condition (g9 <= o).
-- v quickly collapses to 0 after the first iteration because 1/g9 becomes 0 for g9 >= 2, so subsequent updates to v have no effect.
-- cjj accumulates fo each iteration (cjj = cjj + fo) since v%9 becomes 0 after the first iteration, and fo is not updated for the given input (o = 55 makes the fo-update branch never taken).
-- fo stays constant at 12 in this loop instance.
-- yx toggles depending on g9 but its value does not affect the core invariants beyond enabling f5 to stabilize after the first iteration (f5 becomes f5 + yx*v, but v becomes 0 after the first iteration, so f5 stops changing).
-
-From these observations, a concise inductive invariant set is:
-- A core relational equality capturing the linear growth of cjj with g9: cjj == fo*(g9 - 1) - 2
-- The loop counter/limit: 1 <= g9 <= o+1
-- Fo value preserved: fo == 12
-- Initial state link for v: (g9 == 1) ==> (v == 1)
-- Stabilized v after the first iteration: (g9 >= 2) ==> (v == 0)
-- A termination-progress metric: loop variant o - g9
-
-These invariants are inductive (they hold before the first iteration and are preserved by each iteration given the loop body) and reflect the actual state updates in this loop. The loop assigns cover exactly the variables that can be modified inside the loop body: v, yx, f5, g9, cjj. No unrelated invariants are added, and the original code is not modified aside from the inserted ACSL annotations. </reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
 
   /*@
-    loop invariant (1 <= g9) && (g9 <= o+1);
-    loop invariant cjj == fo*(g9 - 1) - 2;
-    loop invariant fo == 12;
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 >= 2) ==> (v == 0);
-    loop variant o - g9;
-    loop assigns v, yx, f5, g9, cjj;
-  @*/
-  while (1) {
-      if (!(g9<=o)) {
+    loop invariant (cb1 == (rgl - lx));
+    loop invariant (0 <= lx) && (lx <= rgl);
+    loop invariant (tc3 == 5 + 2 * lx);
+    loop invariant (hm == -2 + lx * rgl - (lx * (lx + 1)) / 2);
+    loop invariant (cb1 >= 0);
+    loop invariant (cz >= -5) && (cz <= -5 + 6 * lx);
+    loop assigns lx, cb1, tc3, hm, cz;
+    loop variant (rgl - lx);
+  */
+while (1) {
+      if (!(lx < rgl)) {
           break;
       }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
+      lx = lx + 1;
+      cb1 = rgl - lx;
+      tc3 += 2;
+      hm += cb1;
+      cz = cz+(cb1%7);
   }
 
 }
------ Candidate 15/20 raw response end -----
-2026-03-22 22:41:04,113 - INFO -   Candidate 16 selected prompt: simple_cot.txt
-2026-03-22 22:41:04,137 - INFO -   Generating candidate 16/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:41:38,772 - INFO - 
------ Candidate 16/20 raw response begin -----
-<reasoning>The loop invariant set aims to be inductive and verification-friendly for Frama-C/WP while remaining faithful to the actual loop behavior and the available variables.
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:30:43,982 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
 
-Key observations from the code path (with o = 55, initial v = 1, g9 = 1, fo = 12, cjj = -2, f5 = 1, yx = 1):
-- The condition (o*o <= o+4) is always false for o = 55, so fo is never updated inside the loop. Therefore fo remains constant at 12 throughout the loop execution.
-- v is updated by v = v*(1/g9). For g9 == 1, 1/g9 == 1, so v remains 1 in the first iteration, but after g9 is incremented to 2, 1/g9 == 0, so v becomes 0. For all subsequent iterations, v remains 0 since multiplying by (1/g9) with g9 >= 3 yields 0.
-- yx is assigned to either 1 or -1 based on g9, so yx ∈ {1, -1} holds at each iteration.
-- f5 is updated as f5 = f5 + yx*v. Given v is 0 after the first iteration, subsequent updates do not change f5; thus f5 starts at 1 and becomes 2 after the first iteration, then remains 2.
-- cjj is updated as cjj = cjj + (v%9); followed by cjj = cjj + fo; Since fo = 12 and v%9 is non-negative, cjj grows monotonically after the first iteration (starting from -2).
-- g9 always increases by 1 per iteration and the loop guard is g9 <= o; thus a loop variant based on o - g9 is a natural decreasing measure, ensuring termination.
-
-Based on these, the invariants chosen are:
-
-- fo == 12 (fo is never updated)
-- g9 <= o (preserved by loop guard)
-- v == 0 or v == 1 (v is initially 1, then becomes 0 and stays 0)
-- yx == 1 or yx == -1 (yx is assigned to ±1 each iteration)
-- f5 == 1 or f5 == 2 (f5 starts at 1 and becomes 2 after first iteration, then stays)
-- cjj >= -2 (cjj starts at -2 and increases thereafter)
-
-We also specify the exact loop assigns: fo, g9, v, yx, f5, cjj.
-
-Finally, a loop variant o - g9 is provided to help Frama-C prove termination.
-
-These invariants are strong, inductive (preserved across iterations when the guard holds), and directly reflect the actual state evolution without introducing unrelated facts. They avoid relying on Pre- or local variables not in the available set.
-
-</reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@ 
-    loop invariant fo == 12;
-    loop invariant g9 <= o;
-    loop invariant v == 0 || v == 1;
-    loop invariant yx == 1 || yx == -1;
-    loop invariant f5 == 1 || f5 == 2;
-    loop invariant cjj >= -2;
-    loop assigns fo, g9, v, yx, f5, cjj;
-    loop variant o - g9;
-  @*/
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}</code>
------ Candidate 16/20 raw response end -----
-2026-03-22 22:41:38,773 - INFO -   Candidate 17 selected prompt: simple_cot.txt
-2026-03-22 22:41:38,786 - INFO -   Generating candidate 17/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:42:22,887 - INFO - 
------ Candidate 17/20 raw response begin -----
-<reasoning>
-We need inductive, verification-friendly loop annotations that accurately reflect the loop behavior while staying within the available variables. The loop updates a handful of local variables: v, yx, f5, g9, fo, cjj. The loop guard is g9 <= o, and o is constant (55) within the function. To have a strong, inductive invariant, we:
-
-- Provide a numeric bound on the loop counter g9 that is preserved across iterations and valid at loop head: 1 <= g9 <= o+1. This is preserved because g9 starts at 1 and is incremented each iteration; the loop stops once g9 becomes o+1.
-- Add a simple, inductive relation for v reflecting the observed double update v = v*(1/g9); then g9++; then v = v*(1/g9); Given integer division, after the first iteration v becomes 0 and remains 0 for all subsequent iterations. Capture this with:
-  - (g9 == 1) ==> (v == 1)
-  - (g9 >= 2) ==> (v == 0)
-- Add a basic bound for yx since it always becomes either 1 or -1 inside the loop: yx == 1 || yx == -1.
-- Include a loop variant (progress measure) to ensure termination: loop variant o+1 - g9, which strictly decreases as g9 increments and stays non-negative during the loop.
-
-We also specify the exact loop assigns set to reflect all modified variables: v, yx, f5, g9, fo, cjj.
-
-These invariants are strong, inductive, and use only available variables. They avoid introducing any unrelated facts or functionally incorrect relations, and they do not modify the code.
-</reasoning>
-<code>/*@
-  loop invariant 1 &lt;= g9 && g9 &lt;= o + 1;
-  loop invariant (g9 == 1) ==> (v == 1);
-  loop invariant (g9 &gt;= 2) ==> (v == 0);
-  loop invariant (yx == 1) || (yx == -1);
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o + 1 - g9;
-*/
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }</code>
------ Candidate 17/20 raw response end -----
-2026-03-22 22:42:22,887 - INFO -   Candidate 18 selected prompt: simple_cot.txt
-2026-03-22 22:42:22,903 - INFO -   Generating candidate 18/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:43:21,695 - INFO - 
------ Candidate 18/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop invariants and precise assigns for Frama-C WP. The loop updates are deterministic given the known initial state, and we can derive simple, strong relations that are preserved across iterations.
-
-Key observations to drive invariants:
-- Guard: loop continues while g9 <= o; since g9 is incremented each iteration, a safe bound that is preserved is g9 <= o+1.
-- v behavior: due to integer division 1/g9, the first iteration keeps v at 1 (since g9==1), and from the second iteration onward v becomes 0 and stays 0. Thus:
-  - if g9 == 1 then v == 1
-  - if g9 != 1 then v == 0
-- yx is assigned based on (g9/2)%2 before the g9 increment, so its value depends only on g9-1. We can express it with parity of (g9-1)/2:
-  - if ((g9-1)/2) % 2 == 0 then yx == 1
-  - else yx == -1
-- cjj and fo progression: cjj is updated by (v%9) then by fo each iteration; given the initial values and the fact that v becomes 0 after the first iteration (as noted above), the sum (v%9) contributes 0 after the first iteration, so cjj increases by fo every iteration. With the initial cjj = -2, fo constant (12 in the initial state and never changed by the code path here), we get a closed form:
-  cjj == fo*(g9-1) - 2
-  This matches the base case and the inductive step (g9 increments by 1 and cjj increases by fo).
-- The loop assigns are all mutated variables in the loop body: v, yx, f5, g9, fo, cjj.
-
-Using these, we provide strong inductive invariants and exact assigns. The chosen invariants are:
-- g9 <= o + 1
-- cjj == fo*(g9 - 1) - 2
-- (g9 == 1) ==> (v == 1)
-- (g9 != 1) ==> (v == 0)
-- (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1)
-- (((g9 - 1) / 2) % 2 != 0) ==> (yx == -1)
-- loop variant o - g9
-- loop assigns v, yx, f5, g9, fo, cjj
-
-These invariants are strong, non-trivial, and directly reflect the loop’s state transition, while remaining within the allowed ACSL constructs. They should be helpful for the WP prover to establish loop-related facts without requiring external postconditions.
-
-</reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
 
   /*@
-    loop invariant g9 &lt;= o + 1;
-    loop invariant cjj == fo*(g9 - 1) - 2;
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 != 1) ==> (v == 0);
-    loop invariant (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1);
-    loop invariant (((g9 - 1) / 2) % 2 != 0) ==> (yx == -1);
-    loop variant o - g9;
-    loop assigns v, yx, f5, g9, fo, cjj;
-  */
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}</code>
------ Candidate 18/20 raw response end -----
-2026-03-22 22:43:21,696 - INFO -   Candidate 19 selected prompt: simple_cot.txt
-2026-03-22 22:43:21,709 - INFO -   Generating candidate 19/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:44:00,262 - INFO - 
------ Candidate 19/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. Observations to support invariants:
-- o is constant at 55 throughout; fo never updates due to the false condition (55^2 <= 55+4 is false), so fo remains 12.
-- After the first iteration, v becomes 0 (since 1/g9 is 1 for g9=1, then 1/2, 1/3, ... are 0 in integer arithmetic), so subsequent v%9 is 0 and the second v update keeps v at 0.
-- As a result, f5 starts at 1, becomes 2 after the first iteration, and stays 2 thereafter.
-- cjj evolves as cjj = cjj + fo after the second v update; since fo=12, cjj follows cjj = fo*g9 - 14 for all loop-head states (this holds because initially cjj=-2 and fo=12; with each iteration g9 increments by 1 and cjj increments by fo).
-- g9 starts at 1 and increments by 1 each iteration until it exceeds o (55); thus at loop-entry, g9 is in [1, o].
-- We provide a loop variant o - g9 which decreases by 1 each iteration and is ≥ 0 at loop entry (because the loop executes only when g9 ≤ o).
-- We also provide simple guard-related invariants to capture the early-vs-late behavior: v equals 1 when g9 == 1, and v equals 0 for g9 ≥ 2; similarly f5 equals 1 when g9 == 1, and equals 2 for g9 ≥ 2.
-- We express the core relational invariant cjj == fo*g9 - 14, which is preserved by the loop body, given fo remains 12.
-
-These invariants are inductive (preserved by the loop body when the guard is true) and verification-friendly, while keeping the original code unchanged apart from the annotations. The loop assigns identified are cjj, f5, fo, g9, v, yx. The chosen invariants do not rely on parameters (none exist) and stay within the available variable set. </reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant o == 55;
-    loop invariant fo == 12;
-    loop invariant cjj == fo*g9 - 14;
-    loop invariant (g9 == 1) ==> (f5 == 1);
-    loop invariant (g9 >= 2) ==> (f5 == 2);
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 >= 2) ==> (v == 0);
-    loop invariant 0 <= o - g9;
-    loop variant o - g9;
-    loop assigns cjj, f5, fo, g9, v, yx;
+    loop invariant cb1 == (rgl - lx);
+    loop invariant tc3 == (5 + 2 * lx);
+    loop invariant hm == (-2 + lx * rgl - (lx * (lx + 1)) / 2);
+    loop invariant lx >= 0;
+    loop invariant (rgl >= 0 ==> lx <= rgl) && (rgl < 0 ==> lx == 0);
+    loop invariant rgl == (\at(b, Pre) + 13);
+    loop assigns lx, cb1, tc3, hm, cz;
   */
   while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}</code>
------ Candidate 19/20 raw response end -----
-2026-03-22 22:44:00,262 - INFO -   Candidate 20 selected prompt: simple_cot.txt
-2026-03-22 22:44:00,276 - INFO -   Generating candidate 20/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 20/20 raw response begin -----
-<reasoning>
-Goal: provide inductive, verification-friendly ACSL loop annotations for the given loop in main1.
-
-Key observations:
-- The loop guard is implemented as a break when g9 > o. So the effective loop continuation condition is g9 <= o.
-- The variable v undergoes two successive multiplications by 1/g9 and 1/(g9+1) within each iteration, with integer division. Starting from v=1 and g9=1, after the first iteration v becomes 0 and stays 0 for all subsequent iterations. This yields a simple persistent relation between v and g9: when g9 = 1, v = 1; for g9 >= 2, v = 0.
-- A concise, inductive core invariant can express this relation via v and g9: if g9 == 1 then v*g9 == 1; if g9 != 1 then v*g9 == 0. This captures the state transition law of v across iterations.
-- Additional invariant: g9 <= o to reflect the loop-exit condition bound. 
-- A loop variant to ensure termination: o - g9, which monotonically decreases by 1 each iteration as g9 increments.
-- Loop assigns should include all variables that can be modified inside the loop: v, yx, f5, g9, cjj. fo is not deterministically modified (the conditional assignment is never taken for o=55), so it is not included to keep the assigns precise.
-
-Chosen invariants:
-- loop invariant g9 <= o
-- loop invariant ((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0))
-- loop assigns v, yx, f5, g9, cjj
-- loop variant o - g9
-
-These are inductive and verification-friendly for Frama-C/WP, and they do not modify the program semantics.
-
-</reasoning>
-<code>int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant (g9 <= o);
-    loop invariant (((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0)));
-    loop assigns v, yx, f5, g9, cjj;
-    loop variant o - g9;
-  @*/
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}</code>
------ Candidate 20/20 raw response end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 1/20 full code begin -----
-/*@
-  loop invariant o == 55;
-  loop invariant ((g9 == 1) ==> (v == 1)) && ((g9 >= 2) ==> (v == 0));
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o - g9;
-*/
------ Candidate 1/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 2/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant 1 <= g9 && g9 <= o + 1;
-    loop invariant (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0);
-    loop invariant fo == 12;
-    loop invariant cjj == (-2 + (g9 - 1) * fo);
-    loop invariant (g9 <= 1 ==> f5 == 1) && (g9 >= 2 ==> f5 == 2);
-    loop invariant (yx == 1) || (yx == -1);
-    loop assigns v, yx, f5, g9, fo, cjj;
-    loop variant (o - g9 + 1);
-  */
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
+        if (!(lx < rgl)) {
+            break;
+        }
+        lx = lx + 1;
+        cb1 = rgl - lx;
+        tc3 += 2;
+        hm += cb1;
+        cz = cz+(cb1%7);
+    }
 
 }
------ Candidate 2/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 3/20 full code begin -----
-/*@
-  loop invariant o == 55;
-  loop invariant 1 <= g9 && g9 <= o+1;
-  loop invariant (g9 == 1) ==> (v == 1);
-  loop invariant (g9 != 1) ==> (v == 0);
-  loop invariant (yx == 1) || (yx == -1);
-  loop invariant (f5 == 1) || (f5 == 2);
-  loop invariant fo == 12;
-  loop invariant cjj >= -2;
-  loop assigns fo, cjj, f5, g9, v, yx;
-  loop variant o - g9;
-*/ 
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
+----- Candidate 1/5 full code end -----
+2026-04-07 09:30:43,982 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
 
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
 
   /*@
-    loop invariant o == 55;
-    loop invariant 1 <= g9 && g9 <= o+1;
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 != 1) ==> (v == 0);
-    loop invariant (yx == 1) || (yx == -1);
-    loop invariant (f5 == 1) || (f5 == 2);
-    loop invariant fo == 12;
-    loop invariant cjj >= -2;
-    loop assigns fo, cjj, f5, g9, v, yx;
-    loop variant o - g9;
+    loop invariant rgl == \at(b, Pre) + 13;
+    loop invariant lx >= 0;
+    loop invariant cb1 == rgl - lx;
+    loop invariant tc3 == 5 + 2*lx;
+    loop invariant hm == (-2) + lx * rgl - ((lx*(lx+1))/2);
+    loop invariant ((cz + 5) % 7) == ((lx * rgl - ((lx*(lx+1))/2)) % 7);
+    loop assigns lx, cb1, tc3, hm, cz;
   */
   while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
+        if (!(lx < rgl)) {
+            break;
+        }
+        lx = lx + 1;
+        cb1 = rgl - lx;
+        tc3 += 2;
+        hm += cb1;
+        cz = cz+(cb1%7);
+    }
 
 }
------ Candidate 3/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 4/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
+----- Candidate 2/5 full code end -----
+2026-04-07 09:30:43,982 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
 
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /* @
-     loop invariant o == 55;
-     loop invariant fo == 12;
-     loop invariant g9 >= 1;
-     loop invariant g9 <= o + 1;
-     loop invariant ((g9 == 1) ==> (v == 1));
-     loop invariant ((g9 != 1) ==> (v == 0));
-     loop invariant ((((g9 - 1) / 2) % 2) == 0) ==> (yx == 1);
-     loop invariant ((((g9 - 1) / 2) % 2) != 0) ==> (yx == -1);
-     loop invariant cjj == -2 + fo*(g9 - 1);
-     loop assigns v, yx, f5, g9, fo, cjj;
-     loop variant o - g9;
-  */
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 4/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 5/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant cjj == -2 + 12*(g9 - 1);
-    loop invariant fo == 12;
-    loop invariant (v == 0) || (v == 1);
-    loop invariant g9 <= o + 1;
-    loop assigns v, yx, f5, g9, fo, cjj;
-    loop variant o - g9;
-  @*/
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 5/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 6/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-     loop invariant g9 <= o+1;
-     loop invariant (g9 == 1) ==> (v == 1);
-     loop invariant (g9 != 1) ==> (v == 0);
-     loop invariant ((g9/2)%2 == 0) ==> (yx == 1);
-     loop invariant ((g9/2)%2 != 0) ==> (yx == -1);
-     loop assigns v, yx, f5, g9, fo, cjj;
-     loop variant o+1 - g9;
+    loop invariant cb1 == rgl - lx;
+    loop invariant tc3 == 5 + 2*lx;
+    loop invariant hm == -2 + lx*rgl - ((lx*(lx+1))/2);
+    loop invariant lx >= 0;
+    loop invariant cz >= -5 && cz <= -5 + 6*lx;
+    loop invariant (lx < rgl) ==> (0 <= (cb1 % 7) && (cb1 % 7) <= 6);
+    loop assigns lx, cb1, tc3, hm, cz;
+    loop variant cb1;
+  */
+while (1) {
+      if (!(lx < rgl)) {
+          break;
+      }
+      lx = lx + 1;
+      cb1 = rgl - lx;
+      tc3 += 2;
+      hm += cb1;
+      cz = cz+(cb1%7);
+  }
+
+}
+----- Candidate 3/5 full code end -----
+2026-04-07 09:30:43,982 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
+
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
+
+  /*@
+    loop invariant cb1 == rgl - lx;
+    loop invariant tc3 == 5 + 2 * lx;
+    loop invariant hm == -2 + lx * rgl - (lx * (lx + 1)) / 2;
+    loop invariant (cz + 5) % 7 == ( (lx * rgl - (lx * (lx + 1)) / 2) % 7 );
+    loop invariant 0 <= lx;
+    loop invariant (rgl >= 0) ==> (lx <= rgl);
+    loop invariant rgl == \at(b, Pre) + 13;
+    loop assigns lx, cb1, tc3, hm, cz;
   */
   while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
+        if (!(lx < rgl)) {
+            break;
+        }
+        lx = lx + 1;
+        cb1 = rgl - lx;
+        tc3 += 2;
+        hm += cb1;
+        cz = cz+(cb1%7);
+    }
 
 }
------ Candidate 6/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 7/20 full code begin -----
-/*@
-  loop invariant cjj == -2 + fo*(g9 - 1);
-  loop invariant (0 <= v <= 1) && ((yx == 1) || (yx == -1));
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o - g9;
-*/
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
------ Candidate 7/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 8/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
+----- Candidate 4/5 full code end -----
+2026-04-07 09:30:43,982 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int b){
+  int rgl, lx, cb1, tc3, cz, hm;
 
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
+  rgl=b+13;
+  lx=0;
+  cb1=rgl;
+  tc3=5;
+  cz=-5;
+  hm=-2;
 
   /*@
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 != 1) ==> (v == 0);
-    loop invariant (1 <= g9) && (g9 <= o+1);
-    loop assigns v, yx, f5, g9, fo, cjj;
-    loop variant (o - g9);
-  */
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 8/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 9/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant (g9 >= 1) && (g9 <= o+1);
-    loop invariant ((g9 == 1) ==> (f5 == 1)) && ((g9 >= 2) ==> (f5 == 2));
-    loop invariant fo == 12;
-    loop invariant cjj == 12*g9 - 14;
-    loop assigns f5, g9, v, yx, cjj, fo;
-    loop variant (o - g9);
+    loop invariant (cb1 == (rgl - lx));
+    loop invariant (0 <= lx) && (lx <= rgl);
+    loop invariant (tc3 == 5 + 2 * lx);
+    loop invariant (hm == -2 + lx * rgl - (lx * (lx + 1)) / 2);
+    loop invariant (cb1 >= 0);
+    loop invariant (cz >= -5) && (cz <= -5 + 6 * lx);
+    loop assigns lx, cb1, tc3, hm, cz;
+    loop variant (rgl - lx);
   */
 while (1) {
-      if (!(g9<=o)) {
+      if (!(lx < rgl)) {
           break;
       }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
+      lx = lx + 1;
+      cb1 = rgl - lx;
+      tc3 += 2;
+      hm += cb1;
+      cz = cz+(cb1%7);
   }
 
 }
------ Candidate 9/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 10/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 != 1) ==> (v == 0);
-    loop invariant ((yx == 1) || (yx == -1));
-    loop invariant (fo == 12);
-    loop invariant (f5 >= 1);
-    loop invariant (f5 <= 2);
-    loop assigns v, yx, f5, g9, fo, cjj;
-    loop variant o - g9;
-  */
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 10/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 11/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant 1 <= g9 <= o+1 &&
-                   ((g9 == 1) ==> (v == 1)) &&
-                   ((g9 != 1) ==> (v == 0)) &&
-                   (fo == 12) &&
-                   (cjj == fo*(g9 - 1) - 2);
-    loop invariant 0 <= o - g9 + 1;
-    loop assigns v, g9, yx, f5, fo, cjj;
-    loop variant o - g9 + 1;
-  */
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 11/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 12/20 full code begin -----
-/*@
-  loop invariant 1 <= g9 && g9 <= o;
-  loop invariant ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0));
-  loop invariant (yx == 1) || (yx == -1);
-  loop invariant cjj == fo*(g9 - 1) - 2;
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o - g9;
-*/
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
------ Candidate 12/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 13/20 full code begin -----
-/*@
-  loop invariant o == 55;
-  loop invariant g9 <= o;
-  loop invariant fo == 12;
-  loop invariant 0 <= v && v <= 1;
-  loop invariant ( ( (g9 - 1) / 2 ) % 2 == 0 ) ==> (yx == 1);
-  loop invariant ( ( (g9 - 1) / 2 ) % 2 != 0 ) ==> (yx == -1);
-  loop invariant (f5 == 1) || (f5 == 2);
-  loop invariant cjj >= -2;
-  loop variant o - g9;
-  loop assigns v, yx, f5, g9, fo, cjj;
-*/
------ Candidate 13/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 14/20 full code begin -----
-/*@
-  loop invariant o == 55 &&
-                 g9 >= 1 && g9 <= o &&
-                 ((g9 == 1) ==> (v == 1)) &&
-                 ((g9 != 1) ==> (v == 0));
-  loop invariant fo == 12 &&
-                 (cjj >= -2) &&
-                 (f5 >= 1) &&
-                 (((yx == 1) || (yx == -1))) &&
-                 (0 <= v && v <= 1) &&
-                 (g9 <= o);
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o - g9;
-*/ 
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
------ Candidate 14/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 15/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant (1 <= g9) && (g9 <= o+1);
-    loop invariant cjj == fo*(g9 - 1) - 2;
-    loop invariant fo == 12;
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 >= 2) ==> (v == 0);
-    loop variant o - g9;
-    loop assigns v, yx, f5, g9, cjj;
-  @*/
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 15/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 16/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@ 
-    loop invariant fo == 12;
-    loop invariant g9 <= o;
-    loop invariant v == 0 || v == 1;
-    loop invariant yx == 1 || yx == -1;
-    loop invariant f5 == 1 || f5 == 2;
-    loop invariant cjj >= -2;
-    loop assigns fo, g9, v, yx, f5, cjj;
-    loop variant o - g9;
-  @*/
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 16/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 17/20 full code begin -----
-/*@
-  loop invariant 1 &lt;= g9 && g9 &lt;= o + 1;
-  loop invariant (g9 == 1) ==> (v == 1);
-  loop invariant (g9 &gt;= 2) ==> (v == 0);
-  loop invariant (yx == 1) || (yx == -1);
-  loop assigns v, yx, f5, g9, fo, cjj;
-  loop variant o + 1 - g9;
-*/
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
------ Candidate 17/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 18/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant g9 &lt;= o + 1;
-    loop invariant cjj == fo*(g9 - 1) - 2;
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 != 1) ==> (v == 0);
-    loop invariant (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1);
-    loop invariant (((g9 - 1) / 2) % 2 != 0) ==> (yx == -1);
-    loop variant o - g9;
-    loop assigns v, yx, f5, g9, fo, cjj;
-  */
-while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 18/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 19/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant o == 55;
-    loop invariant fo == 12;
-    loop invariant cjj == fo*g9 - 14;
-    loop invariant (g9 == 1) ==> (f5 == 1);
-    loop invariant (g9 >= 2) ==> (f5 == 2);
-    loop invariant (g9 == 1) ==> (v == 1);
-    loop invariant (g9 >= 2) ==> (v == 0);
-    loop invariant 0 <= o - g9;
-    loop variant o - g9;
-    loop assigns cjj, f5, fo, g9, v, yx;
-  */
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 19/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - 
------ Candidate 20/20 full code begin -----
-int main1(){
-  int o, v, f5, g9, yx, cjj, fo;
-
-  o=55;
-  v=1;
-  f5=1;
-  g9=1;
-  yx=1;
-  cjj=-2;
-  fo=12;
-
-  /*@
-    loop invariant (g9 <= o);
-    loop invariant (((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0)));
-    loop assigns v, yx, f5, g9, cjj;
-    loop variant o - g9;
-  @*/
-  while (1) {
-      if (!(g9<=o)) {
-          break;
-      }
-      v = v*(1/g9);
-      if ((g9/2)%2==0) {
-          yx = 1;
-      }
-      else {
-          yx = -1;
-      }
-      f5 = f5+yx*v;
-      g9++;
-      v = v*(1/g9);
-      if (o*o<=o+4) {
-          fo = fo*fo+cjj;
-      }
-      cjj = cjj+(v%9);
-      cjj = cjj + fo;
-  }
-
-}
------ Candidate 20/20 full code end -----
-2026-03-22 22:44:48,833 - INFO - Successfully generated 20/20 candidates
-2026-03-22 22:44:48,837 - INFO - Checking 50 invariants for conflicts...
-2026-03-22 22:44:48,838 - INFO -   Conflict detected:
-2026-03-22 22:44:48,838 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:44:48,838 - INFO -     [5] (g9 <= 1 ==> f5 == 1) && (g9 >= 2 ==> f5 == 2)
-2026-03-22 22:44:48,838 - INFO -   Conflict detected:
-2026-03-22 22:44:48,839 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:44:48,839 - INFO -     [9] (g9 != 1) ==> (v == 0)
-2026-03-22 22:44:48,839 - INFO -   Conflict detected:
-2026-03-22 22:44:48,839 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:44:48,839 - INFO -     [15] ((g9 != 1) ==> (v == 0))
-2026-03-22 22:44:48,839 - INFO -   Conflict detected:
-2026-03-22 22:44:48,839 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:44:48,839 - INFO -     [20] (v == 0) || (v == 1)
-2026-03-22 22:44:48,839 - INFO -   Conflict detected:
-2026-03-22 22:44:48,839 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:44:48,839 - INFO -     [38] (g9 >= 2) ==> (v == 0)
-2026-03-22 22:44:48,839 - INFO -   Conflict detected:
-2026-03-22 22:44:48,839 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:44:48,839 - INFO -     [40] v == 0 || v == 1
-2026-03-22 22:44:48,840 - INFO -   Conflict detected:
-2026-03-22 22:44:48,840 - INFO -     [6] (yx == 1) || (yx == -1)
-2026-03-22 22:44:48,840 - INFO -     [17] ((((g9 - 1) / 2) % 2) != 0) ==> (yx == -1)
-2026-03-22 22:44:48,840 - INFO -   Conflict detected:
-2026-03-22 22:44:48,840 - INFO -     [6] (yx == 1) || (yx == -1)
-2026-03-22 22:44:48,840 - INFO -     [22] ((g9/2)%2 != 0) ==> (yx == -1)
-2026-03-22 22:44:48,840 - INFO -   Conflict detected:
-2026-03-22 22:44:48,840 - INFO -     [6] (yx == 1) || (yx == -1)
-2026-03-22 22:44:48,840 - INFO -     [44] (((g9 - 1) / 2) % 2 != 0) ==> (yx == -1)
-2026-03-22 22:44:48,841 - INFO -   Conflict detected:
-2026-03-22 22:44:48,841 - INFO -     [10] (f5 == 1) || (f5 == 2)
-2026-03-22 22:44:48,841 - INFO -     [47] (g9 >= 2) ==> (f5 == 2)
-2026-03-22 22:44:48,842 - INFO -   Conflict detected:
-2026-03-22 22:44:48,842 - INFO -     [18] cjj == -2 + fo*(g9 - 1)
-2026-03-22 22:44:48,843 - INFO -     [27] cjj == 12*g9 - 14
-2026-03-22 22:44:48,847 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 22:44:48,847 - INFO -   1: int main1(){
-2026-03-22 22:44:48,847 - INFO -   2:   int o, v, f5, g9, yx, cjj, fo;
-2026-03-22 22:44:48,847 - INFO -   3: 
-2026-03-22 22:44:48,847 - INFO -   4:   o=55;
-2026-03-22 22:44:48,847 - INFO -   5:   v=1;
-2026-03-22 22:44:48,847 - INFO -   6:   f5=1;
-2026-03-22 22:44:48,847 - INFO -   7:   g9=1;
-2026-03-22 22:44:48,847 - INFO -   8:   yx=1;
-2026-03-22 22:44:48,847 - INFO -   9:   cjj=-2;
-2026-03-22 22:44:48,847 - INFO -   10:   fo=12;
-2026-03-22 22:44:48,847 - INFO - DEBUG: Total lines: 85
-2026-03-22 22:44:49,081 - INFO - syntax Correct
-2026-03-22 22:45:20,294 - INFO - Validate:
-2026-03-22 22:45:20,294 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:45:20,294 - INFO - 
-2026-03-22 22:45:20,294 - INFO - Verify:
-2026-03-22 22:45:20,294 - INFO - []
-2026-03-22 22:45:20,294 - INFO - 
-2026-03-22 22:45:20,295 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-22 22:45:20,295 - INFO -   Before: 39 invariants
-2026-03-22 22:45:20,295 - INFO -   After: 38 invariants
-2026-03-22 22:45:20,295 - INFO -   Remaining invariants:
-2026-03-22 22:45:20,295 - INFO -     [1] 1 <= g9 && g9 <= o + 1
-2026-03-22 22:45:20,295 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:45:20,295 - INFO -     [3] fo == 12
-2026-03-22 22:45:20,295 - INFO -     [4] cjj == (-2 + (g9 - 1) * fo)
-2026-03-22 22:45:20,295 - INFO -     [5] (yx == 1) || (yx == -1)
-2026-03-22 22:45:20,295 - INFO -     [6] o == 55
-2026-03-22 22:45:20,295 - INFO -     [7] (g9 == 1) ==> (v == 1)
-2026-03-22 22:45:20,295 - INFO -     [8] (f5 == 1) || (f5 == 2)
-2026-03-22 22:45:20,295 - INFO -     [9] cjj >= -2
-2026-03-22 22:45:20,295 - INFO -     [10] g9 >= 1
-2026-03-22 22:45:20,295 - INFO -     [11] g9 <= o + 1
-2026-03-22 22:45:20,295 - INFO -     [12] ((g9 == 1) ==> (v == 1))
-2026-03-22 22:45:20,295 - INFO -     [13] ((((g9 - 1) / 2) % 2) == 0) ==> (yx == 1)
-2026-03-22 22:45:20,295 - INFO -     [14] cjj == -2 + fo*(g9 - 1)
-2026-03-22 22:45:20,295 - INFO -     [15] cjj == -2 + 12*(g9 - 1)
-2026-03-22 22:45:20,295 - INFO -     [16] (0 <= v <= 1) && ((yx == 1) || (yx == -1))
-2026-03-22 22:45:20,295 - INFO -     [17] (1 <= g9) && (g9 <= o+1)
-2026-03-22 22:45:20,295 - INFO -     [18] (g9 >= 1) && (g9 <= o+1)
-2026-03-22 22:45:20,295 - INFO -     [19] ((g9 == 1) ==> (f5 == 1)) && ((g9 >= 2) ==> (f5 == 2))
-2026-03-22 22:45:20,295 - INFO -     [20] ((yx == 1) || (yx == -1))
-2026-03-22 22:45:20,295 - INFO -     [21] (fo == 12)
-2026-03-22 22:45:20,295 - INFO -     [22] (f5 >= 1)
-2026-03-22 22:45:20,295 - INFO -     [23] (f5 <= 2)
-2026-03-22 22:45:20,295 - INFO -     [24] 0 <= o - g9 + 1
-2026-03-22 22:45:20,295 - INFO -     [25] 1 <= g9 && g9 <= o
-2026-03-22 22:45:20,295 - INFO -     [26] ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0))
-2026-03-22 22:45:20,295 - INFO -     [27] cjj == fo*(g9 - 1) - 2
-2026-03-22 22:45:20,295 - INFO -     [28] o == 55 &&
-                 g9 >= 1 && g9 <= o &&
-                 ((g9 == 1) ==> (v == 1)) &&
-                 ((g9 != 1) ==> (v == 0))
-2026-03-22 22:45:20,295 - INFO -     [29] fo == 12 &&
-                 (cjj >= -2) &&
-                 (f5 >= 1) &&
-                 (((yx == 1) || (yx == -1))) &&
-                 (0 <= v && v <= 1) &&
-                 (g9 <= o)
-2026-03-22 22:45:20,295 - INFO -     [30] g9 <= o
-2026-03-22 22:45:20,295 - INFO -     [31] yx == 1 || yx == -1
-2026-03-22 22:45:20,295 - INFO -     [32] f5 == 1 || f5 == 2
-2026-03-22 22:45:20,295 - INFO -     [33] (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1)
-2026-03-22 22:45:20,295 - INFO -     [34] cjj == fo*g9 - 14
-2026-03-22 22:45:20,295 - INFO -     [35] (g9 == 1) ==> (f5 == 1)
-2026-03-22 22:45:20,295 - INFO -     [36] 0 <= o - g9
-2026-03-22 22:45:20,295 - INFO -     [37] (g9 <= o)
-2026-03-22 22:45:20,295 - INFO -     [38] (((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0)))
-2026-03-22 22:45:20,543 - INFO - syntax Correct
-2026-03-22 22:45:52,230 - INFO - Validate:
-2026-03-22 22:45:52,230 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:45:52,230 - INFO - 
-2026-03-22 22:45:52,230 - INFO - Verify:
-2026-03-22 22:45:52,230 - INFO - []
-2026-03-22 22:45:52,230 - INFO - 
-2026-03-22 22:45:52,231 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-22 22:45:52,231 - INFO -   Before: 38 invariants
-2026-03-22 22:45:52,231 - INFO -   After: 37 invariants
-2026-03-22 22:45:52,231 - INFO -   Remaining invariants:
-2026-03-22 22:45:52,231 - INFO -     [1] 1 <= g9 && g9 <= o + 1
-2026-03-22 22:45:52,231 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:45:52,231 - INFO -     [3] fo == 12
-2026-03-22 22:45:52,231 - INFO -     [4] cjj == (-2 + (g9 - 1) * fo)
-2026-03-22 22:45:52,231 - INFO -     [5] (yx == 1) || (yx == -1)
-2026-03-22 22:45:52,231 - INFO -     [6] o == 55
-2026-03-22 22:45:52,231 - INFO -     [7] (g9 == 1) ==> (v == 1)
-2026-03-22 22:45:52,231 - INFO -     [8] (f5 == 1) || (f5 == 2)
-2026-03-22 22:45:52,231 - INFO -     [9] cjj >= -2
-2026-03-22 22:45:52,231 - INFO -     [10] g9 >= 1
-2026-03-22 22:45:52,231 - INFO -     [11] g9 <= o + 1
-2026-03-22 22:45:52,231 - INFO -     [12] ((g9 == 1) ==> (v == 1))
-2026-03-22 22:45:52,231 - INFO -     [13] ((((g9 - 1) / 2) % 2) == 0) ==> (yx == 1)
-2026-03-22 22:45:52,231 - INFO -     [14] cjj == -2 + fo*(g9 - 1)
-2026-03-22 22:45:52,231 - INFO -     [15] cjj == -2 + 12*(g9 - 1)
-2026-03-22 22:45:52,231 - INFO -     [16] (0 <= v <= 1) && ((yx == 1) || (yx == -1))
-2026-03-22 22:45:52,231 - INFO -     [17] (1 <= g9) && (g9 <= o+1)
-2026-03-22 22:45:52,231 - INFO -     [18] (g9 >= 1) && (g9 <= o+1)
-2026-03-22 22:45:52,231 - INFO -     [19] ((g9 == 1) ==> (f5 == 1)) && ((g9 >= 2) ==> (f5 == 2))
-2026-03-22 22:45:52,231 - INFO -     [20] ((yx == 1) || (yx == -1))
-2026-03-22 22:45:52,231 - INFO -     [21] (fo == 12)
-2026-03-22 22:45:52,231 - INFO -     [22] (f5 >= 1)
-2026-03-22 22:45:52,231 - INFO -     [23] (f5 <= 2)
-2026-03-22 22:45:52,231 - INFO -     [24] 0 <= o - g9 + 1
-2026-03-22 22:45:52,231 - INFO -     [25] ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0))
-2026-03-22 22:45:52,231 - INFO -     [26] cjj == fo*(g9 - 1) - 2
-2026-03-22 22:45:52,231 - INFO -     [27] o == 55 &&
-                 g9 >= 1 && g9 <= o &&
-                 ((g9 == 1) ==> (v == 1)) &&
-                 ((g9 != 1) ==> (v == 0))
-2026-03-22 22:45:52,231 - INFO -     [28] fo == 12 &&
-                 (cjj >= -2) &&
-                 (f5 >= 1) &&
-                 (((yx == 1) || (yx == -1))) &&
-                 (0 <= v && v <= 1) &&
-                 (g9 <= o)
-2026-03-22 22:45:52,231 - INFO -     [29] g9 <= o
-2026-03-22 22:45:52,231 - INFO -     [30] yx == 1 || yx == -1
-2026-03-22 22:45:52,231 - INFO -     [31] f5 == 1 || f5 == 2
-2026-03-22 22:45:52,231 - INFO -     [32] (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1)
-2026-03-22 22:45:52,231 - INFO -     [33] cjj == fo*g9 - 14
-2026-03-22 22:45:52,231 - INFO -     [34] (g9 == 1) ==> (f5 == 1)
-2026-03-22 22:45:52,231 - INFO -     [35] 0 <= o - g9
-2026-03-22 22:45:52,231 - INFO -     [36] (g9 <= o)
-2026-03-22 22:45:52,231 - INFO -     [37] (((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0)))
-2026-03-22 22:45:52,474 - INFO - syntax Correct
-2026-03-22 22:46:24,226 - INFO - Validate:
-2026-03-22 22:46:24,226 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:46:24,226 - INFO - 
-2026-03-22 22:46:24,226 - INFO - Verify:
-2026-03-22 22:46:24,226 - INFO - []
-2026-03-22 22:46:24,226 - INFO - 
-2026-03-22 22:46:24,226 - INFO - Houdini iteration 3: Removed 1 failed invariants
-2026-03-22 22:46:24,226 - INFO -   Before: 37 invariants
-2026-03-22 22:46:24,226 - INFO -   After: 36 invariants
-2026-03-22 22:46:24,226 - INFO -   Remaining invariants:
-2026-03-22 22:46:24,226 - INFO -     [1] 1 <= g9 && g9 <= o + 1
-2026-03-22 22:46:24,226 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:46:24,226 - INFO -     [3] fo == 12
-2026-03-22 22:46:24,226 - INFO -     [4] cjj == (-2 + (g9 - 1) * fo)
-2026-03-22 22:46:24,226 - INFO -     [5] (yx == 1) || (yx == -1)
-2026-03-22 22:46:24,227 - INFO -     [6] o == 55
-2026-03-22 22:46:24,227 - INFO -     [7] (g9 == 1) ==> (v == 1)
-2026-03-22 22:46:24,227 - INFO -     [8] (f5 == 1) || (f5 == 2)
-2026-03-22 22:46:24,227 - INFO -     [9] cjj >= -2
-2026-03-22 22:46:24,227 - INFO -     [10] g9 >= 1
-2026-03-22 22:46:24,227 - INFO -     [11] g9 <= o + 1
-2026-03-22 22:46:24,227 - INFO -     [12] ((g9 == 1) ==> (v == 1))
-2026-03-22 22:46:24,227 - INFO -     [13] ((((g9 - 1) / 2) % 2) == 0) ==> (yx == 1)
-2026-03-22 22:46:24,227 - INFO -     [14] cjj == -2 + fo*(g9 - 1)
-2026-03-22 22:46:24,227 - INFO -     [15] cjj == -2 + 12*(g9 - 1)
-2026-03-22 22:46:24,227 - INFO -     [16] (0 <= v <= 1) && ((yx == 1) || (yx == -1))
-2026-03-22 22:46:24,227 - INFO -     [17] (1 <= g9) && (g9 <= o+1)
-2026-03-22 22:46:24,227 - INFO -     [18] (g9 >= 1) && (g9 <= o+1)
-2026-03-22 22:46:24,227 - INFO -     [19] ((g9 == 1) ==> (f5 == 1)) && ((g9 >= 2) ==> (f5 == 2))
-2026-03-22 22:46:24,227 - INFO -     [20] ((yx == 1) || (yx == -1))
-2026-03-22 22:46:24,227 - INFO -     [21] (fo == 12)
-2026-03-22 22:46:24,227 - INFO -     [22] (f5 >= 1)
-2026-03-22 22:46:24,227 - INFO -     [23] (f5 <= 2)
-2026-03-22 22:46:24,227 - INFO -     [24] 0 <= o - g9 + 1
-2026-03-22 22:46:24,227 - INFO -     [25] ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0))
-2026-03-22 22:46:24,227 - INFO -     [26] cjj == fo*(g9 - 1) - 2
-2026-03-22 22:46:24,227 - INFO -     [27] fo == 12 &&
-                 (cjj >= -2) &&
-                 (f5 >= 1) &&
-                 (((yx == 1) || (yx == -1))) &&
-                 (0 <= v && v <= 1) &&
-                 (g9 <= o)
-2026-03-22 22:46:24,227 - INFO -     [28] g9 <= o
-2026-03-22 22:46:24,227 - INFO -     [29] yx == 1 || yx == -1
-2026-03-22 22:46:24,227 - INFO -     [30] f5 == 1 || f5 == 2
-2026-03-22 22:46:24,227 - INFO -     [31] (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1)
-2026-03-22 22:46:24,227 - INFO -     [32] cjj == fo*g9 - 14
-2026-03-22 22:46:24,227 - INFO -     [33] (g9 == 1) ==> (f5 == 1)
-2026-03-22 22:46:24,227 - INFO -     [34] 0 <= o - g9
-2026-03-22 22:46:24,227 - INFO -     [35] (g9 <= o)
-2026-03-22 22:46:24,227 - INFO -     [36] (((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0)))
-2026-03-22 22:46:24,485 - INFO - syntax Correct
-2026-03-22 22:46:56,263 - INFO - Validate:
-2026-03-22 22:46:56,263 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:46:56,263 - INFO - 
-2026-03-22 22:46:56,264 - INFO - Verify:
-2026-03-22 22:46:56,264 - INFO - []
-2026-03-22 22:46:56,264 - INFO - 
-2026-03-22 22:46:56,264 - INFO - Houdini iteration 4: Removed 1 failed invariants
-2026-03-22 22:46:56,264 - INFO -   Before: 36 invariants
-2026-03-22 22:46:56,264 - INFO -   After: 35 invariants
-2026-03-22 22:46:56,264 - INFO -   Remaining invariants:
-2026-03-22 22:46:56,264 - INFO -     [1] 1 <= g9 && g9 <= o + 1
-2026-03-22 22:46:56,264 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:46:56,264 - INFO -     [3] fo == 12
-2026-03-22 22:46:56,264 - INFO -     [4] cjj == (-2 + (g9 - 1) * fo)
-2026-03-22 22:46:56,264 - INFO -     [5] (yx == 1) || (yx == -1)
-2026-03-22 22:46:56,264 - INFO -     [6] o == 55
-2026-03-22 22:46:56,264 - INFO -     [7] (g9 == 1) ==> (v == 1)
-2026-03-22 22:46:56,264 - INFO -     [8] (f5 == 1) || (f5 == 2)
-2026-03-22 22:46:56,264 - INFO -     [9] cjj >= -2
-2026-03-22 22:46:56,264 - INFO -     [10] g9 >= 1
-2026-03-22 22:46:56,264 - INFO -     [11] g9 <= o + 1
-2026-03-22 22:46:56,264 - INFO -     [12] ((g9 == 1) ==> (v == 1))
-2026-03-22 22:46:56,264 - INFO -     [13] ((((g9 - 1) / 2) % 2) == 0) ==> (yx == 1)
-2026-03-22 22:46:56,264 - INFO -     [14] cjj == -2 + fo*(g9 - 1)
-2026-03-22 22:46:56,264 - INFO -     [15] cjj == -2 + 12*(g9 - 1)
-2026-03-22 22:46:56,264 - INFO -     [16] (0 <= v <= 1) && ((yx == 1) || (yx == -1))
-2026-03-22 22:46:56,264 - INFO -     [17] (1 <= g9) && (g9 <= o+1)
-2026-03-22 22:46:56,264 - INFO -     [18] (g9 >= 1) && (g9 <= o+1)
-2026-03-22 22:46:56,264 - INFO -     [19] ((g9 == 1) ==> (f5 == 1)) && ((g9 >= 2) ==> (f5 == 2))
-2026-03-22 22:46:56,264 - INFO -     [20] ((yx == 1) || (yx == -1))
-2026-03-22 22:46:56,264 - INFO -     [21] (fo == 12)
-2026-03-22 22:46:56,264 - INFO -     [22] (f5 >= 1)
-2026-03-22 22:46:56,264 - INFO -     [23] (f5 <= 2)
-2026-03-22 22:46:56,264 - INFO -     [24] 0 <= o - g9 + 1
-2026-03-22 22:46:56,264 - INFO -     [25] ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0))
-2026-03-22 22:46:56,264 - INFO -     [26] cjj == fo*(g9 - 1) - 2
-2026-03-22 22:46:56,264 - INFO -     [27] g9 <= o
-2026-03-22 22:46:56,264 - INFO -     [28] yx == 1 || yx == -1
-2026-03-22 22:46:56,264 - INFO -     [29] f5 == 1 || f5 == 2
-2026-03-22 22:46:56,264 - INFO -     [30] (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1)
-2026-03-22 22:46:56,264 - INFO -     [31] cjj == fo*g9 - 14
-2026-03-22 22:46:56,264 - INFO -     [32] (g9 == 1) ==> (f5 == 1)
-2026-03-22 22:46:56,264 - INFO -     [33] 0 <= o - g9
-2026-03-22 22:46:56,264 - INFO -     [34] (g9 <= o)
-2026-03-22 22:46:56,264 - INFO -     [35] (((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0)))
-2026-03-22 22:46:56,525 - INFO - syntax Correct
-2026-03-22 22:47:28,181 - INFO - Validate:
-2026-03-22 22:47:28,181 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True]
-2026-03-22 22:47:28,181 - INFO - 
-2026-03-22 22:47:28,181 - INFO - Verify:
-2026-03-22 22:47:28,181 - INFO - []
-2026-03-22 22:47:28,181 - INFO - 
-2026-03-22 22:47:28,182 - INFO - Houdini iteration 5: Removed 1 failed invariants
-2026-03-22 22:47:28,182 - INFO -   Before: 35 invariants
-2026-03-22 22:47:28,182 - INFO -   After: 34 invariants
-2026-03-22 22:47:28,182 - INFO -   Remaining invariants:
-2026-03-22 22:47:28,182 - INFO -     [1] 1 <= g9 && g9 <= o + 1
-2026-03-22 22:47:28,182 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:47:28,182 - INFO -     [3] fo == 12
-2026-03-22 22:47:28,182 - INFO -     [4] cjj == (-2 + (g9 - 1) * fo)
-2026-03-22 22:47:28,182 - INFO -     [5] (yx == 1) || (yx == -1)
-2026-03-22 22:47:28,182 - INFO -     [6] o == 55
-2026-03-22 22:47:28,182 - INFO -     [7] (g9 == 1) ==> (v == 1)
-2026-03-22 22:47:28,182 - INFO -     [8] (f5 == 1) || (f5 == 2)
-2026-03-22 22:47:28,182 - INFO -     [9] cjj >= -2
-2026-03-22 22:47:28,182 - INFO -     [10] g9 >= 1
-2026-03-22 22:47:28,182 - INFO -     [11] g9 <= o + 1
-2026-03-22 22:47:28,182 - INFO -     [12] ((g9 == 1) ==> (v == 1))
-2026-03-22 22:47:28,182 - INFO -     [13] ((((g9 - 1) / 2) % 2) == 0) ==> (yx == 1)
-2026-03-22 22:47:28,182 - INFO -     [14] cjj == -2 + fo*(g9 - 1)
-2026-03-22 22:47:28,182 - INFO -     [15] cjj == -2 + 12*(g9 - 1)
-2026-03-22 22:47:28,182 - INFO -     [16] (0 <= v <= 1) && ((yx == 1) || (yx == -1))
-2026-03-22 22:47:28,182 - INFO -     [17] (1 <= g9) && (g9 <= o+1)
-2026-03-22 22:47:28,182 - INFO -     [18] (g9 >= 1) && (g9 <= o+1)
-2026-03-22 22:47:28,182 - INFO -     [19] ((g9 == 1) ==> (f5 == 1)) && ((g9 >= 2) ==> (f5 == 2))
-2026-03-22 22:47:28,182 - INFO -     [20] ((yx == 1) || (yx == -1))
-2026-03-22 22:47:28,182 - INFO -     [21] (fo == 12)
-2026-03-22 22:47:28,182 - INFO -     [22] (f5 >= 1)
-2026-03-22 22:47:28,182 - INFO -     [23] (f5 <= 2)
-2026-03-22 22:47:28,182 - INFO -     [24] 0 <= o - g9 + 1
-2026-03-22 22:47:28,182 - INFO -     [25] ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0))
-2026-03-22 22:47:28,182 - INFO -     [26] cjj == fo*(g9 - 1) - 2
-2026-03-22 22:47:28,182 - INFO -     [27] yx == 1 || yx == -1
-2026-03-22 22:47:28,182 - INFO -     [28] f5 == 1 || f5 == 2
-2026-03-22 22:47:28,182 - INFO -     [29] (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1)
-2026-03-22 22:47:28,182 - INFO -     [30] cjj == fo*g9 - 14
-2026-03-22 22:47:28,182 - INFO -     [31] (g9 == 1) ==> (f5 == 1)
-2026-03-22 22:47:28,182 - INFO -     [32] 0 <= o - g9
-2026-03-22 22:47:28,182 - INFO -     [33] (g9 <= o)
-2026-03-22 22:47:28,182 - INFO -     [34] (((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0)))
-2026-03-22 22:47:28,495 - INFO - syntax Correct
-2026-03-22 22:48:00,423 - INFO - Validate:
-2026-03-22 22:48:00,423 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True]
-2026-03-22 22:48:00,423 - INFO - 
-2026-03-22 22:48:00,423 - INFO - Verify:
-2026-03-22 22:48:00,424 - INFO - []
-2026-03-22 22:48:00,424 - INFO - 
-2026-03-22 22:48:00,424 - INFO - Houdini iteration 6: Removed 1 failed invariants
-2026-03-22 22:48:00,424 - INFO -   Before: 34 invariants
-2026-03-22 22:48:00,424 - INFO -   After: 33 invariants
-2026-03-22 22:48:00,424 - INFO -   Remaining invariants:
-2026-03-22 22:48:00,424 - INFO -     [1] 1 <= g9 && g9 <= o + 1
-2026-03-22 22:48:00,424 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:48:00,424 - INFO -     [3] fo == 12
-2026-03-22 22:48:00,424 - INFO -     [4] cjj == (-2 + (g9 - 1) * fo)
-2026-03-22 22:48:00,424 - INFO -     [5] (yx == 1) || (yx == -1)
-2026-03-22 22:48:00,424 - INFO -     [6] o == 55
-2026-03-22 22:48:00,424 - INFO -     [7] (g9 == 1) ==> (v == 1)
-2026-03-22 22:48:00,424 - INFO -     [8] (f5 == 1) || (f5 == 2)
-2026-03-22 22:48:00,424 - INFO -     [9] cjj >= -2
-2026-03-22 22:48:00,424 - INFO -     [10] g9 >= 1
-2026-03-22 22:48:00,424 - INFO -     [11] g9 <= o + 1
-2026-03-22 22:48:00,424 - INFO -     [12] ((g9 == 1) ==> (v == 1))
-2026-03-22 22:48:00,424 - INFO -     [13] ((((g9 - 1) / 2) % 2) == 0) ==> (yx == 1)
-2026-03-22 22:48:00,424 - INFO -     [14] cjj == -2 + fo*(g9 - 1)
-2026-03-22 22:48:00,424 - INFO -     [15] cjj == -2 + 12*(g9 - 1)
-2026-03-22 22:48:00,424 - INFO -     [16] (0 <= v <= 1) && ((yx == 1) || (yx == -1))
-2026-03-22 22:48:00,424 - INFO -     [17] (1 <= g9) && (g9 <= o+1)
-2026-03-22 22:48:00,424 - INFO -     [18] (g9 >= 1) && (g9 <= o+1)
-2026-03-22 22:48:00,424 - INFO -     [19] ((g9 == 1) ==> (f5 == 1)) && ((g9 >= 2) ==> (f5 == 2))
-2026-03-22 22:48:00,424 - INFO -     [20] ((yx == 1) || (yx == -1))
-2026-03-22 22:48:00,424 - INFO -     [21] (fo == 12)
-2026-03-22 22:48:00,424 - INFO -     [22] (f5 >= 1)
-2026-03-22 22:48:00,424 - INFO -     [23] (f5 <= 2)
-2026-03-22 22:48:00,424 - INFO -     [24] 0 <= o - g9 + 1
-2026-03-22 22:48:00,424 - INFO -     [25] ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0))
-2026-03-22 22:48:00,424 - INFO -     [26] cjj == fo*(g9 - 1) - 2
-2026-03-22 22:48:00,424 - INFO -     [27] yx == 1 || yx == -1
-2026-03-22 22:48:00,424 - INFO -     [28] f5 == 1 || f5 == 2
-2026-03-22 22:48:00,424 - INFO -     [29] (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1)
-2026-03-22 22:48:00,424 - INFO -     [30] cjj == fo*g9 - 14
-2026-03-22 22:48:00,424 - INFO -     [31] (g9 == 1) ==> (f5 == 1)
-2026-03-22 22:48:00,424 - INFO -     [32] (g9 <= o)
-2026-03-22 22:48:00,424 - INFO -     [33] (((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0)))
-2026-03-22 22:48:00,682 - INFO - syntax Correct
-2026-03-22 22:48:32,531 - INFO - Validate:
-2026-03-22 22:48:32,531 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True]
-2026-03-22 22:48:32,531 - INFO - 
-2026-03-22 22:48:32,531 - INFO - Verify:
-2026-03-22 22:48:32,531 - INFO - []
-2026-03-22 22:48:32,531 - INFO - 
-2026-03-22 22:48:32,531 - INFO - Houdini iteration 7: Removed 1 failed invariants
-2026-03-22 22:48:32,531 - INFO -   Before: 33 invariants
-2026-03-22 22:48:32,531 - INFO -   After: 32 invariants
-2026-03-22 22:48:32,531 - INFO -   Remaining invariants:
-2026-03-22 22:48:32,531 - INFO -     [1] 1 <= g9 && g9 <= o + 1
-2026-03-22 22:48:32,531 - INFO -     [2] (g9 == 1 ==> v == 1) && (g9 >= 2 ==> v == 0)
-2026-03-22 22:48:32,531 - INFO -     [3] fo == 12
-2026-03-22 22:48:32,532 - INFO -     [4] cjj == (-2 + (g9 - 1) * fo)
-2026-03-22 22:48:32,532 - INFO -     [5] (yx == 1) || (yx == -1)
-2026-03-22 22:48:32,532 - INFO -     [6] o == 55
-2026-03-22 22:48:32,532 - INFO -     [7] (g9 == 1) ==> (v == 1)
-2026-03-22 22:48:32,532 - INFO -     [8] (f5 == 1) || (f5 == 2)
-2026-03-22 22:48:32,532 - INFO -     [9] cjj >= -2
-2026-03-22 22:48:32,532 - INFO -     [10] g9 >= 1
-2026-03-22 22:48:32,532 - INFO -     [11] g9 <= o + 1
-2026-03-22 22:48:32,532 - INFO -     [12] ((g9 == 1) ==> (v == 1))
-2026-03-22 22:48:32,532 - INFO -     [13] ((((g9 - 1) / 2) % 2) == 0) ==> (yx == 1)
-2026-03-22 22:48:32,532 - INFO -     [14] cjj == -2 + fo*(g9 - 1)
-2026-03-22 22:48:32,532 - INFO -     [15] cjj == -2 + 12*(g9 - 1)
-2026-03-22 22:48:32,532 - INFO -     [16] (0 <= v <= 1) && ((yx == 1) || (yx == -1))
-2026-03-22 22:48:32,532 - INFO -     [17] (1 <= g9) && (g9 <= o+1)
-2026-03-22 22:48:32,532 - INFO -     [18] (g9 >= 1) && (g9 <= o+1)
-2026-03-22 22:48:32,532 - INFO -     [19] ((g9 == 1) ==> (f5 == 1)) && ((g9 >= 2) ==> (f5 == 2))
-2026-03-22 22:48:32,532 - INFO -     [20] ((yx == 1) || (yx == -1))
-2026-03-22 22:48:32,532 - INFO -     [21] (fo == 12)
-2026-03-22 22:48:32,532 - INFO -     [22] (f5 >= 1)
-2026-03-22 22:48:32,532 - INFO -     [23] (f5 <= 2)
-2026-03-22 22:48:32,532 - INFO -     [24] 0 <= o - g9 + 1
-2026-03-22 22:48:32,532 - INFO -     [25] ((g9 == 1) ==> (v == 1)) && ((g9 != 1) ==> (v == 0))
-2026-03-22 22:48:32,532 - INFO -     [26] cjj == fo*(g9 - 1) - 2
-2026-03-22 22:48:32,532 - INFO -     [27] yx == 1 || yx == -1
-2026-03-22 22:48:32,532 - INFO -     [28] f5 == 1 || f5 == 2
-2026-03-22 22:48:32,532 - INFO -     [29] (((g9 - 1) / 2) % 2 == 0) ==> (yx == 1)
-2026-03-22 22:48:32,532 - INFO -     [30] cjj == fo*g9 - 14
-2026-03-22 22:48:32,532 - INFO -     [31] (g9 == 1) ==> (f5 == 1)
-2026-03-22 22:48:32,532 - INFO -     [32] (((g9 == 1) ==> (v * g9 == 1)) && ((g9 != 1) ==> (v * g9 == 0)))
-2026-03-22 22:48:32,765 - INFO - syntax Correct
-2026-03-22 22:49:04,604 - INFO - Validate:
-2026-03-22 22:49:04,604 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:49:04,604 - INFO - 
-2026-03-22 22:49:04,604 - INFO - Verify:
-2026-03-22 22:49:04,604 - INFO - []
-2026-03-22 22:49:04,604 - INFO - 
-2026-03-22 22:49:04,604 - INFO - Houdini iteration 8: All invariants are valid
-2026-03-22 22:49:04,851 - INFO - syntax Correct
-2026-03-22 22:49:36,685 - INFO - Validate:
-2026-03-22 22:49:36,685 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:49:36,685 - INFO - 
-2026-03-22 22:49:36,685 - INFO - Verify:
-2026-03-22 22:49:36,686 - INFO - []
-2026-03-22 22:49:36,686 - INFO - 
-2026-03-22 22:50:17,147 - INFO - Deduplicated 29 loop invariants in final code
-2026-03-22 22:50:17,404 - INFO - syntax Correct
-2026-03-22 22:50:48,415 - INFO - Validate:
-2026-03-22 22:50:48,415 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-22 22:50:48,415 - INFO - 
-2026-03-22 22:50:48,415 - INFO - Verify:
-2026-03-22 22:50:48,415 - INFO - []
-2026-03-22 22:50:48,415 - INFO - 
-2026-03-22 22:50:48,415 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 22:50:48,415 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_4/1.c
-2026-03-22 22:50:48,416 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_4/1_invariants.txt
-2026-03-22 22:50:48,416 - INFO - 
+----- Candidate 5/5 full code end -----
+2026-04-07 09:30:43,982 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:30:43,984 - INFO - Checking 24 invariants for conflicts...
+2026-04-07 09:30:43,987 - INFO -   Conflict detected:
+2026-04-07 09:30:43,987 - INFO -     [5] (rgl >= 0 ==> lx <= rgl) && (rgl < 0 ==> lx == 0)
+2026-04-07 09:30:43,988 - INFO -     [18] (rgl >= 0) ==> (lx <= rgl)
+2026-04-07 09:30:43,993 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:30:43,993 - INFO -   1: int main1(int b){
+2026-04-07 09:30:43,993 - INFO -   2:   int rgl, lx, cb1, tc3, cz, hm;
+2026-04-07 09:30:43,994 - INFO -   3: 
+2026-04-07 09:30:43,994 - INFO -   4:   rgl=b+13;
+2026-04-07 09:30:43,994 - INFO -   5:   lx=0;
+2026-04-07 09:30:43,994 - INFO -   6:   cb1=rgl;
+2026-04-07 09:30:43,994 - INFO -   7:   tc3=5;
+2026-04-07 09:30:43,994 - INFO -   8:   cz=-5;
+2026-04-07 09:30:43,994 - INFO -   9:   hm=-2;
+2026-04-07 09:30:43,994 - INFO -   10: 
+2026-04-07 09:30:43,994 - INFO - DEBUG: Total lines: 50
+2026-04-07 09:30:44,020 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:30:44,021 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:30:44,021 - INFO - Houdini iteration 1: Removed 23 failed invariants
+2026-04-07 09:30:44,021 - INFO -   Before: 23 invariants
+2026-04-07 09:30:44,021 - INFO -   After: 0 invariants
+2026-04-07 09:30:44,021 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:30:44,050 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:31:37,571 - INFO - Deduplicated 19 loop invariants in final code
+2026-04-07 09:31:37,597 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:31:37,597 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:31:37,597 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:31:37,597 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_4/1.c
+2026-04-07 09:31:37,598 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_4/1_invariants.txt
+2026-04-07 09:31:37,598 - INFO - 
 ============================================================
-2026-03-22 22:50:48,416 - INFO - Final first_pass results:
-2026-03-22 22:50:48,416 - INFO -   syntax=1
-2026-03-22 22:50:48,416 - INFO -   valid=1
-2026-03-22 22:50:48,416 - INFO -   satisfy=None
-2026-03-22 22:50:48,416 - INFO - ============================================================
-2026-03-22 22:50:48,416 - INFO - 
+2026-04-07 09:31:37,598 - INFO - Final first_pass results:
+2026-04-07 09:31:37,598 - INFO -   syntax=None
+2026-04-07 09:31:37,598 - INFO -   valid=None
+2026-04-07 09:31:37,598 - INFO -   satisfy=None
+2026-04-07 09:31:37,598 - INFO - ============================================================
+2026-04-07 09:31:37,598 - INFO - 
 ============================================================
-2026-03-22 22:50:48,416 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 22:50:48,416 - INFO -   Total API calls: 6
-2026-03-22 22:50:48,416 - INFO -   Total prompt tokens (input): 7,563
-2026-03-22 22:50:48,416 - INFO -   Total completion tokens (output): 51,752
-2026-03-22 22:50:48,416 - INFO -   Total tokens: 59,315
-2026-03-22 22:50:48,416 - INFO -   Average per call:
-2026-03-22 22:50:48,416 - INFO -     Prompt: 1260.5 tokens
-2026-03-22 22:50:48,416 - INFO -     Completion: 8625.3 tokens
-2026-03-22 22:50:48,416 - INFO -     Total: 9885.8 tokens
-2026-03-22 22:50:48,416 - INFO - ============================================================
-2026-03-22 22:50:48,416 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_4/1.c
-2026-03-22 22:50:48,416 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_4/1_invariants.txt
-2026-03-22 22:51:07,604 - INFO - LLM quality-gate raw response: {"ok": false, "reason": "fail"}
+2026-04-07 09:31:37,598 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:31:37,598 - INFO -   Total API calls: 2
+2026-04-07 09:31:37,598 - INFO -   Total prompt tokens (input): 2,089
+2026-04-07 09:31:37,598 - INFO -   Total completion tokens (output): 8,152
+2026-04-07 09:31:37,598 - INFO -   Total tokens: 10,241
+2026-04-07 09:31:37,598 - INFO -   Average per call:
+2026-04-07 09:31:37,598 - INFO -     Prompt: 1044.5 tokens
+2026-04-07 09:31:37,598 - INFO -     Completion: 4076.0 tokens
+2026-04-07 09:31:37,598 - INFO -     Total: 5120.5 tokens
+2026-04-07 09:31:37,598 - INFO - ============================================================
+2026-04-07 09:31:37,598 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_4/1.c
+2026-04-07 09:31:37,598 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_4/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

@@ -23,13 +23,19 @@ class LLMConfig:
     # ── 通用生成参数 ──────────────────────────────────────────────────────────
     api_temperature: float = 1.0
     api_top_p: float = 1.0
-    api_max_tokens: int = 8192
+    api_max_tokens: int = 16384
     enable_cot: bool = True
     system_prompt_file: str = "system_prompt.txt"
+    # Baseline mode: send only one user prompt, without system prompt/history/COT extras.
+    baseline_minimal_prompt: bool = False
 
     def __post_init__(self):
         cot_prompt = "system_prompt_cot.txt"
         plain_prompt = "system_prompt.txt"
+        if self.baseline_minimal_prompt:
+            self.enable_cot = False
+            self.system_prompt_file = plain_prompt
+            return
         if self.enable_cot:
             self.system_prompt_file = cot_prompt
         elif self.system_prompt_file == cot_prompt:
@@ -104,7 +110,7 @@ MAX_STRENGTHEN_ITERATIONS = 0
 # 并行生成配置
 PARALLEL_GENERATION_CONFIG = {
     'enabled': True,              # 是否启用并行生成多组候选不变式
-    'num_candidates': 1,          # 并行生成的候选组数
+    'num_candidates': 5,          # 并行生成的候选组数
     'temperature': 1.0,           # 生成温度，控制多样性
     'filter_by_sampling': True,   # 是否用采样数据过滤候选
     'detect_conflicts': True,     # 是否检测并去除冲突的不变式

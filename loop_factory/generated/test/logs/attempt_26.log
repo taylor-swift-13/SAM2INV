@@ -1,960 +1,540 @@
-2026-03-22 12:20:07,800 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 12:20:07,836 - INFO - Found 1 loops
-2026-03-22 12:20:07,837 - INFO - 
+2026-04-07 09:30:41,129 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:30:41,139 - INFO - Found 1 loops
+2026-04-07 09:30:41,140 - INFO - 
 ============================================================
-2026-03-22 12:20:07,837 - INFO - Main generation pass 1/1
-2026-03-22 12:20:07,837 - INFO - ============================================================
-2026-03-22 12:20:07,837 - INFO - Loaded single prompt template: simple
-2026-03-22 12:20:07,837 - INFO - Generating 8 candidate invariant sets with temperature=1.0
-2026-03-22 12:20:07,837 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 12:20:07,960 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:21:51,914 - INFO - 
------ Candidate 1/8 raw response begin -----
-<reasoning>Proposed inductive invariants and proof idea:
-
-- Core conservation (state-transition relation): f6 increments by 1 each iteration; iw increments by 1 and wraps from 2 to 0 with c increment. This yields a tight relation between f6, c, and iw:
-  - f6 = 3*c + iw, with iw always in {0,1,2}. This captures that every three iterations f6 increases by 3 and c increases by 1, while iw cycles through 0,1,2.
-- E-quality with iterations: e also increases by 1 each iteration, starting from 0, so e == f6 holds throughout execution.
-- Bound on iw: iw is in {0,1,2} at every loop head, hence 0 <= iw <= 2 (expressed as two invariants 0 <= iw and iw <= 2).
-- Non-negativity of c: c starts at 0 and only increments, so 0 <= c holds.
-- Termination witness: The loop variant m8 - f6 decreases by 1 every iteration (since f6 increases by 1 and m8 is constant), proving termination under the given guard f6 < m8.
-
-These invariants are inductive:
-- They hold at loop entry: initial values satisfy f6=0, c=0, iw=0, e=0, hence f6 = 3*c + iw, e == f6, 0 <= iw, iw <= 2, 0 <= c.
-- They are preserved by every loop iteration as shown by the update equations:
-  - If iw <= 1, iw' = iw+1, c' = c, f6' = f6+1, hence f6' = 3*c' + iw'.
-  - If iw = 2, iw' becomes 0 after wrap, c' = c+1, and f6' = f6+1, which again yields f6' = 3*c' + iw' (since iw' = 0 and f6 = 3*c + 2 → f6' = 3*c + 3 = 3*(c+1) + 0).
-  - e' = e+1 and f6' = f6+1 preserve e == f6.
-  - 0 <= iw and iw <= 2 preserved by the wrap logic.
-  - 0 <= c preserved as it only increases.
-
-- Loop variant m8 - f6 decreases strictly each iteration, ensuring termination.
-
-Therefore, the following invariants and assigns are both inductive and verification-friendly for Frama-C/WP. They do not rely on unknown(), Pre, or any non-listed variables, and they keep the code unchanged other than the annotations.</reasoning>
-<code>int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
-
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
-
-  /*@
-    loop invariant f6 == 3*c + iw;
-    loop invariant e == f6;
-    loop invariant 0 <= iw;
-    loop invariant iw <= 2;
-    loop invariant 0 <= c;
-    loop variant m8 - f6;
-    loop assigns iw, e, c, f6, g, sn, ow;
-  */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
-      }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
-      }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
-  }
-
-}</code>
------ Candidate 1/8 raw response end -----
-2026-03-22 12:21:51,914 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 12:21:51,927 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:24:25,751 - INFO - 
------ Candidate 2/8 raw response begin -----
-<reasoning>We want inductive loop invariants that capture the invariant relationships preserved by each iteration and lend themselves to verification by Frama-C/WP. Observing the loop updates:
-- e is incremented every iteration, starting from 0, so e == f6 holds (both start at 0 and both are incremented by 1 each iteration).
-- iw is incremented each iteration and reset modulo 3 when reaching 3, while c increments exactly when a wrap occurs. This yields iw == f6 % 3 and c == f6 / 3 (integer division) as invariant relations that stay true across iterations.
-- m8 is fixed by construction to g + 3 at loop entry (m8 == \at(g, Pre) + 3) and remains constant for the loop duration; p is fixed at 2. Including these helps link the loop back to initial state and the function parameter g.
-These invariants are initialized true before the first iteration and are preserved by every iteration (the transitions for f6, e, iw, c follow the described arithmetic precisely). Additionally, we provide a loop variant to help termination reasoning: m8 - f6 decreases by 1 each iteration, since f6 is increased by 1 per iteration while m8 is constant.
-
-We avoid any references to non-parameters via \at except for g (a function parameter), as required. The loop assigns list must include all variables that may be assigned inside the loop body: iw, e, c, f6, g, ow, sn. The invariants chosen are strong and non-tautological, and they help Frama-C WP reason about the loop’s behavior without modifying the original code. </reasoning>
-
-<code>/*@
-  loop invariant e == f6;
-  loop invariant iw == f6 % 3;
-  loop invariant c == f6 / 3;
-  loop invariant m8 == \at(g, Pre) + 3;
-  loop invariant p == 2;
-  loop assigns iw, e, c, f6, g, ow, sn;
-  loop variant m8 - f6;
-*/
-while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
-      }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
-      }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
-  }</code>
------ Candidate 2/8 raw response end -----
-2026-03-22 12:24:25,751 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 12:24:25,765 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:26:39,040 - INFO - 
------ Candidate 3/8 raw response begin -----
-<reasoning>The loop updates a small set of state variables in a regular pattern:
-- f6 increases by 1 every iteration, which also drives other variables.
-- e mirrors f6 (both start at 0 and increment by 1 per iteration), so e == f6 is a natural invariant.
-- iw is incremented and wrapped modulo 3 each iteration; hence iw == f6 % 3 is a strong, inductive invariant.
-- c increments exactly when iw wraps (every time f6 crosses a multiple of 3), which aligns with c == f6 / 3 (integer division).
-- ow increases by 1 every iteration, and the initial ow is 3; thus ow == 3 + f6 is maintained.
-
-These invariants are inductive and do not rely on external properties of g beyond what is established by initialization and the loop, and they do not require manipulating g directly in the invariant (which would be brittle due to the mixed updates to g inside the loop). They provide a concise, strong description of the loop state progression and are verification-friendly for Frama-C WP.
-
-A complete loop assigns list is used to reflect all variables that the loop mutates: f6, iw, e, c, g, sn, ow. A loop variant is supplied to aid termination proof: m8 - f6, which decreases by 1 each iteration since f6 is incremented every time the loop runs (and m8 is constant throughout the loop).</reasoning>
-<code>int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
-
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant e == f6;
-    loop invariant iw == f6 % 3;
-    loop invariant c == f6 / 3;
-    loop invariant ow == 3 + f6;
-    loop assigns f6, iw, e, c, g, sn, ow;
-    loop variant m8 - f6;
-  */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
-      }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
-      }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
-  }
-
-} </code>
------ Candidate 3/8 raw response end -----
-2026-03-22 12:26:39,041 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 12:26:39,055 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:27:15,920 - INFO - 
------ Candidate 4/8 raw response begin -----
+2026-04-07 09:30:41,140 - INFO - Main generation pass 1/1
+2026-04-07 09:30:41,140 - INFO - ============================================================
+2026-04-07 09:30:41,140 - INFO - Loaded single prompt template: simple
+2026-04-07 09:30:41,140 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:30:41,140 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:30:41,210 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:31:52,851 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-I selected invariants that are inductive (hold before the first iteration and preserved by the body) and that explain the arithmetic/state changes happening in the loop.
+I examined the loop behavior and selected invariants that are inductive, precise, and useful for WP:
 
-Core relational equality (conservation law)
-- iw + 3 * c == f6
-  Reason: iw is incremented by 1 each iteration and reduced by 3 when it overflows; c is incremented exactly when that overflow occurs. This precisely captures that the total number of single-step increments of iw (counted as iw plus 3 per completed overflow) equals f6 (the number of iterations performed). This is the main state-transition law explaining iw/c/f6 updates.
+- Core conservation equality: c9q evolves linearly because it is incremented by n on every iteration and f8 is incremented by 1. The relation
+  c9q == \at(h, Pre) + 4 + n * (f8 + 5)
+  exactly characterizes c9q in terms of f8 and the initial parameter h. This is the primary state-transition law for the loop and is inductive: it holds initially (f8 == -5 gives zero increments) and is preserved by the body (c9q increased by n when f8 increases by 1).
 
-Parallel counter equality
-- e == f6
-  Reason: e and f6 are both incremented unconditionally by 1 each iteration. This simple equality is useful for verification and is preserved by the loop.
+- Relational equality between n and kxj: n == kxj is true before the loop and remains true (neither is modified). This is a strong, exact invariant that helps simplify other properties.
 
-Bounds / progress
-- 0 <= iw && iw <= 2
-  Reason: iw cycles in 0..2 because it is incremented by 1 and reduced by 3 when >=3.
-- 0 <= c && c <= f6
-  Reason: c counts completed iw overflows; it is non-negative and cannot exceed the total iterations f6.
-- 0 <= f6 && f6 <= m8
-  Reason: f6 starts at 0 and increases by 1 each iteration; using non-strict <= makes this an invariant (the strict guard f6 < m8 is not put in invariants).
-- ow == 3 + f6
-  Reason: ow starts at 3 and is incremented by 1 each iteration; since f6 counts iterations, this precise linear relation is inductive and strong.
-- sn >= ow
-  Reason: initial sn (5) is >= initial ow (3), and after each iteration sn is eventually assigned ow + c (with c >= 0), so sn >= ow is preserved.
+- Progress bounds for the loop counter f8: f8 is initialized to -5 and increases by 1 each iteration until it reaches kxj, so -5 <= f8 <= kxj is a safe, non-strict invariant. It is preserved by the loop and supports the variant.
 
-Constant definition
-- m8 == \at(g, Pre) + 3
-  Reason: m8 is initialized to g+3 before the loop and never modified; \at(g, Pre) is allowed as g is a function parameter.
+- Loop variant: (kxj - f8) is a non-negative integer that strictly decreases on every executed iteration (because f8 increases by 1) and thus proves termination of the loop (when used with the fact f8 < kxj in any executing iteration).
 
-Loop assigns and variant
-- loop assigns lists exactly the variables modified by the loop body: iw, e, c, f6, g, sn, ow.
-- variant m8 - f6 is a natural non-negative integer that strictly decreases each iteration (f6 increases by 1), ensuring termination.
+- Bounds for bb0q: bb0q starts at kxj and each iteration adds (vjs % 9). For any integer x, x%9 is in [-8,8] (C remainder has absolute value < 9). Since the number of contributions equals (f8 + 5) (the number of completed increments), we can bound bb0q:
+    kxj + (f8 + 5) * (-8) <= bb0q <= kxj + (f8 + 5) * 8
+  These bounds are inductive and useful to keep bb0q's growth constrained (they are conservative but precise enough to be useful).
 
-All invariants avoid quantifiers and \at on local variables, and they are chosen to be strong enough for verification while remaining minimal and relevant to the loop behavior.
+- vjs monotonicity: vjs is initialized to 0 and can only be assigned to c9q when c9q <= vjs; therefore vjs is non-increasing and always <= 0. The single invariant vjs <= 0 is simple and preserved.
+
+- Exact loop assigns: only vjs, bb0q, c9q, and f8 are written in the loop body, so loop assigns is exactly that set.
+
+All invariants use only available variables and \at(h, Pre) for the function parameter h. They are inductive (checked against initial state and the body updates) and help WP prove exit conditions and termination via the variant.
 </reasoning>
 <code>
-int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
 
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant e == f6;
-    loop invariant iw + 3 * c == f6;
-    loop invariant 0 <= iw && iw <= 2;
-    loop invariant 0 <= c && c <= f6;
-    loop invariant 0 <= f6 && f6 <= m8;
-    loop invariant ow == 3 + f6;
-    loop invariant sn >= ow;
-    loop invariant m8 == \at(g, Pre) + 3;
-    loop assigns iw, e, c, f6, g, sn, ow;
-    loop variant m8 - f6;
+    loop invariant n == kxj;
+    loop invariant -5 <= f8 && f8 <= kxj;
+    loop invariant c9q == \at(h, Pre) + 4 + n * (f8 + 5);
+    loop invariant vjs <= 0;
+    loop invariant bb0q >= kxj + (f8 + 5) * (-8) && bb0q <= kxj + (f8 + 5) * 8;
+    loop assigns vjs, bb0q, c9q, f8;
+    loop variant (kxj - f8);
   */
-while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
+while (1) {
+      if (f8>=kxj) {
+          break;
       }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
+      if (c9q<=vjs) {
+          vjs = c9q;
       }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
   }
 
 }
 </code>
------ Candidate 4/8 raw response end -----
-2026-03-22 12:27:15,920 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 12:27:15,934 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:31:53,540 - INFO - 
------ Candidate 5/8 raw response begin -----
-<reasoning>We must supply inductive loop invariants and precise assigns for the given loop in a verification-friendly manner.
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:31:52,852 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:31:52,911 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:33:06,241 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>
+I chose a small set of strong, directly checkable invariants that (1) explain the deterministic state updates (conservation law), (2) bound the loop counter for progress/termination, and (3) capture monotonic behaviour of the other variables.
 
-Key observations:
-- The loop increments f6 and e by 1 each iteration. Therefore f6 == e is an exact relation that holds initially and is preserved by the loop.
-- The pair (iw, c) evolves with iw incrementing by 1 each iteration and whenever iw reaches 3, it is wrapped to 0 and c is incremented. This yields the exact invariant e == 3*c + iw, given e == f6 and f6 == number of iterations.
-- iw cycles in {0,1,2} due to the wraparound; thus 0 <= iw < 3 is invariant.
-- A simple, non-decreasing bound for the progress is provided by the loop variant m8 - f6, which decreases by 1 every iteration as f6 increments, ensuring termination when f6 reaches m8.
-- All variables that can be modified inside the loop are: f6, iw, c, e, g, sn, ow. Therefore, loop assigns should list these variables. p is never modified, and m8 is not assigned inside the loop.
+Core relational equality (state transition law)
+- c9q == \at(h, Pre) + 4 + n * (f8 + 5)
+  - Reason: Initially f8 == -5 and c9q == h+4, and each loop iteration does c9q += n and f8 += 1. If i iterations have been performed then f8 = -5 + i and c9q = (h+4) + n*i, which is exactly the stated equality. This equality is preserved by the body regardless of the conditional on vjs, so it is the desired conservation law.
 
-Chosen invariants:
-- f6 == e
-- e == 3*c + iw
-- 0 <= iw && iw < 3
-- 0 <= f6
+Progress / termination bounds
+- -5 <= f8 <= kxj
+  - Reason: f8 starts at -5 and only increases by 1 each iteration, so f8 >= -5 is preserved. The loop breaks when f8 >= kxj, and when the body executes we have f8 < kxj so after increment f8 <= kxj still holds; therefore f8 <= kxj holds at the loop head. These bounds make the variant below non-negative.
+- loop variant (kxj - f8)
+  - Reason: On each executed iteration f8 increases by 1, so kxj - f8 decreases by 1; it is non-negative by f8 <= kxj. This shows termination of the loop (finite number of iterations).
 
-Progress bound:
-- loop variant m8 - f6
+Monotonicity
+- vjs <= 0
+  - Reason: vjs is initialized to 0 and can only be assigned to c9q when c9q <= vjs (thus never increased). Therefore vjs never becomes greater than 0; stating vjs <= 0 is a simple invariant that is preserved and useful to reason about vjs%9 contributions (keeps them bounded).
 
-These invariants are inductive (preserved by each iteration under the loop guard) and tight enough to be useful for Frama-C/WP.
+Assigns
+- The loop explicitly modifies only vjs, bb0q, c9q, f8 — so these are listed in loop assigns.
 
-The loop assigns include all variables potentially mutated inside the loop: f6, iw, c, e, g, sn, ow.
-
-Now providing the annotated code with these invariants and assigns. The code itself remains unchanged except for the added ACSL annotations. </reasoning>
-<code>int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
-
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
-
-  /*@
-    loop invariant f6 == e;
-    loop invariant e == 3*c + iw;
-    loop invariant 0 <= iw && iw < 3;
-    loop invariant 0 <= f6;
-    loop assigns f6, iw, c, e, g, sn, ow;
-    loop variant m8 - f6;
-  */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
-      }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
-      }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
-  }
-
-}</code>
------ Candidate 5/8 raw response end -----
-2026-03-22 12:31:53,541 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 12:31:53,569 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:35:52,452 - INFO - 
------ Candidate 6/8 raw response begin -----
-<reasoning>Chosen invariants reflect the exact state progression of the loop:
-
-- Core conservation/relation: f6 increases by 1 every iteration, iw increases by 1 and wraps every 3 steps, and c increments exactly when iw wraps. This yields the exact invariant f6 == 3*c + iw, which holds initially (0 == 3*0 + 0) and is preserved by every iteration.
-- Bounding invariants: iw is always in the set {0,1,2} after the body, so 0 <= iw <= 2. f6 is non-negative and never exceeds m8 during loop execution, so 0 <= f6 <= m8.
-- Initialization relation for m8: m8 is initialized as g + 3 at entry; since g is a parameter, m8 remains equal to the initial value of g plus 3, expressible as m8 == \at(g,Pre) + 3, which stays invariant as g changes inside the loop.
-- Progress measure: loop variant m8 - f6 decreases by 1 each iteration (since f6 increases by 1 and m8 is constant), ensuring termination under the guard f6 < m8.
-- Loop assigns: all variables written inside the loop must be listed: iw, e, c, f6, g, sn, ow.
-
-These invariants are inductive, non-tautological, and align with the available variables and the loop’s semantics. No unknown() or unknownN() calls are used, and the parameter g’s initial value is referenced only via \at(g,Pre). The invariant set is strong enough to facilitate WP verification while avoiding overly weak constraints. </reasoning>
-
-<code>int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
-
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
-
-  /*@
-    loop invariant f6 == 3*c + iw;
-    loop invariant 0 <= iw <= 2;
-    loop invariant 0 <= f6 <= m8;
-    loop invariant m8 == \at(g,Pre) + 3;
-    loop assigns iw, e, c, f6, g, sn, ow;
-    loop variant m8 - f6;
-  */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
-      }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
-      }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
-  }
-
-}</code>
------ Candidate 6/8 raw response end -----
-2026-03-22 12:35:52,453 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 12:35:52,468 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:39:33,046 - INFO - 
------ Candidate 7/8 raw response begin -----
-<reasoning>We need inductive loop invariants that are easy to prove and help Frama-C/WP verify the loop. From the loop body we can observe:
-
-- f6 serves as the loop counter: it starts at 0 and is increased by 1 each iteration, while the loop guard is f6 < m8. Therefore, a natural invariant is that f6 progresses monotonically and stays within [0, m8].
-
-- e is incremented exactly when f6 is incremented, so e tracks f6 exactly: e == f6. This is a strong, simple relational invariant that is preserved by every iteration.
-
-- ow starts at 3 and is incremented by 1 every iteration, while f6 is also incremented every iteration. Hence the simple and exact conservation relation ow == 3 + f6 holds throughout.
-
-- iw is increased by 1 each iteration and wrapped modulo 3 by the if (iw >= 3) branch, so iw always stays in [0, 2]. Therefore 0 <= iw <= 2 is a valid invariant.
-
-- We include a loop variant m8 - f6 to ensure termination: since f6 increases by 1 each iteration and the loop guard requires f6 < m8, m8 - f6 is always non-negative and strictly decreases by 1 each iteration.
-
-- loop assigns should include all locals that are written inside the loop: c, e, f6, g, iw, ow, sn.
-
-- We use only allowed variables (from Available Variables). We rely on the relation ow == 3 + f6 as the core conservation/relational equality explaining the loop updates. The invariants are chosen to be strong, inductive, and verification-friendly, without introducing unrelated facts.
-
-Summary of chosen invariants:
-- e == f6 (e tracks f6 exactly)
-- ow == 3 + f6 (conservation relation between ow and f6)
-- 0 <= f6 && f6 <= m8 (loop counter bounds)
-- 0 <= iw && iw <= 2 (iw cycles 0..2)
-
-And the loop variant: m8 - f6.
-
-The loop assigns: c, e, f6, g, iw, ow, sn.
-
-These invariants are initialization-preserving (hold before first iteration), inductive (preserved by each iteration), and together with !guard imply the desired termination bound. They use only function parameters and loop-local variables from the given set, and do not rely on unknown()/. Pre-based constructs beyond allowed uses.
-
+All invariants hold initially (checked against the given initial state) and are preserved by the loop body:
+- The c9q equality is preserved because c9q and f8 are incremented in lockstep (c9q gains n and f8 gains 1).
+- n == kxj is a preserved equality (neither is modified).
+- f8 bounds and vjs monotonicity are preserved as argued above.
+These invariants also support verifying the loop exit condition: at exit we have f8 >= kxj and the c9q formula still holds with the final f8.
 </reasoning>
-<code>int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
+<code>
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
 
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
 
   /*@
-    loop invariant e == f6;
-    loop invariant ow == 3 + f6;
-    loop invariant 0 <= f6 && f6 <= m8;
-    loop invariant 0 <= iw && iw <= 2;
-    loop variant m8 - f6;
-    loop assigns c, e, f6, g, iw, ow, sn;
+    loop invariant n == kxj;
+    loop invariant -5 <= f8 && f8 <= kxj;
+    loop invariant c9q == \at(h, Pre) + 4 + n * (f8 + 5);
+    loop invariant vjs <= 0;
+    loop assigns vjs, bb0q, c9q, f8;
+    loop variant (kxj - f8);
   */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
+  while (1) {
+      if (f8>=kxj) {
+          break;
       }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
+      if (c9q<=vjs) {
+          vjs = c9q;
       }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
   }
 
-}</code>
------ Candidate 7/8 raw response end -----
-2026-03-22 12:39:33,047 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 12:39:33,061 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 12:42:05,106 - INFO - 
------ Candidate 8/8 raw response begin -----
-<reasoning>In this loop, the variables evolve in a very regular pattern:
+}
+</code>
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:33:06,243 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:33:06,310 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:34:37,117 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I examined the loop semantics and chose invariants that are strong, exact, and preserved by every iteration.
 
-- f6 is incremented by 1 each iteration (the loop bound is f6 < m8). This makes f6 a natural counter.
-- iw is incremented by 1 each iteration and reset modulo 3 whenever it reaches 3 (iw := (iw + 1); if (iw >= 3) { iw -= 3; } ). This yields a tight relation with f6: iw ≡ f6 (mod 3) and iw ∈ {0,1,2}.
-- c is incremented exactly when iw wraps (iw >= 3 before the wrap). This yields c = floor(f6 / 3).
-These observations suggest strong, inductive relations that are preserved by every loop iteration:
+Key observations used to design the invariants:
+- f8 is initialized to -5 and incremented by 1 each iteration until it reaches kxj (kxj=76). So f8 is bounded: -5 <= f8 <= kxj while the loop repeats, and the loop variant kxj - f8 decreases by 1 each iteration.
+- c9q is initialized to \at(h, Pre) + 4 and increased by n each iteration. Since f8 starts at -5 and each iteration increments f8 by 1, after t iterations f8 = -5 + t and c9q = \at(h, Pre) + 4 + n * t. Eliminating t gives the exact conservation law: c9q == \at(h, Pre) + 4 + n * (f8 + 5). This is the core relational equality explaining the c9q updates.
+- vjs starts at 0 and can only be assigned the current c9q when (c9q <= vjs). Because c9q is monotone increasing (it only grows by +n each iteration) and vjs initially equals 0, at most one assignment vjs = c9q can ever occur (it can only happen when f8 = -5 and c9q equals its initial value). Thus vjs is always either 0 or equal to the initial c9q (\at(h, Pre) + 4). This yields the finite-case invariant vjs == 0 || vjs == \at(h, Pre) + 4.
+- bb0q accumulates (vjs % 9) every iteration. Since vjs is constant during all iterations (either permanently 0, or changed once to the initial c9q and then remains that), the accumulated value is exactly the initial bb0q (76) plus (number_of_completed_iterations) * (vjs % 9). Rewriting number_of_completed_iterations as (f8 + 5) produces the exact equality:
+  bb0q == 76 + (f8 + 5) * ((vjs) % 9).
+  To keep this exact while avoiding a mod-equality coupling that would be hard to preserve when vjs can change the first time, I split into two precise cases and give explicit equalities for bb0q depending on which vjs-case holds:
+    - If vjs == 0 then bb0q == 76 + (f8 + 5) * 0 (i.e. stays 76).
+    - If vjs == \at(h, Pre) + 4 then bb0q == 76 + (f8 + 5) * ((\at(h, Pre) + 4) % 9).
 
-- f6 is non-negative throughout (f6 starts at 0 and only increases).
-- iw equals f6 modulo 3: iw == f6 % 3.
-- c equals f6 divided by 3 (integer division): c == f6 / 3.
+These invariants:
+- are true initially (check f8=-5, c9q=\at(h,Pre)+4, bb0q=76, vjs=0),
+- are preserved by each body execution (we checked both branches: when vjs is unchanged and the case where vjs is assigned once),
+- together with the negation of the loop guard (f8 >= kxj) suffice to reason about termination and post-loop facts.
 
-These invariants hold before the first iteration (initial state: f6=0, iw=0, c=0) and are preserved by each iteration due to the defined updates. The loop assigns set should include all variables that the loop might modify: iw, e, c, f6, g, sn, ow. The variant m8 - f6 provides a standard termination measure (decreases by 1 each iteration since f6 increments and m8 is constant during the loop).
-
-Note: We avoid using \at on non-parameters (g is a local variable here, g is assigned within the function and is not a function parameter in ACSL terms for \at), and we keep invariants independent of the initial value of g aside from its influence on m8 (which is acceptable as the invariants are designed to be robust across all possible inputs).
-
+I also included the exact loop assigns set and the variant (kxj - f8) which is non-negative by the invariant and strictly decreases on every loop iteration.
 </reasoning>
-<code>int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
+<code>
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
 
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
-
-  /*@
-    loop invariant f6 &gt;= 0;
-    loop invariant iw == f6 % 3;
-    loop invariant c == f6 / 3;
-    loop assigns iw, e, c, f6, g, sn, ow;
-    loop variant m8 - f6;
-  */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
-      }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
-      }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
-  }
-
-}</code>
------ Candidate 8/8 raw response end -----
-2026-03-22 12:42:05,107 - INFO - 
------ Candidate 1/8 full code begin -----
-int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
-
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
 
   /*@
-    loop invariant f6 == 3*c + iw;
-    loop invariant e == f6;
-    loop invariant 0 <= iw;
-    loop invariant iw <= 2;
-    loop invariant 0 <= c;
-    loop variant m8 - f6;
-    loop assigns iw, e, c, f6, g, sn, ow;
+    loop invariant -5 <= f8 && f8 <= kxj;
+    loop invariant c9q == \at(h, Pre) + 4 + n * (f8 + 5);
+    loop invariant (vjs == 0 && bb0q == 76 + (f8 + 5) * 0)
+                   || (vjs == (\at(h, Pre) + 4) && bb0q == 76 + (f8 + 5) * ((\at(h, Pre) + 4) % 9));
+    loop assigns bb0q, c9q, f8, vjs;
+    loop variant (kxj - f8);
   */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
+  while (1) {
+      if (f8>=kxj) {
+          break;
       }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
+      if (c9q<=vjs) {
+          vjs = c9q;
       }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
   }
 
 }
------ Candidate 1/8 full code end -----
-2026-03-22 12:42:05,107 - INFO - 
------ Candidate 2/8 full code begin -----
-/*@
-  loop invariant e == f6;
-  loop invariant iw == f6 % 3;
-  loop invariant c == f6 / 3;
-  loop invariant m8 == \at(g, Pre) + 3;
-  loop invariant p == 2;
-  loop assigns iw, e, c, f6, g, ow, sn;
-  loop variant m8 - f6;
-*/
-while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
-      }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
-      }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
-  }
------ Candidate 2/8 full code end -----
-2026-03-22 12:42:05,107 - INFO - 
------ Candidate 3/8 full code begin -----
-int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:34:37,119 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:34:37,174 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:35:48,677 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I add a small set of strong, inductive invariants that together explain the loop's state evolution and enable WP to prove safety and termination:
 
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
+- Core conservation equality: c9q tracks the initial c9q (which is \at(h, Pre) + 4) plus n for every completed increment of f8. Since f8 starts at -5 and is incremented by 1 each iteration, after t iterations f8 = -5 + t, so c9q = \at(h, Pre) + 4 + n * t = \at(h, Pre) + 4 + n * (f8 + 5). This exactly captures the loop update law for c9q and is preserved by the body.
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
+- Loop counter and termination: f8 <= kxj is true initially and preserved; the loop variant (kxj - f8) is a non-negative integer that decreases by 1 on each iteration (because f8 increases by 1), so it proves progress/termination of the loop (the actual loop uses break on f8>=kxj).
+
+- vjs monotonicity: vjs is initialized to 0 and only assigned vjs = c9q when c9q <= vjs, so vjs never increases and thus vjs <= 0 is an invariant. This fact lets us bound the signed remainder vjs % 9: when vjs <= 0, vjs % 9 is between -8 and 0.
+
+- Bounds on bb0q: bb0q starts at 76 and each iteration adds (vjs % 9). With vjs <= 0 we get an upper bound bb0q <= 76, and since each addition is at least -8 we get a lower bound bb0q >= 76 - 8 * (number_of_iterations) = 76 - 8 * (f8 + 5). These bounds are simple, inductive, and help WP reason about bb0q without introducing quantifiers.
+
+- Exact assigns: only bb0q, c9q, f8, vjs are modified by the loop; so loop assigns lists exactly those variables.
+
+All invariants use only the available variables and \at(h, Pre) for the function parameter initial value, and include parentheses where needed to avoid precedence issues.
+</reasoning>
+<code>
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
+
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
+
   /*@
-    loop invariant e == f6;
-    loop invariant iw == f6 % 3;
-    loop invariant c == f6 / 3;
-    loop invariant ow == 3 + f6;
-    loop assigns f6, iw, e, c, g, sn, ow;
-    loop variant m8 - f6;
+    loop invariant c9q == (\at(h, Pre) + 4 + n * (f8 + 5));
+    loop invariant f8 <= kxj;
+    loop invariant vjs <= 0;
+    loop invariant bb0q <= 76;
+    loop invariant bb0q >= (76 - 8 * (f8 + 5));
+    loop invariant n == kxj;
+    loop assigns bb0q, c9q, f8, vjs;
+    loop variant (kxj - f8);
   */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
+while (1) {
+      if (f8>=kxj) {
+          break;
       }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
+      if (c9q<=vjs) {
+          vjs = c9q;
       }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
   }
 
 }
------ Candidate 3/8 full code end -----
-2026-03-22 12:42:05,107 - INFO - 
------ Candidate 4/8 full code begin -----
-int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
+</code>
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:35:48,680 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:35:48,765 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:36:43,513 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I chose invariants that are (1) inductive (preserved by the body), (2) expressive about the core state transitions, and (3) useful for proving termination/exit.
 
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
+Key observations used:
+- n and kxj are initialized once and never modified, so n == kxj and kxj == 76 are preserved.
+- Each iteration increments f8 by 1 and adds n to c9q. From the initial values (f8 starts at -5, c9q starts at h+4) we get the exact linear relation
+    c9q == \at(h, Pre) + 4 + (f8 + 5) * n
+  This is the main conservation/relational equality explaining c9q and f8 updates; it holds initially and is preserved because both c9q and f8 are incremented consistently.
+- f8 is monotonically non-decreasing (it only increments) and never exceeds kxj at loop head, so -5 <= f8 <= kxj is an invariant. This gives a natural loop variant (kxj - f8) that strictly decreases while the body executes.
+- vjs can only be updated to c9q when c9q <= vjs, so vjs never increases and since it starts at 0 we have vjs <= 0.
+- The loop modifies exactly: f8, c9q, vjs, bb0q so the assigns clause lists those variables precisely.
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
+The chosen loop variant kxj - f8 is a non-negative integer that decreases by 1 on each body execution (since f8 increments by 1), showing termination of the guarded loop (it breaks when f8 >= kxj).
+
+All invariants avoid quantifiers and use only allowed variables and \at(...) only on the function parameter h as permitted.
+</reasoning>
+<code>
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
+
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
+
   /*@
-    loop invariant e == f6;
-    loop invariant iw + 3 * c == f6;
-    loop invariant 0 <= iw && iw <= 2;
-    loop invariant 0 <= c && c <= f6;
-    loop invariant 0 <= f6 && f6 <= m8;
-    loop invariant ow == 3 + f6;
-    loop invariant sn >= ow;
-    loop invariant m8 == \at(g, Pre) + 3;
-    loop assigns iw, e, c, f6, g, sn, ow;
-    loop variant m8 - f6;
+    loop invariant n == kxj;
+    loop invariant kxj == 76;
+    loop invariant (c9q == \at(h, Pre) + 4 + (f8 + 5) * n);
+    loop invariant (-5 <= f8 && f8 <= kxj);
+    loop invariant vjs <= 0;
+    loop assigns f8, c9q, vjs, bb0q;
+    loop variant (kxj - f8);
   */
-while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
+while (1) {
+      if (f8>=kxj) {
+          break;
       }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
+      if (c9q<=vjs) {
+          vjs = c9q;
       }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
   }
 
 }
------ Candidate 4/8 full code end -----
-2026-03-22 12:42:05,107 - INFO - 
------ Candidate 5/8 full code begin -----
-int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:36:43,515 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
 
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
 
   /*@
-    loop invariant f6 == e;
-    loop invariant e == 3*c + iw;
-    loop invariant 0 <= iw && iw < 3;
-    loop invariant 0 <= f6;
-    loop assigns f6, iw, c, e, g, sn, ow;
-    loop variant m8 - f6;
+    loop invariant n == kxj;
+    loop invariant -5 <= f8 && f8 <= kxj;
+    loop invariant c9q == \at(h, Pre) + 4 + n * (f8 + 5);
+    loop invariant vjs <= 0;
+    loop invariant bb0q >= kxj + (f8 + 5) * (-8) && bb0q <= kxj + (f8 + 5) * 8;
+    loop assigns vjs, bb0q, c9q, f8;
+    loop variant (kxj - f8);
   */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
+while (1) {
+      if (f8>=kxj) {
+          break;
       }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
+      if (c9q<=vjs) {
+          vjs = c9q;
       }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
   }
 
 }
------ Candidate 5/8 full code end -----
-2026-03-22 12:42:05,107 - INFO - 
------ Candidate 6/8 full code begin -----
-int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
+----- Candidate 1/5 full code end -----
+2026-04-07 09:36:43,515 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
 
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
 
   /*@
-    loop invariant f6 == 3*c + iw;
-    loop invariant 0 <= iw <= 2;
-    loop invariant 0 <= f6 <= m8;
-    loop invariant m8 == \at(g,Pre) + 3;
-    loop assigns iw, e, c, f6, g, sn, ow;
-    loop variant m8 - f6;
+    loop invariant n == kxj;
+    loop invariant -5 <= f8 && f8 <= kxj;
+    loop invariant c9q == \at(h, Pre) + 4 + n * (f8 + 5);
+    loop invariant vjs <= 0;
+    loop assigns vjs, bb0q, c9q, f8;
+    loop variant (kxj - f8);
   */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
+  while (1) {
+      if (f8>=kxj) {
+          break;
       }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
+      if (c9q<=vjs) {
+          vjs = c9q;
       }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
   }
 
 }
------ Candidate 6/8 full code end -----
-2026-03-22 12:42:05,107 - INFO - 
------ Candidate 7/8 full code begin -----
-int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
+----- Candidate 2/5 full code end -----
+2026-04-07 09:36:43,515 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
 
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
 
   /*@
-    loop invariant e == f6;
-    loop invariant ow == 3 + f6;
-    loop invariant 0 <= f6 && f6 <= m8;
-    loop invariant 0 <= iw && iw <= 2;
-    loop variant m8 - f6;
-    loop assigns c, e, f6, g, iw, ow, sn;
+    loop invariant -5 <= f8 && f8 <= kxj;
+    loop invariant c9q == \at(h, Pre) + 4 + n * (f8 + 5);
+    loop invariant (vjs == 0 && bb0q == 76 + (f8 + 5) * 0)
+                   || (vjs == (\at(h, Pre) + 4) && bb0q == 76 + (f8 + 5) * ((\at(h, Pre) + 4) % 9));
+    loop assigns bb0q, c9q, f8, vjs;
+    loop variant (kxj - f8);
   */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
+  while (1) {
+      if (f8>=kxj) {
+          break;
       }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
+      if (c9q<=vjs) {
+          vjs = c9q;
       }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
   }
 
 }
------ Candidate 7/8 full code end -----
-2026-03-22 12:42:05,107 - INFO - 
------ Candidate 8/8 full code begin -----
-int main1(int g){
-  int m8, f6, c, iw, e, ow, sn, p;
+----- Candidate 3/5 full code end -----
+2026-04-07 09:36:43,515 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
 
-  m8=g+3;
-  f6=0;
-  c=0;
-  iw=0;
-  e=0;
-  ow=3;
-  sn=5;
-  p=2;
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
 
   /*@
-    loop invariant f6 &gt;= 0;
-    loop invariant iw == f6 % 3;
-    loop invariant c == f6 / 3;
-    loop assigns iw, e, c, f6, g, sn, ow;
-    loop variant m8 - f6;
+    loop invariant c9q == (\at(h, Pre) + 4 + n * (f8 + 5));
+    loop invariant f8 <= kxj;
+    loop invariant vjs <= 0;
+    loop invariant bb0q <= 76;
+    loop invariant bb0q >= (76 - 8 * (f8 + 5));
+    loop invariant n == kxj;
+    loop assigns bb0q, c9q, f8, vjs;
+    loop variant (kxj - f8);
   */
-  while (f6<m8) {
-      iw += 1;
-      e += 1;
-      if (iw>=3) {
-          iw = iw - 3;
-          c = c + 1;
+while (1) {
+      if (f8>=kxj) {
+          break;
       }
-      f6 = f6 + 1;
-      if (f6+7<=iw+m8) {
-          g++;
+      if (c9q<=vjs) {
+          vjs = c9q;
       }
-      sn += f6;
-      g = ow+sn+p;
-      ow += 1;
-      sn = ow+c;
-      g += ow;
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
   }
 
 }
------ Candidate 8/8 full code end -----
-2026-03-22 12:42:05,107 - INFO - Successfully generated 8/8 candidates
-2026-03-22 12:42:05,108 - INFO - Checking 21 invariants for conflicts...
-2026-03-22 12:42:05,113 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 12:42:05,113 - INFO -   1: int main1(int g){
-2026-03-22 12:42:05,113 - INFO -   2:   int m8, f6, c, iw, e, ow, sn, p;
-2026-03-22 12:42:05,113 - INFO -   3: 
-2026-03-22 12:42:05,113 - INFO -   4:   m8=g+3;
-2026-03-22 12:42:05,114 - INFO -   5:   f6=0;
-2026-03-22 12:42:05,114 - INFO -   6:   c=0;
-2026-03-22 12:42:05,114 - INFO -   7:   iw=0;
-2026-03-22 12:42:05,114 - INFO -   8:   e=0;
-2026-03-22 12:42:05,114 - INFO -   9:   ow=3;
-2026-03-22 12:42:05,114 - INFO -   10:   sn=5;
-2026-03-22 12:42:05,114 - INFO - DEBUG: Total lines: 57
-2026-03-22 12:42:05,324 - INFO - syntax Correct
-2026-03-22 12:42:37,012 - INFO - Validate:
-2026-03-22 12:42:37,012 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True]
-2026-03-22 12:42:37,012 - INFO - 
-2026-03-22 12:42:37,012 - INFO - Verify:
-2026-03-22 12:42:37,012 - INFO - []
-2026-03-22 12:42:37,013 - INFO - 
-2026-03-22 12:42:37,013 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-22 12:42:37,013 - INFO -   Before: 21 invariants
-2026-03-22 12:42:37,013 - INFO -   After: 20 invariants
-2026-03-22 12:42:37,013 - INFO -   Remaining invariants:
-2026-03-22 12:42:37,013 - INFO -     [1] f6 == 3*c + iw
-2026-03-22 12:42:37,013 - INFO -     [2] e == f6
-2026-03-22 12:42:37,013 - INFO -     [3] 0 <= iw
-2026-03-22 12:42:37,013 - INFO -     [4] iw <= 2
-2026-03-22 12:42:37,013 - INFO -     [5] 0 <= c
-2026-03-22 12:42:37,013 - INFO -     [6] iw == f6 % 3
-2026-03-22 12:42:37,013 - INFO -     [7] c == f6 / 3
-2026-03-22 12:42:37,013 - INFO -     [8] m8 == \at(g, Pre) + 3
-2026-03-22 12:42:37,013 - INFO -     [9] p == 2
-2026-03-22 12:42:37,013 - INFO -     [10] ow == 3 + f6
-2026-03-22 12:42:37,013 - INFO -     [11] iw + 3 * c == f6
-2026-03-22 12:42:37,013 - INFO -     [12] 0 <= iw && iw <= 2
-2026-03-22 12:42:37,013 - INFO -     [13] 0 <= c && c <= f6
-2026-03-22 12:42:37,013 - INFO -     [14] sn >= ow
-2026-03-22 12:42:37,013 - INFO -     [15] f6 == e
-2026-03-22 12:42:37,013 - INFO -     [16] e == 3*c + iw
-2026-03-22 12:42:37,013 - INFO -     [17] 0 <= iw && iw < 3
-2026-03-22 12:42:37,013 - INFO -     [18] 0 <= f6
-2026-03-22 12:42:37,013 - INFO -     [19] 0 <= iw <= 2
-2026-03-22 12:42:37,013 - INFO -     [20] 0 <= f6 <= m8
-2026-03-22 12:42:37,206 - INFO - syntax Correct
-2026-03-22 12:43:08,767 - INFO - Validate:
-2026-03-22 12:43:08,767 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False]
-2026-03-22 12:43:08,767 - INFO - 
-2026-03-22 12:43:08,768 - INFO - Verify:
-2026-03-22 12:43:08,768 - INFO - []
-2026-03-22 12:43:08,768 - INFO - 
-2026-03-22 12:43:08,768 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-22 12:43:08,768 - INFO -   Before: 20 invariants
-2026-03-22 12:43:08,768 - INFO -   After: 19 invariants
-2026-03-22 12:43:08,768 - INFO -   Remaining invariants:
-2026-03-22 12:43:08,768 - INFO -     [1] f6 == 3*c + iw
-2026-03-22 12:43:08,768 - INFO -     [2] e == f6
-2026-03-22 12:43:08,768 - INFO -     [3] 0 <= iw
-2026-03-22 12:43:08,768 - INFO -     [4] iw <= 2
-2026-03-22 12:43:08,768 - INFO -     [5] 0 <= c
-2026-03-22 12:43:08,768 - INFO -     [6] iw == f6 % 3
-2026-03-22 12:43:08,768 - INFO -     [7] c == f6 / 3
-2026-03-22 12:43:08,768 - INFO -     [8] m8 == \at(g, Pre) + 3
-2026-03-22 12:43:08,768 - INFO -     [9] p == 2
-2026-03-22 12:43:08,768 - INFO -     [10] ow == 3 + f6
-2026-03-22 12:43:08,768 - INFO -     [11] iw + 3 * c == f6
-2026-03-22 12:43:08,768 - INFO -     [12] 0 <= iw && iw <= 2
-2026-03-22 12:43:08,768 - INFO -     [13] 0 <= c && c <= f6
-2026-03-22 12:43:08,768 - INFO -     [14] sn >= ow
-2026-03-22 12:43:08,768 - INFO -     [15] f6 == e
-2026-03-22 12:43:08,768 - INFO -     [16] e == 3*c + iw
-2026-03-22 12:43:08,768 - INFO -     [17] 0 <= iw && iw < 3
-2026-03-22 12:43:08,768 - INFO -     [18] 0 <= f6
-2026-03-22 12:43:08,768 - INFO -     [19] 0 <= iw <= 2
-2026-03-22 12:43:08,996 - INFO - syntax Correct
-2026-03-22 12:43:40,577 - INFO - Validate:
-2026-03-22 12:43:40,577 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 12:43:40,578 - INFO - 
-2026-03-22 12:43:40,578 - INFO - Verify:
-2026-03-22 12:43:40,578 - INFO - []
-2026-03-22 12:43:40,578 - INFO - 
-2026-03-22 12:43:40,578 - INFO - Houdini iteration 3: All invariants are valid
-2026-03-22 12:43:40,778 - INFO - syntax Correct
-2026-03-22 12:44:12,295 - INFO - Validate:
-2026-03-22 12:44:12,295 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 12:44:12,295 - INFO - 
-2026-03-22 12:44:12,295 - INFO - Verify:
-2026-03-22 12:44:12,295 - INFO - []
-2026-03-22 12:44:12,295 - INFO - 
-2026-03-22 12:45:14,442 - INFO - Deduplicated 15 loop invariants in final code
-2026-03-22 12:45:14,642 - INFO - syntax Correct
-2026-03-22 12:45:45,773 - INFO - Validate:
-2026-03-22 12:45:45,773 - INFO - [True, True, True, True, True, True, True, True, True, True]
-2026-03-22 12:45:45,773 - INFO - 
-2026-03-22 12:45:45,774 - INFO - Verify:
-2026-03-22 12:45:45,774 - INFO - []
-2026-03-22 12:45:45,774 - INFO - 
-2026-03-22 12:45:45,774 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 12:45:45,774 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_26/1.c
-2026-03-22 12:45:45,774 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_26/1_invariants.txt
-2026-03-22 12:45:45,774 - INFO - 
+----- Candidate 4/5 full code end -----
+2026-04-07 09:36:43,515 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int h){
+  int kxj, urq, f8, vjs, c9q, n, bb0q;
+
+  kxj=76;
+  urq=0;
+  f8=-5;
+  vjs=urq;
+  c9q=h+4;
+  n=kxj;
+  bb0q=kxj;
+
+  /*@
+    loop invariant n == kxj;
+    loop invariant kxj == 76;
+    loop invariant (c9q == \at(h, Pre) + 4 + (f8 + 5) * n);
+    loop invariant (-5 <= f8 && f8 <= kxj);
+    loop invariant vjs <= 0;
+    loop assigns f8, c9q, vjs, bb0q;
+    loop variant (kxj - f8);
+  */
+while (1) {
+      if (f8>=kxj) {
+          break;
+      }
+      if (c9q<=vjs) {
+          vjs = c9q;
+      }
+      bb0q = bb0q+(vjs%9);
+      c9q += n;
+      f8 += 1;
+  }
+
+}
+----- Candidate 5/5 full code end -----
+2026-04-07 09:36:43,515 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:36:43,516 - INFO - Checking 11 invariants for conflicts...
+2026-04-07 09:36:43,520 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:36:43,520 - INFO -   1: int main1(int h){
+2026-04-07 09:36:43,520 - INFO -   2:   int kxj, urq, f8, vjs, c9q, n, bb0q;
+2026-04-07 09:36:43,521 - INFO -   3: 
+2026-04-07 09:36:43,521 - INFO -   4:   kxj=76;
+2026-04-07 09:36:43,521 - INFO -   5:   urq=0;
+2026-04-07 09:36:43,521 - INFO -   6:   f8=-5;
+2026-04-07 09:36:43,521 - INFO -   7:   vjs=urq;
+2026-04-07 09:36:43,521 - INFO -   8:   c9q=h+4;
+2026-04-07 09:36:43,521 - INFO -   9:   n=kxj;
+2026-04-07 09:36:43,521 - INFO -   10:   bb0q=kxj;
+2026-04-07 09:36:43,521 - INFO - DEBUG: Total lines: 40
+2026-04-07 09:36:43,549 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:36:43,549 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:36:43,549 - INFO - Houdini iteration 1: Removed 11 failed invariants
+2026-04-07 09:36:43,549 - INFO -   Before: 11 invariants
+2026-04-07 09:36:43,549 - INFO -   After: 0 invariants
+2026-04-07 09:36:43,549 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:36:43,578 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:37:10,719 - INFO - Deduplicated 8 loop invariants in final code
+2026-04-07 09:37:10,751 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:37:10,751 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:37:10,751 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:37:10,751 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_26/1.c
+2026-04-07 09:37:10,751 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_26/1_invariants.txt
+2026-04-07 09:37:10,751 - INFO - 
 ============================================================
-2026-03-22 12:45:45,774 - INFO - Final first_pass results:
-2026-03-22 12:45:45,774 - INFO -   syntax=1
-2026-03-22 12:45:45,774 - INFO -   valid=1
-2026-03-22 12:45:45,774 - INFO -   satisfy=None
-2026-03-22 12:45:45,774 - INFO - ============================================================
-2026-03-22 12:45:45,774 - INFO - 
+2026-04-07 09:37:10,751 - INFO - Final first_pass results:
+2026-04-07 09:37:10,751 - INFO -   syntax=None
+2026-04-07 09:37:10,752 - INFO -   valid=None
+2026-04-07 09:37:10,752 - INFO -   satisfy=None
+2026-04-07 09:37:10,752 - INFO - ============================================================
+2026-04-07 09:37:10,752 - INFO - 
 ============================================================
-2026-03-22 12:45:45,774 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 12:45:45,774 - INFO -   Total API calls: 5
-2026-03-22 12:45:45,774 - INFO -   Total prompt tokens (input): 6,187
-2026-03-22 12:45:45,774 - INFO -   Total completion tokens (output): 39,930
-2026-03-22 12:45:45,774 - INFO -   Total tokens: 46,117
-2026-03-22 12:45:45,774 - INFO -   Average per call:
-2026-03-22 12:45:45,774 - INFO -     Prompt: 1237.4 tokens
-2026-03-22 12:45:45,774 - INFO -     Completion: 7986.0 tokens
-2026-03-22 12:45:45,774 - INFO -     Total: 9223.4 tokens
-2026-03-22 12:45:45,774 - INFO - ============================================================
-2026-03-22 12:45:45,775 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_26/1.c
-2026-03-22 12:45:45,775 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_26/1_invariants.txt
-2026-03-22 12:46:27,247 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
-2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
-2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
-2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...
+2026-04-07 09:37:10,752 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:37:10,752 - INFO -   Total API calls: 9
+2026-04-07 09:37:10,752 - INFO -   Total prompt tokens (input): 10,237
+2026-04-07 09:37:10,752 - INFO -   Total completion tokens (output): 32,014
+2026-04-07 09:37:10,752 - INFO -   Total tokens: 42,251
+2026-04-07 09:37:10,752 - INFO -   Average per call:
+2026-04-07 09:37:10,752 - INFO -     Prompt: 1137.4 tokens
+2026-04-07 09:37:10,752 - INFO -     Completion: 3557.1 tokens
+2026-04-07 09:37:10,752 - INFO -     Total: 4694.6 tokens
+2026-04-07 09:37:10,752 - INFO - ============================================================
+2026-04-07 09:37:10,752 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_26/1.c
+2026-04-07 09:37:10,752 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_26/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

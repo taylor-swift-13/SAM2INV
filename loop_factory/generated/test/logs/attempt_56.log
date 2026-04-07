@@ -1,947 +1,479 @@
-2026-03-22 13:44:44,190 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 13:44:44,202 - INFO - Found 1 loops
-2026-03-22 13:44:44,202 - INFO - 
+2026-04-07 09:39:38,213 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:39:38,223 - INFO - Found 1 loops
+2026-04-07 09:39:38,224 - INFO - 
 ============================================================
-2026-03-22 13:44:44,202 - INFO - Main generation pass 1/1
-2026-03-22 13:44:44,202 - INFO - ============================================================
-2026-03-22 13:44:44,202 - INFO - Loaded single prompt template: simple
-2026-03-22 13:44:44,202 - INFO - Generating 8 candidate invariant sets with temperature=1.0
-2026-03-22 13:44:44,203 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 13:44:44,215 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:45:51,722 - INFO - 
------ Candidate 1/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations that are consistent with the given code and use only the available variables. Observations about the loop state updates:
-
-- The loop uses a top-break pattern: it continues while is <= nm-1, since the break occurs when is > nm-1. is is incremented by 2 each iteration, so is stays even and the number of iterations is bounded by nm-1 (here 136). A natural loop variant is nm-1 - is, which strictly decreases by 2 each iteration and is non-negative at each loop header.
-- x2 is never changed inside the loop (initially 0), and k is repeatedly updated, but the final two statements inside the loop body force k to become yl + x2 and then set ybdg = k*k and ybdg = ybdg*k, i.e., ybdg becomes k^3. Since x2 is 0, this implies k equals yl at the end of every iteration, and ybdg equals k^3. These give strong relational invariants:
-  - k == yl (with x2 = 0)
-  - ybdg == k^3 (i.e., ybdg == k*k*k)
-- jl starts at -5 and the only place jl could change is within if (bdk4 <= jl) { jl = bdk4; }. Given the evolution of bdk4 (starting at 137 and always increasing), this condition never becomes true; thus jl remains -5 throughout. This can be captured as an invariant: jl == -5.
-- is is always non-negative and even (initially 0, increments by 2 each iteration). This parity/monotonicity is useful for a robust invariant.
-- We must declare the loop assigns to reflect all variables mutated in the loop: is, jl, k, bdk4, yl, ybdg.
-
-Using these, we provide strong, inductive invariants that are preserved by the loop body and help Frama-C/WP reason about termination and state relations without altering the code.
-
-</reasoning>
-<code>/*@
-  loop invariant 0 &le; is;
-  loop invariant is % 2 == 0;
-  loop invariant k == yl;
-  loop invariant ybdg == k*k*k;
-  loop invariant jl == -5;
-  loop assigns is, jl, k, bdk4, yl, ybdg;
-  loop variant nm-1 - is;
-*/
-while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }</code>
------ Candidate 1/8 raw response end -----
-2026-03-22 13:45:51,722 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 13:45:51,734 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:46:34,686 - INFO - 
------ Candidate 2/8 raw response begin -----
-<reasoning>The loop updates several state variables in a deterministic way. To aid inductive verification with Frama-C/WP, I propose a set of strong, inductive loop invariants that capture the core state evolution and provide a clear progress measure. The invariants connect the main arithmetic variables, expose a simple invariant for parity/progress, and reveal the key relationship that remains true across iterations.
-
-Key invariants chosen:
-- is remains even and stays within the natural progress window [0, nm+1]. This is inductive because is is initialized to 0 and increases by 2 each iteration, with the loop guard ensuring is <= nm-1 at loop start, so is+2 <= nm+1 inside the loop.
-- k always equals yl + x2 after each iteration. This matches the final assignment in the loop body (k = yl + x2) and holds initially (k starts as x2) and is preserved through the final assignment of each iteration.
-- ybdg always equals k^3 (k*k*k) after each iteration, because the final two statements recompute ybdg from the new k as ybdg = k*k; ybdg = ybdg*k; yielding k^3. This provides a compact, exact relation between ybdg and k.
-- yl remains a multiple of 3, since yl is incremented by 3 every iteration, starting from 0.
-- A loop variant nm - is is provided as a simple, decreasing measure to help Frama-C reason about termination.
-
-I avoided weak/tautological invariants and kept the assigns precise to the variables actually modified in the loop: is, jl, k, bdk4, yl, ybdg. The invariants also stay valid at exit, given the exit condition is tied to is.
-
-Now I will provide the annotated code with these invariants and a precise loop variant and assigns. The original code is kept unchanged aside from the loop annotations. The unknown() calls are not present, and no Pre/Post tricks are used beyond the standard invariants. </reasoning>
-<code>int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
-
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
-
-  /*@
-    loop invariant is % 2 == 0;
-    loop invariant 0 <= is && is <= nm + 1;
-    loop invariant k == yl + x2;
-    loop invariant ybdg == k * k * k;
-    loop invariant yl % 3 == 0;
-    loop variant nm - is;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
-  */
-  while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }
-
-}</code>
------ Candidate 2/8 raw response end -----
-2026-03-22 13:46:34,687 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 13:46:34,701 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:47:31,146 - INFO - 
------ Candidate 3/8 raw response begin -----
-<reasoning>Key observations:
-- The loop terminates when is becomes greater than nm-1. Since is starts at 0 and increases by 2 each iteration, a natural progress measure is nm - is, which strictly decreases by 2 every iteration and remains non-negative while the loop guard holds. This provides a simple loop variant: nm - is.
-- A strong inductive invariant should express the core state-relations that are preserved by the loop body. A critical observation in the body is that, just before the final two lines of the loop body, k is set to yl + x2, and then ybdg is computed as ybdg = k*k; followed by ybdg = ybdg * k; Hence, after these two lines, ybdg equals k^3. Since k is redefined at the end of each iteration as k = yl + x2, the relation ybdg == k^3 will hold at the beginning of every next iteration as well. This provides a strong and inductive invariant.
-- Also, at the start of every iteration, k is equal to x2 + yl (the invariant k == x2 + yl), because k is initialized to x2 and is subsequently overwritten to yl + x2 at the end of each iteration.
-- The variable is always non-negative and even at loop entry (starts at 0 and increments by 2), so 0 <= is <= nm-1 and is % 2 == 0 are good, inductive invariants.
-- The loop assigns the variables that actually get modified inside the loop: is, jl, k, bdk4, yl, ybdg.
-
-Chosen inductive loop invariants:
-- 0 <= is <= nm-1
-- (is % 2) == 0
-- k == x2 + yl
-- ybdg == k*k*k
-- loop assigns is, jl, k, bdk4, yl, ybdg
-- loop variant nm - is
-
-These invariants are strong (non-trivial and helpful for verification) and are preserved by the loop body, given the update patterns described above. They do not rely on any non-parameter pre-state or non-local properties, and they align with the allowed variable set. The core update law ybdg == k^3 is the central relational invariant that explains the observed updates to ybdg in the final two lines of the loop. </reasoning>
-<code>int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
-
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
-
-  /*@ 
-    loop invariant 0 <= is <= nm-1;
-    loop invariant (is % 2) == 0;
-    loop invariant k == x2 + yl;
-    loop invariant ybdg == k*k*k;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
-    loop variant nm - is;
-  */
-  while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }
-
-}</code>
------ Candidate 3/8 raw response end -----
-2026-03-22 13:47:31,146 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 13:47:31,159 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:48:21,625 - INFO - 
------ Candidate 4/8 raw response begin -----
+2026-04-07 09:39:38,224 - INFO - Main generation pass 1/1
+2026-04-07 09:39:38,224 - INFO - ============================================================
+2026-04-07 09:39:38,224 - INFO - Loaded single prompt template: simple
+2026-04-07 09:39:38,224 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:39:38,224 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:39:38,281 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:40:27,175 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-Key goal: provide inductive, verification-friendly loop invariants and precise assigns that reflect the loop's state updates without altering the original code.
+I selected invariants that are simple, strong, and directly tied to the loop structure so Frama-C/WP can verify initialization, preservation, and termination.
 
-Observations about the loop state:
-- The loop guard is implicit via a break when is > nm-1. is increases by 2 each iteration, nm is constant (137), x2 is constant (0), and many other vars evolve deterministically.
-- A strong relational invariant can capture how k relates to yl and x2: after every iteration, k is set to yl + x2 (and yl itself is increased by 3 per iteration). This relation is preserved across the loop body and holds initially (k = x2, yl = 0).
-- Additional simple, inductive invariants that help reasoning:
-  - nm == 137 (constant)
-  - x2 == 0 (constant)
-  - jl == -5 (initial value and, given the updates, never changes in practice)
-  - is even: (is % 2) == 0, since is increases by 2 every iteration
-  - bdk4 starts at 137 and only grows (bdk4 >= 137)
-- Loop assigns must cover all variables modified in the loop body: is, jl, k, bdk4, yl, ybdg.
-- Loop variant: nm - is decreases by 2 each iteration, ensuring termination.
+Key points:
+- The loop repeatedly increments h by 1 until h >= kgh, so we state the tight bounds 0 <= h <= kgh. This is preserved by each iteration and ensures the loop exit condition (when combined with ! (h < kgh)) yields h >= kgh at exit.
+- kgh is assigned once before the loop (kgh = 20) and never modified afterwards. Declaring kgh == 20 as an invariant is a clear conserved equality (a stable fact about the state) that helps WP when reasoning about numeric bounds and the loop variant.
+- l is a function parameter and is not modified inside the loop; stating l == \at(l, Pre) documents that it is stable and can help WP reason about expressions using l (for example the modulo operations). Using \at(l, Pre) is allowed because l is a parameter.
+- The loop assigns list is complete and exact: the loop body writes h, f8, gt, x3, u350; no other variable is modified.
+- For termination, the natural numeric variant kgh - h is used; combined with 0 <= h <= kgh this is a non-negative integer that strictly decreases by 1 on each iteration (because h is incremented by 1 when the guard holds), which establishes termination.
 
-These invariants are strongest enough to be useful for Frama-C WP: they are inductive, non-tautological, and directly reflect the loop’s arithmetic progression and state evolution.
-
-Invariants chosen:
-- k == x2 + yl (core relational invariant capturing the key state update)
-- nm == 137
-- x2 == 0
-- jl == -5
-- (is % 2) == 0
-- bdk4 >= 137
-- loop assigns: is, jl, k, bdk4, yl, ybdg
-- loop variant: (nm - is)
-
-The invariant k == x2 + yl is particularly strong and directly encodes the primary update pattern of k with respect to yl and x2. The other invariants reinforce constant or monotone properties that hold across iterations.
-
+I purposely avoided fragile facts involving C's signed modulo semantics (remainder sign depends on operands) and avoided inventing auxiliary counters. The chosen invariants are inductive and sufficient to show safety and termination properties that are within the safe reasoning capabilities of WP.
 </reasoning>
 <code>
-int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
 
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
 
   /*@
-    loop invariant k == x2 + yl;
-    loop invariant nm == 137;
-    loop invariant x2 == 0;
-    loop invariant jl == -5;
-    loop invariant ((is % 2) == 0);
-    loop invariant bdk4 >= 137;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
-    loop variant (nm - is);
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant kgh == 20;
+    loop invariant l == \at(l, Pre);
+    loop assigns h, f8, gt, x3, u350;
+    loop variant kgh - h;
   */
-  while (1) {
-      if (!(is<=nm-1)) {
+while (1) {
+      if (!(h < kgh)) {
           break;
       }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
+      h += 1;
+      f8 = (f8 + gt) % l;
+      gt = gt+(f8%5);
+      x3 = (x3+f8)%5;
+      u350 = (u350+f8)%4;
   }
 
 }
 </code>
------ Candidate 4/8 raw response end -----
-2026-03-22 13:48:21,626 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 13:48:21,644 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:49:05,306 - INFO - 
------ Candidate 5/8 raw response begin -----
-<reasoning>Two strong, inductive loop invariants are chosen to capture the essential state relationships at loop head, ensuring the WP verifier can reason about the loop’s progression.
-
-- Core conservation/equality (k with yl and x2): k == yl + x2
-  Rationale: At the end of every iteration, the code sets k = yl + x2 (step 8). Since the invariant must hold at the start of the next iteration (i.e., loop head), this concise relation captures the exact dependency between k, yl, and x2 that persists across iterations.
-
-- Consequential arithmetic relation for ybdg: ybdg == (yl + x2) * (yl + x2) * (yl + x2)
-  Rationale: After step 8, k equals yl + x2, and steps 9-10 compute ybdg = k^2 then ybdg = ybdg * k, yielding ybdg = k^3. Substituting k = yl + x2 gives ybdg = (yl + x2)^3. This invariant is inductive since it holds initially (with k = x2 and yl = 0) and is preserved as k and yl evolve with the loop.
-
-- Basic bounds on is and nonnegativity of bdk4:
-  • 0 <= is <= nm - 1
-  • bdk4 >= 0
-  Rationale: is starts at 0 and increases by 2 each iteration, with the loop continuing only while is <= nm-1 (guard). Keeping is within [0, nm-1] is a natural invariant at loop head. bdk4 starts positive and, given the updates (bdk4 = bdk4 + yl; bdk4 = bdk4 * 2) with yl always nonnegative, remains nonnegative.
-
-- Loop assigns:
-  loop assigns is, jl, k, bdk4, yl, ybdg;
-  Rationale: These are exactly the variables that are updated inside the loop body.
-
-- Loop variant:
-  loop variant nm - is;
-  Rationale: is increases by 2 each iteration, so nm - is decreases by 2, providing a valid well-founded measure to show termination (non-negative while the loop guard holds).
-
-These invariants are strong (non-tautological) and directly reflect the observable end-of-iteration state, while remaining faithful to the constraint of using only available variables without altering the program logic. They also align with the guidance to include a core conservation equality, progress bounds, precise assigns, and a termination variant.</reasoning>
-<code>/*@
-  loop invariant k == yl + x2;
-  loop invariant ybdg == (yl + x2) * (yl + x2) * (yl + x2);
-  loop invariant 0 <= is && is <= nm - 1;
-  loop invariant bdk4 >= 0;
-  loop assigns is, jl, k, bdk4, yl, ybdg;
-  loop variant nm - is;
-*/
-while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }</code>
------ Candidate 5/8 raw response end -----
-2026-03-22 13:49:05,306 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 13:49:05,324 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:49:50,514 - INFO - 
------ Candidate 6/8 raw response begin -----
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:40:27,175 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:40:27,246 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:41:51,661 - INFO - 
+----- Candidate 2/5 raw response begin -----
 <reasoning>
-- Core invariant: k == yl + x2. This captures the explicit relational update in the loop: at the end of each iteration, k is assigned to yl + x2 (step 9), and yl is incremented by 3 (step 8). Since x2 is initialized to 0 and never changed, this invariant effectively ties k to yl across iterations and is preserved by the sequence of assignments in the loop.
-- Bounding invariant: 0 <= is <= nm - 1. The loop is guarded by is <= nm-1, and is only updated by is += 2 within the loop, so this bound holds at the start of every iteration and is preserved across iterations.
-- Termination measure: loop variant (nm - 1) - is. This value decreases by 2 each iteration (as is increases by 2) and remains non-negative while the loop can proceed, ensuring progress toward termination.
-- Additional safety/consistency: loop assigns is, jl, k, bdk4, yl, ybdg; These are exactly the variables modified inside the loop, providing a precise assigns clause.
-- The invariant set is intentionally strong and inductive, and respects the code structure (no modifications to unknown() calls or function parameters).
+I focused on invariants that are inductive (hold before loop, preserved by each iteration) and that help WP verify termination and safety of the loop updates without changing the code.
+
+Core choices:
+- The central loop counter invariant is 0 <= h <= kgh together with the loop variant (kgh - h). This captures the conservation of the loop bound: h starts at 0, increases by 1 each iteration, and cannot exceed kgh (kgh is a fixed 20). This gives a clear progress/termination argument.
+- I expose the fact that kgh is constant (kgh == 20). This is precise and helps verification conditions that rely on the bound.
+- gt is updated by adding (f8 % 5) each iteration; since (f8 % 5) is always in the range [-4,4], gt is bounded by -4*h <= gt <= 4*h (base gt = 0 at h = 0). This inequality is inductive and explains how gt grows in proportion to the number of iterations.
+- u350 is always the result of remainders modulo 4, hence it stays in [-3,3]. This holds initially and is preserved by assignments of the form (u350 + f8) % 4.
+- To make the bounds on gt and u350 syntactically straightforward for WP, I also included the trivial but useful bounds on the small remainders: -4 <= f8 % 5 <= 4 and -3 <= f8 % 4 <= 3. These help justify the stepwise updates of gt and u350.
+- The loop assigns clause precisely lists all variables modified inside the loop: h, f8, gt, x3, u350.
+- The loop variant is (kgh - h) which is non-negative and strictly decreases by 1 every iteration while the guard h < kgh holds.
+
+I avoided any use of \at on local variables, quantifiers, or definitions beyond those allowed. I did not add an invariant for x3 because its initial value (-6) would conflict with any small-range invariant; x3 is assigned with a modulo expression in the loop but does not need a global bound to prove termination or the given simple properties. The provided invariants are minimal, strong, and focused on enabling WP to discharge inductiveness and termination obligations.
 </reasoning>
-<code>int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
+<code>
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
 
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
 
   /*@
-    loop invariant 0 <= is <= nm - 1;
-    loop invariant k == yl + x2;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
-    loop variant (nm - 1) - is;
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant kgh == 20;
+    loop invariant -4 * h <= gt && gt <= 4 * h;
+    loop invariant -3 <= u350 && u350 <= 3;
+    loop invariant -4 <= (f8 % 5) && (f8 % 5) <= 4;
+    loop invariant -3 <= (f8 % 4) && (f8 % 4) <= 3;
+    loop assigns h, f8, gt, x3, u350;
+    loop variant (kgh - h);
   */
-  while (1) {
-      if (!(is<=nm-1)) {
+while (1) {
+      if (!(h < kgh)) {
           break;
       }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
+      h += 1;
+      f8 = (f8 + gt) % l;
+      gt = gt+(f8%5);
+      x3 = (x3+f8)%5;
+      u350 = (u350+f8)%4;
   }
 
-}</code>
------ Candidate 6/8 raw response end -----
-2026-03-22 13:49:50,514 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 13:49:50,528 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:50:41,645 - INFO - 
------ Candidate 7/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. Key observations:
-- The loop runs while is <= nm-1, with is incremented by 2 each iteration. Starting from 0, there are 69 iterations (0,2,...,136).
-- jl starts at -5 and is only modified by if (bdk4 <= jl) jl = bdk4;. Since bdk4 starts positive (137) and grows each iteration (bdk4 = (bdk4 + yl) * 2), the condition bdk4 <= jl can never be true. Therefore jl remains -5 throughout.
-- yl starts at 0 and increases by 3 each iteration, so yl >= 0 always.
-- bdk4 starts positive and, due to bdk4 = (bdk4 + yl) and then *2, remains positive.
-- ybdg starts at 0 and is updated in a way that keeps it nonnegative (initial 0; later assignments are ybdg = k*k; ybdg = ybdg*k with k >= 0 at that point).
-- k is assigned within the loop; at the end of each iteration k = yl + x2, with x2 = 0, so k becomes equal to yl, hence k >= 0 at loop entry of the next iteration.
+}
+</code>
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:41:51,662 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:41:51,717 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:42:56,158 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I select invariants that are inductive, minimal, and useful for verification with WP:
 
-From these, we can provide a concise, strong set of invariants describing the preserved state and a simple loop variant to assist termination proof. We also ensure loop assigns lists all variables modified inside the loop.
+- Core conservation/relational equality: kgh == 20. kgh is assigned once before the loop and never modified; exposing this equality is a small, strong relational fact that helps reasoning about bounds and the termination variant.
 
-Chosen invariants (inductive and informative):
-- 0 <= is <= nm-1 (guard keeps is within bounds at loop entry)
-- is % 2 == 0 (is increases by 2 each iteration)
-- jl == -5 (the assignment jl = bdk4 is never taken)
-- yl >= 0 (yl starts at 0 and increases by 3)
-- bdk4 > 0 (bdk4 starts positive and remains positive)
-- ybdg >= 0 (nonnegative throughout)
-- k >= 0 (after each iteration end, k = yl + x2, with yl >= 0 and x2 = 0)
+- Progress / bounds: 0 <= h <= kgh. This expresses that h starts at 0 and is increased by exactly 1 on each executed iteration, is never negative, and never exceeds kgh. This gives the needed progress/termination information and, combined with the variant, proves loop termination.
 
-Loop assigns: is, jl, k, bdk4, yl, ybdg
-Loop variant: nm - is (decreases by 2 each iteration while the loop condition holds)
+- Parameter preservation: l == \at(l, Pre). The loop does not modify the function parameter l; stating that explicitly helps the prover when reasoning about expressions that involve l (e.g. the modulus operators). Note: I did not assert l != 0 because that is a precondition of the code's well-definedness (modulo by zero); adding such an assumption would change the verification task. If needed, a separate precondition (requires l != 0) should be provided at function entry.
 
-These invariants are strong, avoid tautologies, and reflect the loop’s actual behavior without modifying the code beyond annotations. They are inductive given the loop body and the initial values. Good for Frama-C WP verification. </reasoning>
-<code>/*@
-  loop invariant 0 <= is <= nm-1;
-  loop invariant is % 2 == 0;
-  loop invariant jl == -5;
-  loop invariant yl >= 0;
-  loop invariant bdk4 > 0;
-  loop invariant ybdg >= 0;
-  loop invariant k >= 0;
-  loop assigns is, jl, k, bdk4, yl, ybdg;
-  loop variant nm - is;
-*/
-while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }</code>
------ Candidate 7/8 raw response end -----
-2026-03-22 13:50:41,646 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 13:50:41,660 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 13:51:29,799 - INFO - 
------ Candidate 8/8 raw response begin -----
-<reasoning>Proposed invariants are designed to be strong, inductive, and verifiable with Frama-C/WP, while staying faithful to the given code.
+- Exact assigns: The loop writes only h, f8, gt, x3, u350. Listing exactly those variables is required for WP to know what can change.
 
-Key observations and rationale:
-- End-of-iteration relation for ybdg: The last two statements in the loop are
-  ybdg = k*k;
-  ybdg = ybdg*k;
-  which implies ybdg equals k^3 at the end of every iteration. Since the invariant is checked at the start of iterations and must be preserved by the body, using ybdg == k^3 is a strong, exact relation that holds before the next iteration begins (i.e., at the loop head) and is preserved by the body.
-- jl and bdk4 relationship: The code updates jl to bdk4 whenever bdk4 <= jl; therefore jl is always <= bdk4, a natural preserved relation we can encode as an invariant.
-- yl is non-decreasing and starts at 0: yl increases by 3 each iteration, starting from 0, so yl >= 0 is preserved.
-- k remains nonnegative at loop head: k is set to yl + x2 near the end of every iteration, with yl >= 0 and x2 >= 0, implying k >= 0 at the loop head. This can be asserted as an invariant.
-- Loop progress and termination: The loop condition is effectively checked with is <= nm-1, and is increases by 2 each iteration. A standard decreasing variant is nm - 1 - is, which starts non-negative and decreases by 2 each iteration, ensuring termination.
-- Loop assigns: All variables that can be mutated inside the loop are is, jl, k, bdk4, yl, ybdg; these should be listed in loop assigns.
+- Variant: kgh - h is a natural decreasing non-negative integer expression that decreases by 1 each time the loop body executes, proving termination.
 
-With these in mind, the following ACSL annotations are provided:
-- core invariant: ybdg == k*k*k
-- additional invariants to capture preserved state: jl <= bdk4, yl >= 0, k >= 0
-- loop assigns: is, jl, k, bdk4, yl, ybdg
-- loop variant: nm - 1 - is (progress towards termination)
-
-These invariants are inductive (hold before the first iteration and preserved by each iteration) and verification-friendly for Frama-C/WP.
-
+I intentionally avoid stating precise equalities about f8, gt, x3, u350 (e.g. closed-form sums of past updates) because these depend on repeated modulo operations (and on l) and would be fragile or require additional arithmetic lemmas. The chosen invariants are strong enough for proving termination and typical safety properties about h and constant values, while remaining safe w.r.t. initial state and loop updates.
 </reasoning>
-<code>int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
+<code>
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
 
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant ybdg == k*k*k;
-    loop invariant jl <= bdk4;
-    loop invariant yl >= 0;
-    loop invariant k >= 0;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
-    loop variant nm - 1 - is;
+    loop invariant kgh == 20;
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant l == \at(l, Pre);
+    loop assigns h, f8, gt, x3, u350;
+    loop variant kgh - h;
   */
   while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }
+        if (!(h < kgh)) {
+            break;
+        }
+        h += 1;
+        f8 = (f8 + gt) % l;
+        gt = gt+(f8%5);
+        x3 = (x3+f8)%5;
+        u350 = (u350+f8)%4;
+    }
 
-}</code>
------ Candidate 8/8 raw response end -----
-2026-03-22 13:51:29,800 - INFO - 
------ Candidate 1/8 full code begin -----
-/*@
-  loop invariant 0 &le; is;
-  loop invariant is % 2 == 0;
-  loop invariant k == yl;
-  loop invariant ybdg == k*k*k;
-  loop invariant jl == -5;
-  loop assigns is, jl, k, bdk4, yl, ybdg;
-  loop variant nm-1 - is;
-*/
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:42:56,160 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:42:56,233 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:43:46,572 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I chose invariants that are inductive, directly describe the loop counter behavior, and are friendly to WP:
+
+- Core conservation / relational equality: kgh == 20. kgh is initialized once before the loop and never modified; exposing it as an invariant captures the stable part of the state and helps WP understand that the loop iterates until h reaches a fixed bound.
+- Progress / bounds: 0 <= h && h <= kgh. This states that h starts at 0, is non-negative, and never exceeds the loop bound kgh; it is true before the loop and preserved by each iteration (h increases by 1 while kgh is constant).
+- Non-negativity of the variant: I also expose kgh - h >= 0 (this is implied by the previous invariant but is explicit to help automated provers).
+- loop assigns: the loop clearly modifies exactly h, f8, gt, x3, and u350; specifying the exact assign set is required for WP.
+- loop variant: kgh - h is a natural, decreasing integer variant (decreases by 1 each entered iteration) ensuring termination and helping WP.
+
+I avoided any use of \at(...) on local variables, quantifiers, or custom logic, and I did not assume anything about the parameter l (which would be required to state modular value ranges cleanly). The invariants are strong enough to prove the basic loop safety/termination properties and are verification-friendly for Frama-C/WP.
+</reasoning>
+<code>
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
+
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
+
+  /*@
+    loop invariant kgh == 20;
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant kgh - h >= 0;
+    loop assigns h, f8, gt, x3, u350;
+    loop variant kgh - h;
+  */
+  while (1) {
+        if (!(h < kgh)) {
+            break;
+        }
+        h += 1;
+        f8 = (f8 + gt) % l;
+        gt = gt+(f8%5);
+        x3 = (x3+f8)%5;
+        u350 = (u350+f8)%4;
+    }
+
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:43:46,576 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:43:46,640 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:44:46,035 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I focus the invariants on the loop counter h (the only precise, directly tractable counter) and the fixed loop bound kgh. These are the primary elements needed to prove the loop is well-behaved: initialization, preservation, and a decreasing variant that proves the loop cannot iterate forever.
+
+Chosen invariants and rationale:
+- 0 <= h && h <= kgh
+  - Initialization: before the loop h == 0 and kgh == 20, so this holds.
+  - Preservation: the loop body only increments h by 1, so non-negativity and the upper bound are preserved while the guard h < kgh holds.
+  - Exit facts: together with the loop exit condition (!(h < kgh)) this allows proving h == kgh at exit.
+- kgh == 20
+  - kgh is initialized to 20 before the loop and never modified; stating it explicitly is useful for verification and for deriving exact exit value of h (h == 20).
+- (kgh - h) == 20 - h
+  - This is an explicit relational equality tying kgh to its known constant 20, making the conservation law between h and the loop bound clear. It helps WP to rewrite expressions involving kgh and h during verification steps.
+- loop assigns h, f8, gt, x3, u350;
+  - Exact list of variables modified by the loop body (kgh and l are not modified).
+- loop variant kgh - h;
+  - Natural decreasing non-negative integer variant: each iteration increases h by 1, so kgh - h strictly decreases while remaining >= 0, establishing termination (or at least that infinite descent is impossible assuming no arithmetic overflow).
+
+I avoided invariants about the modular values (f8, x3, u350, gt) because with the given code and no precondition on l (and C's signed remainder semantics), producing precise, universally valid modular bounds is fragile or would require quantification or assumptions (for instance l != 0). The provided invariants are minimal, inductive, and strong enough to (1) explain the loop's state transition regarding the counter and bound and (2) allow WP to deduce the loop exit fact h == 20.
+</reasoning>
+<code>
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
+
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
+
+  /*@
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant kgh == 20;
+    loop invariant (kgh - h) == 20 - h;
+    loop assigns h, f8, gt, x3, u350;
+    loop variant kgh - h;
+  */
+  while (1) {
+        if (!(h < kgh)) {
+            break;
+        }
+        h += 1;
+        f8 = (f8 + gt) % l;
+        gt = gt+(f8%5);
+        x3 = (x3+f8)%5;
+        u350 = (u350+f8)%4;
+    }
+
+}
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:44:46,046 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
+
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
+
+  /*@
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant kgh == 20;
+    loop invariant l == \at(l, Pre);
+    loop assigns h, f8, gt, x3, u350;
+    loop variant kgh - h;
+  */
 while (1) {
-      if (!(is<=nm-1)) {
+      if (!(h < kgh)) {
           break;
       }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
+      h += 1;
+      f8 = (f8 + gt) % l;
+      gt = gt+(f8%5);
+      x3 = (x3+f8)%5;
+      u350 = (u350+f8)%4;
   }
------ Candidate 1/8 full code end -----
-2026-03-22 13:51:29,800 - INFO - 
------ Candidate 2/8 full code begin -----
-int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
 
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
+}
+----- Candidate 1/5 full code end -----
+2026-04-07 09:44:46,047 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
+
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
 
   /*@
-    loop invariant is % 2 == 0;
-    loop invariant 0 <= is && is <= nm + 1;
-    loop invariant k == yl + x2;
-    loop invariant ybdg == k * k * k;
-    loop invariant yl % 3 == 0;
-    loop variant nm - is;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant kgh == 20;
+    loop invariant -4 * h <= gt && gt <= 4 * h;
+    loop invariant -3 <= u350 && u350 <= 3;
+    loop invariant -4 <= (f8 % 5) && (f8 % 5) <= 4;
+    loop invariant -3 <= (f8 % 4) && (f8 % 4) <= 3;
+    loop assigns h, f8, gt, x3, u350;
+    loop variant (kgh - h);
   */
-  while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }
-
-}
------ Candidate 2/8 full code end -----
-2026-03-22 13:51:29,800 - INFO - 
------ Candidate 3/8 full code begin -----
-int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
-
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
-
-  /*@ 
-    loop invariant 0 <= is <= nm-1;
-    loop invariant (is % 2) == 0;
-    loop invariant k == x2 + yl;
-    loop invariant ybdg == k*k*k;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
-    loop variant nm - is;
-  */
-  while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }
-
-}
------ Candidate 3/8 full code end -----
-2026-03-22 13:51:29,800 - INFO - 
------ Candidate 4/8 full code begin -----
-int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
-
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
-
-  /*@
-    loop invariant k == x2 + yl;
-    loop invariant nm == 137;
-    loop invariant x2 == 0;
-    loop invariant jl == -5;
-    loop invariant ((is % 2) == 0);
-    loop invariant bdk4 >= 137;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
-    loop variant (nm - is);
-  */
-  while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }
-
-}
------ Candidate 4/8 full code end -----
-2026-03-22 13:51:29,800 - INFO - 
------ Candidate 5/8 full code begin -----
-/*@
-  loop invariant k == yl + x2;
-  loop invariant ybdg == (yl + x2) * (yl + x2) * (yl + x2);
-  loop invariant 0 <= is && is <= nm - 1;
-  loop invariant bdk4 >= 0;
-  loop assigns is, jl, k, bdk4, yl, ybdg;
-  loop variant nm - is;
-*/
 while (1) {
-      if (!(is<=nm-1)) {
+      if (!(h < kgh)) {
           break;
       }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }
------ Candidate 5/8 full code end -----
-2026-03-22 13:51:29,800 - INFO - 
------ Candidate 6/8 full code begin -----
-int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
-
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
-
-  /*@
-    loop invariant 0 <= is <= nm - 1;
-    loop invariant k == yl + x2;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
-    loop variant (nm - 1) - is;
-  */
-  while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
+      h += 1;
+      f8 = (f8 + gt) % l;
+      gt = gt+(f8%5);
+      x3 = (x3+f8)%5;
+      u350 = (u350+f8)%4;
   }
 
 }
------ Candidate 6/8 full code end -----
-2026-03-22 13:51:29,800 - INFO - 
------ Candidate 7/8 full code begin -----
-/*@
-  loop invariant 0 <= is <= nm-1;
-  loop invariant is % 2 == 0;
-  loop invariant jl == -5;
-  loop invariant yl >= 0;
-  loop invariant bdk4 > 0;
-  loop invariant ybdg >= 0;
-  loop invariant k >= 0;
-  loop assigns is, jl, k, bdk4, yl, ybdg;
-  loop variant nm - is;
-*/
-while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }
------ Candidate 7/8 full code end -----
-2026-03-22 13:51:29,800 - INFO - 
------ Candidate 8/8 full code begin -----
-int main1(){
-  int nm, x2, is, k, jl, bdk4, yl, ybdg;
+----- Candidate 2/5 full code end -----
+2026-04-07 09:44:46,047 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
 
-  nm=137;
-  x2=0;
-  is=0;
-  k=x2;
-  jl=-5;
-  bdk4=nm;
-  yl=0;
-  ybdg=0;
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant ybdg == k*k*k;
-    loop invariant jl <= bdk4;
-    loop invariant yl >= 0;
-    loop invariant k >= 0;
-    loop assigns is, jl, k, bdk4, yl, ybdg;
-    loop variant nm - 1 - is;
+    loop invariant kgh == 20;
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant l == \at(l, Pre);
+    loop assigns h, f8, gt, x3, u350;
+    loop variant kgh - h;
   */
   while (1) {
-      if (!(is<=nm-1)) {
-          break;
-      }
-      is += 2;
-      if (bdk4<=jl) {
-          jl = bdk4;
-      }
-      if (x2*x2<=nm+6) {
-          ybdg = ybdg*bdk4;
-      }
-      k = k+(jl%7);
-      k = k + bdk4;
-      bdk4 = bdk4 + yl;
-      bdk4 = bdk4*2;
-      yl = yl + 3;
-      k = yl+x2;
-      ybdg = k*k;
-      ybdg = ybdg*k;
-  }
+        if (!(h < kgh)) {
+            break;
+        }
+        h += 1;
+        f8 = (f8 + gt) % l;
+        gt = gt+(f8%5);
+        x3 = (x3+f8)%5;
+        u350 = (u350+f8)%4;
+    }
 
 }
------ Candidate 8/8 full code end -----
-2026-03-22 13:51:29,800 - INFO - Successfully generated 8/8 candidates
-2026-03-22 13:51:29,801 - INFO - Checking 22 invariants for conflicts...
-2026-03-22 13:51:29,804 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 13:51:29,804 - INFO -   1: int main1(){
-2026-03-22 13:51:29,804 - INFO -   2:   int nm, x2, is, k, jl, bdk4, yl, ybdg;
-2026-03-22 13:51:29,804 - INFO -   3: 
-2026-03-22 13:51:29,804 - INFO -   4:   nm=137;
-2026-03-22 13:51:29,804 - INFO -   5:   x2=0;
-2026-03-22 13:51:29,804 - INFO -   6:   is=0;
-2026-03-22 13:51:29,804 - INFO -   7:   k=x2;
-2026-03-22 13:51:29,804 - INFO -   8:   jl=-5;
-2026-03-22 13:51:29,804 - INFO -   9:   bdk4=nm;
-2026-03-22 13:51:29,804 - INFO -   10:   yl=0;
-2026-03-22 13:51:29,804 - INFO - DEBUG: Total lines: 61
-2026-03-22 13:51:30,013 - INFO - syntax Correct
-2026-03-22 13:52:00,961 - INFO - Validate:
-2026-03-22 13:52:00,961 - INFO - [True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 13:52:00,961 - INFO - 
-2026-03-22 13:52:00,961 - INFO - Verify:
-2026-03-22 13:52:00,962 - INFO - []
-2026-03-22 13:52:00,962 - INFO - 
-2026-03-22 13:52:00,962 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-22 13:52:00,962 - INFO -   Before: 22 invariants
-2026-03-22 13:52:00,962 - INFO -   After: 21 invariants
-2026-03-22 13:52:00,962 - INFO -   Remaining invariants:
-2026-03-22 13:52:00,962 - INFO -     [1] is % 2 == 0
-2026-03-22 13:52:00,962 - INFO -     [2] k == yl
-2026-03-22 13:52:00,962 - INFO -     [3] ybdg == k*k*k
-2026-03-22 13:52:00,962 - INFO -     [4] jl == -5
-2026-03-22 13:52:00,962 - INFO -     [5] 0 <= is && is <= nm + 1
-2026-03-22 13:52:00,962 - INFO -     [6] k == yl + x2
-2026-03-22 13:52:00,962 - INFO -     [7] yl % 3 == 0
-2026-03-22 13:52:00,962 - INFO -     [8] (is % 2) == 0
-2026-03-22 13:52:00,962 - INFO -     [9] k == x2 + yl
-2026-03-22 13:52:00,962 - INFO -     [10] nm == 137
-2026-03-22 13:52:00,962 - INFO -     [11] x2 == 0
-2026-03-22 13:52:00,962 - INFO -     [12] ((is % 2) == 0)
-2026-03-22 13:52:00,962 - INFO -     [13] bdk4 >= 137
-2026-03-22 13:52:00,962 - INFO -     [14] ybdg == (yl + x2) * (yl + x2) * (yl + x2)
-2026-03-22 13:52:00,962 - INFO -     [15] 0 <= is && is <= nm - 1
-2026-03-22 13:52:00,962 - INFO -     [16] bdk4 >= 0
-2026-03-22 13:52:00,962 - INFO -     [17] yl >= 0
-2026-03-22 13:52:00,962 - INFO -     [18] bdk4 > 0
-2026-03-22 13:52:00,962 - INFO -     [19] ybdg >= 0
-2026-03-22 13:52:00,962 - INFO -     [20] k >= 0
-2026-03-22 13:52:00,962 - INFO -     [21] jl <= bdk4
-2026-03-22 13:52:01,166 - INFO - syntax Correct
-2026-03-22 13:52:32,315 - INFO - Validate:
-2026-03-22 13:52:32,315 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True]
-2026-03-22 13:52:32,315 - INFO - 
-2026-03-22 13:52:32,315 - INFO - Verify:
-2026-03-22 13:52:32,315 - INFO - []
-2026-03-22 13:52:32,315 - INFO - 
-2026-03-22 13:52:32,315 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-22 13:52:32,316 - INFO -   Before: 21 invariants
-2026-03-22 13:52:32,316 - INFO -   After: 20 invariants
-2026-03-22 13:52:32,316 - INFO -   Remaining invariants:
-2026-03-22 13:52:32,316 - INFO -     [1] is % 2 == 0
-2026-03-22 13:52:32,316 - INFO -     [2] k == yl
-2026-03-22 13:52:32,316 - INFO -     [3] ybdg == k*k*k
-2026-03-22 13:52:32,316 - INFO -     [4] jl == -5
-2026-03-22 13:52:32,316 - INFO -     [5] 0 <= is && is <= nm + 1
-2026-03-22 13:52:32,316 - INFO -     [6] k == yl + x2
-2026-03-22 13:52:32,316 - INFO -     [7] yl % 3 == 0
-2026-03-22 13:52:32,316 - INFO -     [8] (is % 2) == 0
-2026-03-22 13:52:32,316 - INFO -     [9] k == x2 + yl
-2026-03-22 13:52:32,316 - INFO -     [10] nm == 137
-2026-03-22 13:52:32,316 - INFO -     [11] x2 == 0
-2026-03-22 13:52:32,316 - INFO -     [12] ((is % 2) == 0)
-2026-03-22 13:52:32,316 - INFO -     [13] bdk4 >= 137
-2026-03-22 13:52:32,316 - INFO -     [14] ybdg == (yl + x2) * (yl + x2) * (yl + x2)
-2026-03-22 13:52:32,316 - INFO -     [15] bdk4 >= 0
-2026-03-22 13:52:32,316 - INFO -     [16] yl >= 0
-2026-03-22 13:52:32,316 - INFO -     [17] bdk4 > 0
-2026-03-22 13:52:32,316 - INFO -     [18] ybdg >= 0
-2026-03-22 13:52:32,316 - INFO -     [19] k >= 0
-2026-03-22 13:52:32,316 - INFO -     [20] jl <= bdk4
-2026-03-22 13:52:32,526 - INFO - syntax Correct
-2026-03-22 13:53:03,857 - INFO - Validate:
-2026-03-22 13:53:03,857 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 13:53:03,857 - INFO - 
-2026-03-22 13:53:03,857 - INFO - Verify:
-2026-03-22 13:53:03,857 - INFO - []
-2026-03-22 13:53:03,857 - INFO - 
-2026-03-22 13:53:03,857 - INFO - Houdini iteration 3: All invariants are valid
-2026-03-22 13:53:04,071 - INFO - syntax Correct
-2026-03-22 13:53:35,448 - INFO - Validate:
-2026-03-22 13:53:35,448 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 13:53:35,448 - INFO - 
-2026-03-22 13:53:35,448 - INFO - Verify:
-2026-03-22 13:53:35,448 - INFO - []
-2026-03-22 13:53:35,448 - INFO - 
-2026-03-22 13:54:08,162 - INFO - Deduplicated 10 loop invariants in final code
-2026-03-22 13:54:08,377 - INFO - syntax Correct
-2026-03-22 13:54:39,566 - INFO - Validate:
-2026-03-22 13:54:39,566 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 13:54:39,566 - INFO - 
-2026-03-22 13:54:39,566 - INFO - Verify:
-2026-03-22 13:54:39,566 - INFO - []
-2026-03-22 13:54:39,567 - INFO - 
-2026-03-22 13:54:39,567 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 13:54:39,567 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_56/1.c
-2026-03-22 13:54:39,567 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_56/1_invariants.txt
-2026-03-22 13:54:39,567 - INFO - 
+----- Candidate 3/5 full code end -----
+2026-04-07 09:44:46,047 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
+
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
+
+  /*@
+    loop invariant kgh == 20;
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant kgh - h >= 0;
+    loop assigns h, f8, gt, x3, u350;
+    loop variant kgh - h;
+  */
+  while (1) {
+        if (!(h < kgh)) {
+            break;
+        }
+        h += 1;
+        f8 = (f8 + gt) % l;
+        gt = gt+(f8%5);
+        x3 = (x3+f8)%5;
+        u350 = (u350+f8)%4;
+    }
+
+}
+----- Candidate 4/5 full code end -----
+2026-04-07 09:44:46,047 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int l){
+  int kgh, h, u350, f8, gt, x3;
+
+  kgh=20;
+  h=0;
+  u350=0;
+  f8=-5;
+  gt=h;
+  x3=-6;
+
+  /*@
+    loop invariant 0 <= h && h <= kgh;
+    loop invariant kgh == 20;
+    loop invariant (kgh - h) == 20 - h;
+    loop assigns h, f8, gt, x3, u350;
+    loop variant kgh - h;
+  */
+  while (1) {
+        if (!(h < kgh)) {
+            break;
+        }
+        h += 1;
+        f8 = (f8 + gt) % l;
+        gt = gt+(f8%5);
+        x3 = (x3+f8)%5;
+        u350 = (u350+f8)%4;
+    }
+
+}
+----- Candidate 5/5 full code end -----
+2026-04-07 09:44:46,047 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:44:46,050 - INFO - Checking 9 invariants for conflicts...
+2026-04-07 09:44:46,063 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:44:46,066 - INFO -   1: int main1(int l){
+2026-04-07 09:44:46,066 - INFO -   2:   int kgh, h, u350, f8, gt, x3;
+2026-04-07 09:44:46,066 - INFO -   3: 
+2026-04-07 09:44:46,066 - INFO -   4:   kgh=20;
+2026-04-07 09:44:46,066 - INFO -   5:   h=0;
+2026-04-07 09:44:46,066 - INFO -   6:   u350=0;
+2026-04-07 09:44:46,066 - INFO -   7:   f8=-5;
+2026-04-07 09:44:46,066 - INFO -   8:   gt=h;
+2026-04-07 09:44:46,066 - INFO -   9:   x3=-6;
+2026-04-07 09:44:46,066 - INFO -   10: 
+2026-04-07 09:44:46,066 - INFO - DEBUG: Total lines: 36
+2026-04-07 09:44:46,131 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:44:46,142 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:44:46,142 - INFO - Houdini iteration 1: Removed 9 failed invariants
+2026-04-07 09:44:46,142 - INFO -   Before: 9 invariants
+2026-04-07 09:44:46,142 - INFO -   After: 0 invariants
+2026-04-07 09:44:46,142 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:44:46,201 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:45:03,906 - INFO - Deduplicated 7 loop invariants in final code
+2026-04-07 09:45:03,940 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:45:03,940 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:45:03,940 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:45:03,941 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_56/1.c
+2026-04-07 09:45:03,941 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_56/1_invariants.txt
+2026-04-07 09:45:03,941 - INFO - 
 ============================================================
-2026-03-22 13:54:39,567 - INFO - Final first_pass results:
-2026-03-22 13:54:39,567 - INFO -   syntax=1
-2026-03-22 13:54:39,567 - INFO -   valid=1
-2026-03-22 13:54:39,567 - INFO -   satisfy=None
-2026-03-22 13:54:39,567 - INFO - ============================================================
-2026-03-22 13:54:39,567 - INFO - 
+2026-04-07 09:45:03,941 - INFO - Final first_pass results:
+2026-04-07 09:45:03,941 - INFO -   syntax=None
+2026-04-07 09:45:03,941 - INFO -   valid=None
+2026-04-07 09:45:03,941 - INFO -   satisfy=None
+2026-04-07 09:45:03,941 - INFO - ============================================================
+2026-04-07 09:45:03,941 - INFO - 
 ============================================================
-2026-03-22 13:54:39,567 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 13:54:39,567 - INFO -   Total API calls: 3
-2026-03-22 13:54:39,567 - INFO -   Total prompt tokens (input): 3,192
-2026-03-22 13:54:39,567 - INFO -   Total completion tokens (output): 17,748
-2026-03-22 13:54:39,567 - INFO -   Total tokens: 20,940
-2026-03-22 13:54:39,567 - INFO -   Average per call:
-2026-03-22 13:54:39,567 - INFO -     Prompt: 1064.0 tokens
-2026-03-22 13:54:39,567 - INFO -     Completion: 5916.0 tokens
-2026-03-22 13:54:39,567 - INFO -     Total: 6980.0 tokens
-2026-03-22 13:54:39,567 - INFO - ============================================================
-2026-03-22 13:54:39,568 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_56/1.c
-2026-03-22 13:54:39,568 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_56/1_invariants.txt
-2026-03-22 13:55:11,298 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
-2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
-2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
-2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...
+2026-04-07 09:45:03,941 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:45:03,941 - INFO -   Total API calls: 2
+2026-04-07 09:45:03,941 - INFO -   Total prompt tokens (input): 1,951
+2026-04-07 09:45:03,941 - INFO -   Total completion tokens (output): 4,444
+2026-04-07 09:45:03,941 - INFO -   Total tokens: 6,395
+2026-04-07 09:45:03,941 - INFO -   Average per call:
+2026-04-07 09:45:03,941 - INFO -     Prompt: 975.5 tokens
+2026-04-07 09:45:03,941 - INFO -     Completion: 2222.0 tokens
+2026-04-07 09:45:03,941 - INFO -     Total: 3197.5 tokens
+2026-04-07 09:45:03,941 - INFO - ============================================================
+2026-04-07 09:45:03,941 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_56/1.c
+2026-04-07 09:45:03,941 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_56/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

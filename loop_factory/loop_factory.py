@@ -1745,29 +1745,6 @@ class ProbabilisticLoopFactory:
                     written.add(sub.target)
                     expr_texts.append(sub.expr)
 
-        if ctr not in written and ctr not in " ".join(expr_texts):
-            return None
-
-        text_blob = " ".join(expr_texts)
-        if core_name == "prefix_sum_family":
-            non_ctr_written = [v for v in written if v != ctr]
-            if ctr not in written or not non_ctr_written:
-                return None
-        elif core_name == "snapshot_family":
-            if len(written & set(state_vars)) < 2:
-                return None
-        elif core_name == "qr_division_step":
-            if not any(sym in text_blob for sym in ["/", "%", "-", "+1", "-1"]):
-                return None
-            if len(written & set(state_vars)) < 2:
-                return None
-        elif core_name == "euclid_matrix":
-            if len(written & set(state_vars)) < 2:
-                return None
-        elif core_name == "russian_multiply":
-            if not any(sym in text_blob for sym in ["%2", "/2", "*2"]):
-                return None
-
         return guard, init_overrides, body, summary
 
     def _generate_core_loop_with_llm(

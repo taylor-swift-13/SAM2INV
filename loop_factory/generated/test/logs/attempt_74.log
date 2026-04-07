@@ -1,911 +1,500 @@
-2026-03-22 14:17:15,314 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 14:17:15,351 - INFO - Found 1 loops
-2026-03-22 14:17:15,352 - INFO - 
+2026-04-07 09:45:55,985 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:45:56,004 - INFO - Found 1 loops
+2026-04-07 09:45:56,005 - INFO - 
 ============================================================
-2026-03-22 14:17:15,352 - INFO - Main generation pass 1/1
-2026-03-22 14:17:15,352 - INFO - ============================================================
-2026-03-22 14:17:15,352 - INFO - Loaded single prompt template: simple
-2026-03-22 14:17:15,352 - INFO - Generating 8 candidate invariant sets with temperature=1.0
-2026-03-22 14:17:15,353 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 14:17:15,369 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:17:45,077 - INFO - 
------ Candidate 1/8 raw response begin -----
-<reasoning>
-I chose invariants that are strong, inductive, and directly reflect the loop's updates:
+2026-04-07 09:45:56,005 - INFO - Main generation pass 1/1
+2026-04-07 09:45:56,005 - INFO - ============================================================
+2026-04-07 09:45:56,005 - INFO - Loaded single prompt template: simple
+2026-04-07 09:45:56,005 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:45:56,005 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:45:56,066 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:47:56,828 - INFO - 
+----- Candidate 1/5 raw response begin -----
+<reasoning>We need inductive, verification-friendly loop invariants that explain the state updates without modifying the code. The loop updates five variables: gv, s2, n9h, v0, j. Therefore we include a precise loop assigns: gv, s2, n9h, v0, j.
 
-- Core conservation (relational equality): vh + w == 22. Each iteration does "vh = vh + st; w = w - st" with st = min(w,h3), so vh + w is preserved and equals its initial value 0+22 = 22. This explains the state transition for vh and w.
+From the initialization and the loop body, we can derive compact, exact, inductive relations between gv (the iteration counter, starting at 1) and the other state:
 
-- Constant parameter relation: m8b == \at(z, Pre) + 25. m8b is initialized once from the input parameter z and never changed; expressing it via \at(z, Pre) ties m8b to the function input.
+- gv increases by 1 each iteration, and the loop continues while gv < y1. The natural loop variant is y1 - gv, which decreases by 1 each iteration and is non-negative at loop entry when the loop is taken.
 
-- Linear relation for xu: xu == -6 + 4*lg. xu increases by 4 each iteration while lg increases by 1; that yields an exact affine relation useful for induction and exit reasoning.
+- s2 starts at 1 and, in each iteration, is updated by (gv % 2) after gv has been incremented. If m is the number of iterations performed so far, then gv = 1 + m and s2 = 1 + floor(m/2). Equivalently, since m = gv - 1, we have the exact invariant:
+  s2 == 1 + ((gv - 1) / 2)
 
-- Tight bounds for h3: 1 + lg <= h3 <= 1 + 2*lg. Every iteration h3 increases by either 1 or 2; starting from 1 this yields these exact lower/upper bounds in terms of lg.
+- v0 starts at d and, in each iteration, increases by the end-of-iteration gv (which equals 1 + m). The closed-form after m iterations is:
+  v0 == d + m + m(m+1)/2
+  Substituting m = gv - 1 yields the invariant:
+  v0 == d + (gv - 1) + ((gv - 1) * gv) / 2
 
-- Non-negativity and ordering facts: 0 <= w, 0 <= lg, 0 <= vh, and lg <= m8b. These are minimal numeric bounds that are preserved and useful for proving the variant and safe arithmetic.
+These two invariants are inductive: they hold initially (gv = 1 gives s2 = 1 and v0 = d) and are preserved by the loop updates (gv, s2, v0 evolve according to the formulas that drive them). While n9h and j have more complex closed-form expressions, adding them as invariants would require more elaborate relations; we can still certify the loop with the two exact invariants above plus a standard termination measure.
 
-- Variant: (m8b - lg) + w. At each iteration lg increments by 1 and w decreases by at least 1 (st >= 1 when w>0 and h3>=1), so the sum strictly decreases. The invariant m8b - lg + w >= 0 is asserted to justify the variant's non-negativity at loop head.
+Thus we add:
+- loop invariant s2 == 1 + ((gv - 1) / 2)
+- loop invariant v0 == d + (gv - 1) + ((gv - 1) * gv) / 2
+- loop assigns gv, s2, n9h, v0, j
+- loop variant y1 - gv
 
-- Exact loop assigns: the loop modifies st, vh, w, h3, lg, z, xu — and nothing else.
+These invariants are strong, non-tautological, and directly reflect the observed state updates. They reference only variables from the Available Variables list and function parameter d (which is a parameter). No unknown() calls or Pre-annotated values are used. </reasoning>
+<code>int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
 
-All invariants use only the available variables and \at(z, Pre) for the parameter. They are inductive: the conservation and affine relations match the update laws; the bounds on h3 and non-negativity are preserved by the update rules; the variant decreases strictly under the loop guard.
-</reasoning>
-<code>
-int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
-
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
 
   /*@
-    loop invariant m8b == \at(z, Pre) + 25;
-    loop invariant vh + w == 22;
-    loop invariant xu == -6 + 4 * lg;
-    loop invariant 1 + lg <= h3 && h3 <= 1 + 2 * lg;
-    loop invariant 0 <= w && 0 <= lg && 0 <= vh && lg <= m8b;
-    loop invariant m8b - lg + w >= 0;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant (m8b - lg) + w;
+    loop invariant s2 == 1 + ((gv - 1) / 2);
+    loop invariant v0 == d + (gv - 1) + ((gv - 1) * gv) / 2;
+    loop assigns gv, s2, n9h, v0, j;
+    loop variant y1 - gv;
+  @*/
+  while (gv < y1) {
+      gv += 1;
+      s2 = s2+(gv%2);
+      n9h = n9h*n9h;
+      v0 = v0 + gv;
+      j = j+(s2%6);
+  }
+
+}</code>
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:47:56,830 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:47:56,900 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:49:05,913 - INFO - 
+----- Candidate 2/5 raw response begin -----
+<reasoning>
+I choose invariants that (1) express the precise conservation law for v0 (the arithmetic accumulation of gv after each increment), (2) give an exact closed form for s2 (the accumulated parity count), and (3) provide simple nontrivial bounds for the loop counter and for j so the WP plugin can discharge numeric consequences.
+
+- Core relational equality (conservation law):
+  v0 is initialized to d and each iteration adds the current gv after it has been incremented. For gv starting at 1 this yields the closed form
+    v0 == \at(d, Pre) + (gv*(gv+1))/2 - 1.
+  This equality holds initially and is preserved by the update v0 += gv (with gv incremented first). It is the main inductive relation explaining the v0 evolution.
+
+- s2 exact relation:
+  s2 starts at 1 and in each iteration adds (new_gv % 2). Counting odd numbers from 2 up to gv gives s2 == (gv + 1) / 2 (integer division). This is a strong invariant and is preserved by the parity update.
+
+- Progress / bounding facts:
+  gv >= 1 is preserved (gv starts at 1 and always increases by 1).
+  j is monotone increasing each iteration by an amount in 0..5 (because j adds s2%6, which is between 0 and 5). Using the number of iterations so far (gv - 1) gives the bound
+    \at(j, Pre) <= j <= \at(j, Pre) + 5*(gv - 1).
+  These bounds are useful to show numeric properties at exit and are preserved by the loop body.
+
+- Loop assigns:
+  The loop modifies exactly gv, s2, n9h, v0, j. We list them precisely in loop assigns.
+
+All invariants use only variables available in the function and only use \at(...) for function parameters (\at(d, Pre) and \at(j, Pre)). The invariants are inductive: algebraic checks show v0 and s2 equalities are preserved under the updates; j bounds are preserved because each step increases j by at most 5. No modifications are made to the given code apart from the annotation block.
+</reasoning>
+<code>
+int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
+
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
+
+  /*@
+    loop invariant v0 == \at(d, Pre) + ((gv*(gv+1))/2) - 1;
+    loop invariant s2 == (gv + 1) / 2;
+    loop invariant gv >= 1;
+    loop invariant j >= \at(j, Pre) && j <= \at(j, Pre) + 5*(gv - 1);
+    loop assigns gv, s2, n9h, v0, j;
   */
-while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
+  while (gv < y1) {
+        gv += 1;
+        s2 = s2+(gv%2);
+        n9h = n9h*n9h;
+        v0 = v0 + gv;
+        j = j+(s2%6);
   }
 
 }
 </code>
------ Candidate 1/8 raw response end -----
-2026-03-22 14:17:45,078 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 14:17:45,092 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:18:12,720 - INFO - 
------ Candidate 2/8 raw response begin -----
-<reasoning>The loop updates have a clear conserved quantity and a simple linear relation with the loop counter lg. A robust inductive invariant is to capture a conservation: w + vh remains constant at its initial value (22) because every iteration does w' = w - st and vh' = vh + st, so w' + vh' = w + vh. Since initial w is 22 and vh is 0, this gives w + vh == 22 as a strong invariant. Another useful invariant is the relation between xu and lg, since xu increases by 4 each iteration while lg increases by 1; with initial xu = -6 and lg = 0, we have xu == -6 + 4*lg. These invariants are inductive, don’t depend on non-parameters, and are verified by the per-iteration updates. For termination, a minimal loop variant is m8b - lg, which decreases by 1 each iteration because lg increments by 1 and 0 <= lg < m8b during the loop. The loop assigns include all variables that are modified inside the loop: st, vh, w, h3, lg, z, xu. The invariants are kept simple and directly reflect the implemented state transitions. </reasoning>
-<code>int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:49:05,915 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:49:05,998 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:50:26,085 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I derived invariants that are precise, inductive, and verification-friendly for Frama-C/WP:
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+- Core conservation / relational equality (state transition law) for v0:
+  - v0 starts at d and in each iteration adds the new gv (gv is incremented first). If k iterations have been executed then gv = 1 + k and
+    v0 = d + sum_{i=1..k} (1 + i) = d + k*(k+3)/2.
+    Expressing k = gv - 1 gives the closed form
+    v0 == d + ((gv*gv + gv - 2) / 2).
+  This equality precisely explains how v0 accumulates the successive gv values and is strong enough to be shown preserved by the loop update v0 += gv (with gv incremented beforehand).
 
-  /*@
-    loop invariant w + vh == 22;
-    loop invariant xu == -6 + 4*lg;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant m8b - lg;
-  */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
-  }
+- Exact relation for s2:
+  - s2 starts at 1 and in each iteration increases by (gv % 2) where gv is the post-incremented value. Thus s2 equals
+    1 + number_of_odd_numbers_in_[2..gv] = ceil(gv/2) = (gv + 1) / 2 (integer division).
+  The equality s2 == (gv + 1) / 2 is precise and preserved by the update s2 = s2 + (gv % 2).
 
-}</code>
------ Candidate 2/8 raw response end -----
-2026-03-22 14:18:12,720 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 14:18:12,735 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:18:45,746 - INFO - 
------ Candidate 3/8 raw response begin -----
-<reasoning>Proposed loop invariants are chosen to be inductive and verification-friendly for Frama-C/WP, based on the loop update pattern:
+- Monotonicity bound for j:
+  - Each iteration adds a non-negative term (s2 % 6), so j is non-decreasing. The invariant j >= \at(j, Pre) is a useful and simple progress/monotonicity fact usable at loop exit.
 
-- A core state-transition: st is always the minimum of the pre-update w and h3. Since the code uses st = w when w < h3 and st = h3 otherwise, we can safely express this relation without using the ternary operator (which is forbidden in ACSL here) by two implications:
-  - If w < h3 then st == w
-  - If w >= h3 then st == h3
-  Together, they capture st == min(w, h3) in an inductive form.
+- Simple lower bound for gv:
+  - gv is initialized to 1 and strictly increases inside the loop; the invariant gv >= 1 is trivial but necessary to ensure the algebraic formulas (which use gv) are well-formed and hold at initialization.
 
-- Simple bounds that are preserved by every iteration:
-  - w never goes negative because w is reduced by st with st >= 1 while w > 0.
-  - h3 starts at 1 and only increases.
-  - vh accumulates nonnegative increments (st is always >= 0).
-  - xu increases by 4 each iteration (3 + 1), so xu == -6 + 4*lg holds at loop boundaries.
+- Exact loop assigns:
+  - The loop modifies gv, s2, n9h, v0 and j; those are listed precisely in loop assigns.
 
-- A straightforward counter/loop-progress metric:
-  - loop variant w is valid since w strictly decreases by at least 1 as long as the loop continues (st >= 1 when w > 0), ensuring termination.
+I avoided quantifiers and any non-allowed ACSL constructs. I did not attempt to give a closed-form for n9h (it follows repeated squaring: n9h = d^(2^k)), because that would require exponentiation/complicated encodings; instead n9h is simply included in the assigns clause. I omitted a loop variant because y1 - gv may be negative at entry and a variant must be non-negative at loop head; the termination argument is straightforward (gv increases and the guard is gv < y1) but is not required here.
 
-- The loop assigns set is complete: st, vh, w, h3, lg, z, xu are modified inside the loop.
+The chosen invariants are inductive:
+- They hold at loop entry (gv==1, s2==1, v0==d, j==\at(j,Pre)).
+- They are preserved by the sequence of updates (gv increments by 1, s2 and v0 update formulas match the closed forms, j is non-decreasing).
+- They are useful to prove post-conditions that depend on v0 and s2 at loop exit.
 
-These invariants are strong and directly reflect the loop’s state updates without introducing unrelated properties. They’re inductive (preserved by each iteration) and help Frama-C WP reason about termination and invariants at exit.
-
+All constraints from the task (no modification of unknown() calls — none present here —, no \at on locals, no forbidden constructs, exact assigns, strong invariants, etc.) are respected.
 </reasoning>
-<code>int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+<code>
+int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
 
   /*@
-    loop invariant st <= w;
-    loop invariant st <= h3;
-    loop invariant ((w &lt; h3) ==> (st == w)) && ((w &gt;= h3) ==> (st == h3));
-    loop invariant w &gt;= 0;
-    loop invariant h3 &gt;= 1;
-    loop invariant vh &gt;= 0;
-    loop invariant xu == -6 + 4*lg;
-    loop invariant lg &gt;= 0;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant w;
+    loop invariant gv >= 1;
+    loop invariant s2 == ((gv + 1) / 2);
+    loop invariant v0 == (d + ((gv*gv + gv - 2) / 2));
+    loop invariant j >= \at(j, Pre);
+    loop assigns gv, s2, n9h, v0, j;
   */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
+  while (gv < y1) {
+        gv += 1;
+        s2 = s2+(gv%2);
+        n9h = n9h*n9h;
+        v0 = v0 + gv;
+        j = j+(s2%6);
   }
 
-}</code>
------ Candidate 3/8 raw response end -----
-2026-03-22 14:18:45,746 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 14:18:45,761 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:19:27,772 - INFO - 
------ Candidate 4/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop. A strong, exact relational invariant is the conservation of the sum vh + w across iterations:
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:50:26,087 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:50:26,159 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:51:39,788 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I chose invariants that are (1) inductive, (2) explain the main state transition law, and (3) give simple, verifiable bounds for progress and derived variables.
 
-- In each iteration:
-  - st is assigned as st = min(w, h3) (implemented via if (w<h3) st = w; else st = h3;).
-  - vh is updated as vh = vh + st.
-  - w is updated as w = w - st.
-  - lg is incremented, z is updated by z = z + w (using old w), xu is incremented, etc.
+Core conservation (relational equality)
+- v0 is updated by adding the new gv after gv is incremented. Starting from v0 = d and gv = 1, after t iterations gv = 1+t and v0 increases by the sequence 2..(1+t). This yields the closed form
+  v0 == \at(d, Pre) + ((gv*(gv+1))/2 - 1),
+which holds initially and is preserved by each iteration (the algebraic step: RHS(gv+1) - RHS(gv) = gv+1 matches the v0 increment). This is the main explanatory equality required by the rules.
 
-Thus, after an iteration, vh' + w' = (vh + st) + (w - st) = vh + w. Since initially vh = 0 and w = 22, we have vh + w = 22 preserved throughout the loop. This gives a strong, exact invariant:
+Invariant facts about unchanged inputs
+- d and y1 are not modified by the loop; recording y1 == \at(d, Pre) - 6 and d == \at(d, Pre) is verification-friendly and helps the prover relate y1 to the parameter.
 
-- vh + w == 22
+Bounds / progress
+- gv is a loop counter starting at 1 and increasing by 1 each iteration, so gv >= 1 is invariant.
+- s2 starts at 1 and increases by either 0 or 1 per iteration (gv%2 ∈ {0,1}). Thus 1 <= s2 <= gv holds: lower bound from initialization and non-decreasing updates; upper bound because at most one increment per iteration.
+- j increases by s2%6 each iteration, i.e. by a value in [0,5]. Therefore we conservatively bound j between its initial value and initial + 5*(number of iterations). Number of iterations so far is gv-1, so:
+  \at(j, Pre) <= j <= \at(j, Pre) + 5*(gv - 1).
+This is simple and inductive (each step adds at most 5, while gv grows by 1).
 
-Other safe, inductive properties that hold throughout the loop:
-- w stays nonnegative and bounded above by the initial value: 0 <= w <= 22
-- vh stays nonnegative: 0 <= vh
-- h3 never decreases and starts at 1: h3 >= 1
-- lg never decreases and is bounded by the loop bound: 0 <= lg <= m8b
-- xu starts at -6 and only increases: -6 <= xu
-- z never decreases relative to its initial value: z >= \at(z, Pre)
+Loop assigns and variant
+- The loop assigns exactly the variables that are written: gv, s2, n9h, v0, j.
+- As a variant use y1 - gv which strictly decreases by 1 on each iteration while the guard holds (gv < y1), ensuring termination reasoning.
 
-Additionally, we should declare a loop variant to ensure termination. Since w strictly decreases by at least 1 each iteration (st <= w and w' = w - st with st >= 1 whenever loop continues), using loop variant w is appropriate.
-
-Finally, assign set must include all variables modified inside the loop: z, w, vh, h3, lg, xu, st.
-
-These invariants are strong, non-trivial, and preserved by the loop body. They also respect the constraint of using only available variables and function parameters as needed. The key relational invariant vh + w == 22 captures the core state-update conservation, which aids verification in Frama-C/WP. </reasoning>
-<code>/*@
-  loop invariant vh + w == 22;
-  loop invariant 0 &lt;= w &amp;&amp; w &lt;= 22;
-  loop invariant 0 &amp;#61; vh; /* 0 &lt;= vh */
-  loop invariant h3 &gt;= 1;
-  loop invariant 0 &amp;#61; lg &amp;&amp; lg &lt;= m8b;
-  loop invariant -6 &amp;#61; xu;
-  loop invariant z &gt;= \at(z, Pre);
-  loop assigns z, w, vh, h3, lg, xu, st;
-  loop variant w;
-*/</code>
------ Candidate 4/8 raw response end -----
-2026-03-22 14:19:27,772 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 14:19:27,789 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:20:10,293 - INFO - 
------ Candidate 5/8 raw response begin -----
-<reasoning>We need an inductive and verification-friendly loop annotation for the given loop in main1. The updates in the loop reveal a clean conserved quantity and a clear progress metric.
-
-Key observations:
-- Each iteration uses st = min(w, h3) and updates:
-  - vh := vh + st
-  - w  := w - st
-  Therefore vh + w remains constant across iterations. Initially vh = 0 and w = 22, so vh + w = 22. This gives a strong relational invariant:
-  - w + vh == 22
-- The loop guard is w > 0 && lg < m8b. Since w only decreases by at most its current value (st <= w) and vh increases correspondingly, w remains >= 0; this bounds w and vh nonnegatively.
-- The loop counter lg is incremented every iteration; a natural progress metric is m8b - lg, which strictly decreases by 1 each iteration and stays nonnegative while the loop runs. This serves as a robust loop variant for termination.
-- All variables that get assigned inside the loop are: z, w, vh, st, h3, lg, xu. We declare them in loop assigns to reflect the exact writes done in the body.
-
-Using these, we provide:
-- A core invariant: w + vh == 22 (the conservation law derived from the updates).
-- A minimal progress bound via loop variant: m8b - lg.
-- A basic non-negativity invariant for w as additional guard.
-
-These invariants are inductive and verification-friendly for Frama-C/WP.
-
+All invariants use only the available variables and \at(...) only on parameters (\at(d, Pre), \at(j, Pre)), as required.
 </reasoning>
-<code>int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+<code>
+int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
-
-  /*@
-    loop invariant w + vh == 22;
-    loop invariant w >= 0;
-    loop assigns z, w, vh, st, h3, lg, xu;
-    loop variant m8b - lg;
-  */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
-  }
-
-}</code>
------ Candidate 5/8 raw response end -----
-2026-03-22 14:20:10,293 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 14:20:10,307 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:21:10,652 - INFO - 
------ Candidate 6/8 raw response begin -----
-<reasoning>We need inductive loop invariants that are verification-friendly for Frama-C/WP, without changing the loop logic or using restricted constructs. Key observations about the loop body:
-
-- st = min(w, h3) and then w is decreased by st; thus w never becomes negative. This yields a safe progress bound: 0 <= w is preserved.
-- lg is incremented by 1 each iteration; so 0 <= lg is preserved, and the loop will terminate when lg reaches m8b.
-- h3 starts at 1 and increases by either 2 (when lg is even) or 1 (when lg is odd); thus h3 remains >= 1 throughout.
-- vh increases by st each iteration, so vh stays >= 0.
-- xu starts at -6 and is increased by 3, then by 1 in each iteration, i.e., by +4 per iteration. Therefore xu = -6 + 4*lg holds at every loop state (strong, inductive invariant).
-- The loop variant for termination can be chosen as m8b - lg, which decreases by 1 each iteration while the loop guard is true (lg < m8b) and is nonnegative in any state where the loop can execute.
-
-Selected invariants (inductive and verification-friendly):
-- 0 <= w
-- 0 <= lg
-- vh >= 0
-- h3 >= 1
-- xu == -6 + 4*lg
-- loop variant m8b - lg
-- loop assigns st, vh, w, h3, lg, z, xu
-
-These invariants are chosen to be strong enough to help verification, yet independent of \at(z, Pre) (since z is a local variable) and without introducing uncertain bounds on m8b that could fail for some inputs. The core conservation law is the exact relation between xu and lg; progress bounds ensure termination; other invariants capture monotonicity and non-negativity of key variables. The loop assigns list includes exactly the touched variables. The resulting ACSL annotations are inductive and verification-friendly for Frama-C/WP.</reasoning>
-<code>int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
-
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
 
   /*@
-    loop invariant 0 <= w;
-    loop invariant 0 <= lg;
-    loop invariant vh >= 0;
-    loop invariant h3 >= 1;
-    loop invariant xu == -6 + 4*lg;
-    loop variant m8b - lg;
-    loop assigns st, vh, w, h3, lg, z, xu;
+    loop invariant d == \at(d, Pre);
+    loop invariant y1 == \at(d, Pre) - 6;
+    loop invariant gv >= 1;
+    loop invariant v0 == \at(d, Pre) + (((gv * (gv + 1)) / 2) - 1);
+    loop invariant 1 <= s2 && s2 <= gv;
+    loop invariant \at(j, Pre) <= j && j <= \at(j, Pre) + 5 * (gv - 1);
+    loop assigns gv, s2, n9h, v0, j;
+    loop variant (y1 - gv);
   */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
+  while (gv < y1) {
+        gv += 1;
+        s2 = s2+(gv%2);
+        n9h = n9h*n9h;
+        v0 = v0 + gv;
+        j = j+(s2%6);
   }
 
-}</code>
------ Candidate 6/8 raw response end -----
-2026-03-22 14:21:10,652 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 14:21:10,668 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:21:52,753 - INFO - 
------ Candidate 7/8 raw response begin -----
-<reasoning>The loop maintains a simple conservation law: each iteration transfers "st" units from w into vh. Specifically, st is set to min(w, h3), then w is decreased by st and vh is increased by the same amount st, so the sum w + vh remains constant at its initial value 22. This invariant is inductive because it holds before the first iteration and is preserved by every iteration regardless of which branch is taken. Additional safe, verification-friendly invariants are included: z is non-decreasing relative to its initial value (\at(z, Pre)) since z increases by a non-negative amount (the new w after the decrement), and lg never exceeds m8b (since lg increments by 1 each iteration and the loop guard ensures lg < m8b while running). We also declare basic non-negativity bounds for w, h3, and xu to aid verification, and specify the exact loop assigns to reflect all variables mutated in the loop. The loop variant is w, which strictly decreases whenever the loop body executes (st ≥ 1 while w > 0 and h3 ≥ 1), ensuring termination under the given guards. The chosen invariants are strong and directly reflect the core state-update relations without overreaching beyond the function’s scope. </reasoning>
-<code>int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:51:39,790 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:51:39,865 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:53:27,353 - INFO - 
+----- Candidate 5/5 raw response begin -----
+<reasoning>
+I chose invariants that are strong, inductive, and directly explain the loop state changes while using only the available variables and permitted uses of \at(..., Pre).
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+Core relational equality (conservation law)
+- v0 records the running sum of the incremented gv values. Since gv starts at 1 and each iteration first increments gv and then adds the new gv to v0, one gets the closed form
+  v0 == \at(d, Pre) + sum_{t=2..gv} t
+  which simplifies (using the arithmetic formula for sums of consecutive integers) to
+  v0 == \at(d, Pre) + (gv*(gv+1))/2 - 1.
+  This equality explains exactly how v0 evolves and is preserved by the loop update v0 := v0 + (gv+1).
 
-  /*@
-    loop invariant w + vh == 22;
-    loop invariant z >= \at(z, Pre) && lg <= m8b;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant w;
-  */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
-  }
+Simple arithmetic invariant for s2 (progress bound / parity summary)
+- s2 counts how many odd gv values have been observed (starting from gv initial = 1 with s2 = 1). The closed form
+  s2 == 1 + (gv - 1)/2
+  (integer division) is exact and preserved by the update s2 := s2 + (gv%2) together with gv := gv + 1 (one can check the two parity cases to see inductiveness).
 
-}</code>
------ Candidate 7/8 raw response end -----
-2026-03-22 14:21:52,753 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 14:21:52,769 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:22:59,308 - INFO - 
------ Candidate 8/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL annotations that capture the loop behavior without altering code. I chose strong invariants that are preserved by every iteration and are easy for WP to verify.
+Other useful, simple invariants (progress / safety)
+- gv >= 1: gv is a loop counter that starts at 1 and only increases.
+- j >= \at(j, Pre): j only increases by a non-negative amount (s2%6), so it is monotone non-decreasing relative to its initial value.
+- y1 == d - 6: y1 is computed once before the loop and not modified, so this links y1 to the (function) parameter d. This is safe because d is a function parameter (we avoid \at on locals).
 
-Key invariant ideas:
-- m8b is a fixed constant equal to the initial z plus 25. Since m8b is assigned once before the loop and never updated, we can express it as m8b == \at(z, Pre) + 25. This ties the loop bound to the function parameter’s initial value.
-- vh tracks the cumulative chosen st; because st is subtracted from w and then added to vh each iteration, vh and w satisfy vh = 22 - w (with w starting at 22). This is a clean, exact conservation relation that is preserved by the updates.
-- xu increments by 4 each iteration (three increments of 3 and 1), while lg increments by 1 per iteration. Therefore xu == -6 + 4*lg is an exact invariant.
-- z is updated by z = z + w (with w being the current, post-update value). Since w >= 0 after each iteration, z never decreases and thus z >= \at(z, Pre). This is a safe, monotonic bound.
-- 0 <= lg and 0 <= w hold because lg starts at 0 and increments, and w starts at 22 and only decreases by nonnegative st.
-- Loop assigns properly lists all variables modified inside the loop: st, vh, w, h3, lg, z, xu.
-- Loop variant m8b - lg decreases by 1 every iteration (since lg increments by 1 and m8b is constant), ensuring termination when the loop guard is exhausted. This is a standard, simple termination measure.
+Loop assigns
+- The loop modifies exactly gv, s2, n9h, v0 and j. These are listed explicitly.
 
-These invariants are strong (nontrivial equalities) and inductive, and they rely only on available variables (including the function parameter z via \at(z, Pre)) without introducing unsupported constructs.
+Inductiveness
+- v0: if v0 == D + sum_{2..gv} then after gv := gv+1 and v0 := v0 + gv (new gv) we get v0' == D + sum_{2..(gv+1)}.
+- s2: using integer division and parity cases, s2' = s2 + (new_gv % 2) equals 1 + ((gv+1)-1)/2.
+- gv, j, y1 invariants are trivial to preserve (gv increases, j increases by non-negative amount, y1 is unchanged).
 
+I left out a loop variant to avoid imposing an extra invariant (such as y1 >= gv) that might not hold at loop entry for arbitrary d; the WP plugin can still attempt termination proofs separately, but the provided invariants are sufficient and verification-friendly to prove preservation and many useful properties.
+
+All invariants only use variables from the available list and only use \at(...) on function parameters as allowed.
 </reasoning>
-<code>int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+<code>
+int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
-
-  /*@
-    loop invariant m8b == \at(z, Pre) + 25;
-    loop invariant vh == 22 - w;
-    loop invariant xu == -6 + 4*lg;
-    loop invariant z >= \at(z, Pre);
-    loop invariant 0 <= lg;
-    loop invariant 0 <= w;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant m8b - lg;
-  */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
-  }
-
-}</code>
------ Candidate 8/8 raw response end -----
-2026-03-22 14:22:59,308 - INFO - 
------ Candidate 1/8 full code begin -----
-int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
-
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
 
   /*@
-    loop invariant m8b == \at(z, Pre) + 25;
-    loop invariant vh + w == 22;
-    loop invariant xu == -6 + 4 * lg;
-    loop invariant 1 + lg <= h3 && h3 <= 1 + 2 * lg;
-    loop invariant 0 <= w && 0 <= lg && 0 <= vh && lg <= m8b;
-    loop invariant m8b - lg + w >= 0;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant (m8b - lg) + w;
+    loop invariant v0 == (\at(d, Pre) + (gv*(gv+1))/2 - 1);
+    loop invariant s2 == (1 + (gv - 1)/2);
+    loop invariant gv >= 1;
+    loop invariant j >= \at(j, Pre);
+    loop invariant y1 == d - 6;
+    loop assigns gv, s2, n9h, v0, j;
   */
-while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
+while (gv < y1) {
+      gv += 1;
+      s2 = s2+(gv%2);
+      n9h = n9h*n9h;
+      v0 = v0 + gv;
+      j = j+(s2%6);
   }
 
 }
------ Candidate 1/8 full code end -----
-2026-03-22 14:22:59,308 - INFO - 
------ Candidate 2/8 full code begin -----
-int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:53:27,355 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
 
   /*@
-    loop invariant w + vh == 22;
-    loop invariant xu == -6 + 4*lg;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant m8b - lg;
-  */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
+    loop invariant s2 == 1 + ((gv - 1) / 2);
+    loop invariant v0 == d + (gv - 1) + ((gv - 1) * gv) / 2;
+    loop assigns gv, s2, n9h, v0, j;
+    loop variant y1 - gv;
+  @*/
+  while (gv < y1) {
+      gv += 1;
+      s2 = s2+(gv%2);
+      n9h = n9h*n9h;
+      v0 = v0 + gv;
+      j = j+(s2%6);
   }
 
 }
------ Candidate 2/8 full code end -----
-2026-03-22 14:22:59,308 - INFO - 
------ Candidate 3/8 full code begin -----
-int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+----- Candidate 1/5 full code end -----
+2026-04-07 09:53:27,355 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
 
   /*@
-    loop invariant st <= w;
-    loop invariant st <= h3;
-    loop invariant ((w &lt; h3) ==> (st == w)) && ((w &gt;= h3) ==> (st == h3));
-    loop invariant w &gt;= 0;
-    loop invariant h3 &gt;= 1;
-    loop invariant vh &gt;= 0;
-    loop invariant xu == -6 + 4*lg;
-    loop invariant lg &gt;= 0;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant w;
+    loop invariant v0 == \at(d, Pre) + ((gv*(gv+1))/2) - 1;
+    loop invariant s2 == (gv + 1) / 2;
+    loop invariant gv >= 1;
+    loop invariant j >= \at(j, Pre) && j <= \at(j, Pre) + 5*(gv - 1);
+    loop assigns gv, s2, n9h, v0, j;
   */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
+  while (gv < y1) {
+        gv += 1;
+        s2 = s2+(gv%2);
+        n9h = n9h*n9h;
+        v0 = v0 + gv;
+        j = j+(s2%6);
   }
 
 }
------ Candidate 3/8 full code end -----
-2026-03-22 14:22:59,308 - INFO - 
------ Candidate 4/8 full code begin -----
-/*@
-  loop invariant vh + w == 22;
-  loop invariant 0 &lt;= w &amp;&amp; w &lt;= 22;
-  loop invariant 0 &amp;#61; vh; /* 0 &lt;= vh */
-  loop invariant h3 &gt;= 1;
-  loop invariant 0 &amp;#61; lg &amp;&amp; lg &lt;= m8b;
-  loop invariant -6 &amp;#61; xu;
-  loop invariant z &gt;= \at(z, Pre);
-  loop assigns z, w, vh, h3, lg, xu, st;
-  loop variant w;
-*/
------ Candidate 4/8 full code end -----
-2026-03-22 14:22:59,308 - INFO - 
------ Candidate 5/8 full code begin -----
-int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+----- Candidate 2/5 full code end -----
+2026-04-07 09:53:27,355 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
 
   /*@
-    loop invariant w + vh == 22;
-    loop invariant w >= 0;
-    loop assigns z, w, vh, st, h3, lg, xu;
-    loop variant m8b - lg;
+    loop invariant gv >= 1;
+    loop invariant s2 == ((gv + 1) / 2);
+    loop invariant v0 == (d + ((gv*gv + gv - 2) / 2));
+    loop invariant j >= \at(j, Pre);
+    loop assigns gv, s2, n9h, v0, j;
   */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
+  while (gv < y1) {
+        gv += 1;
+        s2 = s2+(gv%2);
+        n9h = n9h*n9h;
+        v0 = v0 + gv;
+        j = j+(s2%6);
   }
 
 }
------ Candidate 5/8 full code end -----
-2026-03-22 14:22:59,308 - INFO - 
------ Candidate 6/8 full code begin -----
-int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+----- Candidate 3/5 full code end -----
+2026-04-07 09:53:27,356 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
 
   /*@
-    loop invariant 0 <= w;
-    loop invariant 0 <= lg;
-    loop invariant vh >= 0;
-    loop invariant h3 >= 1;
-    loop invariant xu == -6 + 4*lg;
-    loop variant m8b - lg;
-    loop assigns st, vh, w, h3, lg, z, xu;
+    loop invariant d == \at(d, Pre);
+    loop invariant y1 == \at(d, Pre) - 6;
+    loop invariant gv >= 1;
+    loop invariant v0 == \at(d, Pre) + (((gv * (gv + 1)) / 2) - 1);
+    loop invariant 1 <= s2 && s2 <= gv;
+    loop invariant \at(j, Pre) <= j && j <= \at(j, Pre) + 5 * (gv - 1);
+    loop assigns gv, s2, n9h, v0, j;
+    loop variant (y1 - gv);
   */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
+  while (gv < y1) {
+        gv += 1;
+        s2 = s2+(gv%2);
+        n9h = n9h*n9h;
+        v0 = v0 + gv;
+        j = j+(s2%6);
   }
 
 }
------ Candidate 6/8 full code end -----
-2026-03-22 14:22:59,308 - INFO - 
------ Candidate 7/8 full code begin -----
-int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
+----- Candidate 4/5 full code end -----
+2026-04-07 09:53:27,356 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int d,int j){
+  int y1, gv, v0, n9h, s2;
 
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
+  y1=d-6;
+  gv=1;
+  v0=d;
+  n9h=d;
+  s2=gv;
 
   /*@
-    loop invariant w + vh == 22;
-    loop invariant z >= \at(z, Pre) && lg <= m8b;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant w;
+    loop invariant v0 == (\at(d, Pre) + (gv*(gv+1))/2 - 1);
+    loop invariant s2 == (1 + (gv - 1)/2);
+    loop invariant gv >= 1;
+    loop invariant j >= \at(j, Pre);
+    loop invariant y1 == d - 6;
+    loop assigns gv, s2, n9h, v0, j;
   */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
+while (gv < y1) {
+      gv += 1;
+      s2 = s2+(gv%2);
+      n9h = n9h*n9h;
+      v0 = v0 + gv;
+      j = j+(s2%6);
   }
 
 }
------ Candidate 7/8 full code end -----
-2026-03-22 14:22:59,309 - INFO - 
------ Candidate 8/8 full code begin -----
-int main1(int z){
-  int m8b, lg, w, vh, h3, st, xu;
-
-  m8b=z+25;
-  lg=0;
-  w=22;
-  vh=0;
-  h3=1;
-  st=0;
-  xu=-6;
-
-  /*@
-    loop invariant m8b == \at(z, Pre) + 25;
-    loop invariant vh == 22 - w;
-    loop invariant xu == -6 + 4*lg;
-    loop invariant z >= \at(z, Pre);
-    loop invariant 0 <= lg;
-    loop invariant 0 <= w;
-    loop assigns st, vh, w, h3, lg, z, xu;
-    loop variant m8b - lg;
-  */
-  while (w>0&&lg<m8b) {
-      if (w<h3) {
-          st = w;
-      }
-      else {
-          st = h3;
-      }
-      vh = vh + st;
-      w = w - st;
-      if (lg%2==0) {
-          h3 += 2;
-      }
-      else {
-          h3 += 1;
-      }
-      lg++;
-      z = z + w;
-      xu = xu + 3;
-      xu = xu + 1;
-  }
-
-}
------ Candidate 8/8 full code end -----
-2026-03-22 14:22:59,309 - INFO - Successfully generated 8/8 candidates
-2026-03-22 14:22:59,309 - INFO - Checking 17 invariants for conflicts...
-2026-03-22 14:22:59,312 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 14:22:59,312 - INFO -   1: int main1(int z){
-2026-03-22 14:22:59,312 - INFO -   2:   int m8b, lg, w, vh, h3, st, xu;
-2026-03-22 14:22:59,312 - INFO -   3: 
-2026-03-22 14:22:59,312 - INFO -   4:   m8b=z+25;
-2026-03-22 14:22:59,312 - INFO -   5:   lg=0;
-2026-03-22 14:22:59,312 - INFO -   6:   w=22;
-2026-03-22 14:22:59,312 - INFO -   7:   vh=0;
-2026-03-22 14:22:59,312 - INFO -   8:   h3=1;
-2026-03-22 14:22:59,312 - INFO -   9:   st=0;
-2026-03-22 14:22:59,312 - INFO -   10:   xu=-6;
-2026-03-22 14:22:59,312 - INFO - DEBUG: Total lines: 55
-2026-03-22 14:22:59,512 - INFO - syntax Correct
-2026-03-22 14:23:31,489 - INFO - Validate:
-2026-03-22 14:23:31,489 - INFO - [True, True, True, True, False, True, True, False, True, True, True, True, True, True, True, True, True]
-2026-03-22 14:23:31,489 - INFO - 
-2026-03-22 14:23:31,490 - INFO - Verify:
-2026-03-22 14:23:31,490 - INFO - []
-2026-03-22 14:23:31,490 - INFO - 
-2026-03-22 14:23:31,490 - INFO - Houdini iteration 1: Removed 2 failed invariants
-2026-03-22 14:23:31,490 - INFO -   Before: 17 invariants
-2026-03-22 14:23:31,490 - INFO -   After: 15 invariants
-2026-03-22 14:23:31,490 - INFO -   Remaining invariants:
-2026-03-22 14:23:31,490 - INFO -     [1] m8b == \at(z, Pre) + 25
-2026-03-22 14:23:31,490 - INFO -     [2] vh + w == 22
-2026-03-22 14:23:31,490 - INFO -     [3] xu == -6 + 4 * lg
-2026-03-22 14:23:31,490 - INFO -     [4] 1 + lg <= h3 && h3 <= 1 + 2 * lg
-2026-03-22 14:23:31,490 - INFO -     [5] m8b - lg + w >= 0
-2026-03-22 14:23:31,490 - INFO -     [6] w + vh == 22
-2026-03-22 14:23:31,490 - INFO -     [7] st <= h3
-2026-03-22 14:23:31,490 - INFO -     [8] w >= 0
-2026-03-22 14:23:31,490 - INFO -     [9] 0 <= w
-2026-03-22 14:23:31,490 - INFO -     [10] 0 <= lg
-2026-03-22 14:23:31,490 - INFO -     [11] vh >= 0
-2026-03-22 14:23:31,490 - INFO -     [12] h3 >= 1
-2026-03-22 14:23:31,490 - INFO -     [13] z >= \at(z, Pre) && lg <= m8b
-2026-03-22 14:23:31,490 - INFO -     [14] vh == 22 - w
-2026-03-22 14:23:31,490 - INFO -     [15] z >= \at(z, Pre)
-2026-03-22 14:23:31,703 - INFO - syntax Correct
-2026-03-22 14:24:03,430 - INFO - Validate:
-2026-03-22 14:24:03,430 - INFO - [True, True, True, True, False, True, True, True, True, True, True, True, False, True, True]
-2026-03-22 14:24:03,430 - INFO - 
-2026-03-22 14:24:03,430 - INFO - Verify:
-2026-03-22 14:24:03,430 - INFO - []
-2026-03-22 14:24:03,430 - INFO - 
-2026-03-22 14:24:03,430 - INFO - Houdini iteration 2: Removed 2 failed invariants
-2026-03-22 14:24:03,430 - INFO -   Before: 15 invariants
-2026-03-22 14:24:03,430 - INFO -   After: 13 invariants
-2026-03-22 14:24:03,430 - INFO -   Remaining invariants:
-2026-03-22 14:24:03,430 - INFO -     [1] m8b == \at(z, Pre) + 25
-2026-03-22 14:24:03,430 - INFO -     [2] vh + w == 22
-2026-03-22 14:24:03,430 - INFO -     [3] xu == -6 + 4 * lg
-2026-03-22 14:24:03,430 - INFO -     [4] 1 + lg <= h3 && h3 <= 1 + 2 * lg
-2026-03-22 14:24:03,430 - INFO -     [5] w + vh == 22
-2026-03-22 14:24:03,430 - INFO -     [6] st <= h3
-2026-03-22 14:24:03,430 - INFO -     [7] w >= 0
-2026-03-22 14:24:03,430 - INFO -     [8] 0 <= w
-2026-03-22 14:24:03,430 - INFO -     [9] 0 <= lg
-2026-03-22 14:24:03,430 - INFO -     [10] vh >= 0
-2026-03-22 14:24:03,430 - INFO -     [11] h3 >= 1
-2026-03-22 14:24:03,430 - INFO -     [12] vh == 22 - w
-2026-03-22 14:24:03,430 - INFO -     [13] z >= \at(z, Pre)
-2026-03-22 14:24:03,643 - INFO - syntax Correct
-2026-03-22 14:24:35,029 - INFO - Validate:
-2026-03-22 14:24:35,029 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 14:24:35,030 - INFO - 
-2026-03-22 14:24:35,030 - INFO - Verify:
-2026-03-22 14:24:35,030 - INFO - []
-2026-03-22 14:24:35,030 - INFO - 
-2026-03-22 14:24:35,030 - INFO - Houdini iteration 3: All invariants are valid
-2026-03-22 14:24:35,240 - INFO - syntax Correct
-2026-03-22 14:25:06,622 - INFO - Validate:
-2026-03-22 14:25:06,622 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 14:25:06,622 - INFO - 
-2026-03-22 14:25:06,622 - INFO - Verify:
-2026-03-22 14:25:06,622 - INFO - []
-2026-03-22 14:25:06,622 - INFO - 
-2026-03-22 14:25:29,397 - INFO - Deduplicated 5 loop invariants in final code
-2026-03-22 14:25:29,602 - INFO - syntax Correct
-2026-03-22 14:26:00,834 - INFO - Validate:
-2026-03-22 14:26:00,834 - INFO - [True, True, True, True, True, True, True, True, True, True]
-2026-03-22 14:26:00,834 - INFO - 
-2026-03-22 14:26:00,834 - INFO - Verify:
-2026-03-22 14:26:00,834 - INFO - []
-2026-03-22 14:26:00,834 - INFO - 
-2026-03-22 14:26:00,835 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 14:26:00,835 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_74/1.c
-2026-03-22 14:26:00,835 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_74/1_invariants.txt
-2026-03-22 14:26:00,835 - INFO - 
+----- Candidate 5/5 full code end -----
+2026-04-07 09:53:27,356 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:53:27,357 - INFO - Checking 17 invariants for conflicts...
+2026-04-07 09:53:27,366 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:53:27,366 - INFO -   1: int main1(int d,int j){
+2026-04-07 09:53:27,366 - INFO -   2:   int y1, gv, v0, n9h, s2;
+2026-04-07 09:53:27,366 - INFO -   3: 
+2026-04-07 09:53:27,366 - INFO -   4:   y1=d-6;
+2026-04-07 09:53:27,366 - INFO -   5:   gv=1;
+2026-04-07 09:53:27,366 - INFO -   6:   v0=d;
+2026-04-07 09:53:27,366 - INFO -   7:   n9h=d;
+2026-04-07 09:53:27,366 - INFO -   8:   s2=gv;
+2026-04-07 09:53:27,366 - INFO -   9: 
+2026-04-07 09:53:27,366 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-04-07 09:53:27,366 - INFO - DEBUG: Total lines: 40
+2026-04-07 09:53:27,396 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:53:27,396 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:53:27,396 - INFO - Houdini iteration 1: Removed 17 failed invariants
+2026-04-07 09:53:27,396 - INFO -   Before: 17 invariants
+2026-04-07 09:53:27,396 - INFO -   After: 0 invariants
+2026-04-07 09:53:27,396 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:53:27,425 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:54:48,652 - INFO - Deduplicated 15 loop invariants in final code
+2026-04-07 09:54:48,679 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:54:48,679 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:54:48,679 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:54:48,679 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_74/1.c
+2026-04-07 09:54:48,679 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_74/1_invariants.txt
+2026-04-07 09:54:48,679 - INFO - 
 ============================================================
-2026-03-22 14:26:00,835 - INFO - Final first_pass results:
-2026-03-22 14:26:00,835 - INFO -   syntax=1
-2026-03-22 14:26:00,835 - INFO -   valid=1
-2026-03-22 14:26:00,835 - INFO -   satisfy=None
-2026-03-22 14:26:00,835 - INFO - ============================================================
-2026-03-22 14:26:00,835 - INFO - 
+2026-04-07 09:54:48,679 - INFO - Final first_pass results:
+2026-04-07 09:54:48,679 - INFO -   syntax=None
+2026-04-07 09:54:48,679 - INFO -   valid=None
+2026-04-07 09:54:48,679 - INFO -   satisfy=None
+2026-04-07 09:54:48,679 - INFO - ============================================================
+2026-04-07 09:54:48,679 - INFO - 
 ============================================================
-2026-03-22 14:26:00,835 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 14:26:00,835 - INFO -   Total API calls: 2
-2026-03-22 14:26:00,835 - INFO -   Total prompt tokens (input): 2,425
-2026-03-22 14:26:00,835 - INFO -   Total completion tokens (output): 11,168
-2026-03-22 14:26:00,835 - INFO -   Total tokens: 13,593
-2026-03-22 14:26:00,835 - INFO -   Average per call:
-2026-03-22 14:26:00,835 - INFO -     Prompt: 1212.5 tokens
-2026-03-22 14:26:00,835 - INFO -     Completion: 5584.0 tokens
-2026-03-22 14:26:00,835 - INFO -     Total: 6796.5 tokens
-2026-03-22 14:26:00,835 - INFO - ============================================================
-2026-03-22 14:26:00,835 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_74/1.c
-2026-03-22 14:26:00,835 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_74/1_invariants.txt
-2026-03-22 14:26:24,435 - INFO - LLM quality-gate raw response: {"ok": true, "reason": "pass"}
-2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
-2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
-2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...
+2026-04-07 09:54:48,679 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:54:48,679 - INFO -   Total API calls: 8
+2026-04-07 09:54:48,679 - INFO -   Total prompt tokens (input): 9,026
+2026-04-07 09:54:48,679 - INFO -   Total completion tokens (output): 33,388
+2026-04-07 09:54:48,679 - INFO -   Total tokens: 42,414
+2026-04-07 09:54:48,679 - INFO -   Average per call:
+2026-04-07 09:54:48,679 - INFO -     Prompt: 1128.2 tokens
+2026-04-07 09:54:48,679 - INFO -     Completion: 4173.5 tokens
+2026-04-07 09:54:48,679 - INFO -     Total: 5301.8 tokens
+2026-04-07 09:54:48,679 - INFO - ============================================================
+2026-04-07 09:54:48,680 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_74/1.c
+2026-04-07 09:54:48,680 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_74/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

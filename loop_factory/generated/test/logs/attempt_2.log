@@ -1,2107 +1,470 @@
-2026-03-22 22:25:14,722 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 22:25:14,753 - INFO - Found 1 loops
-2026-03-22 22:25:14,771 - INFO - 
+2026-04-07 09:24:34,479 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:24:34,485 - INFO - Found 1 loops
+2026-04-07 09:24:34,486 - INFO - 
 ============================================================
-2026-03-22 22:25:14,772 - INFO - Main generation pass 1/1
-2026-03-22 22:25:14,773 - INFO - ============================================================
-2026-03-22 22:25:14,773 - INFO - Loaded single prompt template: simple
-2026-03-22 22:25:14,773 - INFO - Generating 20 candidate invariant sets with temperature=1.0
-2026-03-22 22:25:14,775 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 22:25:14,794 - INFO -   Generating candidate 1/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:26:04,870 - INFO - 
------ Candidate 1/20 raw response begin -----
+2026-04-07 09:24:34,486 - INFO - Main generation pass 1/1
+2026-04-07 09:24:34,486 - INFO - ============================================================
+2026-04-07 09:24:34,486 - INFO - Loaded single prompt template: simple
+2026-04-07 09:24:34,486 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:24:34,486 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:24:34,550 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:25:30,852 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-I chose invariants that are strong, inductive, and directly tied to the loop body behavior:
+I examined the loop body semantics carefully. The code initializes l=0 and then the loop body always sets l = vy at the end. Thus the loop can execute at most once: either l stays 0 (no iteration) or becomes vy (after a single iteration). I therefore express that fact directly as the core conservation/relational invariant (l == 0) || (l == vy). This gives a simple state transition law: the only possible l-values while the loop runs are the initial 0 or the post-iteration vy.
 
-- nf2q bounds and variant:
-  - nf2q starts at 1 and is increased by exactly 1 each loop iteration, so nf2q >= 1 is preserved and nf2q <= ltod + 1 is an invariant that yields an exact exit value: when the loop exits (i.e. !(nf2q <= ltod)), combined with nf2q <= ltod + 1 gives nf2q == ltod + 1. The variant (ltod - nf2q + 1) is a non-negative integer that strictly decreases by 1 each iteration, ensuring termination proof obligations for WP.
+From the concrete single-iteration behavior we can derive exact equalities for the other variables:
+- If l == 0 (before any iteration) then the initial local-state equalities hold: d4 == 0, rn == vy, oo2z == 1.
+- If the loop has executed and l == vy (and l > 0) then the body deterministically computes d4 == \at(y, Pre) (because d4 becomes old_d4 + 1 * y with old_d4 == 0 and l incremented to 1), rn == vy + (\at(y, Pre) % 6), and oo2z == 2.
 
-- fl <-> nf2q relationship (core conservation/relational equality):
-  - fl is initially 1 and is updated by multiplying by (1/nf2q) twice each iteration. Because of integer division, (1/nf2q) is 1 exactly when nf2q == 1, and 0 when nf2q >= 2. Thus fl can only be 1 exactly when nf2q == 1; otherwise fl becomes 0 and remains 0. The invariant (fl == 1) <==> (nf2q == 1) captures this precise connection and explains the multiplicative state transition of fl relative to nf2q.
+These conditional equalities are strong (not tautological), inductive, and sufficient to prove the post-loop facts about d4, rn and oo2z. I also include the numeric bounds 0 <= l <= vy and the exact loop assigns clause listing all modified variables (d4, y, rn, oo2z, l). Finally, the variant (vy - l) is a natural decreasing measure: when the loop executes from l==0 it strictly decreases to 0, ensuring termination reasoning for WP.
 
-- zwad domain:
-  - The code sets zwad to either 1 or -1 depending on a parity test; the invariant (zwad == 1 || zwad == -1) records this exact domain and is needed to reason about r0p and kpa updates (r0p gets r0p + zwad*fl, kpa gets incremented by zwad).
-
-- loop assigns:
-  - I list exactly the variables modified by the loop body: fl, zwad, nf2q, r0p, qf, kpa. The other variables are not modified and must not be in assigns.
-
-These invariants are inductive:
-- nf2q increments by 1, so nf2q >= 1 and nf2q <= ltod + 1 are preserved (if nf2q <= ltod before the body then nf2q+1 <= ltod+1 after).
-- The fl ↔ nf2q equivalence holds at loop head: if nf2q == 1 then fl == 1 (initially true) and if nf2q >= 2 then integer division ensures fl == 0 after the body's assignments; thus at the next loop head fl==1 exactly when nf2q==1.
-- zwad is always set to 1 or -1 in the body, so the domain invariant is preserved.
-
-These are minimal, focused, and provide the exact exit fact nf2q == ltod + 1 when the loop terminates, which is often required for postcondition reasoning.
+All uses of \at(y, Pre) are only on the function parameter y as required. No local pre-state \at is used. The invariants are kept minimal and focused on variables that change in the loop.
 </reasoning>
 <code>
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
 
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-   loop invariant nf2q >= 1;
-   loop invariant nf2q <= (ltod + 1);
-   loop invariant (fl == 1) <==> (nf2q == 1);
-   loop invariant (zwad == 1 || zwad == -1);
-   loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-   loop variant (ltod - nf2q + 1);
- */
- while (1) {
-       if (!(nf2q<=ltod)) {
-           break;
-       }
-       fl = fl*(1/nf2q);
-       if ((nf2q/2)%2==0) {
-           zwad = 1;
-       }
-       else {
-           zwad = -1;
-       }
-       nf2q = nf2q + 1;
-       r0p = r0p+zwad*fl;
-       fl = fl*(1/nf2q);
-       if (qf+6<ltod) {
-           qf = kpa*kpa;
-       }
-       kpa += zwad;
-       kpa += ifwn;
-   }
+  /*@
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (l == 0) || (l == vy);
+    loop invariant (l == 0) ==> (d4 == 0 && rn == vy && oo2z == 1);
+    loop invariant (l == vy && l > 0) ==> (d4 == \at(y, Pre) && rn == vy + (\at(y, Pre) % 6) && oo2z == 2);
+    loop assigns d4, y, rn, oo2z, l;
+    loop variant (vy - l);
+  */
+  while (l < vy) {
+        d4 = (l++, d4 + l * y);
+        y = y+(d4%4);
+        rn = rn+(d4%6);
+        oo2z = oo2z*2;
+        l = vy;
+  }
 
 }
 </code>
------ Candidate 1/20 raw response end -----
-2026-03-22 22:26:04,872 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 22:26:04,887 - INFO -   Generating candidate 2/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:29:15,399 - INFO - 
------ Candidate 2/20 raw response begin -----
-<reasoning>The loop condition is driven by nf2q <= ltod with initial values nf2q = 1 and ltod = 1, and the loop body increments nf2q by 1 each iteration. Therefore, a safe and useful inductive invariant set should capture:
-
-- A simple bound on nf2q relative to ltod: nf2q <= ltod + 1. This expresses a non-ambiguous progress/exit bound that holds at the loop head and is preserved as nf2q increases (until termination).
-- A core relational equality describing the loop state transition for zwad. Since zwad is set based on the previous value of nf2q (the value before nf2q is incremented), we can relate zwad to (nf2q - 1) in a way that is inductive and avoids using the ternary operator (which is forbidden in ACSL). The invariant:
-  ((nf2q - 1) / 2) % 2 == 0 ==> zwad == 1
-  and its contrapositive form
-  ((nf2q - 1) / 2) % 2 != 0 ==> zwad == -1
-  together describe the update rule for zwad without relying on ?:, and refer to the previous iteration’s nf2q via nf2q - 1.
-- Basic non-negativity and bounds on other state variables that are clearly preserved by the code:
-  - fl >= 0, r0p >= 0, kpa >= 0
-  - qf >= 1 (qf starts at 1 and only gets updated to kpa*kpa when the if-condition is met)
-  - nf2q >= 1 (nf2q starts at 1 and only increases)
-  - zwad is always either 1 or -1 (integer updates restrict to these two values)
-- A loop variant to support termination reasoning: ltod - nf2q. This is non-negative at loop entry (due to the nf2q <= ltod guard) and strictly decreases when the loop is entered, contributing to termination reasoning.
-
-These invariants are inductive with respect to the loop’s body and align with the allowed operators and constraints. They avoid introducing unrelated facts and do not modify the original code except for adding annotations. The core relational equality is the zwad/nf2q linkage, expressed without the ternary operator to remain within ACSL constraints.
-
-</reasoning>
-<code>/*@
-  loop invariant nf2q <= ltod + 1;
-  loop invariant ((nf2q - 1) / 2) % 2 == 0 ==> zwad == 1;
-  loop invariant ((nf2q - 1) / 2) % 2 != 0 ==> zwad == -1;
-  loop invariant fl >= 0;
-  loop invariant r0p >= 0;
-  loop invariant qf >= 1;
-  loop invariant kpa >= 0;
-  loop invariant nf2q >= 1;
-  loop invariant zwad == 1 || zwad == -1;
-  loop assigns fl, r0p, nf2q, zwad, kpa, qf;
-  loop variant ltod - nf2q;
-*/</code>
------ Candidate 2/20 raw response end -----
-2026-03-22 22:29:15,403 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 22:29:15,433 - INFO -   Generating candidate 3/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:30:07,147 - INFO - 
------ Candidate 3/20 raw response begin -----
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:25:30,853 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:25:30,911 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:26:28,803 - INFO - 
+----- Candidate 2/5 raw response begin -----
 <reasoning>
-Proposed invariants aim to be inductive, simple, and directly tied to the loop's state progression.
+I examined the loop body and the effects of each statement. The loop executes at most once in the provided code path: initially l == 0 and at the end of the body l is set to vy, so the loop head sees either l == 0 (before the first iteration) or l == vy (after the body, which makes the guard false). I therefore provide strong, verification-friendly invariants that capture exactly these two admissible head states and the precise relations between variables in those states.
 
-Key observations about the loop:
-- nf2q is the loop counter-like variable. The loop continues as long as nf2q <= ltod, and nf2q is incremented by 1 each iteration. Therefore, a natural progress bound is 1 <= nf2q <= ltod+1 at the start of any iteration.
-- fl starts at 1. The loop applies fl = fl * (1/nf2q) and then fl = fl * (1/nf2q) again after nf2q has been incremented. Since 1/nf2q is 1 for nf2q = 1 and 0 for nf2q >= 2 (integer division), fl can only take the values 1 or 0 throughout the loop. This yields a simple invariant fl in {0,1}.
-- We avoid creating invariants that are too brittle given integer arithmetic. The chosen invariants are strong enough to be inductive without requiring deeper arithmetic properties that WP may struggle to discharge.
+Core conservation / relational equality
+- I express the state transition law via implications tied to l: when l == 0 we have the initial local-state facts (d4 == 0, rn == vy, oo2z == 1, y equals the function-entry parameter \at(y, Pre)); when l == vy we have the state produced by one iteration (d4 equals the original y, y updated by d4%4, rn incremented by d4%6, oo2z doubled to 2). These equalities explain and summarize the loop updates in a compact, exact way and are sufficient to prove inductiveness.
 
-Conservation/relational update idea (described for reasoning, not required as a separate invariant):
-- nf2q updates by nf2q := nf2q + 1 each iteration.
-- fl updates via fl := fl * (1/nf2q_old) followed by fl := fl * (1/(nf2q_old+1)).
-- zwad is set to 1 or -1 based on nf2q_old, then used to update r0p with r0p := r0p + zwad*fl.
-- kpa accumulates by zwad and by ifwn.
-- These update relations explain the loop’s state progression and justify the chosen invariants as preserved across iterations.
+Progress bounds
+- I include the numeric bounds 0 <= l <= vy and the boolean structure l == 0 || l == vy. Together they make the control-flow simple and usable by WP: they show that l is within range and in fact can only be 0 or vy at the loop head.
 
-Variants:
-- The loop variant ltod + 1 - nf2q is a decreasing, non-negative measure while the loop runs (given the entry condition nf2q <= ltod), ensuring termination.
+Assigns and variant
+- The loop assigns clause lists exactly the variables modified in the loop body: d4, y, rn, oo2z, l.
+- The loop variant vy - l is a natural non-negative integer expression decreasing from the head of the loop (it is governed by 0 <= l <= vy), and it strictly decreases in the only possible iteration (from vy to 0), helping WP to discharge termination.
 
-Invariants chosen:
-- 1 <= nf2q <= ltod + 1 ensures progress tracking and a non-overshoot guarantee for the loop counter.
-- fl == 0 || fl == 1 captures the exact possible values of fl given the integer division semantics (1/nf2q is 1 for nf2q=1 and 0 for nf2q>=2).
+On use of \at
+- The only use of \at(..., Pre) is on the function parameter y (as allowed). I do not use \at on any local variable.
 
-Loop assigns:
-- fl, r0p, nf2q, zwad, qf, kpa (these are the variables touched inside the loop body).
-
-These invariants are inductive and verification-friendly for Frama-C/WP given the loop structure and integer arithmetic.
-</reasoning>
-<code>/*@
-  loop invariant 1 <= nf2q && nf2q <= ltod + 1;
-  loop invariant (fl == 0) || (fl == 1);
-  loop assigns fl, r0p, nf2q, zwad, qf, kpa;
-  loop variant ltod + 1 - nf2q;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }</code>
------ Candidate 3/20 raw response end -----
-2026-03-22 22:30:07,149 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 22:30:07,169 - INFO -   Generating candidate 4/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:31:07,362 - INFO - 
------ Candidate 4/20 raw response begin -----
-<reasoning>
-I analyzed the loop and selected inductive invariants that are:
-
-- Progress-oriented: capture the loop's termination progress via a loop variant (ltod - nf2q) and a non-negativity invariant (ltod - nf2q) >= 0.
-- Conservative with respect to updates: since fl is updated by multiplying with 1/nf2q (integer division), fl can only be 0 or 1; thus 0 <= fl <= 1.
-- Guard-related: nf2q is the loop counter that governs the guard; nf2q <= ltod must hold when the loop can still run.
-- Sign/bound constraints on zwad: zwad is assigned to either 1 or -1 depending on nf2q, so -1 <= zwad <= 1 is a safe bound.
-- Initial/unchanged state aspects: r0p starts at 1 and in the current path is only incremented, qf remains 1 in this particular run, and kpa starts at 2 and only increases.
-- Minimal, non-redundant: I included a compact set of invariants that are sufficient to prove the loop’s behavior without introducing unrelated constraints.
-
-The core relational aspect here is the loop’s termination progress, captured by the loop variant (ltod - nf2q) and the invariant (ltod - nf2q) >= 0, which expresses that nf2q progresses toward exceeding ltod and thus ends the loop. Although the concrete program only executes one iteration with the given initial values, these invariants are inductive and would generalize to the loop’s natural progression, were the inputs to vary in a way that preserves the loop guard semantics.
-
-Now I provide the annotated code with the invariants and precise loop assignments. The core relation about progress and the guarded updates is conveyed through the invariants and the loop variant.
-
+These invariants are intentionally strong (not tautological) and tailored to the actual state transitions of the loop, which helps Frama-C/WP verify inductiveness and derive the post-loop facts.
 </reasoning>
 <code>
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
 
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /*@
-    loop invariant (ltod - nf2q) >= 0;
-    loop invariant 0 <= fl <= 1;
-    loop invariant nf2q <= ltod;
-    loop invariant -1 <= zwad <= 1;
-    loop invariant r0p >= 1;
-    loop invariant qf == 1;
-    loop invariant kpa >= 2;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-    loop variant (ltod - nf2q);
-  */
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
-
-}
-</code>
------ Candidate 4/20 raw response end -----
-2026-03-22 22:31:07,364 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 22:31:07,380 - INFO -   Generating candidate 5/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:32:16,378 - INFO - 
------ Candidate 5/20 raw response begin -----
-<reasoning>
-Goal: provide inductive, verification-friendly ACSL loop annotations for the given loop, using only the available variables. The loop guard nf2q <= ltod and the initializations yield a very small, effectively finite execution: with ltod fixed at 1 and nf2q starting at 1, the loop executes at most once. We propose invariants that are preserved across the single possible iteration and that are strong enough to guide WP verification without introducing tautologies or unrelated facts.
-
-Key design choices:
-- Core state-transition intuition: within each iteration, r0p is updated by zwad * fl, and fl is updated twice by multiplications with (1/nf2q) and (1/nf2q') where nf2q' = nf2q + 1. Although a precise closed-form invariant relating r0p, fl, zwad, and nf2q is complex due to integer division, we can still express a simple, robust invariant describing the available state bounds and the observed behavior of the main arithmetic drivers.
-- Progress bounds: provide minimal bounds for the loop counter nf2q and for fl, which reflect the actual trajectory (fl starts at 1 and becomes 0 after the first iteration due to integer division by nf2q=2). We also bound kpa, r0p, qf, and ifwn as they exist in the loop.
-- Known constants: ltod is initialized to 1 and never modified; ifwn is initialized to ltod+3, hence 4; include invariants for these constants to strengthen inductiveness.
-- Loop assigns: list all variables that can be modified within the loop body (fl, r0p, nf2q, zwad, kpa, qf).
-- Loop variant: provide a decreasing integer expression to show progress toward termination: ltod + 1 - nf2q decreases by 1 each iteration (and is non-negative given the guard nf2q <= ltod).
-
-The added invariants are conservative, non-tautological, and tailored to the actual execution path (one iteration) while remaining valid for the general loop structure with the given constraints.
-</reasoning>
-<code>int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 0 <= fl && fl <= 1;
-    loop invariant nf2q >= 1;
-    loop invariant nf2q <= ltod + 1;
-    loop invariant zwad == 1 || zwad == -1;
-    loop invariant kpa <= 7;
-    loop invariant r0p <= 2;
-    loop invariant qf >= 1;
-    loop invariant ifwn == 4;
-    loop invariant ltod == 1;
-    loop assigns fl, r0p, nf2q, zwad, kpa, qf;
-    loop variant (ltod + 1 - nf2q);
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (l == 0 || l == vy);
+    loop invariant (l == 0 ==> (d4 == 0 && rn == vy && oo2z == 1 && y == \at(y, Pre)));
+    loop invariant (l == vy ==> (d4 == \at(y, Pre) && y == \at(y, Pre) + (\at(y, Pre) % 4) && rn == vy + (\at(y, Pre) % 6) && oo2z == 2));
+    loop assigns d4, y, rn, oo2z, l;
+    loop variant (vy - l);
   */
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
+  while (l < vy) {
+        d4 = (l++, d4 + l * y);
+        y = y+(d4%4);
+        rn = rn+(d4%6);
+        oo2z = oo2z*2;
+        l = vy;
   }
 
 }
 </code>
------ Candidate 5/20 raw response end -----
-2026-03-22 22:32:16,379 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 22:32:16,394 - INFO -   Generating candidate 6/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:33:02,041 - INFO - 
------ Candidate 6/20 raw response begin -----
-<reasoning>We need inductive loop invariants that are strong enough to help Frama-C/WP verify the loop, while keeping the original code unchanged. The loop runs until nf2q > ltod, starting with nf2q = 1 and ltod = 1, so exactly one iteration occurs with this particular initialization. Based on the code, we can derive the following inductive facts that hold before and after each iteration:
-
-- fl remains in {0,1}. It starts at 1, first update multiplies by (1/nf2q) with nf2q initially 1 (giving 1), then nf2q is incremented and fl is multiplied again by (1/nf2q) with nf2q now 2 (giving 0 in integer division). Subsequent iterations (if they occurred) would keep fl at 0. So 0 <= fl <= 1 is inductive.
-- nf2q stays within the bound 1 <= nf2q <= ltod + 1. Initially nf2q = 1; each iteration increments nf2q by 1; since the loop guard is nf2q <= ltod, after an iteration nf2q <= ltod + 1 holds. This bound is maintained across iterations.
-- zwad always takes a value in the set {1, -1}, as it is assigned to 1 or -1 inside the loop. At loop entry, zwad is 1, so zwad ∈ {1, -1} holds.
-- r0p starts at 1 and is updated by adding zwad*fl each iteration. Since fl ∈ {0,1} and zwad ∈ {1,-1}, r0p remains >= 1 throughout.
-- kpa starts at 2 and is increased by zwad + ifwn in each iteration. Since zwad ∈ {1,-1} and ifwn > 0, the per-iteration increment is always positive (at least 3), so kpa is non-decreasing and in fact strictly increases with iterations; thus kpa >= 2 holds invariantly.
-- qf starts at 1 and, given ltod = 1, the condition (qf+6<ltod) is false, so qf is not updated. Therefore qf == 1 holds as an invariant for all reachable states.
-
-These invariants are chosen to be inductive (preserved by the loop body when the guard nf2q <= ltod holds) and not tautological. They rely only on the available variables and respect the given coding constraints. No unrelated invariants are added, and the exact loop assigns are listed to reflect all variables modified inside the loop. The single core relational aspect captured here is that nf2q increments by 1 per iteration and that fl is constrained by the two successive integer-divisions, keeping 0 <= fl <= 1 and influencing r0p via zwad*fl. </reasoning>
-<code>int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /*@
-    loop invariant 0 &lt;= fl &lt;= 1;
-    loop invariant 1 &lt;= nf2q &lt;= ltod + 1;
-    loop invariant (zwad == 1) || (zwad == -1);
-    loop invariant r0p &gt;= 1;
-    loop invariant kpa &gt;= 2;
-    loop invariant qf == 1;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-  */
-  while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
-
-}</code>
------ Candidate 6/20 raw response end -----
-2026-03-22 22:33:02,043 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 22:33:02,058 - INFO -   Generating candidate 7/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:34:03,862 - INFO - 
------ Candidate 7/20 raw response begin -----
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:26:28,803 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:26:28,884 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:27:30,971 - INFO - 
+----- Candidate 3/5 raw response begin -----
 <reasoning>
-I propose invariants that are (1) true before the first iteration given the preceding initializations in the function, (2) preserved by every iteration (inductive), and (3) sufficient to show progress to loop exit.
+I examined the loop body and the surrounding initialization:
 
-Key observations from the loop body (with C integer arithmetic):
-- nf2q is increased by 1 exactly once per iteration, and the loop condition is nf2q <= ltod. Therefore nf2q is monotonically increasing and always >= its initial value (1). A natural bound is nf2q <= ltod + 1: when nf2q > ltod the loop will exit, so during loop execution (and at loop head) nf2q is at most ltod+1. This gives the loop variant (ltod - nf2q + 1) which is non-negative while the body executes and strictly decreases each iteration.
-- fl is multiplied by (1/nf2q) then, after nf2q is incremented, multiplied again by (1/nf2q) (the second nf2q is the incremented value). With integer division, 1/nf2q is 1 only when nf2q == 1, and is 0 for nf2q >= 2. Given the code and initial values (fl starts 1, nf2q starts 1), fl is 1 exactly when nf2q == 1, and becomes 0 once nf2q >= 2 and then stays 0. This is the core relational law explaining the fl updates:
-    (nf2q == 1 && fl == 1) || (nf2q >= 2 && fl == 0)
-  It explains the transition of fl from 1 to 0 and its stabilization at 0 for further iterations.
-- zwad is set to either 1 or -1 inside the body, so the invariant zwad == 1 || zwad == -1 is preserved and succinctly characterizes zwad.
-- r0p is updated by adding zwad*fl; since fl ∈ {0,1} and zwad ∈ {-1,1} and r0p starts at 1, r0p remains non-negative; r0p >= 0 is a simple preserved bound.
+- Before the loop: vy = 80, l = 0, d4 = 0, oo2z = 1, rn = vy. The parameter y is available via \at(y, Pre).
+- The loop body executes at most once because it increments l (from 0 to 1) and finally sets l = vy. Thus l only ever takes 0 (before loop) or vy (after a single iteration).
+- I therefore capture that l is always between 0 and vy and that it is either 0 or vy. These give a precise progress bound and are easy to prove inductive.
+- I add a strong conditional conservation law that exactly describes the two reachable states:
+  - If l == 0 then the pre-loop initialized values hold: d4 == 0, rn == vy, oo2z == 1.
+  - If l == vy then the effect of the single loop iteration is reflected exactly with the initial parameter value \at(y, Pre): d4 becomes the original y, y is updated by adding y%4, rn is increased by y%6, and oo2z is doubled to 2.
+  This equality explains the state transition done by the loop and is verification-friendly (no quantifiers, only available variables and \at on the parameter).
+- I list the complete and exact loop assigns clause (d4, l, y, rn, oo2z).
+- I add a simple loop variant vy - l to show termination/progress; the invariant 0 <= l <= vy ensures the variant is non-negative.
 
-I therefore use these invariants:
-- nf2q >= 1 (lower bound, monotonic increase)
-- nf2q <= ltod + 1 (upper bound that weakens the strict guard at exit)
-- the core relational equality capturing fl vs nf2q: (nf2q == 1 && fl == 1) || (nf2q >= 2 && fl == 0)
-- zwad is ±1
-- r0p >= 0 (simple preserved bound)
+These invariants are inductive: they hold before the loop (initialization), and if l<vy then by the disjunction l==0 we get the pre-loop facts; after the body the l==vy branch holds with the computed values, so the invariants are preserved.
 
-The loop assigns list is exact: fl, zwad, nf2q, r0p, qf, kpa are the only variables modified in the loop body. The loop variant ltod - nf2q + 1 strictly decreases on each executed iteration (nf2q increases by 1), ensuring termination under the loop guard. These invariants are inductive with respect to the body and are aimed to be verification-friendly for WP.
+All uses of \at are only on the function parameter y, as required.
 </reasoning>
 <code>
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
 
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
 
   /*@
-    loop invariant nf2q >= 1;
-    loop invariant nf2q <= ltod + 1;
-    loop invariant (nf2q == 1 && fl == 1) || (nf2q >= 2 && fl == 0);
-    loop invariant zwad == 1 || zwad == -1;
-    loop invariant r0p >= 0;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-    loop variant (ltod - nf2q + 1);
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (l == 0) || (l == vy);
+    loop invariant (l == 0) ==> (d4 == 0 && rn == vy && oo2z == 1);
+    loop invariant (l == vy) ==> (d4 == \at(y, Pre) && y == (\at(y, Pre) + (\at(y, Pre) % 4)) && rn == (vy + (\at(y, Pre) % 6)) && oo2z == 2);
+    loop assigns d4, l, y, rn, oo2z;
+    loop variant vy - l;
   */
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
+while (l < vy) {
+      d4 = (l++, d4 + l * y);
+      y = y+(d4%4);
+      rn = rn+(d4%6);
+      oo2z = oo2z*2;
+      l = vy;
   }
 
 }
 </code>
------ Candidate 7/20 raw response end -----
-2026-03-22 22:34:03,866 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 22:34:03,893 - INFO -   Generating candidate 8/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:35:28,179 - INFO - 
------ Candidate 8/20 raw response begin -----
-<EMPTY_RESPONSE>
------ Candidate 8/20 raw response end -----
-2026-03-22 22:35:28,181 - WARNING -   Failed to extract code from candidate 8
-2026-03-22 22:35:28,181 - INFO -   Candidate 9 selected prompt: simple_cot.txt
-2026-03-22 22:35:28,195 - INFO -   Generating candidate 9/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:36:20,922 - INFO - 
------ Candidate 9/20 raw response begin -----
-<reasoning>In this loop, the execution is controlled by nf2q <= ltod, with nf2q initialized to 1 and incremented each iteration. Because the code uses integer division 1/nf2q, the value is 1 when nf2q == 1 and 0 for nf2q >= 2, which heavily constrains how fl evolves (fl starts at 1 and becomes 0 after the first iteration). A strong, inductive invariant set should reflect:
-
-- A simple bound on the loop counter: nf2q <= ltod + 1 (preserved since nf2q increases by 1 each iteration).
-- The exact effect of fl under the integer division: since 1/nf2q is 1 only for nf2q == 1 and 0 otherwise, a precise relation is:
-  - if nf2q == 1 then fl == 1 (before the second multiplication)
-  - if nf2q >= 2 then fl == 0 (after the second multiplication in the first iteration, and remains 0 thereafter because 0 * anything == 0)
-  These two implications together express the core conservation/relational update of fl.
-- A minimal progress/termination metric: loop variant ltod + 1 - nf2q, which decreases by 1 each iteration while the loop guard holds.
-- A simple bound on kpa (it only increases, starting at 2), which is a mild progress/information invariant: kpa >= 2.
-- A trivial non-negativity invariant for fl (fl >= 0), consistent with the observed non-negative evolution due to integer division.
-
-Loop assigns should reflect all modified variables inside the loop: fl, zwad, nf2q, r0p, qf, kpa.
-
-These invariants are inductive (preserved by each iteration when the guard is true) and provide a verification-friendly description of the loop state transitions without changing the program logic. They also stay within the available variables (no parameters to reference, no unknown calls). </reasoning>
-<code>/*@
-  loop invariant nf2q <= ltod + 1;
-  loop invariant (nf2q == 1) ==> (fl == 1);
-  loop invariant (nf2q >= 2) ==> (fl == 0);
-  loop invariant kpa >= 2;
-  loop invariant fl >= 0;
-  loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-  loop variant ltod + 1 - nf2q;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }</code>
------ Candidate 9/20 raw response end -----
-2026-03-22 22:36:20,924 - INFO -   Candidate 10 selected prompt: simple_cot.txt
-2026-03-22 22:36:20,937 - INFO -   Generating candidate 10/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:37:32,352 - INFO - 
------ Candidate 10/20 raw response begin -----
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:27:30,972 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:27:31,041 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:29:10,402 - INFO - 
+----- Candidate 4/5 raw response begin -----
 <reasoning>
-Goal: provide inductive, verification-friendly ACSL loop annotations for the given loop in main1(). Since there are no function parameters, all invariants must be expressed only with available variables: fl, ifwn, ltod, nf2q, qf, r0p, zwad, kpa.
+I chose a small set of strong, relevant invariants that are easy for WP to prove inductive given the loop body and that explain the loop updates.
 
-Key observations to guide invariants:
-- The loop executes while nf2q <= ltod. However, since ltod is constant (1) and nf2q is incremented each iteration, the loop runs at most once. Therefore invariants must hold before the first iteration and be preserved by that single iteration.
-- The updates inside the loop are:
-  - fl is updated twice: fl = fl*(1/nf2q) with old nf2q, then later fl = fl*(1/nf2q) with new nf2q. With integer arithmetic, 1/nf2q is 1 for nf2q=1 and 0 for nf2q>=2, so fl stays within {0,1}.
-  - zwad is set to 1 or -1 depending on (nf2q/2)%2, i.e., zwad ∈ {1,-1} after the body.
-  - nf2q is incremented by 1.
-  - r0p is updated via r0p = r0p + zwad*fl using the current zwad and fl.
-  - qf is updated only if qf+6<ltod; with ltod = 1 this never triggers, so qf remains 1 throughout.
-  - kpa is incremented twice by zwad and by ifwn.
-  - ifwn and ltod are invariant relationships: ifwn == ltod + 3 (true initially and preserved since there is no modification to ifwn or ltod).
-- We want an invariant that is strong but preserved:
-  - fl  ∈ {0,1} can be expressed as 0 <= fl <= 1.
-  - nf2q ≥ 1 (initially 1 and only grows).
-  - zwad ∈ {1,-1} (set inside the loop, remains in this set).
-  - ifwn == ltod + 3 (the initial relationship holds throughout).
-  - qf == 1 (qf is never modified under the given ltod, so this holds).
-  - kpa >= 2 (initially 2 and only increases).
-  - r0p >= 0 (initially 1 and the update is adding zwad*fl with zwad ∈ {±1} and fl ∈ {0,1}, so it stays ≥ 0 in this trajectory; this is a conservative, safe bound).
-- A core state-transition relation: while this loop is small and runs at most once, we can still describe the primary state-change pattern conservatively by using a simple bound-based invariant set, avoiding dependence on exact arithmetic across iterations (which would be brittle given integer division). The chosen invariants are inductive, non-tautological, and rely only on known relationships between variables.
-- Progress / termination: use a loop variant that decreases with each iteration. A suitable and safe choice here is ltod - nf2q, which is 0 at the start (nf2q = 1, ltod = 1) and decreases (to -1) after nf2q is incremented, ensuring progress while the loop executes (and there is only one iteration possible due to the guard).
+1. Bounds invariant: "0 <= l && l <= vy"
+   - Rationale: l is initialized to 0 and the loop never makes l negative; the loop sets l to vy on the body, so l always stays in [0, vy]. This gives a simple non-negativity and upper bound useful for verification and for the variant.
+
+2. Core relational equality (state transition law): "(oo2z == 1) <==> (l == 0)"
+   - Rationale: oo2z starts at 1 when l == 0. The loop body doubles oo2z and sets l to vy; thus the only reachable values in this program make oo2z==1 exactly when l==0. This equality captures the main relation between the multiplicative state (oo2z) and the loop counter (l). It is preserved by the body: if l==0 and oo2z==1 then after body l becomes vy (not 0) and oo2z becomes 2 (not 1), so both sides are false; if l!=0 then oo2z!=1 and doubling preserves non-equality with 1.
+
+3. loop assigns: "d4, l, y, rn, oo2z"
+   - Rationale: The body writes exactly these variables; the assigns clause is complete and exact.
+
+4. loop variant: "vy - l"
+   - Rationale: vy - l is a non-negative integer (from the bounds invariant) and strictly decreases to 0 when the loop body executes because the body sets l := vy. This establishes termination/progress.
+
+I avoided quantifiers and \at on locals (per rules). I did not assert any fragile arithmetic equalities involving d4, rn, or y that would require referring to "old" local values, because \at(...) is allowed only for parameters and such relations would be both unnecessary for proving simple safety and brittle due to sign/overflow/modulo subtleties. The chosen invariants are strong, relevant, and inductive for WP.
 </reasoning>
-<code>/*@
-  loop invariant 0 <= fl <= 1;
-  loop invariant 1 <= nf2q;
-  loop invariant 0 <= r0p;
-  loop invariant (zwad == 1) || (zwad == -1);
-  loop invariant ifwn == ltod + 3;
-  loop invariant qf == 1;
-  loop invariant kpa >= 2;
-  loop assigns fl, r0p, nf2q, zwad, kpa, qf;
-  loop variant ltod - nf2q;
-*/</code>
------ Candidate 10/20 raw response end -----
-2026-03-22 22:37:32,353 - INFO -   Candidate 11 selected prompt: simple_cot.txt
-2026-03-22 22:37:32,375 - INFO -   Generating candidate 11/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:38:37,397 - INFO - 
------ Candidate 11/20 raw response begin -----
-<reasoning>
-Goal: provide inductive, verification-friendly ACSL loop invariants for the given loop in main1, ensuring the invariants are strong, non-redundant, and preserveable by the loop body.
+<code>
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
 
-Observations about the loop behavior (from the code):
-- The loop continues while nf2q <= ltod (due to the break at the top when the condition fails).
-- nf2q is incremented by 1 each iteration.
-- fl is updated twice per iteration using 1/nf2q and then 1/nf2q' (with nf2q' = nf2q + 1). Since 1/n is 0 for n > 1 and 1 for n = 1, fl will stay the same on the first step and become 0 after the second update in the first iteration; in practice, fl becomes 0 after the first iteration and stays 0 thereafter because nf2q grows.
-- zwad is either 1 or -1 depending on nf2q (specifically, if (nf2q/2)%2 == 0 then zwad = 1 else zwad = -1).
-- r0p is updated by adding zwad*fl; since fl becomes 0 after the first iteration, r0p stops changing after the first iteration.
-- kpa is incremented by zwad and then by ifwn each iteration.
-- qf may be updated, but with the given starting values, the condition (qf+6 < ltod) is false, so qf is not updated in this particular run. We still need to account for possible modifications within the loop.
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
 
-From this, we can derive robust inductive invariants that are preserved by the loop body and are helpful for proving termination and bounds:
-- nf2q <= ltod + 1: nf2q starts at 1 and is incremented by 1 whenever the loop iterates; since the loop continues only while nf2q <= ltod, after the body nf2q can reach at most ltod + 1 before the next guard check, giving a tight, progress-oriented bound.
-- 0 <= fl: fl is non-negative throughout the execution because it is initialized to 1 and only multiplied by non-negative factors (0 or 1 due to integer division 1/nf2q). This is preserved by the updates.
-- (fl == 0) || (nf2q == 1): This captures the observed state transition. Initially nf2q == 1 and fl == 1; after the first iteration nf2q becomes 2 and fl becomes 0, which satisfies the invariant. For subsequent iterations, nf2q != 1 and fl remains 0, preserving the invariant.
-- r0p >= 1: r0p starts at 1 and is incremented by zwad*fl. Since fl is non-negative and becomes 0 after the first iteration, r0p stays at least its initial value.
-- kpa >= 2: kpa starts at 2 and is increased by zwad and then by ifwn (a positive constant) in each iteration; thus kpa never drops below its initial value.
-
-These invariants are inductive given the loop body updates and are not tautological. They use only available variables and describe the loop’s state evolution (the core state-transition pattern). They also align with the guideline to provide a single core relational/ conservation statement (the (fl == 0) || (nf2q == 1) relation) and minimal, helpful bounds for progress.
-
-Now providing the annotated code with these invariants and explicit loop assigns.
-</reasoning>
-<code>/*@
-  loop invariant nf2q &lt;= ltod + 1;
-  loop invariant 0 &lt;= fl;
-  loop invariant (fl == 0) || (nf2q == 1);
-  loop invariant r0p &gt;= 1;
-  loop invariant kpa &gt;= 2;
-  loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }</code>
------ Candidate 11/20 raw response end -----
-2026-03-22 22:38:37,398 - INFO -   Candidate 12 selected prompt: simple_cot.txt
-2026-03-22 22:38:37,410 - INFO -   Generating candidate 12/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:39:23,866 - INFO - 
------ Candidate 12/20 raw response begin -----
-<reasoning>
-To generate inductive, verification-friendly ACSL loop annotations for Frama-C/WP, I focused on invariants that are strong enough to be useful yet provable given the actual loop behavior.
-
-Key observations about the loop:
-- Loop guard: nf2q <= ltod. Since ltod is initialized to 1 and nf2q starts at 1, the loop will execute at most once (then nf2q becomes 2 and the guard fails).
-- Updates inside the loop follow a fixed sequence:
-  - fl is updated by fl *= (1/nf2q) (using nf2q from loop head).
-  - zwad is set to 1 if ((nf2q/2) % 2 == 0) else -1 (based on nf2q from loop head).
-  - nf2q is incremented.
-  - r0p is updated by r0p += zwad * fl (the fl used here is the one after the first update, i.e., fl_before_second_update).
-  - fl is updated again: fl *= (1/nf2q) where nf2q is the incremented value.
-  - qf may be updated, but given ltod = 1 and initial qf = 1, the condition if (qf+6<ltod) is never true in this particular run; thus qf remains 1.
-  - kpa is updated by kpa += zwad; kpa += ifwn (with ifwn = 1), so net kpa increment per iteration is zwad + 1. Since zwad ∈ {1, -1}, kpa ends up in {2, 4} after the (single) iteration.
-
-From these observations, useful inductive invariants are:
-- nf2q stays within the range [1, ltod+1], i.e., 1 <= nf2q <= ltod+1. This captures the guard progression and the single possible increment.
-- fl remains non-negative: fl >= 0. Given the multiplicative factors 1/nf2q with nf2q >= 1, fl never becomes negative.
-- zwad is always either 1 or -1: zwad == 1 || zwad == -1. The code sets zwad to exactly these values.
-- qf remains 1 in this code path: qf == 1. This holds because the branch that assigns kpa or qf would require a condition that never becomes true with the given initial values (ltod = 1).
-- kpa stays within [2, 4] after the first iteration: 2 <= kpa <= 4. Initially kpa == 2; after the iteration, net change is zwad + 1, which yields either 2+1-? leads to 4 or 2; hence the invariant holds.
-
-These invariants are inductive (they hold at loop entry and are preserved by the loop body for all possible paths given the current code and initial values). They are also verification-friendly and do not rely on pre-state references to non-parameter locals (we respect the constraint that \at(…) can only be used for parameters; there are no function parameters here).
-
-We provide one core relational view in the reasoning: the loop implements a relatively simple state update law where nf2q is incremented by one each iteration (nf2q' = nf2q + 1), and kpa is updated by an increment of zwad + ifwn (where ifwn is 1). While we express those relations conceptually, in ACSL we express the invariants as bounds and simple domain properties that are preserved by the updates. The resulting ACSL block includes:
-- an invariant bounding nf2q,
-- a non-negativity invariant for fl,
-- an invariant describing zwad's possible values,
-- an invariant capturing the immutability of qf in this specific run,
-- an invariant bounding kpa to the observed range after a single iteration.
-
-The loop assigns clause lists all variables that may be modified in the loop body: fl, zwad, nf2q, r0p, qf, kpa.
-
-Now the annotated code with the invariants follows.
-</reasoning>
-<code>int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 1 <= nf2q <= ltod + 1;
-    loop invariant fl >= 0;
-    loop invariant zwad == 1 || zwad == -1;
-    loop invariant qf == 1;
-    loop invariant 2 <= kpa <= 4;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (oo2z == 1) <==> (l == 0);
+    loop assigns d4, l, y, rn, oo2z;
+    loop variant (vy - l);
   */
-  while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
+  while (l < vy) {
+        d4 = (l++, d4 + l * y);
+        y = y+(d4%4);
+        rn = rn+(d4%6);
+        oo2z = oo2z*2;
+        l = vy;
   }
 
 }
 </code>
------ Candidate 12/20 raw response end -----
-2026-03-22 22:39:23,866 - INFO -   Candidate 13 selected prompt: simple_cot.txt
-2026-03-22 22:39:23,881 - INFO -   Generating candidate 13/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:40:10,069 - INFO - 
------ Candidate 13/20 raw response begin -----
-<reasoning>Rationale for invariants and loop-annotation design:
-- We want a core relation that explains the loop’s update pattern without relying on quantified expressions. A simple, inductive relation between nf2q and fl captures the initialization and the observed post-state when the loop begins: initially nf2q == 1 and fl == 1; after the first iteration, nf2q becomes 2 and fl becomes 0. The invariant ((nf2q == 1) ==> (fl == 1)) && ((fl == 1) ==> (nf2q == 1)) expresses this tight coupling in a way that remains valid across the possible loop heads (before first iteration and if a second iteration would occur). It is trivially preserved by the body, because once nf2q ≠ 1 and/or fl ≠ 1, the antecedents of the implications become false, so the invariant holds.
-- Additional invariants express safe bounds and obvious properties that are preserved by the loop body:
-  - fl is always within [0, 1] (since the first update yields 1 and the second update yields 0, and subsequent updates keep it at 0).
-  - zwad is always either 1 or -1 (the code assigns exactly 1 or -1).
-  - r0p remains non-decreasing and starts at 1 (with the first increment it becomes 2; later increments would continue non-decreasing behavior if more iterations existed).
-  - kpa is always at least its initial value 2 (it only increases by zwad and by ifwn).
-  - qf remains 1 under the given guard conditions (the condition that could update qf is false for the given ltod and initial values).
-- The loop assigns clause enumerates all variables that can be modified inside the loop body: fl, r0p, nf2q, zwad, kpa, qf.
-- No new variables are introduced and the original program structure is preserved. The invariants are inductive and verification-friendly for Frama-C/WP given the concrete initialization and the specific loop progression in this code.
-</reasoning>
-<code>int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /*@
-    loop invariant ((nf2q == 1) ==> (fl == 1)) && ((fl == 1) ==> (nf2q == 1));
-    loop invariant (0 <= fl <= 1);
-    loop invariant ((zwad == 1) || (zwad == -1));
-    loop invariant (r0p >= 1);
-    loop invariant (kpa >= 2);
-    loop invariant (qf == 1);
-    loop assigns fl, r0p, nf2q, zwad, kpa, qf;
-  */
-  while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
-
-}</code>
------ Candidate 13/20 raw response end -----
-2026-03-22 22:40:10,069 - INFO -   Candidate 14 selected prompt: simple_cot.txt
-2026-03-22 22:40:10,083 - INFO -   Generating candidate 14/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:41:00,740 - INFO - 
------ Candidate 14/20 raw response begin -----
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:29:10,404 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:29:10,477 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:30:13,892 - INFO - 
+----- Candidate 5/5 raw response begin -----
 <reasoning>
-We need inductive, verification-friendly ACSL loop annotations for the given loop. The loop guard is effectively nf2q <= ltod, with the body updating nf2q and several other variables. We should provide:
+I examined the loop body and the initial setup before the loop:
+- Before the loop: vy = 80; l = 0; d4 = 0; oo2z = 1; rn = vy; y is the function parameter (its initial value is available as \at(y,Pre)).
+- The body increments l once via the comma expression (l++), uses the incremented l to update d4, then updates y, rn, oo2z, and finally sets l = vy. Thus, at run-time the loop can execute at most once: either it is not entered (l remains 0) or it executes exactly one iteration and then sets l = vy so the guard becomes false.
 
-- A core relation that captures the loop’s state transition in a relational form. A robust choice is to express the bound on nf2q across iterations and a concrete relation for zwad derived from the previous iteration’s nf2q (since zwad is assigned based on the previous nf2q value in the code).
-- Minimal progress bound (loop variant) to show termination: use ltod - nf2q, which decreases by 1 each iteration while nf2q <= ltod and is non-negative at loop head.
-- Complete and exact loop assigns: fl, zwad, nf2q, r0p, qf, kpa are modified inside the loop body and must be listed.
-- Strong invariants that explain the loop updates without introducing unrelated facts:
-  - nf2q <= ltod + 1 to bound the iteration counter across iterations.
-  - 0 <= fl <= 1 to capture the numeric effect of the 1/nf2q divisions (with integer division).
-  - zwad ∈ {1, -1} and a relational invariant tying zwad to nf2q via the previous iteration: zwad equals 1 when ((nf2q - 1) / 2) % 2 == 0, and zwad equals -1 when that value is non-zero. This expresses the state transition law for zwad across iterations without requiring a rewrite of code.
-  - Use of implications (==>) to express the two cases for zwad with respect to the parity expression.
-These invariants are inductive (preserved by each loop iteration) and leverage only available variables. They avoid tautologies and are verification-friendly for Frama-C/WP.
+Given that, I chose invariants that are:
+- Inductive and hold before the loop (they all hold for the known initial state l=0,d4=0,oo2z=1,rn=vy,y=\at(y,Pre)).
+- Preserved by the single-iteration behavior (they also hold after one iteration).
+- Strong enough to explain the state transition (core relational equalities) and help WP verify that the loop terminates and that modified variables are tracked exactly.
+
+Concrete invariant choices:
+- 0 <= l <= vy: a standard bound to allow a decreasing variant.
+- (l == 0) || (l == vy): captures the fact that l can only be the initial 0 or becomes vy after a body execution.
+- The conditional invariants (implications) relate the possible values of d4, oo2z, rn and y to the two cases (no iteration vs one iteration). These give an exact description of the two reachable states:
+  - If l == 0: we are in the entry state (d4 == 0, oo2z == 1, rn == vy, y == \at(y,Pre)).
+  - If l == vy: either we never entered (same as above) or we entered once (d4 == \at(y,Pre), oo2z == 2, rn == vy + (\at(y,Pre) % 6), y == \at(y,Pre) + (\at(y,Pre) % 4)).
+- The core relational equalities are the ones inside the (l == vy) case for the "entered once" branch: they explain how d4, y, rn and oo2z relate to the initial parameter \at(y,Pre) after one iteration.
+- Exact loop assigns list: the loop modifies d4, l, y, rn, oo2z — I listed those exactly.
+- Variant: (vy - l) is non-negative by the bounds and strictly decreases when the body executes (from vy - 0 to vy - vy = 0), ensuring termination.
+
+I only used \at(y,Pre) (allowed for function parameters) and did not use \at on locals or any forbidden constructs. The invariants avoid quantifiers and ternary operators and keep the code unchanged except for the annotations.
 </reasoning>
-<code>int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
+<code>
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
 
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
 
   /*@
-    // Core invariants and loop behavior
-    loop invariant nf2q <= ltod + 1;
-    loop invariant 0 <= fl <= 1;
-    loop invariant (zwad == 1) || (zwad == -1);
-    // zwad reflects the previous nf2q value: zwad == 1 when ((nf2q-1)/2) % 2 == 0, else zwad == -1
-    loop invariant (((nf2q - 1) / 2) % 2 == 0) ==> (zwad == 1);
-    loop invariant (((nf2q - 1) / 2) % 2 != 0) ==> (zwad == -1);
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-    loop variant ltod - nf2q;
-  @*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
-
-}</code>
------ Candidate 14/20 raw response end -----
-2026-03-22 22:41:00,740 - INFO -   Candidate 15 selected prompt: simple_cot.txt
-2026-03-22 22:41:00,754 - INFO -   Generating candidate 15/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:41:57,600 - INFO - 
------ Candidate 15/20 raw response begin -----
-<reasoning>Given the loop, the guard is while (1) with an early break on nf2q <= ltod. Since ltod is initialized to 1 and never changed, the loop executes exactly one time (nf2q starts at 1, then becomes 2, and the guard nf2q <= ltod fails). Therefore, invariants can be tight and leverage this bounded behavior, while still being inductive in the general sense.
-
-Key observations to guide invariants:
-- The only true loop-executed updates to arithmetic state are:
-  - fl = fl * (1/nf2q);
-  - nf2q = nf2q + 1;
-  - r0p = r0p + zwad * fl;
-  - zwad is set to either 1 or -1 on every iteration.
-  - kpa is updated by zwad and by ifwn; qf is effectively unchanged because the condition qf+6<ltod is always false for the given initial values (ltod = 1, qf = 1).
-- Derived, inductive properties that help verification without being too brittle:
-  - nf2q stays in a small range: nf2q >= 1 and nf2q <= ltod + 1 (i.e., <= 2). This is preserved by the loop update when the guard is true.
-  - fl remains in {0,1} because 1/nf2q evaluates to either 1 (when nf2q = 1) or 0 (when nf2q >= 2).
-  - zwad is always either 1 or -1 (explicit branch assigns exactly those two values).
-  - qf remains 1 (not assigned inside the loop).
-  - r0p remains within a small, non-decreasing bound in this specific scenario, but we can conservatively state a safe range given the single-iteration behavior.
-
-Core relational/conservation note (explanation of loop updates):
-- The loop performs a single arithmetic step r0p = r0p + zwad * fl, where zwad ∈ {±1} and fl ∈ {0,1}. Thus the increment to r0p is in {-1, 0, 1} for this loop, and given the initial values, the observed final r0p is 2. This clarifies the state-transition law that the verifier can reason about: r0p changes by zwad * fl, with zwad and fl constrained as above.
-
-With these in mind, we propose a concise, inductive set of invariants that are strong, non-tautological, and verification-friendly, plus a complete loop-assigns set that mirrors the actual modifications inside the loop. We avoid introducing any unrelated invariants or modifying the code. The known parameters (ltod, etc.) are unchanged within the function, so we do not use non-parameter at-Pre references. </reasoning>
-
-<code>/*@
-  loop invariant ltod == 1;                    // ltod is constant
-  loop invariant nf2q >= 1;                    // nf2q starts at 1
-  loop invariant nf2q <= ltod + 1;              // nf2q in {1,2} given the guard
-  loop invariant (fl == 0) || (fl == 1);        // 1/nf2q is either 1 or 0, so fl stays 0 or 1
-  loop invariant (zwad == 1) || (zwad == -1);   // zwad is assigned to ±1
-  loop invariant qf == 1;                       // qf is not modified in the loop for given values
-  loop invariant r0p >= 1;                       // r0p starts at 1
-  loop invariant r0p <= 2;                       // with the observed single iteration (safe bound)
-  loop assigns fl, zwad, nf2q, r0p, kpa;         // variables that are actually modified in the loop
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }</code>
------ Candidate 15/20 raw response end -----
-2026-03-22 22:41:57,601 - INFO -   Candidate 16 selected prompt: simple_cot.txt
-2026-03-22 22:41:57,615 - INFO -   Generating candidate 16/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:42:52,268 - INFO - 
------ Candidate 16/20 raw response begin -----
-<reasoning>In this loop, nf2q starts at 1, ltod is 1, and the loop continues while nf2q <= ltod, incrementing nf2q by 1 each iteration. With ltod fixed at 1, the loop effectively runs at most once. I added inductive invariants that are preserved across iterations and help Frama-C/WP reason about the loop without reordering the code. Also, I included a concrete equality that expresses a conservation-like property and a relational bound that constrains the product of fl and nf2q, which helps reason about the updates to fl and nf2q.
-
-What I did:
-- Core equality (conservation/relational): qf == 1 is an exact state equality preserved by the loop (the if that could change qf is never true given ltod = 1, but the invariant remains valid for verification).
-- Relational/conservation bound: fl * nf2q <= 1 captures the observed interaction between the two updates fl = fl*(1/nf2q) and the subsequent nf2q increment, and it holds at loop head (and remains true as the loop progresses given the initial values and the actual path of execution).
-- Progress bounds: nf2q >= 1 and nf2q <= ltod + 1, 0 <= fl <= 1, zwad ∈ {1, -1}, r0p >= 0, kpa >= 2. These reflect non-decreasing/increasing behavior and non-negativity of key variables, and they are preserved by the updates in this loop context.
-- Assigns: The loop touches and therefore may modify fl, zwad, nf2q, r0p, qf, and kpa.
-
-These invariants are chosen to be inductive and verification-friendly for Frama-C/WP in this specific function scope, without altering the original code behavior. They also avoid introducing unrelated properties and stay within the allowed annotation rules. </reasoning>
-<code>int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /*@
-    loop invariant nf2q >= 1;
-    loop invariant nf2q <= ltod + 1;
-    loop invariant 0 <= fl <= 1;
-    loop invariant zwad == 1 || zwad == -1;
-    loop invariant r0p >= 0;
-    loop invariant qf == 1;
-    loop invariant kpa >= 2;
-    loop invariant fl * nf2q <= 1;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (l == 0) || (l == vy);
+    loop invariant (l == 0) ==> (d4 == 0 && oo2z == 1 && rn == vy && y == \at(y,Pre));
+    loop invariant (l == vy) ==> (
+         (d4 == 0 && oo2z == 1 && rn == vy && y == \at(y,Pre))
+      || (d4 == \at(y,Pre) && oo2z == 2 && rn == vy + (\at(y,Pre) % 6) && y == \at(y,Pre) + (\at(y,Pre) % 4))
+    );
+    loop assigns d4, l, y, rn, oo2z;
+    loop variant (vy - l);
   */
-  while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
-
-}</code>
------ Candidate 16/20 raw response end -----
-2026-03-22 22:42:52,268 - INFO -   Candidate 17 selected prompt: simple_cot.txt
-2026-03-22 22:42:52,288 - INFO -   Generating candidate 17/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:44:56,677 - INFO - 
------ Candidate 17/20 raw response begin -----
-<reasoning>
-I analyzed the loop and selected inductive invariants that are tight, meaningful, and verification-friendly for Frama-C/WP, using only the available variables. The key observations are:
-- nf2q acts as a loop counter that starts at 1 and is incremented by 1 each iteration, with the loop continuing while nf2q <= ltod. A simple bound nf2q >= 1 and nf2q <= ltod + 1 captures the reachable values inside the loop.
-- zwad is assigned based on the pre-increment nf2q value via the test (nf2q/2) % 2 == 0, so zwad is always either 1 or -1. An invariant that zwad ∈ {1, -1} (expressed as zwad == 1 || zwad == -1) plus a bi-conditional relating zwad to the test provides a precise, inductive description of zwad.
-- Using a bi-conditional: ((nf2q/2) % 2 == 0) <==> (zwad == 1) ensures the invariant holds exactly as the code defines zwad, without relying on language-constructs that are not allowed in ACSL (no ternary operator).
-- The loop assigns are the variables modified inside the loop body: fl, zwad, nf2q, r0p, qf, kpa.
-
-The chosen invariants are:
-- nf2q >= 1
-- nf2q <= ltod + 1
-- ((nf2q/2) % 2 == 0) <==> (zwad == 1)
-- (zwad == 1) || (zwad == -1)
-- loop assigns: fl, zwad, nf2q, r0p, qf, kpa
-- loop variant: ltod - nf2q
-
-These invariants are strong, inductive, and directly reflect the loop’s update rules and termination pattern. They do not rely on any \old or non-parameter-specific constructs, and they respect the allowed ACSL syntax and operators.
-</reasoning>
-<code>/*@
-  loop invariant nf2q &gt;= 1;
-  loop invariant nf2q &lt;= ltod + 1;
-  loop invariant ((nf2q/2) % 2 == 0) &lt==&gt; (zwad == 1);
-  loop invariant (zwad == 1) || (zwad == -1);
-  loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-  loop variant ltod - nf2q;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }</code>
------ Candidate 17/20 raw response end -----
-2026-03-22 22:44:56,678 - INFO -   Candidate 18 selected prompt: simple_cot.txt
-2026-03-22 22:44:56,696 - INFO -   Generating candidate 18/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:45:43,773 - INFO - 
------ Candidate 18/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop inside main1. The loop exits when nf2q > ltod; thus the effective loop guard is nf2q <= ltod. Since nf2q is incremented by 1 each iteration, a natural progress measure is ltod - nf2q, which strictly decreases (and is non-negative at loop entry while the loop condition nf2q <= ltod holds). We add a safe, minimal set of invariants that are preserved by every iteration and are easy for Frama-C/WP to discharge, without modifying the code or introducing complex quantified relations.
-
-Key observations to encode safely as invariants:
-- nf2q is always in the range [1, ltod+1] while the loop is potentially entered.
-- fl is updated via integer arithmetic and remains in a non-negative range; empirically, with the given initial values, fl stays within [0,1]. We conservatively express 0 <= fl <= 1.
-- zwad is assigned either 1 or -1 in the loop body, so we state zwad ∈ {1, -1}.
-- r0p, kpa, qf remain non-negative through the loop body, given their initial values and the updates performed.
-- We explicitly declare the loop assigns list to cover all variables modified inside the loop: fl, zwad, nf2q, r0p, qf, kpa.
-- We use a loop variant ltod - nf2q to capture decreasing progress towards termination.
-
-These invariants are strong enough to guide the WP prover toward a sound termination and safety argument, while avoiding intrusive or fragile relations that would be brittle under the Python-like integer arithmetic in the loop (notably 1/nf2q being 0 for nf2q > 1 due to integer division).
-
-</reasoning>
-<code>/*@
-  loop invariant nf2q <= ltod + 1;
-  loop invariant nf2q >= 1;
-  loop invariant fl >= 0;
-  loop invariant fl <= 1;
-  loop invariant zwad == 1 || zwad == -1;
-  loop invariant r0p >= 0;
-  loop invariant kpa >= 0;
-  loop invariant qf >= 0;
-  loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-  loop variant ltod - nf2q;
-*/ 
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }</code>
------ Candidate 18/20 raw response end -----
-2026-03-22 22:45:43,773 - INFO -   Candidate 19 selected prompt: simple_cot.txt
-2026-03-22 22:45:43,789 - INFO -   Generating candidate 19/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:46:28,090 - INFO - 
------ Candidate 19/20 raw response begin -----
-<reasoning>
-I analyzed the loop structure and variable updates. The loop uses a break condition based on nf2q <= ltod, with ltod initialized to 1 and nf2q starting at 1. As a result, there is at most one iteration when ltod = 1, and nf2q evolves from 1 to 2, after which the loop exits. Based on this, I designed invariants that are:
-- inductive (hold before the first iteration and preserved by the loop body when the guard is true),
-- precise with respect to the loop’s updates, and
-- helpful for verification.
-
-Key invariants chosen:
-1) zwad = 1 - 2 * (((nf2q) / 2) % 2)
-   - This exact relation captures how zwad is assigned inside the loop based on nf2q (1 -> 1, 2 -> -1). It remains true across iterations because at the start of each iteration zwad is set according to the current nf2q, and at the next iteration nf2q will have advanced accordingly.
-
-2) 1 <= nf2q <= ltod + 1
-   - nf2q starts at 1 and increments by 1 each iteration; ltod is constant (1). This bound ensures nf2q is within the expected range across iteration points (before the first iteration and at the beginning of any subsequent iteration when the loop guard would be re-evaluated).
-
-3) qf == 1
-   - qf is only updated inside a condition that is never true with the given ltod (since ltod = 1), so qf remains 1 throughout. This invariant asserts that the loop does not modify qf.
-
-4) (fl == 0) || (fl == 1)
-   - fl starts at 1 and is multiplied by 1/nf2q twice per iteration. Given integer division semantics in C, fl stays in {0,1} within the loop. This invariant captures that bounded arithmetically.
-
-5) kpa >= 2
-   - kpa starts at 2 and is increased by zwad and then by ifwn in each iteration. Since zwad ∈ {1, -1} and ifwn is positive, kpa will stay >= 2 in the observed execution. This provides a simple lower bound.
-
-Loop progress:
-6) loop variant ltod + 1 - nf2q
-   - With ltod = 1, this is 2 - nf2q, which decreases by 1 on each iteration and remains non-negative for the iteration(s) that actually execute. It ensures termination within the finite bound implied by the guard.
-
-Loop assigns:
-- fl, nf2q, zwad, r0p, qf, kpa
-  These are exactly the variables modified inside the loop body.
-
-These invariants are strong, coherent with the code’s concrete arithmetic (including integer division behavior), and do not rely on any discarded constructs. They also avoid using parameters (there are none) and stay within the allowed ACSL constructs.
-
-</reasoning>
-<code>/*@
-  loop invariant zwad == 1 - 2 * (((nf2q) / 2) % 2);
-  loop invariant 1 <= nf2q <= ltod + 1;
-  loop invariant qf == 1;
-  loop invariant (fl == 0) || (fl == 1);
-  loop invariant kpa >= 2;
-  loop variant ltod + 1 - nf2q;
-  loop assigns fl, nf2q, zwad, r0p, qf, kpa;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }</code>
------ Candidate 19/20 raw response end -----
-2026-03-22 22:46:28,090 - INFO -   Candidate 20 selected prompt: simple_cot.txt
-2026-03-22 22:46:28,104 - INFO -   Generating candidate 20/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:48:26,393 - INFO - 
------ Candidate 20/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly ACSL loop annotations for the given loop. The loop structure is:
-
-- Initialization outside the loop: various ints are set (ltod=1; nf2q=1; etc.).
-- The loop itself is a while(1) with an internal break depending on nf2q <= ltod.
-- Within the body, several state updates occur:
-  - fl is multiplied by (1/nf2q) (integer division)
-  - zwad is set to 1 or -1 depending on nf2q
-  - nf2q is incremented
-  - r0p is updated by zwad*fl
-  - fl is updated again by (1/nf2q) after nf2q increment
-  - qf may be updated depending on a condition
-  - kpa is updated by zwad and by ifwn
-
-We need invariants that are inductive (hold at loop entry and preserved by each iteration when the loop guard is true) and provide a clear conservation relation, along with a minimal progress measure. Given the code, a compact set of invariants is:
-
-- nf2q <= ltod: The loop continues only while nf2q is within the bound; this captures the internal guard logic.
-- zwad relation with nf2q: zwad is always +/-1 and its sign is determined by (nf2q-1)/2 parity. Since the loop increments nf2q inside, the value of zwad at the start of each iteration corresponds to the parity of (nf2q-1)/2. We express this with two implications (no ternary operator needed):
-  - if ((nf2q - 1)/2) % 2 == 0 then zwad == 1
-  - if ((nf2q - 1)/2) % 2 != 0 then zwad == -1
-  This enforces the observed behavior of zwad in the loop.
-- fl >= 0: The multipliers (1/nf2q) yield 0 or 1 in integer arithmetic, so fl can only stay non-negative.
-- loop assigns: fl, zwad, nf2q, r0p, kpa, qf are exactly the variables modified inside the loop.
-- loop variant: ltod - nf2q, which decreases every iteration and is non-negative at loop entry (for the iterations that actually occur).
-
-These invariants are strong enough to reflect the main state-update pattern (the relation between nf2q, zwad, and fl) and provide a clean termination measure, while respecting the restriction of not introducing any unrelated invariants or rewriting code. The guard nf2q <= ltod is treated as a loop-specific guard (the loop can continue only if this holds) and is thus not itself promoted as a standalone invariant beyond the natural bound it enforces for iteration starts.
-
-</reasoning>
-<code>/*@
-  loop invariant nf2q <= ltod;
-  loop invariant (((nf2q - 1) / 2) % 2 == 0) ==> (zwad == 1);
-  loop invariant (((nf2q - 1) / 2) % 2 != 0) ==> (zwad == -1);
-  loop invariant fl >= 0;
-  loop assigns fl, zwad, nf2q, r0p, kpa, qf;
-  loop variant ltod - nf2q;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }</code>
------ Candidate 20/20 raw response end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 1/20 full code begin -----
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
- /*@
-   loop invariant nf2q >= 1;
-   loop invariant nf2q <= (ltod + 1);
-   loop invariant (fl == 1) <==> (nf2q == 1);
-   loop invariant (zwad == 1 || zwad == -1);
-   loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-   loop variant (ltod - nf2q + 1);
- */
- while (1) {
-       if (!(nf2q<=ltod)) {
-           break;
-       }
-       fl = fl*(1/nf2q);
-       if ((nf2q/2)%2==0) {
-           zwad = 1;
-       }
-       else {
-           zwad = -1;
-       }
-       nf2q = nf2q + 1;
-       r0p = r0p+zwad*fl;
-       fl = fl*(1/nf2q);
-       if (qf+6<ltod) {
-           qf = kpa*kpa;
-       }
-       kpa += zwad;
-       kpa += ifwn;
-   }
-
-}
------ Candidate 1/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 2/20 full code begin -----
-/*@
-  loop invariant nf2q <= ltod + 1;
-  loop invariant ((nf2q - 1) / 2) % 2 == 0 ==> zwad == 1;
-  loop invariant ((nf2q - 1) / 2) % 2 != 0 ==> zwad == -1;
-  loop invariant fl >= 0;
-  loop invariant r0p >= 0;
-  loop invariant qf >= 1;
-  loop invariant kpa >= 0;
-  loop invariant nf2q >= 1;
-  loop invariant zwad == 1 || zwad == -1;
-  loop assigns fl, r0p, nf2q, zwad, kpa, qf;
-  loop variant ltod - nf2q;
-*/
------ Candidate 2/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 3/20 full code begin -----
-/*@
-  loop invariant 1 <= nf2q && nf2q <= ltod + 1;
-  loop invariant (fl == 0) || (fl == 1);
-  loop assigns fl, r0p, nf2q, zwad, qf, kpa;
-  loop variant ltod + 1 - nf2q;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
------ Candidate 3/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 4/20 full code begin -----
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /*@
-    loop invariant (ltod - nf2q) >= 0;
-    loop invariant 0 <= fl <= 1;
-    loop invariant nf2q <= ltod;
-    loop invariant -1 <= zwad <= 1;
-    loop invariant r0p >= 1;
-    loop invariant qf == 1;
-    loop invariant kpa >= 2;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-    loop variant (ltod - nf2q);
-  */
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
+  while (l < vy) {
+        d4 = (l++, d4 + l * y);
+        y = y+(d4%4);
+        rn = rn+(d4%6);
+        oo2z = oo2z*2;
+        l = vy;
   }
 
 }
------ Candidate 4/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 5/20 full code begin -----
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:30:13,894 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
 
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
+
+  /*@
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (l == 0) || (l == vy);
+    loop invariant (l == 0) ==> (d4 == 0 && rn == vy && oo2z == 1);
+    loop invariant (l == vy && l > 0) ==> (d4 == \at(y, Pre) && rn == vy + (\at(y, Pre) % 6) && oo2z == 2);
+    loop assigns d4, y, rn, oo2z, l;
+    loop variant (vy - l);
+  */
+  while (l < vy) {
+        d4 = (l++, d4 + l * y);
+        y = y+(d4%4);
+        rn = rn+(d4%6);
+        oo2z = oo2z*2;
+        l = vy;
+  }
+
+}
+----- Candidate 1/5 full code end -----
+2026-04-07 09:30:13,894 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
+
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 0 <= fl && fl <= 1;
-    loop invariant nf2q >= 1;
-    loop invariant nf2q <= ltod + 1;
-    loop invariant zwad == 1 || zwad == -1;
-    loop invariant kpa <= 7;
-    loop invariant r0p <= 2;
-    loop invariant qf >= 1;
-    loop invariant ifwn == 4;
-    loop invariant ltod == 1;
-    loop assigns fl, r0p, nf2q, zwad, kpa, qf;
-    loop variant (ltod + 1 - nf2q);
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (l == 0 || l == vy);
+    loop invariant (l == 0 ==> (d4 == 0 && rn == vy && oo2z == 1 && y == \at(y, Pre)));
+    loop invariant (l == vy ==> (d4 == \at(y, Pre) && y == \at(y, Pre) + (\at(y, Pre) % 4) && rn == vy + (\at(y, Pre) % 6) && oo2z == 2));
+    loop assigns d4, y, rn, oo2z, l;
+    loop variant (vy - l);
   */
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
+  while (l < vy) {
+        d4 = (l++, d4 + l * y);
+        y = y+(d4%4);
+        rn = rn+(d4%6);
+        oo2z = oo2z*2;
+        l = vy;
   }
 
 }
------ Candidate 5/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 6/20 full code begin -----
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
+----- Candidate 2/5 full code end -----
+2026-04-07 09:30:13,894 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
 
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
 
   /*@
-    loop invariant 0 &lt;= fl &lt;= 1;
-    loop invariant 1 &lt;= nf2q &lt;= ltod + 1;
-    loop invariant (zwad == 1) || (zwad == -1);
-    loop invariant r0p &gt;= 1;
-    loop invariant kpa &gt;= 2;
-    loop invariant qf == 1;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (l == 0) || (l == vy);
+    loop invariant (l == 0) ==> (d4 == 0 && rn == vy && oo2z == 1);
+    loop invariant (l == vy) ==> (d4 == \at(y, Pre) && y == (\at(y, Pre) + (\at(y, Pre) % 4)) && rn == (vy + (\at(y, Pre) % 6)) && oo2z == 2);
+    loop assigns d4, l, y, rn, oo2z;
+    loop variant vy - l;
   */
-  while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
+while (l < vy) {
+      d4 = (l++, d4 + l * y);
+      y = y+(d4%4);
+      rn = rn+(d4%6);
+      oo2z = oo2z*2;
+      l = vy;
   }
 
 }
------ Candidate 6/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 7/20 full code begin -----
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
+----- Candidate 3/5 full code end -----
+2026-04-07 09:30:13,894 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
 
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
 
   /*@
-    loop invariant nf2q >= 1;
-    loop invariant nf2q <= ltod + 1;
-    loop invariant (nf2q == 1 && fl == 1) || (nf2q >= 2 && fl == 0);
-    loop invariant zwad == 1 || zwad == -1;
-    loop invariant r0p >= 0;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-    loop variant (ltod - nf2q + 1);
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (oo2z == 1) <==> (l == 0);
+    loop assigns d4, l, y, rn, oo2z;
+    loop variant (vy - l);
   */
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
+  while (l < vy) {
+        d4 = (l++, d4 + l * y);
+        y = y+(d4%4);
+        rn = rn+(d4%6);
+        oo2z = oo2z*2;
+        l = vy;
   }
 
 }
------ Candidate 7/20 full code end -----
-2026-03-22 22:48:26,394 - WARNING - Candidate 8/20 full code: <None> (failed to extract)
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 9/20 full code begin -----
-/*@
-  loop invariant nf2q <= ltod + 1;
-  loop invariant (nf2q == 1) ==> (fl == 1);
-  loop invariant (nf2q >= 2) ==> (fl == 0);
-  loop invariant kpa >= 2;
-  loop invariant fl >= 0;
-  loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-  loop variant ltod + 1 - nf2q;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
------ Candidate 9/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 10/20 full code begin -----
-/*@
-  loop invariant 0 <= fl <= 1;
-  loop invariant 1 <= nf2q;
-  loop invariant 0 <= r0p;
-  loop invariant (zwad == 1) || (zwad == -1);
-  loop invariant ifwn == ltod + 3;
-  loop invariant qf == 1;
-  loop invariant kpa >= 2;
-  loop assigns fl, r0p, nf2q, zwad, kpa, qf;
-  loop variant ltod - nf2q;
-*/
------ Candidate 10/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 11/20 full code begin -----
-/*@
-  loop invariant nf2q &lt;= ltod + 1;
-  loop invariant 0 &lt;= fl;
-  loop invariant (fl == 0) || (nf2q == 1);
-  loop invariant r0p &gt;= 1;
-  loop invariant kpa &gt;= 2;
-  loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
------ Candidate 11/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 12/20 full code begin -----
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
+----- Candidate 4/5 full code end -----
+2026-04-07 09:30:13,894 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int y){
+  int vy, l, d4, oo2z, rn;
 
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 1 <= nf2q <= ltod + 1;
-    loop invariant fl >= 0;
-    loop invariant zwad == 1 || zwad == -1;
-    loop invariant qf == 1;
-    loop invariant 2 <= kpa <= 4;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-  */
-  while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
-
-}
------ Candidate 12/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 13/20 full code begin -----
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
+  vy=80;
+  l=0;
+  d4=0;
+  oo2z=1;
+  rn=vy;
 
   /*@
-    loop invariant ((nf2q == 1) ==> (fl == 1)) && ((fl == 1) ==> (nf2q == 1));
-    loop invariant (0 <= fl <= 1);
-    loop invariant ((zwad == 1) || (zwad == -1));
-    loop invariant (r0p >= 1);
-    loop invariant (kpa >= 2);
-    loop invariant (qf == 1);
-    loop assigns fl, r0p, nf2q, zwad, kpa, qf;
+    loop invariant 0 <= l && l <= vy;
+    loop invariant (l == 0) || (l == vy);
+    loop invariant (l == 0) ==> (d4 == 0 && oo2z == 1 && rn == vy && y == \at(y,Pre));
+    loop invariant (l == vy) ==> (
+         (d4 == 0 && oo2z == 1 && rn == vy && y == \at(y,Pre))
+      || (d4 == \at(y,Pre) && oo2z == 2 && rn == vy + (\at(y,Pre) % 6) && y == \at(y,Pre) + (\at(y,Pre) % 4))
+    );
+    loop assigns d4, l, y, rn, oo2z;
+    loop variant (vy - l);
   */
-  while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
+  while (l < vy) {
+        d4 = (l++, d4 + l * y);
+        y = y+(d4%4);
+        rn = rn+(d4%6);
+        oo2z = oo2z*2;
+        l = vy;
   }
 
 }
------ Candidate 13/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 14/20 full code begin -----
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /*@
-    // Core invariants and loop behavior
-    loop invariant nf2q <= ltod + 1;
-    loop invariant 0 <= fl <= 1;
-    loop invariant (zwad == 1) || (zwad == -1);
-    // zwad reflects the previous nf2q value: zwad == 1 when ((nf2q-1)/2) % 2 == 0, else zwad == -1
-    loop invariant (((nf2q - 1) / 2) % 2 == 0) ==> (zwad == 1);
-    loop invariant (((nf2q - 1) / 2) % 2 != 0) ==> (zwad == -1);
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-    loop variant ltod - nf2q;
-  @*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
-
-}
------ Candidate 14/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 15/20 full code begin -----
-/*@
-  loop invariant ltod == 1;                    // ltod is constant
-  loop invariant nf2q >= 1;                    // nf2q starts at 1
-  loop invariant nf2q <= ltod + 1;              // nf2q in {1,2} given the guard
-  loop invariant (fl == 0) || (fl == 1);        // 1/nf2q is either 1 or 0, so fl stays 0 or 1
-  loop invariant (zwad == 1) || (zwad == -1);   // zwad is assigned to ±1
-  loop invariant qf == 1;                       // qf is not modified in the loop for given values
-  loop invariant r0p >= 1;                       // r0p starts at 1
-  loop invariant r0p <= 2;                       // with the observed single iteration (safe bound)
-  loop assigns fl, zwad, nf2q, r0p, kpa;         // variables that are actually modified in the loop
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
------ Candidate 15/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 16/20 full code begin -----
-int main1(){
-  int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-
-  ltod=1;
-  ifwn=ltod+3;
-  fl=1;
-  r0p=1;
-  nf2q=1;
-  zwad=1;
-  kpa=2;
-  qf=1;
-
-  /*@
-    loop invariant nf2q >= 1;
-    loop invariant nf2q <= ltod + 1;
-    loop invariant 0 <= fl <= 1;
-    loop invariant zwad == 1 || zwad == -1;
-    loop invariant r0p >= 0;
-    loop invariant qf == 1;
-    loop invariant kpa >= 2;
-    loop invariant fl * nf2q <= 1;
-    loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-  */
-  while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
-
-}
------ Candidate 16/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 17/20 full code begin -----
-/*@
-  loop invariant nf2q &gt;= 1;
-  loop invariant nf2q &lt;= ltod + 1;
-  loop invariant ((nf2q/2) % 2 == 0) &lt==&gt; (zwad == 1);
-  loop invariant (zwad == 1) || (zwad == -1);
-  loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-  loop variant ltod - nf2q;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
------ Candidate 17/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 18/20 full code begin -----
-/*@
-  loop invariant nf2q <= ltod + 1;
-  loop invariant nf2q >= 1;
-  loop invariant fl >= 0;
-  loop invariant fl <= 1;
-  loop invariant zwad == 1 || zwad == -1;
-  loop invariant r0p >= 0;
-  loop invariant kpa >= 0;
-  loop invariant qf >= 0;
-  loop assigns fl, zwad, nf2q, r0p, qf, kpa;
-  loop variant ltod - nf2q;
-*/ 
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
------ Candidate 18/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 19/20 full code begin -----
-/*@
-  loop invariant zwad == 1 - 2 * (((nf2q) / 2) % 2);
-  loop invariant 1 <= nf2q <= ltod + 1;
-  loop invariant qf == 1;
-  loop invariant (fl == 0) || (fl == 1);
-  loop invariant kpa >= 2;
-  loop variant ltod + 1 - nf2q;
-  loop assigns fl, nf2q, zwad, r0p, qf, kpa;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
------ Candidate 19/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - 
------ Candidate 20/20 full code begin -----
-/*@
-  loop invariant nf2q <= ltod;
-  loop invariant (((nf2q - 1) / 2) % 2 == 0) ==> (zwad == 1);
-  loop invariant (((nf2q - 1) / 2) % 2 != 0) ==> (zwad == -1);
-  loop invariant fl >= 0;
-  loop assigns fl, zwad, nf2q, r0p, kpa, qf;
-  loop variant ltod - nf2q;
-*/
-while (1) {
-      if (!(nf2q<=ltod)) {
-          break;
-      }
-      fl = fl*(1/nf2q);
-      if ((nf2q/2)%2==0) {
-          zwad = 1;
-      }
-      else {
-          zwad = -1;
-      }
-      nf2q = nf2q + 1;
-      r0p = r0p+zwad*fl;
-      fl = fl*(1/nf2q);
-      if (qf+6<ltod) {
-          qf = kpa*kpa;
-      }
-      kpa += zwad;
-      kpa += ifwn;
-  }
------ Candidate 20/20 full code end -----
-2026-03-22 22:48:26,394 - INFO - Successfully generated 19/20 candidates
-2026-03-22 22:48:26,396 - INFO - Checking 43 invariants for conflicts...
-2026-03-22 22:48:26,398 - INFO -   Conflict detected:
-2026-03-22 22:48:26,398 - INFO -     [3] (fl == 1) <==> (nf2q == 1)
-2026-03-22 22:48:26,398 - INFO -     [6] (fl == 0) || (fl == 1)
-2026-03-22 22:48:26,399 - INFO -   Conflict detected:
-2026-03-22 22:48:26,399 - INFO -     [3] (fl == 1) <==> (nf2q == 1)
-2026-03-22 22:48:26,399 - INFO -     [26] (nf2q >= 2) ==> (fl == 0)
-2026-03-22 22:48:26,399 - INFO -   Conflict detected:
-2026-03-22 22:48:26,399 - INFO -     [3] (fl == 1) <==> (nf2q == 1)
-2026-03-22 22:48:26,399 - INFO -     [28] (fl == 0) || (nf2q == 1)
-2026-03-22 22:48:26,399 - INFO -   Conflict detected:
-2026-03-22 22:48:26,399 - INFO -     [4] (zwad == 1 || zwad == -1)
-2026-03-22 22:48:26,399 - INFO -     [38] (((nf2q - 1) / 2) % 2 != 0) ==> (zwad == -1)
-2026-03-22 22:48:26,401 - INFO -   Conflict detected:
-2026-03-22 22:48:26,401 - INFO -     [23] (nf2q == 1 && fl == 1) || (nf2q >= 2 && fl == 0)
-2026-03-22 22:48:26,401 - INFO -     [39] fl * nf2q <= 1
-2026-03-22 22:48:26,403 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 22:48:26,403 - INFO -   1: int main1(){
-2026-03-22 22:48:26,403 - INFO -   2:   int ltod, ifwn, fl, r0p, nf2q, zwad, kpa, qf;
-2026-03-22 22:48:26,403 - INFO -   3: 
-2026-03-22 22:48:26,403 - INFO -   4:   ltod=1;
-2026-03-22 22:48:26,403 - INFO -   5:   ifwn=ltod+3;
-2026-03-22 22:48:26,403 - INFO -   6:   fl=1;
-2026-03-22 22:48:26,403 - INFO -   7:   r0p=1;
-2026-03-22 22:48:26,403 - INFO -   8:   nf2q=1;
-2026-03-22 22:48:26,403 - INFO -   9:   zwad=1;
-2026-03-22 22:48:26,403 - INFO -   10:   kpa=2;
-2026-03-22 22:48:26,403 - INFO - DEBUG: Total lines: 77
-2026-03-22 22:48:26,648 - INFO - syntax Correct
-2026-03-22 22:48:57,427 - INFO - Validate:
-2026-03-22 22:48:57,427 - INFO - [True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:48:57,427 - INFO - 
-2026-03-22 22:48:57,427 - INFO - Verify:
-2026-03-22 22:48:57,427 - INFO - []
-2026-03-22 22:48:57,427 - INFO - 
-2026-03-22 22:48:57,427 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-22 22:48:57,427 - INFO -   Before: 38 invariants
-2026-03-22 22:48:57,427 - INFO -   After: 37 invariants
-2026-03-22 22:48:57,427 - INFO -   Remaining invariants:
-2026-03-22 22:48:57,427 - INFO -     [1] nf2q >= 1
-2026-03-22 22:48:57,427 - INFO -     [2] nf2q <= (ltod + 1)
-2026-03-22 22:48:57,427 - INFO -     [3] (fl == 1) <==> (nf2q == 1)
-2026-03-22 22:48:57,427 - INFO -     [4] (zwad == 1 || zwad == -1)
-2026-03-22 22:48:57,427 - INFO -     [5] 1 <= nf2q && nf2q <= ltod + 1
-2026-03-22 22:48:57,427 - INFO -     [6] 0 <= fl <= 1
-2026-03-22 22:48:57,427 - INFO -     [7] nf2q <= ltod
-2026-03-22 22:48:57,427 - INFO -     [8] -1 <= zwad <= 1
-2026-03-22 22:48:57,427 - INFO -     [9] r0p >= 1
-2026-03-22 22:48:57,427 - INFO -     [10] qf == 1
-2026-03-22 22:48:57,427 - INFO -     [11] kpa >= 2
-2026-03-22 22:48:57,427 - INFO -     [12] 0 <= fl && fl <= 1
-2026-03-22 22:48:57,428 - INFO -     [13] nf2q <= ltod + 1
-2026-03-22 22:48:57,428 - INFO -     [14] zwad == 1 || zwad == -1
-2026-03-22 22:48:57,428 - INFO -     [15] kpa <= 7
-2026-03-22 22:48:57,428 - INFO -     [16] r0p <= 2
-2026-03-22 22:48:57,428 - INFO -     [17] qf >= 1
-2026-03-22 22:48:57,428 - INFO -     [18] ifwn == 4
-2026-03-22 22:48:57,428 - INFO -     [19] ltod == 1
-2026-03-22 22:48:57,428 - INFO -     [20] (zwad == 1) || (zwad == -1)
-2026-03-22 22:48:57,428 - INFO -     [21] (nf2q == 1 && fl == 1) || (nf2q >= 2 && fl == 0)
-2026-03-22 22:48:57,428 - INFO -     [22] r0p >= 0
-2026-03-22 22:48:57,428 - INFO -     [23] (nf2q == 1) ==> (fl == 1)
-2026-03-22 22:48:57,428 - INFO -     [24] fl >= 0
-2026-03-22 22:48:57,428 - INFO -     [25] 1 <= nf2q <= ltod + 1
-2026-03-22 22:48:57,428 - INFO -     [26] 2 <= kpa <= 4
-2026-03-22 22:48:57,428 - INFO -     [27] ((nf2q == 1) ==> (fl == 1)) && ((fl == 1) ==> (nf2q == 1))
-2026-03-22 22:48:57,428 - INFO -     [28] (0 <= fl <= 1)
-2026-03-22 22:48:57,428 - INFO -     [29] ((zwad == 1) || (zwad == -1))
-2026-03-22 22:48:57,428 - INFO -     [30] (r0p >= 1)
-2026-03-22 22:48:57,428 - INFO -     [31] (kpa >= 2)
-2026-03-22 22:48:57,428 - INFO -     [32] (qf == 1)
-2026-03-22 22:48:57,428 - INFO -     [33] (((nf2q - 1) / 2) % 2 == 0) ==> (zwad == 1)
-2026-03-22 22:48:57,428 - INFO -     [34] fl <= 1
-2026-03-22 22:48:57,428 - INFO -     [35] kpa >= 0
-2026-03-22 22:48:57,428 - INFO -     [36] qf >= 0
-2026-03-22 22:48:57,428 - INFO -     [37] zwad == 1 - 2 * (((nf2q) / 2) % 2)
-2026-03-22 22:48:57,684 - INFO - syntax Correct
-2026-03-22 22:49:28,544 - INFO - Validate:
-2026-03-22 22:49:28,545 - INFO - [True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:49:28,545 - INFO - 
-2026-03-22 22:49:28,545 - INFO - Verify:
-2026-03-22 22:49:28,545 - INFO - []
-2026-03-22 22:49:28,545 - INFO - 
-2026-03-22 22:49:28,545 - INFO - Houdini iteration 2: Removed 1 failed invariants
-2026-03-22 22:49:28,545 - INFO -   Before: 37 invariants
-2026-03-22 22:49:28,545 - INFO -   After: 36 invariants
-2026-03-22 22:49:28,545 - INFO -   Remaining invariants:
-2026-03-22 22:49:28,545 - INFO -     [1] nf2q >= 1
-2026-03-22 22:49:28,545 - INFO -     [2] nf2q <= (ltod + 1)
-2026-03-22 22:49:28,545 - INFO -     [3] (fl == 1) <==> (nf2q == 1)
-2026-03-22 22:49:28,545 - INFO -     [4] (zwad == 1 || zwad == -1)
-2026-03-22 22:49:28,545 - INFO -     [5] 1 <= nf2q && nf2q <= ltod + 1
-2026-03-22 22:49:28,545 - INFO -     [6] 0 <= fl <= 1
-2026-03-22 22:49:28,545 - INFO -     [7] -1 <= zwad <= 1
-2026-03-22 22:49:28,545 - INFO -     [8] r0p >= 1
-2026-03-22 22:49:28,545 - INFO -     [9] qf == 1
-2026-03-22 22:49:28,545 - INFO -     [10] kpa >= 2
-2026-03-22 22:49:28,545 - INFO -     [11] 0 <= fl && fl <= 1
-2026-03-22 22:49:28,545 - INFO -     [12] nf2q <= ltod + 1
-2026-03-22 22:49:28,545 - INFO -     [13] zwad == 1 || zwad == -1
-2026-03-22 22:49:28,545 - INFO -     [14] kpa <= 7
-2026-03-22 22:49:28,545 - INFO -     [15] r0p <= 2
-2026-03-22 22:49:28,545 - INFO -     [16] qf >= 1
-2026-03-22 22:49:28,545 - INFO -     [17] ifwn == 4
-2026-03-22 22:49:28,545 - INFO -     [18] ltod == 1
-2026-03-22 22:49:28,545 - INFO -     [19] (zwad == 1) || (zwad == -1)
-2026-03-22 22:49:28,545 - INFO -     [20] (nf2q == 1 && fl == 1) || (nf2q >= 2 && fl == 0)
-2026-03-22 22:49:28,545 - INFO -     [21] r0p >= 0
-2026-03-22 22:49:28,545 - INFO -     [22] (nf2q == 1) ==> (fl == 1)
-2026-03-22 22:49:28,545 - INFO -     [23] fl >= 0
-2026-03-22 22:49:28,545 - INFO -     [24] 1 <= nf2q <= ltod + 1
-2026-03-22 22:49:28,545 - INFO -     [25] 2 <= kpa <= 4
-2026-03-22 22:49:28,545 - INFO -     [26] ((nf2q == 1) ==> (fl == 1)) && ((fl == 1) ==> (nf2q == 1))
-2026-03-22 22:49:28,545 - INFO -     [27] (0 <= fl <= 1)
-2026-03-22 22:49:28,545 - INFO -     [28] ((zwad == 1) || (zwad == -1))
-2026-03-22 22:49:28,545 - INFO -     [29] (r0p >= 1)
-2026-03-22 22:49:28,545 - INFO -     [30] (kpa >= 2)
-2026-03-22 22:49:28,545 - INFO -     [31] (qf == 1)
-2026-03-22 22:49:28,545 - INFO -     [32] (((nf2q - 1) / 2) % 2 == 0) ==> (zwad == 1)
-2026-03-22 22:49:28,545 - INFO -     [33] fl <= 1
-2026-03-22 22:49:28,545 - INFO -     [34] kpa >= 0
-2026-03-22 22:49:28,545 - INFO -     [35] qf >= 0
-2026-03-22 22:49:28,545 - INFO -     [36] zwad == 1 - 2 * (((nf2q) / 2) % 2)
-2026-03-22 22:49:28,778 - INFO - syntax Correct
-2026-03-22 22:50:00,437 - INFO - Validate:
-2026-03-22 22:50:00,437 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, False, False, True, True, True, True, True, True, True, True, True, False, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:50:00,437 - INFO - 
-2026-03-22 22:50:00,438 - INFO - Verify:
-2026-03-22 22:50:00,438 - INFO - []
-2026-03-22 22:50:00,438 - INFO - 
-2026-03-22 22:50:00,438 - INFO - Houdini iteration 3: Removed 3 failed invariants
-2026-03-22 22:50:00,438 - INFO -   Before: 36 invariants
-2026-03-22 22:50:00,438 - INFO -   After: 33 invariants
-2026-03-22 22:50:00,438 - INFO -   Remaining invariants:
-2026-03-22 22:50:00,438 - INFO -     [1] nf2q >= 1
-2026-03-22 22:50:00,438 - INFO -     [2] nf2q <= (ltod + 1)
-2026-03-22 22:50:00,438 - INFO -     [3] (fl == 1) <==> (nf2q == 1)
-2026-03-22 22:50:00,438 - INFO -     [4] (zwad == 1 || zwad == -1)
-2026-03-22 22:50:00,438 - INFO -     [5] 1 <= nf2q && nf2q <= ltod + 1
-2026-03-22 22:50:00,438 - INFO -     [6] 0 <= fl <= 1
-2026-03-22 22:50:00,438 - INFO -     [7] -1 <= zwad <= 1
-2026-03-22 22:50:00,438 - INFO -     [8] r0p >= 1
-2026-03-22 22:50:00,438 - INFO -     [9] qf == 1
-2026-03-22 22:50:00,438 - INFO -     [10] kpa >= 2
-2026-03-22 22:50:00,438 - INFO -     [11] 0 <= fl && fl <= 1
-2026-03-22 22:50:00,438 - INFO -     [12] nf2q <= ltod + 1
-2026-03-22 22:50:00,438 - INFO -     [13] zwad == 1 || zwad == -1
-2026-03-22 22:50:00,438 - INFO -     [14] qf >= 1
-2026-03-22 22:50:00,438 - INFO -     [15] ifwn == 4
-2026-03-22 22:50:00,438 - INFO -     [16] ltod == 1
-2026-03-22 22:50:00,438 - INFO -     [17] (zwad == 1) || (zwad == -1)
-2026-03-22 22:50:00,438 - INFO -     [18] (nf2q == 1 && fl == 1) || (nf2q >= 2 && fl == 0)
-2026-03-22 22:50:00,438 - INFO -     [19] r0p >= 0
-2026-03-22 22:50:00,438 - INFO -     [20] (nf2q == 1) ==> (fl == 1)
-2026-03-22 22:50:00,438 - INFO -     [21] fl >= 0
-2026-03-22 22:50:00,438 - INFO -     [22] 1 <= nf2q <= ltod + 1
-2026-03-22 22:50:00,438 - INFO -     [23] ((nf2q == 1) ==> (fl == 1)) && ((fl == 1) ==> (nf2q == 1))
-2026-03-22 22:50:00,438 - INFO -     [24] (0 <= fl <= 1)
-2026-03-22 22:50:00,438 - INFO -     [25] ((zwad == 1) || (zwad == -1))
-2026-03-22 22:50:00,438 - INFO -     [26] (r0p >= 1)
-2026-03-22 22:50:00,438 - INFO -     [27] (kpa >= 2)
-2026-03-22 22:50:00,438 - INFO -     [28] (qf == 1)
-2026-03-22 22:50:00,438 - INFO -     [29] (((nf2q - 1) / 2) % 2 == 0) ==> (zwad == 1)
-2026-03-22 22:50:00,438 - INFO -     [30] fl <= 1
-2026-03-22 22:50:00,438 - INFO -     [31] kpa >= 0
-2026-03-22 22:50:00,438 - INFO -     [32] qf >= 0
-2026-03-22 22:50:00,438 - INFO -     [33] zwad == 1 - 2 * (((nf2q) / 2) % 2)
-2026-03-22 22:50:00,659 - INFO - syntax Correct
-2026-03-22 22:50:32,354 - INFO - Validate:
-2026-03-22 22:50:32,354 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, False]
-2026-03-22 22:50:32,354 - INFO - 
-2026-03-22 22:50:32,354 - INFO - Verify:
-2026-03-22 22:50:32,354 - INFO - []
-2026-03-22 22:50:32,354 - INFO - 
-2026-03-22 22:50:32,354 - INFO - Houdini iteration 4: Removed 1 failed invariants
-2026-03-22 22:50:32,354 - INFO -   Before: 33 invariants
-2026-03-22 22:50:32,354 - INFO -   After: 32 invariants
-2026-03-22 22:50:32,355 - INFO -   Remaining invariants:
-2026-03-22 22:50:32,355 - INFO -     [1] nf2q >= 1
-2026-03-22 22:50:32,355 - INFO -     [2] nf2q <= (ltod + 1)
-2026-03-22 22:50:32,355 - INFO -     [3] (fl == 1) <==> (nf2q == 1)
-2026-03-22 22:50:32,355 - INFO -     [4] (zwad == 1 || zwad == -1)
-2026-03-22 22:50:32,355 - INFO -     [5] 1 <= nf2q && nf2q <= ltod + 1
-2026-03-22 22:50:32,355 - INFO -     [6] 0 <= fl <= 1
-2026-03-22 22:50:32,355 - INFO -     [7] -1 <= zwad <= 1
-2026-03-22 22:50:32,355 - INFO -     [8] r0p >= 1
-2026-03-22 22:50:32,355 - INFO -     [9] qf == 1
-2026-03-22 22:50:32,355 - INFO -     [10] kpa >= 2
-2026-03-22 22:50:32,355 - INFO -     [11] 0 <= fl && fl <= 1
-2026-03-22 22:50:32,355 - INFO -     [12] nf2q <= ltod + 1
-2026-03-22 22:50:32,355 - INFO -     [13] zwad == 1 || zwad == -1
-2026-03-22 22:50:32,355 - INFO -     [14] qf >= 1
-2026-03-22 22:50:32,355 - INFO -     [15] ifwn == 4
-2026-03-22 22:50:32,355 - INFO -     [16] ltod == 1
-2026-03-22 22:50:32,355 - INFO -     [17] (zwad == 1) || (zwad == -1)
-2026-03-22 22:50:32,355 - INFO -     [18] (nf2q == 1 && fl == 1) || (nf2q >= 2 && fl == 0)
-2026-03-22 22:50:32,355 - INFO -     [19] r0p >= 0
-2026-03-22 22:50:32,355 - INFO -     [20] (nf2q == 1) ==> (fl == 1)
-2026-03-22 22:50:32,355 - INFO -     [21] fl >= 0
-2026-03-22 22:50:32,355 - INFO -     [22] 1 <= nf2q <= ltod + 1
-2026-03-22 22:50:32,355 - INFO -     [23] ((nf2q == 1) ==> (fl == 1)) && ((fl == 1) ==> (nf2q == 1))
-2026-03-22 22:50:32,355 - INFO -     [24] (0 <= fl <= 1)
-2026-03-22 22:50:32,355 - INFO -     [25] ((zwad == 1) || (zwad == -1))
-2026-03-22 22:50:32,355 - INFO -     [26] (r0p >= 1)
-2026-03-22 22:50:32,355 - INFO -     [27] (kpa >= 2)
-2026-03-22 22:50:32,355 - INFO -     [28] (qf == 1)
-2026-03-22 22:50:32,355 - INFO -     [29] (((nf2q - 1) / 2) % 2 == 0) ==> (zwad == 1)
-2026-03-22 22:50:32,355 - INFO -     [30] fl <= 1
-2026-03-22 22:50:32,355 - INFO -     [31] kpa >= 0
-2026-03-22 22:50:32,355 - INFO -     [32] qf >= 0
-2026-03-22 22:50:32,590 - INFO - syntax Correct
-2026-03-22 22:51:04,360 - INFO - Validate:
-2026-03-22 22:51:04,360 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:51:04,360 - INFO - 
-2026-03-22 22:51:04,360 - INFO - Verify:
-2026-03-22 22:51:04,360 - INFO - []
-2026-03-22 22:51:04,360 - INFO - 
-2026-03-22 22:51:04,360 - INFO - Houdini iteration 5: All invariants are valid
-2026-03-22 22:51:04,583 - INFO - syntax Correct
-2026-03-22 22:51:36,279 - INFO - Validate:
-2026-03-22 22:51:36,279 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:51:36,280 - INFO - 
-2026-03-22 22:51:36,280 - INFO - Verify:
-2026-03-22 22:51:36,280 - INFO - []
-2026-03-22 22:51:36,280 - INFO - 
-2026-03-22 22:52:01,457 - INFO - Deduplicated 25 loop invariants in final code
-2026-03-22 22:52:01,691 - INFO - syntax Correct
-2026-03-22 22:52:32,678 - INFO - Validate:
-2026-03-22 22:52:32,678 - INFO - [True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 22:52:32,678 - INFO - 
-2026-03-22 22:52:32,678 - INFO - Verify:
-2026-03-22 22:52:32,678 - INFO - []
-2026-03-22 22:52:32,678 - INFO - 
-2026-03-22 22:52:32,679 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 22:52:32,679 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_2/1.c
-2026-03-22 22:52:32,679 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_2/1_invariants.txt
-2026-03-22 22:52:32,679 - INFO - 
+----- Candidate 5/5 full code end -----
+2026-04-07 09:30:13,894 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:30:13,896 - INFO - Checking 11 invariants for conflicts...
+2026-04-07 09:30:13,898 - INFO -   Conflict detected:
+2026-04-07 09:30:13,898 - INFO -     [3] (l == 0) ==> (d4 == 0 && rn == vy && oo2z == 1)
+2026-04-07 09:30:13,898 - INFO -     [4] (l == vy && l > 0) ==> (d4 == \at(y, Pre) && rn == vy + (\at(y, Pre) % 6) && oo2z == 2)
+2026-04-07 09:30:13,899 - INFO -   Conflict detected:
+2026-04-07 09:30:13,899 - INFO -     [3] (l == 0) ==> (d4 == 0 && rn == vy && oo2z == 1)
+2026-04-07 09:30:13,899 - INFO -     [7] (l == vy ==> (d4 == \at(y, Pre) && y == \at(y, Pre) + (\at(y, Pre) % 4) && rn == vy + (\at(y, Pre) % 6) && oo2z == 2))
+2026-04-07 09:30:13,899 - INFO -   Conflict detected:
+2026-04-07 09:30:13,899 - INFO -     [3] (l == 0) ==> (d4 == 0 && rn == vy && oo2z == 1)
+2026-04-07 09:30:13,899 - INFO -     [8] (l == vy) ==> (d4 == \at(y, Pre) && y == (\at(y, Pre) + (\at(y, Pre) % 4)) && rn == (vy + (\at(y, Pre) % 6)) && oo2z == 2)
+2026-04-07 09:30:13,902 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:30:13,903 - INFO -   1: int main1(int y){
+2026-04-07 09:30:13,903 - INFO -   2:   int vy, l, d4, oo2z, rn;
+2026-04-07 09:30:13,903 - INFO -   3: 
+2026-04-07 09:30:13,903 - INFO -   4:   vy=80;
+2026-04-07 09:30:13,903 - INFO -   5:   l=0;
+2026-04-07 09:30:13,903 - INFO -   6:   d4=0;
+2026-04-07 09:30:13,903 - INFO -   7:   oo2z=1;
+2026-04-07 09:30:13,903 - INFO -   8:   rn=vy;
+2026-04-07 09:30:13,903 - INFO -   9: 
+2026-04-07 09:30:13,903 - INFO -   10:   /* >>> LOOP INVARIANT TO FILL <<< */
+2026-04-07 09:30:13,903 - INFO - DEBUG: Total lines: 34
+2026-04-07 09:30:13,931 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:30:13,931 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:30:13,931 - INFO - Houdini iteration 1: Removed 8 failed invariants
+2026-04-07 09:30:13,931 - INFO -   Before: 8 invariants
+2026-04-07 09:30:13,931 - INFO -   After: 0 invariants
+2026-04-07 09:30:13,931 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:30:13,961 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:30:24,156 - INFO - Deduplicated 4 loop invariants in final code
+2026-04-07 09:30:24,191 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:30:24,191 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:30:24,191 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:30:24,191 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_2/1.c
+2026-04-07 09:30:24,192 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_2/1_invariants.txt
+2026-04-07 09:30:24,192 - INFO - 
 ============================================================
-2026-03-22 22:52:32,679 - INFO - Final first_pass results:
-2026-03-22 22:52:32,679 - INFO -   syntax=1
-2026-03-22 22:52:32,679 - INFO -   valid=1
-2026-03-22 22:52:32,679 - INFO -   satisfy=None
-2026-03-22 22:52:32,679 - INFO - ============================================================
-2026-03-22 22:52:32,679 - INFO - 
+2026-04-07 09:30:24,192 - INFO - Final first_pass results:
+2026-04-07 09:30:24,192 - INFO -   syntax=None
+2026-04-07 09:30:24,192 - INFO -   valid=None
+2026-04-07 09:30:24,192 - INFO -   satisfy=None
+2026-04-07 09:30:24,192 - INFO - ============================================================
+2026-04-07 09:30:24,192 - INFO - 
 ============================================================
-2026-03-22 22:52:32,679 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 22:52:32,679 - INFO -   Total API calls: 7
-2026-03-22 22:52:32,679 - INFO -   Total prompt tokens (input): 9,036
-2026-03-22 22:52:32,679 - INFO -   Total completion tokens (output): 64,120
-2026-03-22 22:52:32,679 - INFO -   Total tokens: 73,156
-2026-03-22 22:52:32,679 - INFO -   Average per call:
-2026-03-22 22:52:32,679 - INFO -     Prompt: 1290.9 tokens
-2026-03-22 22:52:32,680 - INFO -     Completion: 9160.0 tokens
-2026-03-22 22:52:32,680 - INFO -     Total: 10450.9 tokens
-2026-03-22 22:52:32,680 - INFO - ============================================================
-2026-03-22 22:52:32,680 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_2/1.c
-2026-03-22 22:52:32,680 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_2/1_invariants.txt
-2026-03-22 22:52:51,265 - INFO - LLM quality-gate raw response: {
-  "ok": true,
-  "reason": "pass"
-}
+2026-04-07 09:30:24,192 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:30:24,192 - INFO -   Total API calls: 1
+2026-04-07 09:30:24,192 - INFO -   Total prompt tokens (input): 861
+2026-04-07 09:30:24,192 - INFO -   Total completion tokens (output): 1,373
+2026-04-07 09:30:24,192 - INFO -   Total tokens: 2,234
+2026-04-07 09:30:24,192 - INFO -   Average per call:
+2026-04-07 09:30:24,192 - INFO -     Prompt: 861.0 tokens
+2026-04-07 09:30:24,192 - INFO -     Completion: 1373.0 tokens
+2026-04-07 09:30:24,192 - INFO -     Total: 2234.0 tokens
+2026-04-07 09:30:24,192 - INFO - ============================================================
+2026-04-07 09:30:24,192 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_2/1.c
+2026-04-07 09:30:24,192 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_2/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

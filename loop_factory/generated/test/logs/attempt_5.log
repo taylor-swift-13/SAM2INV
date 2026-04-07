@@ -1,2261 +1,514 @@
-2026-03-22 22:25:14,722 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 22:25:14,760 - INFO - Found 1 loops
-2026-03-22 22:25:14,779 - INFO - 
+2026-04-07 09:24:33,431 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:24:33,444 - INFO - Found 1 loops
+2026-04-07 09:24:33,445 - INFO - 
 ============================================================
-2026-03-22 22:25:14,779 - INFO - Main generation pass 1/1
-2026-03-22 22:25:14,780 - INFO - ============================================================
-2026-03-22 22:25:14,780 - INFO - Loaded single prompt template: simple
-2026-03-22 22:25:14,780 - INFO - Generating 20 candidate invariant sets with temperature=1.0
-2026-03-22 22:25:14,781 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 22:25:14,803 - INFO -   Generating candidate 1/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:26:08,727 - INFO - 
------ Candidate 1/20 raw response begin -----
+2026-04-07 09:24:33,445 - INFO - Main generation pass 1/1
+2026-04-07 09:24:33,445 - INFO - ============================================================
+2026-04-07 09:24:33,445 - INFO - Loaded single prompt template: simple
+2026-04-07 09:24:33,445 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:24:33,445 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:24:33,505 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:25:41,932 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-I propose invariants that are true in the given initial state, are preserved by every loop iteration, and are focused on the key loop counters and state relations while avoiding unsound assumptions (e.g. signs of variables that depend on runtime division).
+I chose invariants that are strong, inductive, and directly reflect the per-iteration state changes (the "conservation laws"):
 
-Chosen invariants and rationale:
-- n == \at(i, Pre) + 8
-  - Core conservation / relational equality: n is never modified, so keeping its definition in terms of the initial parameter is a small, precise state law that helps proofs that need the original parameter value.
-- rk6 >= 1
-  - Minimal progress bound on the loop counter: rk6 starts at 1 and is always incremented by 1 in the loop body, so it remains >= 1. This is simple, true initially, and preserved.
-- (rk6 == 1 ==> j == -3) && (rk6 > 1 ==> j % 4 == 0)
-  - A precise relational invariant describing how j evolves. Initially (rk6 == 1) and j == -3. Each loop iteration sets j := (j + 2*dd0) * 4, so after the first executed iteration j becomes divisible by 4 and remains divisible by 4 afterwards. This explains and conserves the structural property of j across iterations without using quantifiers or historical (old) values.
-- (g2eg == 1) || (g2eg == -1)
-  - g2eg is set to either 1 or -1 in the body, and initially equals 1. This simple invariant is preserved.
-- a20 >= \at(i, Pre) + 1
-  - a20 starts equal to \at(i,Pre)+1 and is only multiplied by 2 conditionally, so it never decreases; this lower bound is a useful monotonicity fact and is preserved.
+- Core conservation linking sqb and zs2x:
+  Each iteration does sqb += 1 and zs2x += 3, so the number of iterations k executed so far satisfies 3*k == zs2x - (-5). Rewritten in terms of sqb and the function-entry value \at(c, Pre) this is
+    3*(sqb - (\at(c, Pre) + 25)) == zs2x + 5.
+  This expresses the exact relation between sqb and zs2x and is inductive.
 
-I intentionally avoided invariants that could be invalidated by the C semantics of signed remainder or by unknown values (for example, asserting yn >= 0 would be unsafe because x%2 may be negative in C when x is negative). The invariants are kept minimal, relevant, and inductive. The loop assigns clause lists exactly the variables that the loop body may modify: x, g2eg, dd0, rk6, a20, yn, i, j.
+- Relational equalities for variables that evolve linearly with k:
+  uq4 increases by 2 per iteration, starting from \at(z, Pre). So
+    uq4 == \at(z, Pre) + 2*(sqb - (\at(c, Pre) + 25)).
+  r7l accumulates the constant remainder (zs2x % 3) which is invariant when zs2x is incremented by 3; from the initial values this yields the closed form
+    r7l == -5 - 2*(sqb - (\at(c, Pre) + 25)).
+  These equalities are precise, easy for WP to check inductively (they follow from the core relation and the per-iteration updates).
+
+- Bounds / progress:
+  sqb is monotone non-decreasing and starts at (\at(c, Pre) + 25), so assert sqb >= (\at(c, Pre) + 25). Also the loop guard ensures sqb <= gmy at loop heads; keeping sqb <= gmy as an invariant is helpful and preserved.
+  As a variant I use (gmy - sqb) which is a non-negative integer at loop head and strictly decreases by 1 each iteration — this shows termination.
+
+- Assigns:
+  The loop modifies exactly zs2x, sqb, r7l, xe, uq4; c, gmy and function parameters are not modified and should not be listed.
+
+I avoided quantifiers, new predicates or logic definitions, \at on local variables, and any rewrites of the loop body. The invariants are minimal but strong and directly follow the transition relation, making them verification-friendly for Frama-C/WP.
 </reasoning>
 <code>
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
 
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
 
   /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant rk6 >= 1;
-    loop invariant (rk6 == 1 ==> j == -3) && (rk6 > 1 ==> j % 4 == 0);
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop invariant a20 >= \at(i, Pre) + 1;
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
+    loop invariant (sqb >= (\at(c, Pre) + 25));
+    loop invariant (sqb <= gmy);
+    loop invariant (3 * (sqb - (\at(c, Pre) + 25)) == zs2x + 5);
+    loop invariant (r7l == -5 - 2 * (sqb - (\at(c, Pre) + 25)));
+    loop invariant (uq4 == \at(z, Pre) + 2 * (sqb - (\at(c, Pre) + 25)));
+    loop assigns zs2x, sqb, r7l, xe, uq4;
+    loop variant (gmy - sqb);
   */
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
+  while (sqb < gmy) {
+        zs2x = zs2x + 3;
+        sqb += 1;
+        r7l = r7l+(zs2x%3);
+        xe = xe*xe+zs2x;
+        uq4 += 2;
   }
 
 }
 </code>
------ Candidate 1/20 raw response end -----
-2026-03-22 22:26:08,729 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 22:26:08,743 - INFO -   Generating candidate 2/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:27:43,653 - INFO - 
------ Candidate 2/20 raw response begin -----
-<reasoning>To craft inductive, verification-friendly ACSL annotations for the given loop, I focused on invariants that are robust and do not depend on complex, hard-to-maintain relations between many evolving variables. Two invariants are chosen:
-
-- A core conservation relation: n == \at(i,Pre) + 8. Since n is assigned once before the loop as n = i + 8 (using the function parameter i), and i is subsequently updated inside the loop, this invariant states that n remains fixed and equals the initial value of i plus 8. It uses \at(i,Pre) (allowed because i is a function parameter) and does not rely on the changing loop state beyond asserting a fixed relation.
-
-- A simple, inductive bound on the loop counter: rk6 >= 1. The loop initializes rk6 to 1 and increments rk6 by 1 each iteration, so rk6 is always at least 1 during the loop. This helps ensure a progression through iterations.
-
-Additionally, the loop assigns clause lists all variables that the loop can modify: x, g2eg, dd0, rk6, a20, yn, i, j. The invariant block is placed just before the loop body to ensure inductiveness: holds at initialization and is preserved across iterations.
-
-These choices avoid relying on complicated interdependencies among many changing variables, while providing a meaningful, provable state relation that Frama-C/WP can discharge in a verification run. The Pre-based reference is safe since i is a function parameter and \at(i,Pre) is allowed. The code itself is kept unchanged except for the added ACSL block. </reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant rk6 >= 1;
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 2/20 raw response end -----
-2026-03-22 22:27:43,653 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 22:27:43,669 - INFO -   Generating candidate 3/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:30:06,192 - INFO - 
------ Candidate 3/20 raw response begin -----
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:25:41,932 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:25:42,006 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:26:47,712 - INFO - 
+----- Candidate 2/5 raw response begin -----
 <reasoning>
-I analyzed the loop to identify inductive, verification-friendly invariants that do not modify the original code flow and are robust to all possible initial inputs. The loop updates several variables (x, dd0, rk6, g2eg, a20, yn, i, j) and terminates when rk6 > n. A strong invariant should be preserved across iterations and be true at loop entry.
+I selected invariants that are (1) inductive with respect to the given loop body, (2) explain the exact arithmetic/state transition laws, and (3) provide the progress/exit information needed by WP.
 
-Key observations:
-- n is assigned once before the loop as n = i + 8 and is never changed inside the loop. A relational invariant that ties n to the initial value of the function parameter i is robust. Since i is a parameter, we can express n in terms of the initial value of i as n == \at(i,Pre) + 8.
-- nd is initialized to 0 and never modified in the loop, so nd == 0 is a safe invariant.
-- rk6 starts at 1 and only increases, so rk6 >= 1 remains true throughout the loop.
-- g2eg is assigned to either 1 or -1 inside the loop (based on rk6), so (g2eg == 1) || (g2eg == -1) is a safe invariant.
-- It’s important to be minimal and avoid tautologies or invariants that depend on intermediate expressions that may not hold consistently across iterations (e.g., expressions that would require tracking the exact cumulative changes to i or j).
+Core relational equality (conservation law):
+- zs2x is always tied to sqb by zs2x + 5 == 3 * (sqb - (\at(c, Pre) + 25)). This expresses that each time sqb increases by 1, zs2x increases by 3; it is the central invariant explaining the loop updates.
 
-For the loop assigns clause, all variables that may be modified inside the loop are x, dd0, rk6, g2eg, a20, yn, i, and j (n and nd are not modified, so they are not included).
+Derived exact equalities (explain accumulated updates):
+- r7l accumulates (zs2x % 3) after zs2x was already increased, and since zs2x = -5 + 3*k, (zs2x % 3) is always equal to -5 % 3 = -2. Thus r7l follows the exact linear relation r7l == -5 - 2 * (sqb - (\at(c, Pre) + 25)).
+- uq4 increases by 2 each iteration, so uq4 == \at(z, Pre) + 2 * (sqb - (\at(c, Pre) + 25)).
 
-Thus, I propose the following inductive invariants:
-- n == \at(i,Pre) + 8
-- nd == 0
-- rk6 >= 1
-- (g2eg == 1) || (g2eg == -1)
+Constants and bounds:
+- gmy is constant and equal to the initial c+25: gmy == \at(c, Pre) + 25.
+- sqb is monotone increasing from its initial value, so (\at(c, Pre) + 25) <= sqb <= gmy. The upper bound sqb <= gmy is preserved and together with the loop exit condition ensures on loop exit sqb == gmy.
 
-And the loop assigns clause:
-- x, dd0, rk6, g2eg, a20, yn, i, j
-
-These invariants are true at loop entry (as shown in the loop context) and are preserved by every iteration of the loop.
-</reasoning>
-<code>/*@
-  loop invariant n == \at(i,Pre) + 8;
-  loop invariant nd == 0;
-  loop invariant rk6 >= 1;
-  loop invariant (g2eg == 1) || (g2eg == -1);
-  loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }</code>
------ Candidate 3/20 raw response end -----
-2026-03-22 22:30:06,195 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 22:30:06,221 - INFO -   Generating candidate 4/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:30:46,522 - INFO - 
------ Candidate 4/20 raw response begin -----
-<reasoning>To craft inductive and verification-friendly loop annotations for Frama-C/WP, I focused on a few robust, state-preserving properties that hold across loop iterations without modifying any code or introducing undefined behavior.
-
-- Core conservation (state transition anchor): The loop never writes to n after initialization, and n is initially set to i + 8. Since n is not modified inside the loop, it remains equal to the initial value of i plus 8. This is captured as n == \at(i, Pre) + 8. It is inductive because both sides are constant with respect to the loop body (n stays fixed, and \at(i, Pre) is the initial value of i).
-
-- Simple progress/structure invariants: 
-  - rk6 starts at 1 and only increases by 1 each iteration, so rk6 >= 1 is an invariant throughout the loop.
-  - g2eg is assigned to either 1 or -1 in every iteration; thus, g2eg is always either 1 or -1, i.e., (g2eg == 1) || (g2eg == -1).
-
-- Exact loop assigns: All and only the lvalues modified inside the loop are x, g2eg, dd0, rk6, a20, yn, i, j. This aligns with the actual body operations.
-
-These invariants are chosen to be strong enough to aid WP without being tautological or requiring complicated quantified facts. The resulting invariants are inductive given the initialization and the per-iteration updates observed in the loop body.
-
-</reasoning>
-<code>/*@
-  loop invariant n == \at(i, Pre) + 8;
-  loop invariant (g2eg == 1) || (g2eg == -1);
-  loop invariant rk6 >= 1;
-  loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }</code>
------ Candidate 4/20 raw response end -----
-2026-03-22 22:30:46,522 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 22:30:46,540 - INFO -   Generating candidate 5/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:31:36,594 - INFO - 
------ Candidate 5/20 raw response begin -----
-<reasoning>
-Proposed loop invariants focus on a minimal but inductive set of facts that are preserved across iterations and help Frama-C/WP verify the loop.
-
-Key observations:
-- n is assigned once before the loop as n = i + 8 and is never updated inside the loop. Therefore n remains constant during loop execution and equals the initial function parameter i (i0) plus 8. This gives a tight relational invariant: n == i0 + 8, which we express as n == \at(i, Pre) + 8.
-- The loop guard is effectively rk6 <= n. To express progress and bounds, we add 1 <= rk6 <= n as an invariant that holds when the loop is entered (i.e., when the guard is true). Since rk6 is incremented every iteration, this bound is preserved across iterations as long as the loop continues.
-- The code deterministically sets g2eg to either 1 or -1 in each iteration based on (rk6/2)%2, so we can state a simple invariant that g2eg ∈ {1, -1}.
-- We declare loop assigns for all variables touched inside the loop: x, dd0, rk6, g2eg, a20, yn, i, j.
-- A loop variant is provided to prove termination: n - rk6 strictly decreases by 1 each iteration (since rk6 increments by 1 and the loop only runs while rk6 <= n). This requires the invariant that 1 <= rk6 <= n holds at loop head.
-
-These invariants are inductive and verification-friendly: they are strong enough to avoid tautologies, tie the loop state to the function's initial values, and reflect the actual state updates in the loop body.
-
-</reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant 1 <= rk6 <= n;
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-    loop variant n - rk6;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 5/20 raw response end -----
-2026-03-22 22:31:36,595 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 22:31:36,611 - INFO -   Generating candidate 6/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:32:15,831 - INFO - 
------ Candidate 6/20 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop in main1. To keep the proof manageable and helpful for Frama-C/WP, we add a small, strong set of invariants that are easy to prove and preserve through iterations, plus a precise loop-assigns clause.
-
-Core invariant:
-- n remains constant and tied to the initial function argument: n == \at(i, Pre) + 8. This captures the fact that n is assigned once from i’s initial value and never updated in the loop.
-
-Progress bounds (inductive invariants):
-- rk6 progresses through iterations: (1 <= rk6) && (rk6 <= n + 1). This ensures rk6 starts at 1 and can only advance up to n+1, which aligns with the breaking condition on rk6 <= n inside the loop body.
-
-Relational/alternative invariant:
-- g2eg is always either 1 or -1, which matches the two branches assigned inside the loop: (g2eg == 1) || (g2eg == -1).
-
-The chosen invariants are:
-- n remains tied to the initial i: n == \at(i, Pre) + 8
-- rk6 is in the safe progress range: (1 <= rk6) && (rk6 <= n + 1)
-- g2eg is always ±1: (g2eg == 1) || (g2eg == -1)
+Variant:
+- The natural variant is (gmy - sqb), which is a non-negative integer (by the sqb <= gmy invariant) and decreases by 1 on each iteration, proving termination.
 
 Loop assigns:
-- We enumerate all variables modified inside the loop: x, g2eg, dd0, rk6, a20, yn, i, j.
+- The loop modifies exactly zs2x, sqb, r7l, xe, uq4, so these are the variables listed in loop assigns.
 
-These invariants are inductive (hold initially, and preserved by each loop iteration) and are strong enough to help Frama-C/WP reason about the loop without overconstraining the state. They do not rely on Quantifiers or non-parameter logic, and they respect the allowed ACSL constructs. They also avoid embedding non-parameter local state in \at() usage, except for the required \at on the function parameter i.
-
-</reasoning>
-<code>/*@
-  loop invariant n == \at(i, Pre) + 8;
-  loop invariant (1 <= rk6) && (rk6 <= n + 1);
-  loop invariant (g2eg == 1) || (g2eg == -1);
-  loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }</code>
------ Candidate 6/20 raw response end -----
-2026-03-22 22:32:15,833 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 22:32:15,848 - INFO -   Generating candidate 7/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:32:54,843 - INFO - 
------ Candidate 7/20 raw response begin -----
-<reasoning>
-Goal: provide inductive, verification-friendly ACSL loop annotations for the given loop in main1. We focus on invariants that:
-- are inductive (hold before first iteration and preserved by each iteration),
-- are strong and relevant to the actual state updates,
-- avoid introducing unrelated facts,
-- have complete, exact assigns for the loop.
-
-Observations on the loop updates:
-- rk6 starts at 1 and is incremented by 1 every iteration. The loop guard is rk6 <= n, so the loop executes for rk6 in [1, n] and ends with rk6 = n+1. A natural, robust progress bound is loop variant n - rk6 (non-negative while the loop runs and decreases each iteration).
-- g2eg is assigned as 1 when (rk6/2)%2 == 0, otherwise -1. Therefore, a direct invariant relating g2eg to rk6 is appropriate: g2eg must be 1 exactly when (rk6/2)%2 == 0, and -1 otherwise. This is a faithful, inductive relation that the code enforces every iteration.
-- Other variables are updated in ways that are difficult to capture with a simple exact invariant (x, dd0, i, j, a20, yn). To stay robust and verification-friendly, we avoid speculative arithmetic invariants on those and rely on the strong, direct invariants above. We still specify the complete loop assigns to reflect precisely what the loop may modify.
-
-Thus, we propose the following loop invariants:
-- 1 <= rk6 <= n+1 (rk6 starts at 1 and, while the guard rk6 <= n holds, rk6 stays within 1..n; after the last iteration, rk6 becomes n+1).
-- a direct link between g2eg and rk6: ((rk6/2)%2==0 && g2eg==1) || ((rk6/2)%2!=0 && g2eg==-1). This expresses the exact assignment rule used inside the loop.
-
-We also add:
-- loop assigns: x, dd0, rk6, g2eg, a20, yn, i, j (the actual modified variables inside the loop),
-- loop variant: n - rk6 (ensures termination reasoning).
-
-These invariants are inductive given the initial state and the observed updates. They do not rely on properties of non-parameter locals beyond what the loop body actually does, and they remain verifiable by Frama-C/WP.
-
-Notes:
-- We do not modify unknown() / unknownN() calls.
-- We do not use \at(local_var, Pre); only the parameter i is used in a well-defined way, which is allowed.
-- We keep the original code intact and only add ACSL annotations around the loop.
-</reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant 1 <= rk6 <= n+1;
-    loop invariant ( ((rk6/2)%2==0 && g2eg==1) || ((rk6/2)%2!=0 && g2eg==-1) );
-    loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-    loop variant n - rk6;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 7/20 raw response end -----
-2026-03-22 22:32:54,844 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 22:32:54,857 - INFO -   Generating candidate 8/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:33:51,833 - INFO - 
------ Candidate 8/20 raw response begin -----
-<reasoning>
-I analyzed the loop and chose invariants that are safe, inductive, and verification-friendly for Frama-C/WP given the available variables. My goals were:
-- Provide a core relational equality that captures a stable relationship across iterations.
-- Include a minimal progress bound (loop variant) to help WP establish termination.
-- Ensure loop assigns precisely reflect all variables changed inside the loop.
-
-Selected invariants and rationale:
-- n == \at(i, Pre) + 8: This captures the fixed relation between n and the initial value of i (Pre(i)); n is assigned once and never updated, so this is a stable, inductive invariant.
-- rk6 <= n: This expresses the loop guard relationship at loop heads and is preserved by each iteration since rk6 only increases while the guard ensures rk6 <= n before entering the next iteration.
-- g2eg == 1 || g2eg == -1: g2eg is assigned to either 1 or -1 in every iteration, so this invariant holds from the start and is preserved.
-- loop variant n - rk6: This provides a minimal progress measure that strictly decreases by 1 each iteration (since rk6 increments by 1) while the loop condition rk6 <= n holds, ensuring termination.
-- loop assigns a20, dd0, g2eg, i, j, rk6, x, yn: These are exactly the variables modified inside the loop body, ensuring the precise side-effects are captured for the verifier.
-
-I deliberately avoided invariants that rely on potentially unsafely computed bounds of yn or a20 when i could be negative, to keep the annotations robust across all possible inputs. I did not introduce any incorrect dependencies on non-parameter state or on unknown() calls.
-</reasoning>
-<code>/*@
-  loop invariant n == \at(i, Pre) + 8;
-  loop invariant rk6 <= n;
-  loop invariant g2eg == 1 || g2eg == -1;
-  loop variant n - rk6;
-  loop assigns a20, dd0, g2eg, i, j, rk6, x, yn;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }</code>
------ Candidate 8/20 raw response end -----
-2026-03-22 22:33:51,835 - INFO -   Candidate 9 selected prompt: simple_cot.txt
-2026-03-22 22:33:51,851 - INFO -   Generating candidate 9/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:34:47,447 - INFO - 
------ Candidate 9/20 raw response begin -----
-<reasoning>
-Chosen invariants aim to be inductive and verification-friendly while staying within the rules and available variables.
-
-Key points:
-- Derive a core conservation relation: n equals the initial function parameter i plus 8. Since n is assigned once before the loop as n = i + 8 and never updated, this relation remains invariant: n == \at(i, Pre) + 8.
-- Capture loop progress and termination: rk6 is incremented by 1 each iteration. A simple and robust loop variant is n - rk6 + 1, which is non-negative whenever the loop guard rk6 <= n holds, and decreases by 1 each iteration, ensuring termination.
-- Provide a few minimal yet sound invariants about values that are deterministically constrained by the code:
-  - 1 <= rk6 holds throughout (initially 1 and increases by 1 each iteration).
-  - g2eg is always either 1 or -1 (it is explicitly assigned to 1 or -1 each iteration).
-  - nd remains 0 (nd is initialized to 0 and never modified in the loop).
-- Loop assigns must list all variables whose value is changed inside the loop: x, g2eg, dd0, rk6, a20, yn, i, j.
-
-These invariants are strong enough to be inductive, avoid tautologies, and do not rely on disallowed constructs. They also respect the constraint of using \at(i, Pre) for the initial value of the function parameter i.
-
+I avoided quantifiers and any \at(...) on local variables (only \at(c, Pre) and \at(z, Pre) are used). I did not attempt to give a closed-form for xe (it follows a nonlinear recurrence xe := xe*xe + zs2x), because that would be complex; the invariants above are sufficient for WP to reason about the arithmetic and the loop exit facts (in particular that sqb == gmy at exit).
 </reasoning>
 <code>
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
 
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
 
   /*@
-     loop invariant n == \at(i, Pre) + 8;
-     loop invariant 1 <= rk6;
-     loop invariant (g2eg == 1) || (g2eg == -1);
-     loop invariant nd == 0;
-     loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-     loop variant n - rk6 + 1;
-  @*/
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
+    loop invariant gmy == \at(c, Pre) + 25;
+    loop invariant (\at(c, Pre) + 25) <= sqb && sqb <= gmy;
+    loop invariant zs2x + 5 == 3 * (sqb - (\at(c, Pre) + 25));
+    loop invariant r7l == -5 - 2 * (sqb - (\at(c, Pre) + 25));
+    loop invariant uq4 == \at(z, Pre) + 2 * (sqb - (\at(c, Pre) + 25));
+    loop assigns zs2x, sqb, r7l, xe, uq4;
+    loop variant (gmy - sqb);
+  */
+  while (sqb < gmy) {
+      zs2x = zs2x + 3;
+      sqb += 1;
+      r7l = r7l+(zs2x%3);
+      xe = xe*xe+zs2x;
+      uq4 += 2;
   }
 
 }
 </code>
------ Candidate 9/20 raw response end -----
-2026-03-22 22:34:47,449 - INFO -   Candidate 10 selected prompt: simple_cot.txt
-2026-03-22 22:34:47,462 - INFO -   Generating candidate 10/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:35:37,675 - INFO - 
------ Candidate 10/20 raw response begin -----
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:26:47,713 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:26:47,788 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:28:03,532 - INFO - 
+----- Candidate 3/5 raw response begin -----
 <reasoning>
-We need inductive, verification-friendly loop invariants and a complete loop assigns set for Frama-C/WP.
+I derived invariants that are inductive, precise about the linear relations in the loop, and useful for verification with WP.
 
-Observations about the loop:
-- n is set before the loop as n = i + 8 and never updated inside the loop, while i itself is updated inside the loop. Therefore the relation n == \at(i, Pre) + 8 holds throughout the loop (i's pre-value is constant).
-- nd is initialized to 0 and never changed inside the loop -> nd == 0 is an invariant.
-- rk6 starts at 1 and is incremented every iteration, so rk6 >= 1 is always true.
-- g2eg is assigned to either 1 or -1 depending on a parity check; thus (g2eg == 1) || (g2eg == -1) holds.
-- The loop body only assigns to a fixed set of variables: x, g2eg, dd0, rk6, a20, yn, i, j. All other variables are not modified inside the loop.
+Key observations used:
+- gmy is never modified and is initialized to \at(c, Pre) + 25. Expose that as an invariant.
+- sqb increases by 1 each iteration starting from (\at(c, Pre) + 25), so the difference k := sqb - (\at(c, Pre) + 25) counts completed iterations (k >= 0). From this we obtain tight relations for variables that are linear in k:
+  - zs2x increases by 3 each iteration and starts at -5, so zs2x = -5 + 3*k.
+  - uq4 increases by 2 each iteration and starts at \at(z, Pre), so uq4 = \at(z, Pre) + 2*k.
+- These three equalities form the core conservation/relational law explaining state transitions and are easily seen to be preserved by one iteration.
+- sqb is bounded between its initial value and gmy: (\at(c, Pre) + 25) <= sqb <= gmy. This gives the required progress/loop-counter bounds; together with the variant gmy - sqb they prove termination.
+- r7l is updated by adding (zs2x % 3). For the particular arithmetic progression of zs2x (values congruent to 1 modulo 3), the C remainder takes values in {-2,1}. Therefore r7l can be conservatively bounded linearly in k:
+  - lower bound: r7l >= -5 + k * (-2)
+  - upper bound: r7l <= -5 + k * 1
+  These bounds are preserved each iteration because each increment (zs2x % 3) is between -2 and 1 inclusive.
+- xe is updated in a nonlinear way (xe := xe*xe + zs2x). A precise closed form is not feasible nor required; we leave xe unconstrained except that it is assigned in the loop (included in assigns).
 
-Termination can be argued with a loop variant. Since rk6 increments by 1 each iteration and the loop breaks when rk6 > n, the natural decreasing variant is n + 1 - rk6, which starts non-negative when a loop iteration can occur and strictly decreases by 1 each iteration.
+I therefore provide:
+- the core conservation equalities for zs2x and uq4 (in terms of sqb and \at(c, Pre)/\at(z, Pre)), and the constant equality for gmy;
+- tight bounds for sqb and r7l expressed via the same k = (sqb - (\at(c, Pre) + 25));
+- exact loop assigns list: zs2x, sqb, r7l, xe, uq4;
+- a variant gmy - sqb (non-negative and decreases by 1 each iteration).
 
-Thus we add these invariants:
-- n == \at(i, Pre) + 8
-- nd == 0
-- rk6 >= 1
-- (g2eg == 1) || (g2eg == -1)
-- loop assigns x, g2eg, dd0, rk6, a20, yn, i, j
-- loop variant n + 1 - rk6
-
-These are inductive (hold initially and preserved by the loop body) and provide a concise, verification-friendly description without over-constraining the state.
-
+All uses of \at(...) are only on function parameters (\at(c, Pre), \at(z, Pre)), as required.
 </reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
+<code>
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
 
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
 
   /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant nd == 0;
-    loop invariant (rk6 >= 1);
-    loop invariant ((g2eg == 1) || (g2eg == -1));
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-    loop variant n + 1 - rk6;
+    loop invariant gmy == (\at(c, Pre) + 25);
+    loop invariant (\at(c, Pre) + 25) <= sqb <= gmy;
+    /* core relational equality: zs2x = -5 + 3 * (sqb - (c0 + 25)) */
+    loop invariant zs2x == (-5 + 3 * (sqb - (\at(c, Pre) + 25)));
+    /* linear relation for uq4: increases by 2 per iteration */
+    loop invariant uq4 == (\at(z, Pre) + 2 * (sqb - (\at(c, Pre) + 25)));
+    /* bounds for r7l using that (zs2x % 3) is in {-2,1} for this progression */
+    loop invariant r7l >= (-5 + (sqb - (\at(c, Pre) + 25)) * (-2));
+    loop invariant r7l <= (-5 + (sqb - (\at(c, Pre) + 25)) * 1);
+    loop assigns zs2x, sqb, r7l, xe, uq4;
+    loop variant (gmy - sqb);
   */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
+  while (sqb < gmy) {
+        zs2x = zs2x + 3;
+        sqb += 1;
+        r7l = r7l+(zs2x%3);
+        xe = xe*xe+zs2x;
+        uq4 += 2;
   }
 
-}</code>
------ Candidate 10/20 raw response end -----
-2026-03-22 22:35:37,679 - INFO -   Candidate 11 selected prompt: simple_cot.txt
-2026-03-22 22:35:37,701 - INFO -   Generating candidate 11/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:36:41,933 - INFO - 
------ Candidate 11/20 raw response begin -----
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:28:03,534 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:28:03,602 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:29:23,170 - INFO - 
+----- Candidate 4/5 raw response begin -----
 <reasoning>
-I analyzed the loop to identify safe, inductive invariants that do not rely on quantities that can blow up or become undefined across iterations. Key observations:
-- n is initialized before the loop as n = i + 8 and never changed inside the loop, so n equals the initial value \at(i, Pre) + 8 and remains invariant across iterations.
-- g2eg is assigned to either 1 or -1 on every iteration, with an initial value of 1; thus g2eg always satisfies g2eg == 1 or g2eg == -1.
-- The loop terminates because rk6 is incremented each iteration and the guard checks rk6 <= n. A loop variant helps prove progress: use n - rk6, which decreases by 1 each iteration when the loop runs.
-- A clean, safe set of loop assigns is all variables actually modified inside the loop: a20, dd0, g2eg, i, j, rk6, x, yn.
+I examined the loop updates and picked invariants that are (1) inductive, (2) explain the linear/conservative relationships produced by the loop, and (3) provide the minimal progress facts needed by WP.
 
-The chosen invariants are:
-- n == \at(i,Pre) + 8 to capture the constant relationship of n to the initial i.
-- (g2eg == 1) || (g2eg == -1) to capture that g2eg remains in {1, -1}.
-- loop assigns lists all variables modified in the loop.
-- loop variant n - rk6 ensures progress toward termination.
+Core conservation / relational equality:
+- zs2x starts at -5 and is incremented by 3 exactly once per loop iteration, while sqb is incremented by 1 per iteration. Therefore zs2x == -5 + 3*(sqb - (c+25)) relates the two counters and serves as the main state-transition law. This equality is preserved by the loop updates and explains how many iterations have been executed.
 
-These invariants are inductive (hold before the first iteration and are preserved by each iteration) and verification-friendly for Frama-C/WP.
+Linear consequences (also inductive):
+- uq4 increases by 2 each iteration, so uq4 == \at(z, Pre) + 2*(sqb - (\at(c, Pre) + 25)).
+- r7l increases by the constant (zs2x % 3) after each iteration; since zs2x = -5 + 3*k, (zs2x % 3) is constant equal to (-5) % 3. Thus r7l == -5 + (sqb - (\at(c, Pre) + 25)) * ((-5) % 3).
+
+Bounds / progress:
+- sqb never goes below its initial value (\at(c,Pre)+25) and never exceeds gmy; so sqb >= (\at(c,Pre)+25) && sqb <= gmy.
+- Together with gmy == \at(c, Pre) + 25 this gives the non-negativity of gmy - sqb, and gmy - sqb strictly decreases by 1 each iteration. I therefore provide loop variant (gmy - sqb) to prove termination.
+
+Assigns:
+- The loop modifies zs2x, sqb, r7l, xe and uq4; I list them exactly in loop assigns.
+
+Notes:
+- I avoided quantifiers and any \at on local variables (only \at(c, Pre) and \at(z, Pre) are used).
+- I did not try to give a closed form for xe (nonlinear iteration xe := xe*xe + zs2x is not easily expressed in a simple inductive equality). The invariants still fully capture the linear parts and progress needed for verification.
 </reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
+<code>
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
 
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
 
   /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop assigns a20, dd0, g2eg, i, j, rk6, x, yn;
-    loop variant n - rk6;
+    loop invariant gmy == \at(c, Pre) + 25;
+    loop invariant sqb >= (\at(c, Pre) + 25) && sqb <= gmy;
+    loop invariant zs2x == -5 + 3 * (sqb - (\at(c, Pre) + 25));
+    loop invariant uq4 == \at(z, Pre) + 2 * (sqb - (\at(c, Pre) + 25));
+    loop invariant r7l == -5 + (sqb - (\at(c, Pre) + 25)) * ((-5) % 3);
+    loop assigns zs2x, sqb, r7l, xe, uq4;
+    loop variant (gmy - sqb);
   */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
+  while (sqb < gmy) {
+        zs2x = zs2x + 3;
+        sqb += 1;
+        r7l = r7l+(zs2x%3);
+        xe = xe*xe+zs2x;
+        uq4 += 2;
   }
 
-}</code>
------ Candidate 11/20 raw response end -----
-2026-03-22 22:36:41,936 - INFO -   Candidate 12 selected prompt: simple_cot.txt
-2026-03-22 22:36:41,959 - INFO -   Generating candidate 12/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:37:30,441 - INFO - 
------ Candidate 12/20 raw response begin -----
-<reasoning>The loop body updates a set of variables in a non-trivial way (x, dd0, rk6, g2eg, i, j, a20, yn). To produce inductive invariants that are robust for all possible initial values of i (the function parameter) and n derived from i, we avoid invariants that tightly constrain arithmetic dependent on i or n.
-
-Key safe invariants:
-- n stores the initial value of i plus 8 and never changes thereafter. Since n is assigned once before the loop as n = i + 8 and then never modified, we can relate n to the initial i value via \at(i, Pre). This is a strong, yet safe invariant that does not rely on i's dynamic value.
-  Invariant: n == \at(i, Pre) + 8
-- rk6 starts at 1 and is incremented by 1 every iteration, so rk6 >= 1 holds at loop head for all iterations.
-  Invariant: rk6 >= 1
-- g2eg is always assigned to either 1 or -1 inside the loop, so we can assert its domain as {1, -1}.
-  Invariant: (g2eg == 1) || (g2eg == -1)
-- We provide a loop variant to aid termination proof. Since the loop continues only while rk6 <= n, the expression n - rk6 decreases by 1 each iteration, serving as a valid decreasing variant.
-  Loop variant: n - rk6
-
-Other potential invariants involving x, dd0, i, a20, j, yn are risky due to potential sign changes, non-monotonic updates, or dependence on the evolving i. To keep the proof tractable and inductive, we keep the invariants focused on stable relationships that hold irrespective of concrete i/n values.
-
-Loop assigns are explicitly listed as the variables that can be changed inside the loop: i, x, dd0, g2eg, rk6, a20, yn, j.
-
-The resulting invariants are strong enough to guide the WP prover while remaining valid for all possible inputs to the function.
-</reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant rk6 >= 1;
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop variant n - rk6;
-    loop assigns i, x, dd0, g2eg, rk6, a20, yn, j;
-  @*/
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+ rk6 + g2eg;
-      j = j+ dd0 + dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 12/20 raw response end -----
-2026-03-22 22:37:30,442 - INFO -   Candidate 13 selected prompt: simple_cot.txt
-2026-03-22 22:37:30,480 - INFO -   Generating candidate 13/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:38:33,738 - INFO - 
------ Candidate 13/20 raw response begin -----
-<reasoning>The loop invariant choices aim to be inductive and verification-friendly for Frama-C/WP.
-
-- Core conservation/relational equality:
-  - n == \at(i,Pre) + 8 expresses that n is a fixed value equal to the initial value of the function parameter i plus 8. This matches the initialization: n is assigned i+8 and never changed inside the loop, so this relationship is preserved across iterations.
-
-- Minimal progress bounds:
-  - loop variant n - rk6 ensures termination: rk6 increases by 1 each iteration while the loop guard rk6 <= n holds, so the variant decreases by 1 each time an iteration occurs.
-
-- Additional invariants:
-  - a20 >= \at(i,Pre) + 1 captures that a20 starts at i+1 and only grows (via doubling), so it never drops below its initial value. This is a safe, non-trivial bound that is preserved by the loop.
-
-- Loop assigns:
-  - The loop mutates: x, g2eg, dd0, rk6, a20, yn, i, j. These must be listed to describe the exact side effects of the loop body.
-
-Note: We avoid over-constraining invariants on variables like yn or i where the arithmetic (e.g., x%2 with negative x) can exhibit sign-related behavior, to prevent unsoundness. The two invariants above plus the loop variant provide a solid inductive basis while remaining robust across all possible initial values of i.
-
-</reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant a20 >= \at(i,Pre) + 1;
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-    loop variant n - rk6;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 13/20 raw response end -----
-2026-03-22 22:38:33,738 - INFO -   Candidate 14 selected prompt: simple_cot.txt
-2026-03-22 22:38:33,752 - INFO -   Generating candidate 14/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:39:37,386 - INFO - 
------ Candidate 14/20 raw response begin -----
-<reasoning>The loop invariants aim to capture robust, inductive properties that hold from loop entry and are preserved across iterations, while remaining faithful to the given code and available variables.
-
-Key observations:
-- n is set once before the loop to i+8 and never changed inside the loop. It thus stays equal to the initial function parameter i value plus 8. Use a relational invariant: n == \at(i, Pre) + 8.
-- rk6 only increases (initialized to 1 and incremented by 1 each iteration) and the loop exits when rk6 > n. A minimal progress bound is rk6 >= 1.
-- g2eg is assigned to either 1 or -1 in every iteration, based on a deterministic condition on rk6. Expressing its range as a bound is helpful for inductiveness: (g2eg == 1) || (g2eg == -1).
-- A concise, non-intrusive loop-assigns specification should enumerate all variables that are modified within the loop body: x, g2eg, dd0, rk6, a20, yn, i, j.
-
-With these, we provide two invariants:
-1) A core relational equality that describes the conserved quantity n relative to the initial parameter: n == \at(i, Pre) + 8.
-2) A minimal progress and range bound that guarantees the loop counter has positive progression and that g2eg stays within its valid set: (rk6 >= 1) && ((g2eg == 1) || (g2eg == -1)).
-
-The loop assigns clause lists all variables modified inside the loop: x, g2eg, dd0, rk6, a20, yn, i, j.
-
-These invariants are inductive (they hold initially and are preserved by each iteration) and help SMT/WP reason about the loop without modifying the original code behavior. They are also compatible with the given constraints (no \at on non-parameters, no unused quantifiers, etc.).
-
-</reasoning>
-<code>/*@
-  loop invariant n == \at(i, Pre) + 8;
-  loop invariant (rk6 &gt;= 1) && ((g2eg == 1) || (g2eg == -1));
-  loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }</code>
------ Candidate 14/20 raw response end -----
-2026-03-22 22:39:37,386 - INFO -   Candidate 15 selected prompt: simple_cot.txt
-2026-03-22 22:39:37,399 - INFO -   Generating candidate 15/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:40:39,224 - INFO - 
------ Candidate 15/20 raw response begin -----
+}
+</code>
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:29:23,173 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:29:23,238 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:30:47,276 - INFO - 
+----- Candidate 5/5 raw response begin -----
 <reasoning>
-I analyzed the loop to derive inductive, verification-friendly invariants and precise loop assigns.
+I aim to give strong, inductive loop invariants that explain how the loop variables evolve together and that are easy for WP to prove.
 
-Key observations:
-- The loop is written as while (1) with an internal break when rk6 > n. Thus the loop "guard" for inductiveness is effectively rk6 <= n at the start of an iteration.
-- n is assigned once before the loop as n = i + 8 and is never modified inside the loop. Therefore, a relation between n and the initial value of i is preserved throughout all iterations: n == \at(i, Pre) + 8.
-- The variable g2eg is assigned to either 1 or -1 in every iteration, so a straightforward invariant is g2eg == 1 || g2eg == -1.
-- rk6 starts at 1 and is incremented by 1 each iteration, so rk6 >= 1 holds before each iteration.
+Core relational equality (conservation law):
+- zs2x and sqb evolve linearly together: zs2x starts at -5 and increases by 3 each time sqb increases by 1. Since gmy is not modified in the loop, the exact relation zs2x == -5 + 3*(sqb - gmy) holds initially and is preserved by the body. This is the main law explaining the loop state transition.
 
-These invariants are inductive given the code and initial state, and they do not rely on assumptions about the unknown initial value of i beyond what is given in the pre-state. I avoided trying to capture more complex relationships (like exact expressions for x, dd0, i, etc.) because they are highly dependent on the exact sequence of arithmetic updates and can easily become non-inductive or brittle. The chosen invariants are strong enough to be useful for verification (they are non-trivial, yet safely preserved), and I specified the exact set of loop assigns to reflect which variables are modified inside the loop.
+Additional exact conservation:
+- uq4 increases by 2 per iteration and starts as the incoming parameter z. So uq4 == \at(z, Pre) + 2*(sqb - gmy) is exact and inductive.
 
-In particular:
-- Invariant 1: n == \at(i, Pre) + 8 captures the fact that n is a constant initialized from the initial i.
-- Invariant 2: g2eg == 1 || g2eg == -1 captures the bounded update of g2eg.
-- Invariant 3: rk6 >= 1 ensures a non-decreasing counter bound that holds at every loop iteration entry.
+Useful bounds for the accumulator r7l:
+- Each iteration r7l is incremented by (zs2x % 3), and in C the remainder with divisor 3 is in [-2,2]. Thus r7l is bounded by -5 + (-2)*k <= r7l <= -5 + 2*k where k = (sqb - gmy). These inequalities are inductive and avoid using quantifiers or sums.
 
-Loop assigns enumerates all variables that can be modified within the loop body: x, g2eg, dd0, rk6, a20, yn, i, j.
+Simple ordering invariant:
+- sqb never exceeds gmy (sqb <= gmy). This is helpful and inductive: the loop guard ensures sqb < gmy at iteration start and after the body sqb increases at most to gmy.
 
-These invariants are strong, inductive, and do not introduce unrelated properties. They also comply with the constraint not to modify the function body outside of adding the loop annotations.
+Loop assigns:
+- Exactly the variables written in the body: zs2x, sqb, r7l, xe, uq4.
+
+Loop variant:
+- gmy - sqb is a non-negative integer expression that strictly decreases each iteration (since sqb increases by 1), so it serves as the variant.
+
+All invariants hold initially (sqb == gmy => k=0) and are preserved by the body (simple algebra plus the boundedness of (zs2x % 3)). No \at() use on locals; only \at(z, Pre) is used (allowed for parameters). No quantifiers or extra definitions are used.
 </reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
+<code>
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
 
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
+
+  /* >>> LOOP INVARIANT TO FILL <<< */
+ /*@
+   loop invariant zs2x == -5 + 3*(sqb - gmy);
+   loop invariant uq4 == \at(z, Pre) + 2*(sqb - gmy);
+   loop invariant (-5) + (-2)*(sqb - gmy) <= r7l && r7l <= (-5) + 2*(sqb - gmy);
+   loop invariant sqb <= gmy;
+   loop assigns zs2x, sqb, r7l, xe, uq4;
+   loop variant gmy - sqb;
+ */
+ while (sqb < gmy) {
+       zs2x = zs2x + 3;
+       sqb += 1;
+       r7l = r7l+(zs2x%3);
+       xe = xe*xe+zs2x;
+       uq4 += 2;
+   }
+
+}
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:30:47,277 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
+
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
 
   /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant g2eg == 1 || g2eg == -1;
-    loop invariant rk6 &gt;= 1;
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
+    loop invariant (sqb >= (\at(c, Pre) + 25));
+    loop invariant (sqb <= gmy);
+    loop invariant (3 * (sqb - (\at(c, Pre) + 25)) == zs2x + 5);
+    loop invariant (r7l == -5 - 2 * (sqb - (\at(c, Pre) + 25)));
+    loop invariant (uq4 == \at(z, Pre) + 2 * (sqb - (\at(c, Pre) + 25)));
+    loop assigns zs2x, sqb, r7l, xe, uq4;
+    loop variant (gmy - sqb);
   */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 15/20 raw response end -----
-2026-03-22 22:40:39,224 - INFO -   Candidate 16 selected prompt: simple_cot.txt
-2026-03-22 22:40:39,239 - INFO -   Generating candidate 16/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:41:59,187 - INFO - 
------ Candidate 16/20 raw response begin -----
-<reasoning>To craft inductive, verification-friendly loop annotations for Frama-C/WP, I aimed for invariants that:
-
-- Are true at loop entry (initialization) and preserved by each iteration (inductive).
-- Do not rely on brittle, post-iteration state (like exact values of x, dd0, j, yn, a20 after arbitrary iterations).
-- Use a core conservation/progression relation that is robust across iterations.
-- Provide minimal but meaningful progress bounds for the loop counter rk6 and for the relationship between n and the initial i.
-- Provide complete loop assigns.
-
-Key observations from the loop:
-- rk6 starts at 1 and is incremented by 1 on each iteration, and the loop iterates while rk6 <= n. Therefore 1 <= rk6 <= n+1 is a natural invariant (and rk6 grows monotonically).
-- The parameter i is updated by i = i + rk6 + g2eg each iteration; since rk6 >= 1 and g2eg ∈ {+1, -1} (with the first iteration forcing g2eg = 1), i is non-decreasing. We can express this as i >= initial_i, using the initial value of i via \at(i, Pre).
-- The loop constant n is assigned once as n = i + 8 at entry and never modified afterwards. This gives a strong, concise relation to the initial i: n == \at(i, Pre) + 8. This invariant uses function parameter i via Pre, as allowed.
-- The remaining variables (x, dd0, a20, yn, j) are updated in ways that are too state-dependent to support robust invariants that hold from the very first iteration; thus we avoid introducing fragile invariants about them.
-
-Based on these insights, the following invariants and assigns give a strong, inductive set of properties that Frama-C/WP can verify, while respecting the constraints (including using \at(i, Pre) for the initial value of the parameter i).
-</reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant i >= \at(i, Pre);
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant 1 <= rk6;
-    loop invariant rk6 <= n + 1;
-    loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-    loop variant n - rk6;
-  @*/
-  while (1) {
-        if (!(rk6<=n)) {
-            break;
-        }
-        x = x*(i/rk6);
-        if ((rk6/2)%2==0) {
-            g2eg = 1;
-        }
-        else {
-            g2eg = -1;
-        }
-        dd0 = dd0+g2eg*x;
-        rk6 += 1;
-        x = x*(i/rk6);
-        if (a20+4<n) {
-            a20 = a20*2;
-        }
-        yn = yn+(x%2);
-        i = i+rk6+g2eg;
-        j = j+dd0+dd0;
-        j = j*4;
-  }
-
-}</code>
------ Candidate 16/20 raw response end -----
-2026-03-22 22:41:59,187 - INFO -   Candidate 17 selected prompt: simple_cot.txt
-2026-03-22 22:41:59,202 - INFO -   Generating candidate 17/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:42:55,455 - INFO - 
------ Candidate 17/20 raw response begin -----
-<reasoning>We need inductive loop annotations for Frama-C/WP. I added a minimal, inductive set of invariants that explain the loop’s state progression without overconstraining states, and a proper loop variant to prove termination.
-
-Key choices:
-- Core conservation/relational equality: n == \at(i,Pre) + 8
-  - This expresses how n is initialized from the initial function argument i and remains constant throughout the loop. It is true at loop entry and preserved.
-- Simple counter bound: 1 <= rk6
-  - rk6 starts at 1 and is incremented each iteration, so it never drops below 1. This is safe across all reachable states.
-- Sign constraint for g2eg: (g2eg == 1) || (g2eg == -1)
-  - The code assigns g2eg to either 1 or -1 in every iteration, so this invariant remains valid.
-- Loop variant for progress: (n - rk6)
-  - Since the loop guard is rk6 <= n, at the start of every iteration we have rk6 <= n, so (n - rk6) is a non-negative integer that strictly decreases each iteration, ensuring termination.
-- Loop assigns: include all variables that the loop can modify: x, dd0, rk6, g2eg, a20, yn, i, j.
-
-The invariants are independent of any internal knowledge about non-constant bounds on yn, a20, or x, which can vary with input i and arithmetic; they are kept minimal to ensure inductiveness and verifiability with WP. The initial values given in the loop context satisfy these invariants (e.g., n = at(i,Pre) + 8, rk6 = 1, g2eg = 1). No unknown()/unknownN() calls are touched, and the Pre-usage is limited to the function parameter i as required. </reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant 1 <= rk6;
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-    loop variant (n - rk6);
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 17/20 raw response end -----
-2026-03-22 22:42:55,457 - INFO -   Candidate 18 selected prompt: simple_cot.txt
-2026-03-22 22:42:55,476 - INFO -   Generating candidate 18/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:43:26,475 - INFO - 
------ Candidate 18/20 raw response begin -----
-<reasoning>Chosen invariants are designed to be inductive, non-tautological, and tightly tied to the actual loop state transitions.
-
-Key observations:
-- The loop guard is rk6 <= n, and the loop progresses by increasing rk6 (rk6 += 1) until it exceeds n, so the natural loop variant is n - rk6.
-- n is assigned once before the loop as n = i + 8 and never modified inside the loop. Hence n remains equal to the initial value of i plus 8 throughout the loop. This yields a strong, invariant relation between n and the initial function parameter i: n == \at(i, Pre) + 8.
-- The variable g2eg is assigned based solely on rk6: if ((rk6/2) % 2 == 0) then g2eg = 1 else g2eg = -1. Therefore, a precise invariant that captures this state evolution is:
-  - ((rk6/2) % 2 == 0) ==> (g2eg == 1)
-  - ((rk6/2) % 2 != 0) ==> (g2eg == -1)
-  This keeps g2eg in sync with rk6 across iterations.
-- We explicitly declare the loop assigns set to include all variables that can be modified inside the loop: x, g2eg, dd0, rk6, a20, yn, i, j.
-- We provide a loop variant to ensure termination: loop variant n - rk6. This value starts non-negative (since rk6 <= n for body execution) and decreases by 1 each iteration as rk6 increments.
-
-The combination of these invariants is strong, inductive, and directly tied to the observed loop behavior, while avoiding unrelated or tautological assertions. The invariants do not rely on unknown(), and the only use of \at on a parameter is with \at(i, Pre), which is allowed. </reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /* @
-     loop invariant n == \at(i, Pre) + 8;
-     loop invariant ((rk6/2)%2 == 0) ==> (g2eg == 1);
-     loop invariant ((rk6/2)%2 != 0) ==> (g2eg == -1);
-     loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-     loop variant n - rk6;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 18/20 raw response end -----
-2026-03-22 22:43:26,475 - INFO -   Candidate 19 selected prompt: simple_cot.txt
-2026-03-22 22:43:26,488 - INFO -   Generating candidate 19/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:44:02,916 - INFO - 
------ Candidate 19/20 raw response begin -----
-<reasoning>The loop evolves a small set of state variables while a break condition depends on rk6 and n. To craft inductive, verification-friendly invariants, I focused on:
-- a core conservation relation that is guaranteed by the initial setup and remains invariant: n equals the initial i plus 8. This is expressed as n == \at(i, Pre) + 8, which does not depend on the loop mutations and is preserved because n is never reassigned.
-- a minimal progress/strength bound that tracks loop progress: yn grows by at most 1 per iteration (since yn is updated by (x%2), which is 0 or 1) and the number of iterations performed so far is rk6 - 1 (rk6 increments by 1 each iteration). Thus 0 <= yn <= rk6 - 1 is a tight, inductive bound.
-- a simple monotonicity bound for the loop counter: rk6 >= 1, which is true from the initialization and maintained by rk6 += 1 each iteration.
-- a termination-friendly variant: loop variant n - rk6, which decreases by 1 each iteration while the loop is entered (rk6 <= n at entry), ensuring progress toward termination.
-- explicit assigns: all variables modified inside the loop are listed to keep verification precise.
-
-These invariants are strong yet not over-constrained, and they avoid introducing unrelated properties. They also respect the constraint that we must not modify the function body except for adding annotations. The invariants use only available variables and the function parameter i with its Pre value where necessary. </reasoning>
-
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-     loop invariant n == \at(i, Pre) + 8;
-     loop invariant 0 <= yn && yn <= rk6 - 1;
-     loop invariant rk6 >= 1;
-     loop variant n - rk6;
-     loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 19/20 raw response end -----
-2026-03-22 22:44:02,916 - INFO -   Candidate 20 selected prompt: simple_cot.txt
-2026-03-22 22:44:02,932 - INFO -   Generating candidate 20/20 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 22:44:54,325 - INFO - 
------ Candidate 20/20 raw response begin -----
-<reasoning>To create inductive and verification-friendly loop annotations for Frama-C/WP, I focused on invariants that are:
-- Strong and genuinely inductive, not tautological.
-- Supported by the loop’s actual state updates.
-- Expressive enough to help WP prove termination and postconditions, without changing the code semantics.
-
-Key ideas implemented:
-- Core conservation/relational equality: n == \at(i,Pre) + 8. This captures that n is initialized from the function parameter i and never updated, tying n to the initial input value.
-- Progress bounds on the loop counter rk6: 1 <= rk6 <= n + 1. rk6 starts at 1 and is incremented by 1 each iteration; the loop exits when rk6 > n, so at the loop head the bound holds, and at exit rk6 can be n+1.
-- Relational invariants for g2eg: since g2eg is assigned to either 1 or -1 depending on rk6, we enforce that g2eg is always either 1 or -1 and that it matches the parity-driven rule:
-  - if (rk6/2)%2 == 0 then g2eg == 1
-  - if (rk6/2)%2 != 0 then g2eg == -1
-  These capture exactly how g2eg is computed in the loop.
-- Explicit loop assigns: x, g2eg, dd0, rk6, a20, yn, i, j are modified inside the loop.
-
-These invariants are inductive and do not depend on local variables that are redefined within the loop in ways that would break verification. They respect the constraint of using only the available variables, with i treated as a function parameter (we reference its initial value via \at(i,Pre) in the first invariant). They also avoid using the loop guard as an invariant, per the guidelines. The invariants are designed to be strong enough to guide WP, while staying true to the actual loop behavior and avoiding over-approximation. The core invariant n == \at(i,Pre) + 8 acts as the key relational equality explaining the loop state with respect to the initial input.
-
-</reasoning>
-<code>int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant 1 <= rk6 <= n + 1;
-    loop invariant ((rk6/2)%2==0) ==> (g2eg == 1);
-    loop invariant ((rk6/2)%2!=0) ==> (g2eg == -1);
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-  @*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}</code>
------ Candidate 20/20 raw response end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 1/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant rk6 >= 1;
-    loop invariant (rk6 == 1 ==> j == -3) && (rk6 > 1 ==> j % 4 == 0);
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop invariant a20 >= \at(i, Pre) + 1;
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-  */
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
+  while (sqb < gmy) {
+        zs2x = zs2x + 3;
+        sqb += 1;
+        r7l = r7l+(zs2x%3);
+        xe = xe*xe+zs2x;
+        uq4 += 2;
   }
 
 }
------ Candidate 1/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 2/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
+----- Candidate 1/5 full code end -----
+2026-04-07 09:30:47,277 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
 
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
 
   /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant rk6 >= 1;
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
+    loop invariant gmy == \at(c, Pre) + 25;
+    loop invariant (\at(c, Pre) + 25) <= sqb && sqb <= gmy;
+    loop invariant zs2x + 5 == 3 * (sqb - (\at(c, Pre) + 25));
+    loop invariant r7l == -5 - 2 * (sqb - (\at(c, Pre) + 25));
+    loop invariant uq4 == \at(z, Pre) + 2 * (sqb - (\at(c, Pre) + 25));
+    loop assigns zs2x, sqb, r7l, xe, uq4;
+    loop variant (gmy - sqb);
   */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
+  while (sqb < gmy) {
+      zs2x = zs2x + 3;
+      sqb += 1;
+      r7l = r7l+(zs2x%3);
+      xe = xe*xe+zs2x;
+      uq4 += 2;
   }
 
 }
------ Candidate 2/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 3/20 full code begin -----
-/*@
-  loop invariant n == \at(i,Pre) + 8;
-  loop invariant nd == 0;
-  loop invariant rk6 >= 1;
-  loop invariant (g2eg == 1) || (g2eg == -1);
-  loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
------ Candidate 3/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 4/20 full code begin -----
-/*@
-  loop invariant n == \at(i, Pre) + 8;
-  loop invariant (g2eg == 1) || (g2eg == -1);
-  loop invariant rk6 >= 1;
-  loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
------ Candidate 4/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 5/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
+----- Candidate 2/5 full code end -----
+2026-04-07 09:30:47,277 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
 
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
 
   /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant 1 <= rk6 <= n;
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-    loop variant n - rk6;
+    loop invariant gmy == (\at(c, Pre) + 25);
+    loop invariant (\at(c, Pre) + 25) <= sqb <= gmy;
+    /* core relational equality: zs2x = -5 + 3 * (sqb - (c0 + 25)) */
+    loop invariant zs2x == (-5 + 3 * (sqb - (\at(c, Pre) + 25)));
+    /* linear relation for uq4: increases by 2 per iteration */
+    loop invariant uq4 == (\at(z, Pre) + 2 * (sqb - (\at(c, Pre) + 25)));
+    /* bounds for r7l using that (zs2x % 3) is in {-2,1} for this progression */
+    loop invariant r7l >= (-5 + (sqb - (\at(c, Pre) + 25)) * (-2));
+    loop invariant r7l <= (-5 + (sqb - (\at(c, Pre) + 25)) * 1);
+    loop assigns zs2x, sqb, r7l, xe, uq4;
+    loop variant (gmy - sqb);
   */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
+  while (sqb < gmy) {
+        zs2x = zs2x + 3;
+        sqb += 1;
+        r7l = r7l+(zs2x%3);
+        xe = xe*xe+zs2x;
+        uq4 += 2;
   }
 
 }
------ Candidate 5/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 6/20 full code begin -----
-/*@
-  loop invariant n == \at(i, Pre) + 8;
-  loop invariant (1 <= rk6) && (rk6 <= n + 1);
-  loop invariant (g2eg == 1) || (g2eg == -1);
-  loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
------ Candidate 6/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 7/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
+----- Candidate 3/5 full code end -----
+2026-04-07 09:30:47,277 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
 
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
 
   /*@
-    loop invariant 1 <= rk6 <= n+1;
-    loop invariant ( ((rk6/2)%2==0 && g2eg==1) || ((rk6/2)%2!=0 && g2eg==-1) );
-    loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-    loop variant n - rk6;
+    loop invariant gmy == \at(c, Pre) + 25;
+    loop invariant sqb >= (\at(c, Pre) + 25) && sqb <= gmy;
+    loop invariant zs2x == -5 + 3 * (sqb - (\at(c, Pre) + 25));
+    loop invariant uq4 == \at(z, Pre) + 2 * (sqb - (\at(c, Pre) + 25));
+    loop invariant r7l == -5 + (sqb - (\at(c, Pre) + 25)) * ((-5) % 3);
+    loop assigns zs2x, sqb, r7l, xe, uq4;
+    loop variant (gmy - sqb);
   */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
+  while (sqb < gmy) {
+        zs2x = zs2x + 3;
+        sqb += 1;
+        r7l = r7l+(zs2x%3);
+        xe = xe*xe+zs2x;
+        uq4 += 2;
   }
 
 }
------ Candidate 7/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 8/20 full code begin -----
-/*@
-  loop invariant n == \at(i, Pre) + 8;
-  loop invariant rk6 <= n;
-  loop invariant g2eg == 1 || g2eg == -1;
-  loop variant n - rk6;
-  loop assigns a20, dd0, g2eg, i, j, rk6, x, yn;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
------ Candidate 8/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 9/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
+----- Candidate 4/5 full code end -----
+2026-04-07 09:30:47,277 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(int c,int z){
+  int gmy, sqb, zs2x, r7l, uq4, xe;
 
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
+  gmy=c+25;
+  sqb=gmy;
+  zs2x=-5;
+  r7l=zs2x;
+  uq4=z;
+  xe=z;
 
-  /*@
-     loop invariant n == \at(i, Pre) + 8;
-     loop invariant 1 <= rk6;
-     loop invariant (g2eg == 1) || (g2eg == -1);
-     loop invariant nd == 0;
-     loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-     loop variant n - rk6 + 1;
-  @*/
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
+  /* >>> LOOP INVARIANT TO FILL <<< */
+ /*@
+   loop invariant zs2x == -5 + 3*(sqb - gmy);
+   loop invariant uq4 == \at(z, Pre) + 2*(sqb - gmy);
+   loop invariant (-5) + (-2)*(sqb - gmy) <= r7l && r7l <= (-5) + 2*(sqb - gmy);
+   loop invariant sqb <= gmy;
+   loop assigns zs2x, sqb, r7l, xe, uq4;
+   loop variant gmy - sqb;
+ */
+ while (sqb < gmy) {
+       zs2x = zs2x + 3;
+       sqb += 1;
+       r7l = r7l+(zs2x%3);
+       xe = xe*xe+zs2x;
+       uq4 += 2;
+   }
 
 }
------ Candidate 9/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 10/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant nd == 0;
-    loop invariant (rk6 >= 1);
-    loop invariant ((g2eg == 1) || (g2eg == -1));
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-    loop variant n + 1 - rk6;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}
------ Candidate 10/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 11/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop assigns a20, dd0, g2eg, i, j, rk6, x, yn;
-    loop variant n - rk6;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}
------ Candidate 11/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 12/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant rk6 >= 1;
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop variant n - rk6;
-    loop assigns i, x, dd0, g2eg, rk6, a20, yn, j;
-  @*/
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+ rk6 + g2eg;
-      j = j+ dd0 + dd0;
-      j = j*4;
-  }
-
-}
------ Candidate 12/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 13/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant a20 >= \at(i,Pre) + 1;
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-    loop variant n - rk6;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}
------ Candidate 13/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 14/20 full code begin -----
-/*@
-  loop invariant n == \at(i, Pre) + 8;
-  loop invariant (rk6 &gt;= 1) && ((g2eg == 1) || (g2eg == -1));
-  loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
------ Candidate 14/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 15/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant g2eg == 1 || g2eg == -1;
-    loop invariant rk6 &gt;= 1;
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}
------ Candidate 15/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 16/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant i >= \at(i, Pre);
-    loop invariant n == \at(i, Pre) + 8;
-    loop invariant 1 <= rk6;
-    loop invariant rk6 <= n + 1;
-    loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-    loop variant n - rk6;
-  @*/
-  while (1) {
-        if (!(rk6<=n)) {
-            break;
-        }
-        x = x*(i/rk6);
-        if ((rk6/2)%2==0) {
-            g2eg = 1;
-        }
-        else {
-            g2eg = -1;
-        }
-        dd0 = dd0+g2eg*x;
-        rk6 += 1;
-        x = x*(i/rk6);
-        if (a20+4<n) {
-            a20 = a20*2;
-        }
-        yn = yn+(x%2);
-        i = i+rk6+g2eg;
-        j = j+dd0+dd0;
-        j = j*4;
-  }
-
-}
------ Candidate 16/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 17/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant 1 <= rk6;
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop assigns x, dd0, rk6, g2eg, a20, yn, i, j;
-    loop variant (n - rk6);
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}
------ Candidate 17/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 18/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /* @
-     loop invariant n == \at(i, Pre) + 8;
-     loop invariant ((rk6/2)%2 == 0) ==> (g2eg == 1);
-     loop invariant ((rk6/2)%2 != 0) ==> (g2eg == -1);
-     loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-     loop variant n - rk6;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}
------ Candidate 18/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 19/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-     loop invariant n == \at(i, Pre) + 8;
-     loop invariant 0 <= yn && yn <= rk6 - 1;
-     loop invariant rk6 >= 1;
-     loop variant n - rk6;
-     loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-  */
-  while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}
------ Candidate 19/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - 
------ Candidate 20/20 full code begin -----
-int main1(int i){
-  int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-
-  n=i+8;
-  nd=0;
-  x=1;
-  dd0=1;
-  rk6=1;
-  g2eg=1;
-  j=-3;
-  a20=i+1;
-  yn=nd;
-
-  /*@
-    loop invariant n == \at(i,Pre) + 8;
-    loop invariant 1 <= rk6 <= n + 1;
-    loop invariant ((rk6/2)%2==0) ==> (g2eg == 1);
-    loop invariant ((rk6/2)%2!=0) ==> (g2eg == -1);
-    loop invariant (g2eg == 1) || (g2eg == -1);
-    loop assigns x, g2eg, dd0, rk6, a20, yn, i, j;
-  @*/
-while (1) {
-      if (!(rk6<=n)) {
-          break;
-      }
-      x = x*(i/rk6);
-      if ((rk6/2)%2==0) {
-          g2eg = 1;
-      }
-      else {
-          g2eg = -1;
-      }
-      dd0 = dd0+g2eg*x;
-      rk6 += 1;
-      x = x*(i/rk6);
-      if (a20+4<n) {
-          a20 = a20*2;
-      }
-      yn = yn+(x%2);
-      i = i+rk6+g2eg;
-      j = j+dd0+dd0;
-      j = j*4;
-  }
-
-}
------ Candidate 20/20 full code end -----
-2026-03-22 22:44:54,326 - INFO - Successfully generated 20/20 candidates
-2026-03-22 22:44:54,329 - INFO - Checking 19 invariants for conflicts...
-2026-03-22 22:44:54,330 - INFO -   Conflict detected:
-2026-03-22 22:44:54,330 - INFO -     [4] (g2eg == 1) || (g2eg == -1)
-2026-03-22 22:44:54,330 - INFO -     [18] ((rk6/2)%2 != 0) ==> (g2eg == -1)
-2026-03-22 22:44:54,332 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 22:44:54,332 - INFO -   1: int main1(int i){
-2026-03-22 22:44:54,332 - INFO -   2:   int n, nd, x, dd0, rk6, g2eg, j, a20, yn;
-2026-03-22 22:44:54,332 - INFO -   3: 
-2026-03-22 22:44:54,332 - INFO -   4:   n=i+8;
-2026-03-22 22:44:54,332 - INFO -   5:   nd=0;
-2026-03-22 22:44:54,332 - INFO -   6:   x=1;
-2026-03-22 22:44:54,332 - INFO -   7:   dd0=1;
-2026-03-22 22:44:54,332 - INFO -   8:   rk6=1;
-2026-03-22 22:44:54,332 - INFO -   9:   g2eg=1;
-2026-03-22 22:44:54,332 - INFO -   10:   j=-3;
-2026-03-22 22:44:54,332 - INFO - DEBUG: Total lines: 60
-2026-03-22 22:44:54,588 - INFO - syntax Correct
-2026-03-22 22:45:56,269 - INFO - Validate:
-2026-03-22 22:45:56,269 - INFO - [True, True, True, True, False, False, True, True, False, True, True, True, True, True, True, True, True, False]
-2026-03-22 22:45:56,269 - INFO - 
-2026-03-22 22:45:56,270 - INFO - Verify:
-2026-03-22 22:45:56,270 - INFO - []
-2026-03-22 22:45:56,270 - INFO - 
-2026-03-22 22:45:56,270 - INFO - Houdini iteration 1: Removed 4 failed invariants
-2026-03-22 22:45:56,270 - INFO -   Before: 18 invariants
-2026-03-22 22:45:56,270 - INFO -   After: 14 invariants
-2026-03-22 22:45:56,270 - INFO -   Remaining invariants:
-2026-03-22 22:45:56,270 - INFO -     [1] n == \at(i, Pre) + 8
-2026-03-22 22:45:56,270 - INFO -     [2] rk6 >= 1
-2026-03-22 22:45:56,270 - INFO -     [3] (rk6 == 1 ==> j == -3) && (rk6 > 1 ==> j % 4 == 0)
-2026-03-22 22:45:56,270 - INFO -     [4] (g2eg == 1) || (g2eg == -1)
-2026-03-22 22:45:56,270 - INFO -     [5] (1 <= rk6) && (rk6 <= n + 1)
-2026-03-22 22:45:56,270 - INFO -     [6] 1 <= rk6 <= n+1
-2026-03-22 22:45:56,270 - INFO -     [7] rk6 <= n
-2026-03-22 22:45:56,270 - INFO -     [8] g2eg == 1 || g2eg == -1
-2026-03-22 22:45:56,270 - INFO -     [9] 1 <= rk6
-2026-03-22 22:45:56,270 - INFO -     [10] (rk6 >= 1)
-2026-03-22 22:45:56,270 - INFO -     [11] ((g2eg == 1) || (g2eg == -1))
-2026-03-22 22:45:56,270 - INFO -     [12] i >= \at(i, Pre)
-2026-03-22 22:45:56,270 - INFO -     [13] rk6 <= n + 1
-2026-03-22 22:45:56,270 - INFO -     [14] ((rk6/2)%2 == 0) ==> (g2eg == 1)
-2026-03-22 22:45:56,525 - INFO - syntax Correct
-2026-03-22 22:46:28,400 - INFO - Validate:
-2026-03-22 22:46:28,400 - INFO - [True, True, True, True, False, True, False, True, True, True, True, True, True, False]
-2026-03-22 22:46:28,401 - INFO - 
-2026-03-22 22:46:28,401 - INFO - Verify:
-2026-03-22 22:46:28,401 - INFO - []
-2026-03-22 22:46:28,401 - INFO - 
-2026-03-22 22:46:28,401 - INFO - Houdini iteration 2: Removed 3 failed invariants
-2026-03-22 22:46:28,401 - INFO -   Before: 14 invariants
-2026-03-22 22:46:28,401 - INFO -   After: 11 invariants
-2026-03-22 22:46:28,401 - INFO -   Remaining invariants:
-2026-03-22 22:46:28,401 - INFO -     [1] n == \at(i, Pre) + 8
-2026-03-22 22:46:28,401 - INFO -     [2] rk6 >= 1
-2026-03-22 22:46:28,401 - INFO -     [3] (rk6 == 1 ==> j == -3) && (rk6 > 1 ==> j % 4 == 0)
-2026-03-22 22:46:28,401 - INFO -     [4] (g2eg == 1) || (g2eg == -1)
-2026-03-22 22:46:28,401 - INFO -     [5] 1 <= rk6 <= n+1
-2026-03-22 22:46:28,401 - INFO -     [6] g2eg == 1 || g2eg == -1
-2026-03-22 22:46:28,401 - INFO -     [7] 1 <= rk6
-2026-03-22 22:46:28,401 - INFO -     [8] (rk6 >= 1)
-2026-03-22 22:46:28,401 - INFO -     [9] ((g2eg == 1) || (g2eg == -1))
-2026-03-22 22:46:28,401 - INFO -     [10] i >= \at(i, Pre)
-2026-03-22 22:46:28,401 - INFO -     [11] rk6 <= n + 1
-2026-03-22 22:46:28,634 - INFO - syntax Correct
-2026-03-22 22:46:59,964 - INFO - Validate:
-2026-03-22 22:46:59,965 - INFO - [True, True, True, True, False, True, True, True, True, True, True]
-2026-03-22 22:46:59,965 - INFO - 
-2026-03-22 22:46:59,965 - INFO - Verify:
-2026-03-22 22:46:59,965 - INFO - []
-2026-03-22 22:46:59,965 - INFO - 
-2026-03-22 22:46:59,965 - INFO - Houdini iteration 3: Removed 1 failed invariants
-2026-03-22 22:46:59,965 - INFO -   Before: 11 invariants
-2026-03-22 22:46:59,965 - INFO -   After: 10 invariants
-2026-03-22 22:46:59,965 - INFO -   Remaining invariants:
-2026-03-22 22:46:59,965 - INFO -     [1] n == \at(i, Pre) + 8
-2026-03-22 22:46:59,965 - INFO -     [2] rk6 >= 1
-2026-03-22 22:46:59,965 - INFO -     [3] (rk6 == 1 ==> j == -3) && (rk6 > 1 ==> j % 4 == 0)
-2026-03-22 22:46:59,965 - INFO -     [4] (g2eg == 1) || (g2eg == -1)
-2026-03-22 22:46:59,965 - INFO -     [5] g2eg == 1 || g2eg == -1
-2026-03-22 22:46:59,965 - INFO -     [6] 1 <= rk6
-2026-03-22 22:46:59,965 - INFO -     [7] (rk6 >= 1)
-2026-03-22 22:46:59,965 - INFO -     [8] ((g2eg == 1) || (g2eg == -1))
-2026-03-22 22:46:59,965 - INFO -     [9] i >= \at(i, Pre)
-2026-03-22 22:46:59,965 - INFO -     [10] rk6 <= n + 1
-2026-03-22 22:47:00,204 - INFO - syntax Correct
-2026-03-22 22:47:31,345 - INFO - Validate:
-2026-03-22 22:47:31,345 - INFO - [True, True, True, True, True, True, True, True, True, False]
-2026-03-22 22:47:31,345 - INFO - 
-2026-03-22 22:47:31,345 - INFO - Verify:
-2026-03-22 22:47:31,345 - INFO - []
-2026-03-22 22:47:31,345 - INFO - 
-2026-03-22 22:47:31,345 - INFO - Houdini iteration 4: Removed 1 failed invariants
-2026-03-22 22:47:31,345 - INFO -   Before: 10 invariants
-2026-03-22 22:47:31,345 - INFO -   After: 9 invariants
-2026-03-22 22:47:31,346 - INFO -   Remaining invariants:
-2026-03-22 22:47:31,346 - INFO -     [1] n == \at(i, Pre) + 8
-2026-03-22 22:47:31,346 - INFO -     [2] rk6 >= 1
-2026-03-22 22:47:31,346 - INFO -     [3] (rk6 == 1 ==> j == -3) && (rk6 > 1 ==> j % 4 == 0)
-2026-03-22 22:47:31,346 - INFO -     [4] (g2eg == 1) || (g2eg == -1)
-2026-03-22 22:47:31,346 - INFO -     [5] g2eg == 1 || g2eg == -1
-2026-03-22 22:47:31,346 - INFO -     [6] 1 <= rk6
-2026-03-22 22:47:31,346 - INFO -     [7] (rk6 >= 1)
-2026-03-22 22:47:31,346 - INFO -     [8] ((g2eg == 1) || (g2eg == -1))
-2026-03-22 22:47:31,346 - INFO -     [9] i >= \at(i, Pre)
-2026-03-22 22:47:31,595 - INFO - syntax Correct
-2026-03-22 22:48:02,657 - INFO - Validate:
-2026-03-22 22:48:02,657 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-22 22:48:02,657 - INFO - 
-2026-03-22 22:48:02,657 - INFO - Verify:
-2026-03-22 22:48:02,657 - INFO - []
-2026-03-22 22:48:02,657 - INFO - 
-2026-03-22 22:48:02,657 - INFO - Houdini iteration 5: All invariants are valid
-2026-03-22 22:48:02,904 - INFO - syntax Correct
-2026-03-22 22:48:33,968 - INFO - Validate:
-2026-03-22 22:48:33,968 - INFO - [True, True, True, True, True, True, True, True, True]
-2026-03-22 22:48:33,968 - INFO - 
-2026-03-22 22:48:33,968 - INFO - Verify:
-2026-03-22 22:48:33,968 - INFO - []
-2026-03-22 22:48:33,968 - INFO - 
-2026-03-22 22:48:43,876 - INFO - Deduplicated 4 loop invariants in final code
-2026-03-22 22:48:44,106 - INFO - syntax Correct
-2026-03-22 22:49:14,914 - INFO - Validate:
-2026-03-22 22:49:14,914 - INFO - [True, True, True, True, True]
-2026-03-22 22:49:14,914 - INFO - 
-2026-03-22 22:49:14,914 - INFO - Verify:
-2026-03-22 22:49:14,914 - INFO - []
-2026-03-22 22:49:14,914 - INFO - 
-2026-03-22 22:49:14,914 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 22:49:14,915 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_5/1.c
-2026-03-22 22:49:14,915 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_5/1_invariants.txt
-2026-03-22 22:49:14,915 - INFO - 
+----- Candidate 5/5 full code end -----
+2026-04-07 09:30:47,277 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:30:47,279 - INFO - Checking 14 invariants for conflicts...
+2026-04-07 09:30:47,286 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:30:47,286 - INFO -   1: int main1(int c,int z){
+2026-04-07 09:30:47,286 - INFO -   2:   int gmy, sqb, zs2x, r7l, uq4, xe;
+2026-04-07 09:30:47,286 - INFO -   3: 
+2026-04-07 09:30:47,286 - INFO -   4:   gmy=c+25;
+2026-04-07 09:30:47,286 - INFO -   5:   sqb=gmy;
+2026-04-07 09:30:47,286 - INFO -   6:   zs2x=-5;
+2026-04-07 09:30:47,286 - INFO -   7:   r7l=zs2x;
+2026-04-07 09:30:47,286 - INFO -   8:   uq4=z;
+2026-04-07 09:30:47,286 - INFO -   9:   xe=z;
+2026-04-07 09:30:47,286 - INFO -   10: 
+2026-04-07 09:30:47,286 - INFO - DEBUG: Total lines: 38
+2026-04-07 09:30:47,319 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:30:47,320 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:30:47,320 - INFO - Houdini iteration 1: Removed 14 failed invariants
+2026-04-07 09:30:47,320 - INFO -   Before: 14 invariants
+2026-04-07 09:30:47,320 - INFO -   After: 0 invariants
+2026-04-07 09:30:47,320 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:30:47,345 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:31:50,197 - INFO - Deduplicated 14 loop invariants in final code
+2026-04-07 09:31:50,231 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:31:50,231 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:31:50,231 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:31:50,232 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_5/1.c
+2026-04-07 09:31:50,232 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_5/1_invariants.txt
+2026-04-07 09:31:50,232 - INFO - 
 ============================================================
-2026-03-22 22:49:14,915 - INFO - Final first_pass results:
-2026-03-22 22:49:14,915 - INFO -   syntax=1
-2026-03-22 22:49:14,915 - INFO -   valid=1
-2026-03-22 22:49:14,915 - INFO -   satisfy=None
-2026-03-22 22:49:14,915 - INFO - ============================================================
-2026-03-22 22:49:14,915 - INFO - 
+2026-04-07 09:31:50,232 - INFO - Final first_pass results:
+2026-04-07 09:31:50,232 - INFO -   syntax=None
+2026-04-07 09:31:50,232 - INFO -   valid=None
+2026-04-07 09:31:50,232 - INFO -   satisfy=None
+2026-04-07 09:31:50,232 - INFO - ============================================================
+2026-04-07 09:31:50,232 - INFO - 
 ============================================================
-2026-03-22 22:49:14,915 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 22:49:14,915 - INFO -   Total API calls: 12
-2026-03-22 22:49:14,915 - INFO -   Total prompt tokens (input): 14,895
-2026-03-22 22:49:14,915 - INFO -   Total completion tokens (output): 95,312
-2026-03-22 22:49:14,915 - INFO -   Total tokens: 110,207
-2026-03-22 22:49:14,915 - INFO -   Average per call:
-2026-03-22 22:49:14,915 - INFO -     Prompt: 1241.2 tokens
-2026-03-22 22:49:14,915 - INFO -     Completion: 7942.7 tokens
-2026-03-22 22:49:14,915 - INFO -     Total: 9183.9 tokens
-2026-03-22 22:49:14,915 - INFO - ============================================================
-2026-03-22 22:49:14,916 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_5/1.c
-2026-03-22 22:49:14,916 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2926804_1774189514_5/1_invariants.txt
-2026-03-22 22:49:38,912 - INFO - LLM quality-gate raw response: {
-  "ok": false,
-  "reason": "fail"
-}
+2026-04-07 09:31:50,232 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:31:50,232 - INFO -   Total API calls: 1
+2026-04-07 09:31:50,232 - INFO -   Total prompt tokens (input): 992
+2026-04-07 09:31:50,232 - INFO -   Total completion tokens (output): 5,021
+2026-04-07 09:31:50,232 - INFO -   Total tokens: 6,013
+2026-04-07 09:31:50,232 - INFO -   Average per call:
+2026-04-07 09:31:50,232 - INFO -     Prompt: 992.0 tokens
+2026-04-07 09:31:50,232 - INFO -     Completion: 5021.0 tokens
+2026-04-07 09:31:50,232 - INFO -     Total: 6013.0 tokens
+2026-04-07 09:31:50,232 - INFO - ============================================================
+2026-04-07 09:31:50,232 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_5/1.c
+2026-04-07 09:31:50,232 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_5/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

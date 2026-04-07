@@ -1,718 +1,528 @@
-2026-03-18 11:45:25,043 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-18 11:45:25,054 - INFO - Found 1 loops
-2026-03-18 11:45:25,055 - INFO - 
+2026-04-07 09:53:47,856 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:53:47,877 - INFO - Found 1 loops
+2026-04-07 09:53:47,878 - INFO - 
 ============================================================
-2026-03-18 11:45:25,055 - INFO - Main generation pass 1/1
-2026-03-18 11:45:25,055 - INFO - ============================================================
-2026-03-18 11:45:25,055 - INFO - Loaded single prompt template: simple
-2026-03-18 11:45:25,055 - INFO - Generating 5 candidate invariant sets with temperature=1.0
-2026-03-18 11:45:25,055 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-18 11:45:25,069 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-18 11:46:15,594 - INFO - 
+2026-04-07 09:53:47,878 - INFO - Main generation pass 1/1
+2026-04-07 09:53:47,878 - INFO - ============================================================
+2026-04-07 09:53:47,878 - INFO - Loaded single prompt template: simple
+2026-04-07 09:53:47,878 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:53:47,878 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:53:47,933 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:55:05,712 - INFO - 
 ----- Candidate 1/5 raw response begin -----
-<reasoning>We need inductive loop invariants that are strong enough for WP verification while remaining true from the given initialization and across iterations. The loop updates are:
+<reasoning>
+I choose invariants that are strong, inductive, and easy for WP to prove:
 
-- efq0 = efq0*iz9 + o
-- ts = ts + 1
-- yy = yy*iz9
-- yh = yh + (efq0 % 8)
-- iz9 = iz9 + (efq0 % 2)
-- iz9 = iz9 * 3
-and the loop exits when ts >= mj.
+- Core relational equality (conservation law): zv == 1 + bc.
+  This directly explains the paired updates "zv = zv + 1; bc = bc + 1;" and is preserved by the body. It is the main transition law that links the two loop-modified counters.
 
-Observations to craft invariants:
-- The loop counter ts starts at 1 and increases by 1 each iteration, with a fixed bound mj, so 1 <= ts <= mj holds for all iterations; a natural loop_variant is mj - ts.
-- yy starts at 1 and is multiplied by iz9 each iteration with iz9 > 0, so yy remains >= 1.
-- iz9 starts at at least 2 (o%6 + 2) and, in every iteration, increases by (efq0 % 2) in {0,1}, then is multiplied by 3. Thus iz9 remains >= 2 across iterations.
-- yh starts at o and increases by (efq0 % 8) each iteration, which is between 0 and 7; thus after t iterations, yh is in [o, o + 7*(t)]. Since ts == 1 + t, we can constrain: o <= yh <= o + 7*(ts - 1).
-- We explicitly list the loop assignments: efq0, ts, yy, yh, iz9.
+- Exact closed-form relational invariant for the accumulating sum jg:
+  jg == 1 + (bc*(bc+1))/2
+  The loop performs jg += zv and we already have zv == 1 + bc; this closed form is the standard sum of 1..(bc) shifted by 1, and it is preserved by the body (one can check algebraically that adding (1+bc) yields the closed form for bc+1). This is a strong invariant and helps establish properties about jg at loop exit without quantifiers.
 
-These invariants are strong yet maintainable and do not require modifying the code or using Pre-anchors on locals. We avoid non-parameter Pre references and ensure all are expressed only with available variables (efq0, iz9, mj, o, ts, yh, yy).
+- Progress and bounds:
+  0 <= bc && bc <= u3
+  and loop variant (u3 - bc)
+  These state that bc is a non-negative counter bounded by u3 and that u3 - bc strictly decreases by 1 each iteration while non-negative, which is the natural variant for termination of the loop guarded by bc < u3.
 
+- Constant relation for the loop-bound origin:
+  u3 == \at(i, Pre) + 12
+  This records that u3 is derived from the function parameter i at entry and is not modified by the loop; it is helpful to relate the loop bound back to the input.
+
+- loop assigns lists precisely the variables modified by the loop body: jg, eqm, bz, zv, bc.
+
+I avoided quantifiers and auxiliary logic definitions. I did not attempt to give an explicit closed form for eqm and bz (their linear recurrence leads to a 2x2 matrix power), because producing and proving such a closed form without higher-level logic would be unnecessarily complex and risks being unverifiable. The provided invariants are enough to be inductive, verification-friendly, and to show progress and exact assigns.
+
+All uses of \at(...) are only on the parameter i as allowed.
 </reasoning>
-<code>int main1(int o){
-  int mj, w2k, efq0, yy, ts, iz9, yh;
+<code>
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
 
-  mj=(o%7)+4;
-  w2k=1;
-  efq0=w2k;
-  yy=w2k;
-  ts=w2k;
-  iz9=(o%6)+2;
-  yh=o;
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 1 <= ts <= mj;
-    loop invariant yy >= 1;
-    loop invariant iz9 >= 2;
-    loop invariant o <= yh <= o + 7*(ts - 1);
-    loop assigns efq0, ts, yy, yh, iz9;
-    loop variant mj - ts;
+    loop invariant 0 <= bc && bc <= u3;
+    loop invariant zv == 1 + bc;
+    loop invariant jg == 1 + (bc*(bc+1))/2;
+    loop invariant u3 == \at(i, Pre) + 12;
+    loop assigns jg, eqm, bz, zv, bc;
+    loop variant (u3 - bc);
   */
-  while (1) {
-      if (ts>=mj) {
+while (1) {
+      if (!(bc < u3)) {
           break;
       }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
+      jg += zv;
+      eqm = eqm*2 + bz;
+      bz = bz + eqm;
+      zv = zv + 1;
+      bc += 1;
   }
 
-}</code>
+}
+</code>
 ----- Candidate 1/5 raw response end -----
-2026-03-18 11:46:15,594 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-18 11:46:15,607 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-18 11:47:45,558 - INFO - 
+2026-04-07 09:55:05,714 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:55:05,790 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:56:18,704 - INFO - 
 ----- Candidate 2/5 raw response begin -----
 <reasoning>
-Loop analysis:
-- The loop guard is effectively while (ts < mj) due to the early break. The loop counter ts is initialized to 1 and incremented by 1 each iteration, so ts is a monotone non-decreasing measure of progress. To keep a simple, robust progress metric without relying on the sign of o, we only constrain ts to be at least 1 (it starts at 1 and only increases).
-- mj is computed from the input parameter o as mj = (o % 7) + 4. This value is never modified within the loop, so mj remains a fixed value that is deterministically tied to the input o. We can express that relation as mj == ((param) % 7) + 4, which is a core relational equality that remains invariant across iterations.
-- The body of the loop updates several variables (efq0, ts, yy, yh, iz9). The loop assigns these five variables exactly, so the loop assigns clause should enumerate them: efq0, ts, yy, yh, iz9.
-- Given the potential for negative values of o, insisting on positivity or other strong invariants on efq0, yy, iz9, or yh is risky. Therefore we keep invariants that are always true regardless of sign of o and still give inductive information for verification.
-- The combination of:
-  - ts >= 1 (progress bound)
-  - mj == ((param) % 7) + 4 (conservation/relational equality tied to input)
-  - loop assigns efq0, ts, yy, yh, iz9
-  provides an inductive, verification-friendly specification that is compatible with Frama-C/WP and the given loop structure.
+I choose invariants that are strong, inductive, and explain the state transitions of the loop while remaining Frama-C/WP friendly.
 
+Core relational equality (state transition law)
+- zv == (bc + 1): this directly captures the synchronized updates zv++ and bc++ and is the primary conservation law explaining the zv/bc relationship. It is true initially (zv=1, bc=0) and preserved by the loop body (both increment by 1).
+
+Derived arithmetic conservation
+- jg == (1 + (bc * (bc + 1)) / 2): jg accumulates the successive values of zv. Given zv == (bc + 1), one shows inductively that jg equals 1 + sum_{k=0}^{bc-1} (k+1) = 1 + bc*(bc+1)/2. This is a precise relational invariant helpful for verification goals that refer to jg.
+
+Bounds and progress
+- 0 <= bc && bc <= u3: bounds bc as a loop counter; it is true initially and preserved because the loop guard ensures bc < u3 before increment.
+- u3 == \at(i, Pre) + 12: u3 is a constant established before the loop; stating it explicitly helps WP reason about the termination bound and other numeric facts.
+
+Loop assigns and variant
+- loop assigns lists exactly the variables modified by the body: jg, eqm, bz, zv, bc.
+- loop variant (u3 - bc) is a natural non-negative integer that decreases each iteration (since bc increments by 1 while u3 is constant), ensuring termination.
+
+I purposely avoid quantifiers or custom logic definitions and do not assert any speculative closed-form for eqm and bz (their recurrence is more involved). The chosen invariants are inductive: each is true initially and preserved by the body (briefly argued above), and together they let WP establish the loop progress and many useful numeric relations without over-asserting facts about eqm/bz that are not needed.
 </reasoning>
-<code>/*@
-  loop invariant ts >= 1;
-  loop invariant mj == ((param) % 7) + 4;
-  loop assigns efq0, ts, yy, yh, iz9;
-  /* The loop variant is optional; omitted to avoid issues if mj may be <= 0 for some inputs. */
-*/ 
-while (1) {
-      if (ts>=mj) {
-          break;
-      }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
-  }
+<code>
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
 
-}</code>
------ Candidate 2/5 raw response end -----
-2026-03-18 11:47:45,558 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-18 11:47:45,571 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-18 11:49:18,208 - INFO - 
------ Candidate 3/5 raw response begin -----
-<reasoning>
-I examined the loop state and updates. The loop body modifies efq0, ts, yy, yh, and iz9 based on current values (and o). The most robust inductive facts I can safely express without over-constraining behavior across all possible o values are:
-
-- Progress bound: ts is initialized to 1 and increases by 1 each iteration. A natural, safe loop variant is mj - ts, which decreases by 1 every iteration and remains non-negative while the loop guard ts < mj holds. This provides a clean, termination-friendly bound without relying on the exact numeric relationships of the other variables.
-
-- A minimal lower bound invariant: ts >= 1. Since ts starts at 1 and only increases, this invariant holds on every loop entry.
-
-- A simple upper bound invariant tied to the loop bound: ts <= mj. While the exact relation of mj to o can be tricky for negative values of o, the loop is only entered when ts < mj, so ts <= mj is preserved at the loop head across iterations. It’s a safe invariant for the verification context when the loop is active.
-
-- We explicitly declare the loop assigns set to reflect exactly which variables can be modified by the loop: efq0, ts, yy, yh, iz9.
-
-These choices keep the invariants inductive, verification-friendly, and non-redundant, and they do not modify the original code or introduce new semantics. The request for a “core conservation/relational equality” is interpreted here as a clear, inductive description of the loop’s progress and its termination measure (the mj - ts variant) rather than a brittle algebraic identity that depends on specific signedness/modulo behavior of arbitrary o values.
-</reasoning>
-<code>int main1(int o){
-  int mj, w2k, efq0, yy, ts, iz9, yh;
-
-  mj=(o%7)+4;
-  w2k=1;
-  efq0=w2k;
-  yy=w2k;
-  ts=w2k;
-  iz9=(o%6)+2;
-  yh=o;
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
 
   /*@
-    loop invariant ts >= 1;
-    loop invariant ts <= mj;
-    loop assigns efq0, ts, yy, yh, iz9;
-    loop variant mj - ts;
+    loop invariant u3 == \at(i, Pre) + 12;
+    loop invariant 0 <= bc && bc <= u3;
+    loop invariant zv == (bc + 1);
+    loop invariant jg == (1 + ((bc * (bc + 1)) / 2));
+    loop assigns jg, eqm, bz, zv, bc;
+    loop variant (u3 - bc);
   */
-while (1) {
-      if (ts>=mj) {
+  while (1) {
+      if (!(bc < u3)) {
           break;
       }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
+      jg += zv;
+      eqm = eqm*2 + bz;
+      bz = bz + eqm;
+      zv = zv + 1;
+      bc += 1;
   }
 
-}</code>
------ Candidate 3/5 raw response end -----
-2026-03-18 11:49:18,209 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-18 11:49:18,221 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-18 11:50:23,291 - INFO - 
------ Candidate 4/5 raw response begin -----
-<reasoning>Key observations:
-- The loop uses a counter ts that starts at 1 and increments by 1 each iteration, and the loop is effectively bounded by mj, which is computed once before the loop as mj = (o % 7) + 4. The loop stops when ts >= mj.
-- mj remains constant throughout the loop (no writes to mj inside the loop body).
-- The only variables assigned inside the loop are efq0, ts, yy, yh, iz9; w2k, o, mj, and yh outside the loop are not modified.
-- A strong, inductive invariant should capture the loop progress and the fixed bound mj. A natural core relationship is the direct link between mj and the initial parameter o: mj == (o % 7) + 4. Since o is a function parameter and is never modified within the loop, this relation remains invariant.
-- A minimal progress bound is ts is bounded by the initial value 1 and the fixed bound mj, so 1 <= ts <= mj, with a decreasing variant mj - ts to aid termination proof.
-</reasoning>
-<code>int main1(int o){
-  int mj, w2k, efq0, yy, ts, iz9, yh;
+}
+</code>
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:56:18,705 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:56:18,798 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:57:54,513 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I chose invariants that are inductive, verification-friendly, and minimal while explaining the loop state transitions and progress.
 
-  mj=(o%7)+4;
-  w2k=1;
-  efq0=w2k;
-  yy=w2k;
-  ts=w2k;
-  iz9=(o%6)+2;
-  yh=o;
+Core relational equality (state transition law)
+- zv == 1 + bc
+  - This directly captures the per-iteration update zv += 1 together with bc += 1. It is the primary conservation relation describing how the loop counter bc relates to zv.
+
+Derived/auxiliary equality (helps discharge arithmetic on jg)
+- jg == 1 + (bc*(bc+1))/2
+  - Since jg is incremented by the current zv each iteration and zv == 1 + bc, jg is precisely 1 + sum_{t=0}^{bc-1} (1+t). This closed form is strong and inductive given zv == 1 + bc.
+
+Progress and bounds
+- bc >= 0
+  - bc starts at 0 and only increments; non-negativity is trivial and needed for arithmetic reasoning.
+- (u3 < 0) || (bc <= u3)
+  - We must not assume u3 >= 0 (because i may be any int). This conditional upper bound ensures the invariant holds even when u3 < 0 (in which case the loop is never entered). When u3 >= 0, bc is provably ≤ u3 at loop head (preserved by the body because body only executes when bc < u3 and increments bc by 1).
+
+Constant relation
+- u3 == \at(i, Pre) + 12
+  - u3 is initialized from the input parameter i and never modified; exposing this as an invariant helps the verifier relate u3 to the function parameter.
+
+Loop assigns
+- Exactly lists all variables modified by the loop body: jg, eqm, bz, zv, bc. This is necessary and sufficient.
+
+Variant
+- I omitted a loop variant because u3 - bc may be negative initially (if \at(i,Pre)+12 < 0), and providing a variant would require proving non-negativity at loop head for all inputs. The loop still clearly terminates when bc < u3 and bc increments.
+
+Notes on eqm and bz
+- The pair (eqm,bz) follows a nontrivial linear recurrence. I did not force a closed-form invariant for them (it would require exponentiation-like expressions or quantification). Leaving them unconstrained (apart from being listed in assigns) is safe for checking the stated properties and keeps the invariants provable and simple. If needed later, a stronger invariant for eqm/bz can be added based on the desired postconditions.
+</reasoning>
+<code>
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
+
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
 
   /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 1 <= ts <= mj;
-    loop invariant mj == (o % 7) + 4;
-    loop assigns efq0, ts, yy, yh, iz9;
-    loop variant mj - ts;
+    loop invariant bc >= 0;
+    loop invariant zv == 1 + bc;
+    loop invariant jg == 1 + (bc*(bc+1))/2;
+    loop invariant u3 == \at(i, Pre) + 12;
+    loop invariant (u3 < 0) || (bc <= u3);
+    loop assigns jg, eqm, bz, zv, bc;
   */
 while (1) {
-      if (ts>=mj) {
+      if (!(bc < u3)) {
           break;
       }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
+      jg += zv;
+      eqm = eqm*2 + bz;
+      bz = bz + eqm;
+      zv = zv + 1;
+      bc += 1;
+  }
+
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:57:54,515 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:57:54,622 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:59:39,805 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I choose invariants that are (1) inductive, (2) minimal, and (3) expose the key conservation / relational law used by the loop updates so WP can discharge the verification obligations.
+
+Observations used:
+- bc is the iteration counter: it starts at 0 and is incremented by 1 on each iteration. The loop guard is bc < u3, so 0 <= bc <= u3 is preserved (non-strict on the upper side is needed for inductiveness).
+- zv starts at 1 and is incremented by 1 on each iteration. Therefore the exact, simple, and inductive relation zv == 1 + bc holds at the loop head and explains the zv update step; this is the core relational equality (state transition law) I expose.
+- jg accumulates the successive values of zv. With zv == 1 + bc, one can prove by induction that jg == 1 + (bc*(bc+1))/2 holds at the loop head (it is initialized to 1 and increases by zv each iteration). This is a precise, strong invariant for jg.
+- For termination and WP, a standard loop variant is u3 - bc (non-negative while the guard holds).
+- The loop assigns clause precisely lists all variables modified in the loop body: jg, eqm, bz, zv, bc.
+
+I purposely avoid inventing a closed-form invariant for eqm and bz. Those follow a non-trivial second-order linear recurrence; encoding a closed form would require either irrational constants or quantifiers / auxiliary logic definitions (forbidden). The invariants provided are strong, inductive, and sufficient to capture the progress, bounding, and the main relational law (zv vs. bc). They also make the arithmetic update to jg easy to verify.
+
+All invariants are written so they hold at loop entry and are preserved by each iteration:
+- 0 <= bc && bc <= u3: initialized (0 <= u3) and preserved because inside the loop we have bc < u3 so bc+1 <= u3 after the increment; bc is always non-negative.
+- zv == 1 + bc: initialized and preserved by zv += 1 and bc += 1.
+- jg == 1 + (bc*(bc+1))/2: initialized and preserved because jg increases by zv each iteration and zv == 1 + bc.
+- loop assigns and loop variant are exact and verification-friendly.
+
+These invariants are purposely minimal (no unrelated or tautological properties) and directly follow the given update pattern.
+</reasoning>
+<code>
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
+
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
+
+  /*@
+    loop invariant 0 <= bc && bc <= u3;
+    loop invariant zv == 1 + bc;                                 // core relational law: zv increments with bc
+    loop invariant jg == 1 + (bc*(bc+1))/2;                      // precise accumulation of zv into jg
+    loop assigns jg, eqm, bz, zv, bc;
+    loop variant u3 - bc;
+  */
+while (1) {
+      if (!(bc < u3)) {
+          break;
+      }
+      jg += zv;
+      eqm = eqm*2 + bz;
+      bz = bz + eqm;
+      zv = zv + 1;
+      bc += 1;
   }
 
 }
 </code>
 ----- Candidate 4/5 raw response end -----
-2026-03-18 11:50:23,291 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-18 11:50:23,305 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-18 11:51:32,936 - INFO - 
+2026-04-07 09:59:39,807 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:59:39,882 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 10:00:54,533 - INFO - 
 ----- Candidate 5/5 raw response begin -----
 <reasoning>
-Goal: provide inductive, verification-friendly loop invariants for the given loop in Frama-C/WP. The loop is a counting loop driven by ts and mj, with several state updates in each iteration.
+I chose invariants that are strong, inductive, and directly reflect the state changes performed in the loop while avoiding quantifiers or auxiliary logic definitions.
 
-Key observations:
-- Loop guard: while (1) with break when ts >= mj. So ts is a counter that starts at 1 and increases by 1 each iteration; mj is a fixed bound (derived from o).
-- A natural loop variant is mj - ts, which decreases by 1 each iteration (ts increases by 1) and remains non-negative while the loop body executes.
-- We can enforce safe numerical bounds that are invariant across iterations:
-  - ts remains within [1, mj] at the loop head.
-  - iz9 remains strictly positive throughout, since iz9 starts positive and is updated via multiplication by 3 after adding a non-negative quantity and thus stays > 0.
-  - yy remains positive as it is multiplied by iz9 (which is > 0) every iteration and initially yy == 1 (> 0).
-- These invariants are inductive: if they hold at a loop head, the loop body preserves them when the body executes (the updates maintain iz9 > 0 and yy > 0, and ts increments by 1 while mj is constant).
+Key choices:
+- Core relational equalities:
+  - zv == 1 + bc: this exactly characterizes the zv update (zv increases by 1 when bc increases by 1).
+  - jg == 1 + (bc*(bc+1))/2: this is the closed form of the repeated jg += zv updates (sum of arithmetic progression). These two equalities explain the loop state transition for zv and jg and are preserved by each iteration.
+- Bounds/progress:
+  - 0 <= bc && (u3 < 0 || bc <= u3): bc is always non-negative, and when u3 >= 0 we know bc never exceeds u3 (weaker formulation that also holds if u3 < 0 at entry).
+  - loop variant u3 - bc: decreases by 1 each iteration while the guard bc < u3 holds, ensuring termination when applicable.
+- Stability/constant facts:
+  - u3 == \at(i,Pre) + 12: u3 is initialized from the parameter and never modified; exposing this helps verification.
+- Assigns:
+  - loop assigns jg, eqm, bz, zv, bc: exactly the variables modified inside the loop.
 
-One core conservation/relational update description (not an invariant itself, but explaining how the state updates flow across iterations):
-- efq0 is updated as efq0 := efq0 * iz9 + o
-- ts is updated as ts := ts + 1
-- yy is updated as yy := yy * iz9
-- yh is updated as yh := yh + (efq0 % 8) where efq0 here is the new efq0 (post-update)
-- iz9 is updated twice in sequence: iz9 := iz9 + (efq0 % 2) followed by iz9 := iz9 * 3
-These relationships justify choosing simple, strong invariants about ts, iz9, and yy that are preserved across iterations.
+I avoided asserting a closed form for eqm and bz because their closed forms require a 2x2 matrix power expression; instead I left them unconstrained beyond being assigned (they are included in assigns). The chosen invariants are inductive:
+- Initialization: with bc=0, zv=1, jg=1 the zv and jg equalities hold; 0<=bc holds; u3 relation holds by initialization.
+- Preservation: under the loop body updates (jg += zv; eqm = 2*eqm + bz; bz = bz + eqm; zv += 1; bc += 1) the zv equality and jg closed form are maintained (one can check jg' = jg + zv = 1 + (bc*(bc+1))/2 + (1+bc) = 1 + ((bc+1)*(bc+2))/2 as required when bc increments). The bound and u3 equality are preserved as well.
+- Exit: when loop exits (! (bc < u3)), the invariant bc <= u3 (or the disjunction) gives the non-strict bound needed at exit.
 
-Chosen invariants (inductive and verification-friendly):
-- 1 <= ts <= mj
-- iz9 > 0
-- yy > 0
-Additionally:
-- loop assigns efq0, ts, yy, yh, iz9
-- loop variant mj - ts
-
-These invariants are modest but strong enough to help WP establish termination and preserve a non-trivial state relationship across iterations without over-constraining the values of o, efq0, or yh (which can vary due to the arithmetic in the loop).
-
+These invariants are kept minimal, directly related to the loop updates, and suitable for WP verification.
 </reasoning>
-<code>int main1(int o){
-  int mj, w2k, efq0, yy, ts, iz9, yh;
+<code>
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
 
-  mj=(o%7)+4;
-  w2k=1;
-  efq0=w2k;
-  yy=w2k;
-  ts=w2k;
-  iz9=(o%6)+2;
-  yh=o;
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
 
   /*@
-    loop invariant 1 <= ts <= mj;
-    loop invariant iz9 > 0;
-    loop invariant yy > 0;
-    loop assigns efq0, ts, yy, yh, iz9;
-    loop variant mj - ts;
-  */
-while (1) {
-      if (ts>=mj) {
-          break;
-      }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
-  }
-
-}</code>
------ Candidate 5/5 raw response end -----
-2026-03-18 11:51:32,936 - INFO - 
------ Candidate 1/5 full code begin -----
-int main1(int o){
-  int mj, w2k, efq0, yy, ts, iz9, yh;
-
-  mj=(o%7)+4;
-  w2k=1;
-  efq0=w2k;
-  yy=w2k;
-  ts=w2k;
-  iz9=(o%6)+2;
-  yh=o;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 1 <= ts <= mj;
-    loop invariant yy >= 1;
-    loop invariant iz9 >= 2;
-    loop invariant o <= yh <= o + 7*(ts - 1);
-    loop assigns efq0, ts, yy, yh, iz9;
-    loop variant mj - ts;
+    loop invariant 0 <= bc && (u3 < 0 || bc <= u3);
+    loop invariant zv == 1 + bc;
+    loop invariant jg == 1 + (bc*(bc+1))/2;
+    loop invariant u3 == \at(i,Pre) + 12;
+    loop assigns jg, eqm, bz, zv, bc;
+    loop variant u3 - bc;
   */
   while (1) {
-      if (ts>=mj) {
+        if (!(bc < u3)) {
+            break;
+        }
+        jg += zv;
+        eqm = eqm*2 + bz;
+        bz = bz + eqm;
+        zv = zv + 1;
+        bc += 1;
+  }
+
+}
+</code>
+----- Candidate 5/5 raw response end -----
+2026-04-07 10:00:54,534 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
+
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
+
+  /*@
+    loop invariant 0 <= bc && bc <= u3;
+    loop invariant zv == 1 + bc;
+    loop invariant jg == 1 + (bc*(bc+1))/2;
+    loop invariant u3 == \at(i, Pre) + 12;
+    loop assigns jg, eqm, bz, zv, bc;
+    loop variant (u3 - bc);
+  */
+while (1) {
+      if (!(bc < u3)) {
           break;
       }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
+      jg += zv;
+      eqm = eqm*2 + bz;
+      bz = bz + eqm;
+      zv = zv + 1;
+      bc += 1;
   }
 
 }
 ----- Candidate 1/5 full code end -----
-2026-03-18 11:51:32,936 - INFO - 
+2026-04-07 10:00:54,534 - INFO - 
 ----- Candidate 2/5 full code begin -----
-/*@
-  loop invariant ts >= 1;
-  loop invariant mj == ((param) % 7) + 4;
-  loop assigns efq0, ts, yy, yh, iz9;
-  /* The loop variant is optional; omitted to avoid issues if mj may be <= 0 for some inputs. */
-*/ 
-while (1) {
-      if (ts>=mj) {
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
+
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
+
+  /*@
+    loop invariant u3 == \at(i, Pre) + 12;
+    loop invariant 0 <= bc && bc <= u3;
+    loop invariant zv == (bc + 1);
+    loop invariant jg == (1 + ((bc * (bc + 1)) / 2));
+    loop assigns jg, eqm, bz, zv, bc;
+    loop variant (u3 - bc);
+  */
+  while (1) {
+      if (!(bc < u3)) {
           break;
       }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
+      jg += zv;
+      eqm = eqm*2 + bz;
+      bz = bz + eqm;
+      zv = zv + 1;
+      bc += 1;
   }
 
 }
 ----- Candidate 2/5 full code end -----
-2026-03-18 11:51:32,936 - INFO - 
+2026-04-07 10:00:54,534 - INFO - 
 ----- Candidate 3/5 full code begin -----
-int main1(int o){
-  int mj, w2k, efq0, yy, ts, iz9, yh;
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
 
-  mj=(o%7)+4;
-  w2k=1;
-  efq0=w2k;
-  yy=w2k;
-  ts=w2k;
-  iz9=(o%6)+2;
-  yh=o;
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
 
+  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant ts >= 1;
-    loop invariant ts <= mj;
-    loop assigns efq0, ts, yy, yh, iz9;
-    loop variant mj - ts;
+    loop invariant bc >= 0;
+    loop invariant zv == 1 + bc;
+    loop invariant jg == 1 + (bc*(bc+1))/2;
+    loop invariant u3 == \at(i, Pre) + 12;
+    loop invariant (u3 < 0) || (bc <= u3);
+    loop assigns jg, eqm, bz, zv, bc;
   */
 while (1) {
-      if (ts>=mj) {
+      if (!(bc < u3)) {
           break;
       }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
+      jg += zv;
+      eqm = eqm*2 + bz;
+      bz = bz + eqm;
+      zv = zv + 1;
+      bc += 1;
   }
 
 }
 ----- Candidate 3/5 full code end -----
-2026-03-18 11:51:32,936 - INFO - 
+2026-04-07 10:00:54,534 - INFO - 
 ----- Candidate 4/5 full code begin -----
-int main1(int o){
-  int mj, w2k, efq0, yy, ts, iz9, yh;
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
 
-  mj=(o%7)+4;
-  w2k=1;
-  efq0=w2k;
-  yy=w2k;
-  ts=w2k;
-  iz9=(o%6)+2;
-  yh=o;
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
 
-  /* >>> LOOP INVARIANT TO FILL <<< */
   /*@
-    loop invariant 1 <= ts <= mj;
-    loop invariant mj == (o % 7) + 4;
-    loop assigns efq0, ts, yy, yh, iz9;
-    loop variant mj - ts;
+    loop invariant 0 <= bc && bc <= u3;
+    loop invariant zv == 1 + bc;                                 // core relational law: zv increments with bc
+    loop invariant jg == 1 + (bc*(bc+1))/2;                      // precise accumulation of zv into jg
+    loop assigns jg, eqm, bz, zv, bc;
+    loop variant u3 - bc;
   */
 while (1) {
-      if (ts>=mj) {
+      if (!(bc < u3)) {
           break;
       }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
+      jg += zv;
+      eqm = eqm*2 + bz;
+      bz = bz + eqm;
+      zv = zv + 1;
+      bc += 1;
   }
 
 }
 ----- Candidate 4/5 full code end -----
-2026-03-18 11:51:32,936 - INFO - 
+2026-04-07 10:00:54,534 - INFO - 
 ----- Candidate 5/5 full code begin -----
-int main1(int o){
-  int mj, w2k, efq0, yy, ts, iz9, yh;
+int main1(int i){
+  int u3, bc, eqm, jg, bz, zv;
 
-  mj=(o%7)+4;
-  w2k=1;
-  efq0=w2k;
-  yy=w2k;
-  ts=w2k;
-  iz9=(o%6)+2;
-  yh=o;
+  u3=i+12;
+  bc=0;
+  eqm=i;
+  jg=1;
+  bz=0;
+  zv=1;
 
   /*@
-    loop invariant 1 <= ts <= mj;
-    loop invariant iz9 > 0;
-    loop invariant yy > 0;
-    loop assigns efq0, ts, yy, yh, iz9;
-    loop variant mj - ts;
+    loop invariant 0 <= bc && (u3 < 0 || bc <= u3);
+    loop invariant zv == 1 + bc;
+    loop invariant jg == 1 + (bc*(bc+1))/2;
+    loop invariant u3 == \at(i,Pre) + 12;
+    loop assigns jg, eqm, bz, zv, bc;
+    loop variant u3 - bc;
   */
-while (1) {
-      if (ts>=mj) {
-          break;
-      }
-      efq0 = efq0*iz9+o;
-      ts = ts + 1;
-      yy = yy*iz9;
-      yh = yh+(efq0%8);
-      iz9 = iz9+(efq0%2);
-      iz9 = iz9*3;
+  while (1) {
+        if (!(bc < u3)) {
+            break;
+        }
+        jg += zv;
+        eqm = eqm*2 + bz;
+        bz = bz + eqm;
+        zv = zv + 1;
+        bc += 1;
   }
 
 }
 ----- Candidate 5/5 full code end -----
-2026-03-18 11:51:32,936 - INFO - Successfully generated 5/5 candidates
-2026-03-18 11:51:32,937 - INFO - Checking 9 invariants for conflicts...
-2026-03-18 11:51:32,939 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-18 11:51:32,939 - INFO -   1: int main1(int o){
-2026-03-18 11:51:32,939 - INFO -   2:   int mj, w2k, efq0, yy, ts, iz9, yh;
-2026-03-18 11:51:32,939 - INFO -   3: 
-2026-03-18 11:51:32,939 - INFO -   4:   mj=(o%7)+4;
-2026-03-18 11:51:32,939 - INFO -   5:   w2k=1;
-2026-03-18 11:51:32,939 - INFO -   6:   efq0=w2k;
-2026-03-18 11:51:32,939 - INFO -   7:   yy=w2k;
-2026-03-18 11:51:32,939 - INFO -   8:   ts=w2k;
-2026-03-18 11:51:32,939 - INFO -   9:   iz9=(o%6)+2;
-2026-03-18 11:51:32,939 - INFO -   10:   yh=o;
-2026-03-18 11:51:32,939 - INFO - DEBUG: Total lines: 38
-2026-03-18 11:51:33,188 - INFO - syntax Correct
-2026-03-18 11:52:04,701 - INFO - Validate:
-2026-03-18 11:52:04,701 - INFO - [False, True, False, False, True, True, True, True, True]
-2026-03-18 11:52:04,701 - INFO - 
-2026-03-18 11:52:04,701 - INFO - Verify:
-2026-03-18 11:52:04,701 - INFO - []
-2026-03-18 11:52:04,701 - INFO - 
-2026-03-18 11:52:04,701 - INFO - Houdini iteration 1: Removed 3 failed invariants
-2026-03-18 11:52:04,701 - INFO -   Before: 9 invariants
-2026-03-18 11:52:04,701 - INFO -   After: 6 invariants
-2026-03-18 11:52:04,701 - INFO -   Remaining invariants:
-2026-03-18 11:52:04,701 - INFO -     [1] yy >= 1
-2026-03-18 11:52:04,701 - INFO -     [2] ts >= 1
-2026-03-18 11:52:04,701 - INFO -     [3] ts <= mj
-2026-03-18 11:52:04,701 - INFO -     [4] mj == (o % 7) + 4
-2026-03-18 11:52:04,701 - INFO -     [5] iz9 > 0
-2026-03-18 11:52:04,702 - INFO -     [6] yy > 0
-2026-03-18 11:52:04,930 - INFO - syntax Correct
-2026-03-18 11:52:35,947 - INFO - Validate:
-2026-03-18 11:52:35,947 - INFO - [True, True, False, True, False, True]
-2026-03-18 11:52:35,947 - INFO - 
-2026-03-18 11:52:35,947 - INFO - Verify:
-2026-03-18 11:52:35,948 - INFO - []
-2026-03-18 11:52:35,948 - INFO - 
-2026-03-18 11:52:35,948 - INFO - Houdini iteration 2: Removed 2 failed invariants
-2026-03-18 11:52:35,948 - INFO -   Before: 6 invariants
-2026-03-18 11:52:35,948 - INFO -   After: 4 invariants
-2026-03-18 11:52:35,948 - INFO -   Remaining invariants:
-2026-03-18 11:52:35,948 - INFO -     [1] yy >= 1
-2026-03-18 11:52:35,948 - INFO -     [2] ts >= 1
-2026-03-18 11:52:35,948 - INFO -     [3] mj == (o % 7) + 4
-2026-03-18 11:52:35,948 - INFO -     [4] yy > 0
-2026-03-18 11:52:36,173 - INFO - syntax Correct
-2026-03-18 11:53:06,981 - INFO - Validate:
-2026-03-18 11:53:06,981 - INFO - [False, True, True, True]
-2026-03-18 11:53:06,981 - INFO - 
-2026-03-18 11:53:06,981 - INFO - Verify:
-2026-03-18 11:53:06,981 - INFO - []
-2026-03-18 11:53:06,982 - INFO - 
-2026-03-18 11:53:06,982 - INFO - Houdini iteration 3: Removed 1 failed invariants
-2026-03-18 11:53:06,982 - INFO -   Before: 4 invariants
-2026-03-18 11:53:06,982 - INFO -   After: 3 invariants
-2026-03-18 11:53:06,982 - INFO -   Remaining invariants:
-2026-03-18 11:53:06,982 - INFO -     [1] ts >= 1
-2026-03-18 11:53:06,982 - INFO -     [2] mj == (o % 7) + 4
-2026-03-18 11:53:06,982 - INFO -     [3] yy > 0
-2026-03-18 11:53:07,187 - INFO - syntax Correct
-2026-03-18 11:53:37,908 - INFO - Validate:
-2026-03-18 11:53:37,908 - INFO - [True, True, False]
-2026-03-18 11:53:37,908 - INFO - 
-2026-03-18 11:53:37,908 - INFO - Verify:
-2026-03-18 11:53:37,908 - INFO - []
-2026-03-18 11:53:37,908 - INFO - 
-2026-03-18 11:53:37,908 - INFO - Houdini iteration 4: Removed 1 failed invariants
-2026-03-18 11:53:37,908 - INFO -   Before: 3 invariants
-2026-03-18 11:53:37,908 - INFO -   After: 2 invariants
-2026-03-18 11:53:37,908 - INFO -   Remaining invariants:
-2026-03-18 11:53:37,908 - INFO -     [1] ts >= 1
-2026-03-18 11:53:37,908 - INFO -     [2] mj == (o % 7) + 4
-2026-03-18 11:53:38,127 - INFO - syntax Correct
-2026-03-18 11:54:08,884 - INFO - Validate:
-2026-03-18 11:54:08,884 - INFO - [True, True]
-2026-03-18 11:54:08,884 - INFO - 
-2026-03-18 11:54:08,884 - INFO - Verify:
-2026-03-18 11:54:08,884 - INFO - []
-2026-03-18 11:54:08,884 - INFO - 
-2026-03-18 11:54:08,884 - INFO - Houdini iteration 5: All invariants are valid
-2026-03-18 11:54:09,107 - INFO - syntax Correct
-2026-03-18 11:54:39,865 - INFO - Validate:
-2026-03-18 11:54:39,865 - INFO - [True, True]
-2026-03-18 11:54:39,865 - INFO - 
-2026-03-18 11:54:39,865 - INFO - Verify:
-2026-03-18 11:54:39,865 - INFO - []
-2026-03-18 11:54:39,865 - INFO - 
-2026-03-18 11:54:45,110 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-18 11:54:45,110 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1552893_1773803521_94/1.c
-2026-03-18 11:54:45,110 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1552893_1773803521_94/1_invariants.txt
-2026-03-18 11:54:45,110 - INFO - 
+2026-04-07 10:00:54,534 - INFO - Successfully generated 5/5 candidates
+2026-04-07 10:00:54,535 - INFO - Checking 9 invariants for conflicts...
+2026-04-07 10:00:54,540 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 10:00:54,540 - INFO -   1: int main1(int i){
+2026-04-07 10:00:54,540 - INFO -   2:   int u3, bc, eqm, jg, bz, zv;
+2026-04-07 10:00:54,540 - INFO -   3: 
+2026-04-07 10:00:54,540 - INFO -   4:   u3=i+12;
+2026-04-07 10:00:54,540 - INFO -   5:   bc=0;
+2026-04-07 10:00:54,540 - INFO -   6:   eqm=i;
+2026-04-07 10:00:54,540 - INFO -   7:   jg=1;
+2026-04-07 10:00:54,540 - INFO -   8:   bz=0;
+2026-04-07 10:00:54,540 - INFO -   9:   zv=1;
+2026-04-07 10:00:54,540 - INFO -   10: 
+2026-04-07 10:00:54,540 - INFO - DEBUG: Total lines: 36
+2026-04-07 10:00:54,578 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 10:00:54,578 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 10:00:54,578 - INFO - Houdini iteration 1: Removed 9 failed invariants
+2026-04-07 10:00:54,578 - INFO -   Before: 9 invariants
+2026-04-07 10:00:54,578 - INFO -   After: 0 invariants
+2026-04-07 10:00:54,578 - ERROR - All invariants were removed by Houdini
+2026-04-07 10:00:54,606 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 10:01:35,752 - INFO - Deduplicated 6 loop invariants in final code
+2026-04-07 10:01:35,784 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 10:01:35,784 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 10:01:35,784 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 10:01:35,784 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_94/1.c
+2026-04-07 10:01:35,784 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_94/1_invariants.txt
+2026-04-07 10:01:35,784 - INFO - 
 ============================================================
-2026-03-18 11:54:45,110 - INFO - Final first_pass results:
-2026-03-18 11:54:45,110 - INFO -   syntax=1
-2026-03-18 11:54:45,110 - INFO -   valid=1
-2026-03-18 11:54:45,110 - INFO -   satisfy=None
-2026-03-18 11:54:45,110 - INFO - ============================================================
-2026-03-18 11:54:45,110 - INFO - 
+2026-04-07 10:01:35,784 - INFO - Final first_pass results:
+2026-04-07 10:01:35,784 - INFO -   syntax=None
+2026-04-07 10:01:35,784 - INFO -   valid=None
+2026-04-07 10:01:35,784 - INFO -   satisfy=None
+2026-04-07 10:01:35,785 - INFO - ============================================================
+2026-04-07 10:01:35,785 - INFO - 
 ============================================================
-2026-03-18 11:54:45,110 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-18 11:54:45,110 - INFO -   Total API calls: 73
-2026-03-18 11:54:45,110 - INFO -   Total prompt tokens (input): 80,730
-2026-03-18 11:54:45,110 - INFO -   Total completion tokens (output): 482,913
-2026-03-18 11:54:45,110 - INFO -   Total tokens: 563,643
-2026-03-18 11:54:45,110 - INFO -   Average per call:
-2026-03-18 11:54:45,110 - INFO -     Prompt: 1105.9 tokens
-2026-03-18 11:54:45,110 - INFO -     Completion: 6615.2 tokens
-2026-03-18 11:54:45,110 - INFO -     Total: 7721.1 tokens
-2026-03-18 11:54:45,110 - INFO - ============================================================
-2026-03-18 11:54:45,110 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1552893_1773803521_94/1.c
-2026-03-18 11:54:45,110 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1552893_1773803521_94/1_invariants.txt
-2026-03-18 11:55:10,709 - INFO - LLM quality-gate raw response: {
-  "ok": false,
-  "reason": "Invariants are non-trivial weak and do not inductively relate all loop-modified variables. They only assert ts >= 1 and mj == (o % 7) + 4. They miss inductive relations for efq0, yy, yh, iz9, and provide no loop variant to prove termination (ts relative to mj). As a result, WP cannot verify preservation of all crucial state updates and termination."
-}
-2026-03-18 11:57:19 - INFO - COT Phase#1: generating reverse-COTs for 26 code pieces (existing=1235, dedup inside)...
-2026-03-18 12:09:33 - INFO - COT Phase#1: 26/26 unique COTs generated successfully.
-2026-03-18 12:09:33 - INFO - COT Phase#2: generating rejected reverse-COTs for 256 unique dpo_aug.rejected code pieces (existing=9296)...
-2026-03-18 14:38:40 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces (existing=5975)...
-2026-03-18 14:39:37 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-18 14:39:38 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-18 15:03:07 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=1261, dedup inside)...
-2026-03-18 15:12:57 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
-2026-03-18 15:12:57 - INFO - COT Phase#2: generating rejected reverse-COTs for 114 unique dpo_aug.rejected code pieces (existing=9552)...
-2026-03-18 16:29:44 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-18 17:06:02 - INFO - COT Phase#1: generating reverse-COTs for 19 code pieces (existing=1274, dedup inside)...
-2026-03-18 17:19:40 - INFO - COT Phase#1: 19/19 unique COTs generated successfully.
-2026-03-18 17:19:40 - INFO - COT Phase#2: generating rejected reverse-COTs for 183 unique dpo_aug.rejected code pieces (existing=9666)...
-2026-03-19 00:59:19 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=1274, dedup inside)...
-2026-03-19 01:00:27 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-19 01:00:27 - INFO - COT Phase#2: generating rejected reverse-COTs for 27 unique dpo_aug.rejected code pieces (existing=9666)...
-2026-03-19 01:13:24 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 01:22:40 - INFO - COT Phase#1: generating reverse-COTs for 2 code pieces (existing=1277, dedup inside)...
-2026-03-19 01:23:35 - INFO - COT Phase#1: 2/2 unique COTs generated successfully.
-2026-03-19 01:23:35 - INFO - COT Phase#2: generating rejected reverse-COTs for 16 unique dpo_aug.rejected code pieces (existing=9693)...
-2026-03-19 01:31:13 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 01:46:23 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=1279, dedup inside)...
-2026-03-19 01:50:36 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-19 01:50:36 - INFO - COT Phase#2: generating rejected reverse-COTs for 64 unique dpo_aug.rejected code pieces (existing=9709)...
-2026-03-19 02:37:09 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 02:47:59 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=1284, dedup inside)...
-2026-03-19 02:50:18 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-19 02:50:18 - INFO - COT Phase#2: generating rejected reverse-COTs for 49 unique dpo_aug.rejected code pieces (existing=9773)...
-2026-03-19 03:19:55 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=1).
-2026-03-19 03:19:55 - WARNING - COT Phase: 1 unique code snippets failed COT generation.
-2026-03-19 03:19:56 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 03:28:15 - INFO - COT Phase#1: generating reverse-COTs for 4 code pieces (existing=1289, dedup inside)...
-2026-03-19 03:29:46 - INFO - COT Phase#1: 4/4 unique COTs generated successfully.
-2026-03-19 03:29:46 - INFO - COT Phase#2: generating rejected reverse-COTs for 37 unique dpo_aug.rejected code pieces (existing=9821)...
-2026-03-19 03:48:28 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 04:01:34 - INFO - COT Phase#1: generating reverse-COTs for 4 code pieces (existing=1293, dedup inside)...
-2026-03-19 04:03:49 - INFO - COT Phase#1: 4/4 unique COTs generated successfully.
-2026-03-19 04:03:49 - INFO - COT Phase#2: generating rejected reverse-COTs for 42 unique dpo_aug.rejected code pieces (existing=9858)...
-2026-03-19 04:29:00 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 04:48:58 - INFO - COT Phase#1: generating reverse-COTs for 7 code pieces (existing=1297, dedup inside)...
-2026-03-19 04:53:20 - INFO - COT Phase#1: 7/7 unique COTs generated successfully.
-2026-03-19 04:53:20 - INFO - COT Phase#2: generating rejected reverse-COTs for 70 unique dpo_aug.rejected code pieces (existing=9900)...
-2026-03-19 05:24:32 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 05:49:57 - INFO - COT Phase#1: generating reverse-COTs for 27 code pieces (existing=1304, dedup inside)...
-2026-03-19 06:04:11 - INFO - COT Phase#1: 27/27 unique COTs generated successfully.
-2026-03-19 06:04:11 - INFO - COT Phase#2: generating rejected reverse-COTs for 217 unique dpo_aug.rejected code pieces (existing=9970)...
-2026-03-19 08:06:16 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 08:49:37 - INFO - COT Phase#1: generating reverse-COTs for 17 code pieces (existing=1331, dedup inside)...
-2026-03-19 09:01:14 - INFO - COT Phase#1: 17/17 unique COTs generated successfully.
-2026-03-19 09:01:14 - INFO - COT Phase#2: generating rejected reverse-COTs for 130 unique dpo_aug.rejected code pieces (existing=10187)...
-2026-03-19 10:16:26 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 10:37:55 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=1348, dedup inside)...
-2026-03-19 10:40:48 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-19 10:40:48 - INFO - COT Phase#2: generating rejected reverse-COTs for 31 unique dpo_aug.rejected code pieces (existing=10317)...
-2026-03-19 11:02:42 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 11:28:45 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=1351, dedup inside)...
-2026-03-19 11:31:18 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-19 11:31:18 - INFO - COT Phase#2: generating rejected reverse-COTs for 48 unique dpo_aug.rejected code pieces (existing=10348)...
-2026-03-19 12:02:40 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 12:36:10 - INFO - COT Phase#1: generating reverse-COTs for 22 code pieces (existing=1356, dedup inside)...
-2026-03-19 12:48:47 - INFO - COT Phase#1: 22/22 unique COTs generated successfully.
-2026-03-19 12:48:47 - INFO - COT Phase#2: generating rejected reverse-COTs for 184 unique dpo_aug.rejected code pieces (existing=10396)...
-2026-03-19 14:35:58 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 15:04:25 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=1378, dedup inside)...
-2026-03-19 15:08:54 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-19 15:08:54 - INFO - COT Phase#2: generating rejected reverse-COTs for 48 unique dpo_aug.rejected code pieces (existing=10580)...
-2026-03-19 15:51:54 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 16:30:35 - INFO - COT Phase#1: generating reverse-COTs for 21 code pieces (existing=1383, dedup inside)...
-2026-03-19 16:50:38 - INFO - COT Phase#1: 21/21 unique COTs generated successfully.
-2026-03-19 16:50:38 - INFO - COT Phase#2: generating rejected reverse-COTs for 192 unique dpo_aug.rejected code pieces (existing=10628)...
-2026-03-19 19:10:22 - WARNING - COT Phase: skipped records due to COT failure (api=0, distill=0, dpo_teacher=0, dpo_aug=2).
-2026-03-19 19:10:22 - WARNING - COT Phase: 2 unique code snippets failed COT generation.
-2026-03-19 19:10:23 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 19:10:52 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=1404, dedup inside)...
-2026-03-19 19:10:52 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
-2026-03-19 19:10:54 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 19:11:34 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=1404, dedup inside)...
-2026-03-19 19:11:34 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
-2026-03-19 19:11:36 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 19:12:16 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=1404, dedup inside)...
-2026-03-19 19:12:16 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
-2026-03-19 19:12:18 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 19:13:00 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=1404, dedup inside)...
-2026-03-19 19:13:00 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
-2026-03-19 19:13:02 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 19:13:42 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=1404, dedup inside)...
-2026-03-19 19:13:42 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
-2026-03-19 19:13:44 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 19:14:02 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=1404, dedup inside)...
-2026-03-19 19:14:02 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
-2026-03-19 19:14:04 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 19:14:30 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=1404, dedup inside)...
-2026-03-19 19:14:30 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
-2026-03-19 19:14:33 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 19:14:59 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=1404, dedup inside)...
-2026-03-19 19:14:59 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
-2026-03-19 19:15:02 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-19 19:15:28 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=1404, dedup inside)...
-2026-03-19 19:15:28 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
-2026-03-19 19:15:30 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-20 23:31:22 - INFO - COT Phase#1: generating reverse-COTs for 10 code pieces (existing=1404, dedup inside)...
-2026-03-20 23:36:24 - INFO - COT Phase#1: 10/10 unique COTs generated successfully.
-2026-03-20 23:36:24 - INFO - COT Phase#2: generating rejected reverse-COTs for 72 unique dpo_aug.rejected code pieces (existing=10818)...
-2026-03-21 00:04:10 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 00:17:26 - INFO - COT Phase#1: generating reverse-COTs for 10 code pieces (existing=1414, dedup inside)...
-2026-03-21 00:21:51 - INFO - COT Phase#1: 10/10 unique COTs generated successfully.
-2026-03-21 00:21:51 - INFO - COT Phase#2: generating rejected reverse-COTs for 79 unique dpo_aug.rejected code pieces (existing=10890)...
-2026-03-21 00:51:53 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 01:00:11 - INFO - COT Phase#1: generating reverse-COTs for 9 code pieces (existing=1424, dedup inside)...
-2026-03-21 01:02:48 - INFO - COT Phase#1: 9/9 unique COTs generated successfully.
-2026-03-21 01:02:48 - INFO - COT Phase#2: generating rejected reverse-COTs for 71 unique dpo_aug.rejected code pieces (existing=10969)...
-2026-03-21 01:31:22 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 01:46:12 - INFO - COT Phase#1: generating reverse-COTs for 8 code pieces (existing=1433, dedup inside)...
-2026-03-21 01:50:02 - INFO - COT Phase#1: 8/8 unique COTs generated successfully.
-2026-03-21 01:50:02 - INFO - COT Phase#2: generating rejected reverse-COTs for 69 unique dpo_aug.rejected code pieces (existing=11040)...
-2026-03-21 02:25:24 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces (existing=6816)...
-2026-03-21 02:25:41 - WARNING - COT Phase: dropped 2 distill records missing valid <reasoning>/<code>.
-2026-03-21 02:25:42 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 02:37:19 - INFO - COT Phase#1: generating reverse-COTs for 13 code pieces (existing=1441, dedup inside)...
-2026-03-21 02:43:32 - INFO - COT Phase#1: 13/13 unique COTs generated successfully.
-2026-03-21 02:43:32 - INFO - COT Phase#2: generating rejected reverse-COTs for 122 unique dpo_aug.rejected code pieces (existing=11109)...
-2026-03-21 03:49:58 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 04:05:46 - INFO - COT Phase#1: generating reverse-COTs for 4 code pieces (existing=1454, dedup inside)...
-2026-03-21 04:07:10 - INFO - COT Phase#1: 4/4 unique COTs generated successfully.
-2026-03-21 04:07:10 - INFO - COT Phase#2: generating rejected reverse-COTs for 32 unique dpo_aug.rejected code pieces (existing=11231)...
-2026-03-21 04:21:53 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 04:33:41 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=1458, dedup inside)...
-2026-03-21 04:37:43 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-21 04:37:43 - INFO - COT Phase#2: generating rejected reverse-COTs for 46 unique dpo_aug.rejected code pieces (existing=11263)...
-2026-03-21 04:58:14 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 05:09:47 - INFO - COT Phase#1: generating reverse-COTs for 6 code pieces (existing=1464, dedup inside)...
-2026-03-21 05:11:34 - INFO - COT Phase#1: 6/6 unique COTs generated successfully.
-2026-03-21 05:11:34 - INFO - COT Phase#2: generating rejected reverse-COTs for 41 unique dpo_aug.rejected code pieces (existing=11309)...
-2026-03-21 05:23:57 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 05:33:27 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=1470, dedup inside)...
-2026-03-21 05:35:30 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-21 05:35:30 - INFO - COT Phase#2: generating rejected reverse-COTs for 30 unique dpo_aug.rejected code pieces (existing=11350)...
-2026-03-21 05:46:32 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 05:57:33 - INFO - COT Phase#1: generating reverse-COTs for 4 code pieces (existing=1473, dedup inside)...
-2026-03-21 05:59:01 - INFO - COT Phase#1: 4/4 unique COTs generated successfully.
-2026-03-21 05:59:01 - INFO - COT Phase#2: generating rejected reverse-COTs for 42 unique dpo_aug.rejected code pieces (existing=11380)...
-2026-03-21 06:11:35 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 06:19:41 - INFO - COT Phase#1: generating reverse-COTs for 4 code pieces (existing=1477, dedup inside)...
-2026-03-21 06:21:01 - INFO - COT Phase#1: 4/4 unique COTs generated successfully.
-2026-03-21 06:21:01 - INFO - COT Phase#2: generating rejected reverse-COTs for 31 unique dpo_aug.rejected code pieces (existing=11422)...
-2026-03-21 06:30:02 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 06:39:38 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=1481, dedup inside)...
-2026-03-21 06:40:28 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-21 06:40:28 - INFO - COT Phase#2: generating rejected reverse-COTs for 28 unique dpo_aug.rejected code pieces (existing=11453)...
-2026-03-21 06:54:51 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 07:03:41 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=1484, dedup inside)...
-2026-03-21 07:05:01 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-21 07:05:01 - INFO - COT Phase#2: generating rejected reverse-COTs for 20 unique dpo_aug.rejected code pieces (existing=11481)...
-2026-03-21 07:11:50 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 07:21:57 - INFO - COT Phase#1: generating reverse-COTs for 5 code pieces (existing=1487, dedup inside)...
-2026-03-21 07:23:59 - INFO - COT Phase#1: 5/5 unique COTs generated successfully.
-2026-03-21 07:23:59 - INFO - COT Phase#2: generating rejected reverse-COTs for 41 unique dpo_aug.rejected code pieces (existing=11501)...
-2026-03-21 07:41:01 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 07:53:30 - INFO - COT Phase#1: generating reverse-COTs for 3 code pieces (existing=1492, dedup inside)...
-2026-03-21 07:54:25 - INFO - COT Phase#1: 3/3 unique COTs generated successfully.
-2026-03-21 07:54:25 - INFO - COT Phase#2: generating rejected reverse-COTs for 26 unique dpo_aug.rejected code pieces (existing=11542)...
-2026-03-21 08:07:05 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 08:23:54 - INFO - COT Phase#1: generating reverse-COTs for 7 code pieces (existing=1495, dedup inside)...
-2026-03-21 08:27:04 - INFO - COT Phase#1: 7/7 unique COTs generated successfully.
-2026-03-21 08:27:04 - INFO - COT Phase#2: generating rejected reverse-COTs for 61 unique dpo_aug.rejected code pieces (existing=11568)...
-2026-03-21 08:52:27 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-21 23:20:56 - INFO - COT Phase#1: generating reverse-COTs for 27 code pieces (existing=1502, dedup inside)...
-2026-03-21 23:39:12 - INFO - COT Phase#1: 27/27 unique COTs generated successfully.
-2026-03-21 23:39:12 - INFO - COT Phase#2: generating rejected reverse-COTs for 386 unique dpo_aug.rejected code pieces (existing=11629)...
-2026-03-22 03:11:54 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces (existing=7323)...
-2026-03-22 03:12:21 - WARNING - COT Phase: dropped 10 distill records missing valid <reasoning>/<code>.
-2026-03-22 03:12:22 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-22 07:28:39 - INFO - COT Phase#1: generating reverse-COTs for 29 code pieces (existing=1529, dedup inside)...
-2026-03-22 07:46:37 - INFO - COT Phase#1: 29/29 unique COTs generated successfully.
-2026-03-22 07:46:37 - INFO - COT Phase#2: generating rejected reverse-COTs for 417 unique dpo_aug.rejected code pieces (existing=12015)...
-2026-03-22 11:36:49 - INFO - COT Phase#3: generating rejected reverse-COTs for 1 unique dpo_teacher.rejected code pieces (existing=7551)...
-2026-03-22 11:37:09 - WARNING - COT Phase: dropped 1 distill records missing valid <reasoning>/<code>.
-2026-03-22 11:37:10 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
-2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
-2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
-2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...
+2026-04-07 10:01:35,785 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 10:01:35,785 - INFO -   Total API calls: 50
+2026-04-07 10:01:35,785 - INFO -   Total prompt tokens (input): 54,217
+2026-04-07 10:01:35,785 - INFO -   Total completion tokens (output): 194,536
+2026-04-07 10:01:35,785 - INFO -   Total tokens: 248,753
+2026-04-07 10:01:35,785 - INFO -   Average per call:
+2026-04-07 10:01:35,785 - INFO -     Prompt: 1084.3 tokens
+2026-04-07 10:01:35,785 - INFO -     Completion: 3890.7 tokens
+2026-04-07 10:01:35,785 - INFO -     Total: 4975.1 tokens
+2026-04-07 10:01:35,785 - INFO - ============================================================
+2026-04-07 10:01:35,785 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_94/1.c
+2026-04-07 10:01:35,785 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_94/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test

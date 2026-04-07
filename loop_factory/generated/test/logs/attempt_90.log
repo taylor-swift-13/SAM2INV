@@ -1,1143 +1,497 @@
-2026-03-22 14:43:43,649 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
-2026-03-22 14:43:43,660 - INFO - Found 1 loops
-2026-03-22 14:43:43,661 - INFO - 
+2026-04-07 09:52:55,409 - INFO - Traces disabled (USE_TRACES=False), skipping dynamic sampling
+2026-04-07 09:52:55,426 - INFO - Found 1 loops
+2026-04-07 09:52:55,428 - INFO - 
 ============================================================
-2026-03-22 14:43:43,661 - INFO - Main generation pass 1/1
-2026-03-22 14:43:43,661 - INFO - ============================================================
-2026-03-22 14:43:43,661 - INFO - Loaded single prompt template: simple
-2026-03-22 14:43:43,661 - INFO - Generating 8 candidate invariant sets with temperature=1.0
-2026-03-22 14:43:43,661 - INFO -   Candidate 1 selected prompt: simple_cot.txt
-2026-03-22 14:43:43,674 - INFO -   Generating candidate 1/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:44:18,672 - INFO - 
------ Candidate 1/8 raw response begin -----
+2026-04-07 09:52:55,428 - INFO - Main generation pass 1/1
+2026-04-07 09:52:55,428 - INFO - ============================================================
+2026-04-07 09:52:55,428 - INFO - Loaded single prompt template: simple
+2026-04-07 09:52:55,428 - INFO - Generating 5 candidate invariant sets with temperature=1.0
+2026-04-07 09:52:55,428 - INFO -   Candidate 1 selected prompt: simple_cot.txt
+2026-04-07 09:52:55,487 - INFO -   Generating candidate 1/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:53:47,474 - INFO - 
+----- Candidate 1/5 raw response begin -----
 <reasoning>
-I inspected the loop and identified the key state relations and monotonicities to make verification easy and inductive.
+I choose a small set of strong, directly checkable invariants that (1) explain the core state transition between nbis and qn, (2) give simple bounds for progress and arithmetic variables, and (3) exactly list all variables modified by the loop.
 
-Core relational equality:
-- u and cbd are both initialized to 0 and are incremented by 1 on every loop iteration, so the strong invariant u == cbd captures the iteration count and is central to reasoning about loop progress.
+Core relational equality (conservation law):
+- qn == an + (nbis*(nbis+1))/2
+  - This captures that nbis increases by exactly 1 each iteration and qn accumulates the new nbis value. It is inductive: if it holds for nbis = n, after the body nbis becomes n+1 and qn increases by n+1, yielding the same formula with n+1.
 
-Constants preserved from entry:
-- igv is assigned once before the loop as m - 8 (with m being the function parameter). Since igv is not modified later, we assert igv == \at(m, Pre) - 8 to pin it to the function entry value of m.
+Progress / bounds:
+- 0 <= nbis && nbis <= an
+  - nbis starts at 0 and is incremented by 1 per iteration; when the guard nbis < an holds we ensure after the increment nbis <= an, so the invariant holds and gives the non-negativity needed for the variant.
+- loop variant (an - nbis)
+  - strictly decreases by 1 each iteration (since nbis increases by 1), and is non-negative because of nbis <= an.
 
-Monotonicity and bounds (progress and safety):
-- cbd is a loop counter started at 0 and the loop continues while cbd < igv, so 0 <= cbd <= igv is needed and preserved (on a loop iteration cbd increases by 1, staying <= igv because iteration only runs when cbd < igv).
-- The integer variant igv - cbd is non-negative and strictly decreases on each iteration (cbd increases by 1), so use it as loop variant.
-- dtb and se4g start at 4 and are non-decreasing in the loop (dtb increases by at least 1 + previous se4g each iteration; se4g never decreases), so include dtb >= 4, se4g >= 4 and the useful relational bound dtb >= se4g to aid proofs that dtb updates remain non-negative.
-- z1qh is decreased only when already > 0, and otherwise increased only when less than dtb, so z1qh >= 0 is invariant.
-- nyi starts at 0 and increases at most once per iteration, so 0 <= nyi <= cbd is inductive and helps bound nyi.
-- gb starts from 0 and is increased by dtb each iteration, so gb >= 0. Since m is increased by gb each iteration and gb >= 0, m >= \at(m, Pre) holds.
+Arithmetic/local bounds:
+- 0 <= ve && ve < 4
+  - At loop exit ve is reduced modulo 4; this bounds ve at the loop head and is preserved by the body.
+- l7 >= 0
+  - l7 is initialized to 0 and updated by l7 = l7*l7 + ve with ve >= 0, so non-negativity is preserved.
+
+Stable relation:
+- vpw == an
+  - vpw is initialized to an and never modified, so stating this relation simplifies reasoning where vpw appears in the body.
 
 Loop assigns:
-- Precisely list all variables the loop body modifies: cbd, z1qh, se4g, nyi, dtb, u, gb, m.
+- The loop writes exactly nbis, ve, qn, l7 (vpw and an are not modified). Listing them exactly helps WP prove frame conditions.
 
-These invariants are inductive (checked per update patterns) and should be verification-friendly for Frama-C/WP.
+These invariants are all expressible without quantifiers or \at on locals, are preserved by the body, and together they are sufficient to reason about termination and the main arithmetic relations modified by the loop.
 </reasoning>
 <code>
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
 
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
 
   /*@
-    loop invariant u == cbd;
-    loop invariant igv == \at(m, Pre) - 8;
-    loop invariant 0 <= cbd && cbd <= igv;
-    loop invariant dtb >= 4 && se4g >= 4 && dtb >= se4g;
-    loop invariant z1qh >= 0 && nyi >= 0 && nyi <= cbd;
-    loop invariant gb >= 0 && m >= \at(m, Pre);
-    loop assigns cbd, z1qh, se4g, nyi, dtb, u, gb, m;
-    loop variant igv - cbd;
+    loop invariant 0 <= nbis && nbis <= an;
+    loop invariant (qn == an + (nbis*(nbis+1))/2);
+    loop invariant vpw == an;
+    loop invariant 0 <= ve && ve < 4;
+    loop invariant l7 >= 0;
+    loop assigns nbis, ve, qn, l7;
+    loop variant (an - nbis);
   */
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
+  while (nbis < an) {
+        nbis = nbis + 1 + (ve += vpw, 0);
+        ve = ve + 3;
+        qn += nbis;
+        l7 = l7*l7+ve;
+        ve = ve%4;
   }
 
 }
 </code>
------ Candidate 1/8 raw response end -----
-2026-03-22 14:44:18,673 - INFO -   Candidate 2 selected prompt: simple_cot.txt
-2026-03-22 14:44:18,688 - INFO -   Generating candidate 2/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:47:32,801 - INFO - 
------ Candidate 2/8 raw response begin -----
+----- Candidate 1/5 raw response end -----
+2026-04-07 09:53:47,476 - INFO -   Candidate 2 selected prompt: simple_cot.txt
+2026-04-07 09:53:47,542 - INFO -   Generating candidate 2/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:55:05,293 - INFO - 
+----- Candidate 2/5 raw response begin -----
 <reasoning>
-I chose invariants that are inductive (hold initially and are preserved by each branch) and that precisely describe the key conservation laws and monotonicity facts needed for verification.
+I inspected the loop body and the initial state. Key observations used to build the invariants:
 
-Core conservation/relational equality:
-- u == cbd
-  - Initialization: both are set to 0 before the loop.
-  - Preservation: both are incremented by 1 in every iteration, so the equality is preserved and explains the tight state transition between these two loop counters.
+- nbis increases by exactly 1 on each iteration. Although the code uses the comma expression (ve += vpw, 0), that subexpression yields 0 while updating ve; so nbis := nbis + 1 always. Therefore nbis counts iterations and is bounded by an. I expose this with the bounds 0 <= nbis <= an and with a loop variant an - nbis.
 
-Monotonicity / bounds (minimal progress bounds):
-- cbd >= 0
-  - cbd starts at 0 and is only incremented, so it never becomes negative.
-- dtb >= 4 and se4g >= 4
-  - dtb and se4g are initialized to 4; se4g only increases; dtb is increased by se4g+1 each iteration, so both remain >= 4.
-- nyi >= 0
-  - nyi is initialized to 0 and only increments.
-- z1qh >= 0 and z1qh <= dtb
-  - z1qh starts at 4 (<= dtb=4) and is either decreased by 1 when positive or increased by 1 only when strictly less than dtb; thus it remains non-negative and bounded above by dtb.
-- gb >= cbd
-  - gb starts equal to cbd and each iteration gb increases by dtb (>=4) while cbd increases by 1, so gb remains >= cbd.
-- m >= \at(m, Pre)
-  - m is a function parameter (so \at(m, Pre) is allowed). m only increases (added by gb >= 0), so it stays at least its initial value.
+- qn accumulates the updated nbis each iteration (qn += nbis after nbis is incremented). This yields the closed-form relational equality qn == 1 + nbis*(nbis+1)/2 (initial qn == 1). This is the core conservation/relational equality explaining the loop update of qn and is inductive.
 
-Auxiliary exact relation:
-- igv == \at(m, Pre) - 8
-  - igv was set to the initial m - 8 before the loop and is not modified by the loop; this ties igv to the function entry value of m and can be useful in proofs about the loop bound and the break condition.
+- vpw and an are initialized to 1 and never modified. I keep the relation vpw == an and the constant fact an == 1 to make arithmetic facts inside the loop (in particular those involving ve and l7) verifiable by WP.
+
+- The sequence of updates to ve inside the body is:
+    ve += vpw; ve = ve + 3; then later ve = ve % 4.
+  With vpw == 1 and an == 1, this yields ve_new = (ve + 1 + 3) % 4 = (ve + 4) % 4 = ve % 4. Since ve is 0 before the first iteration, ve stays 0 at each loop entry. I capture that with the invariant ve == 0 (stronger and useful for proving other facts).
+
+- l7 is updated as l7 = l7*l7 + ve_pre_mod, where ve_pre_mod = (ve + vpw + 3). With ve == 0 and vpw == 1, ve_pre_mod == 4, so the update becomes l7 := l7*l7 + 4. From l7 % 4 == 0 initially, l7^2 % 4 == 0 and adding 4 preserves divisibility by 4. So I keep the invariant l7 % 4 == 0 (a simple, preserved arithmetic property useful for verification).
+
+- Loop assigns: the loop modifies nbis, ve, qn and l7 only. I list exactly those variables.
+
+- Variant: an - nbis is a natural decreasing variant (an - nbis >= 0 by the invariant and decreases by 1 each iteration), so it proves termination.
+
+I avoided quantifiers or logic definitions, kept invariants directly over program variables, and ensured they are inductive and hold initially.
+</reasoning>
+<code>
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
+
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
+
+  /*@
+    loop invariant 0 <= nbis && nbis <= an;
+    loop invariant qn == 1 + (nbis*(nbis+1))/2;
+    loop invariant ve == 0;
+    loop invariant l7 % 4 == 0;
+    loop invariant vpw == an;
+    loop invariant an == 1;
+    loop assigns nbis, ve, qn, l7;
+    loop variant an - nbis;
+  */
+  while (nbis < an) {
+        nbis = nbis + 1 + (ve += vpw, 0);
+        ve = ve + 3;
+        qn += nbis;
+        l7 = l7*l7+ve;
+        ve = ve%4;
+  }
+
+}
+</code>
+----- Candidate 2/5 raw response end -----
+2026-04-07 09:55:05,294 - INFO -   Candidate 3 selected prompt: simple_cot.txt
+2026-04-07 09:55:05,369 - INFO -   Generating candidate 3/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:56:05,119 - INFO - 
+----- Candidate 3/5 raw response begin -----
+<reasoning>
+I inspected the loop and its effects:
+
+- nbis is increased exactly by 1 each iteration. Thus nbis counts the number of completed iterations and stays between 0 and an. This gives the progress bound and non-negativity: 0 <= nbis <= an.
+- qn is initialized to 1 and each iteration adds the (post-incremented) nbis value. This yields the closed-form relation qn == 1 + sum_{i=1..nbis} i = 1 + nbis*(nbis+1)/2. This is the core conservation/relational equality explaining accumulation.
+- The expression (ve += vpw, 0) only provides a side-effect on ve; since vpw == 1 (set before the loop and never modified), the per-iteration effect on ve simplifies: ve evolves by ve := (ve + vpw + 3) % 4 = (ve + 4) % 4. Starting from ve==0 this keeps ve == 0 at the loop head for every iteration. So ve == 0 is a strong inductive invariant (and implies 0 <= ve <= 3).
+- l7 is updated by l7 := l7*l7 + ve (and because the ve used there is 4 inside the body when head-invariant ve==0 holds, l7 grows but an exact closed form is not required). We keep the useful and safe lower bound l7 >= 0.
+- vpw and an are not modified; asserting vpw == 1 documents that constant.
+
+I therefore supply the following invariants:
+- 0 <= nbis <= an (progress / bounds),
+- ve == 0 (strong relational invariant),
+- qn == 1 + (nbis*(nbis+1))/2 (core conservation equality),
+- l7 >= 0 (non-negativity),
+- vpw == 1 (constant).
+
+The loop assigns clause exactly lists the variables that the loop modifies: nbis, ve, qn, l7. I add the loop variant an - nbis (non-negative and strictly decreases by 1 each iteration), which matches the progress bound and ensures termination reasoning for WP.
+</reasoning>
+<code>
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
+
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
+
+  /*@
+    loop invariant 0 <= nbis && nbis <= an;
+    loop invariant ve == 0;
+    loop invariant qn == 1 + (nbis*(nbis+1))/2;
+    loop invariant l7 >= 0;
+    loop invariant vpw == 1;
+    loop assigns nbis, ve, qn, l7;
+    loop variant an - nbis;
+  */
+  while (nbis < an) {
+        nbis = nbis + 1 + (ve += vpw, 0);
+        ve = ve + 3;
+        qn += nbis;
+        l7 = l7*l7+ve;
+        ve = ve%4;
+  }
+
+}
+</code>
+----- Candidate 3/5 raw response end -----
+2026-04-07 09:56:05,121 - INFO -   Candidate 4 selected prompt: simple_cot.txt
+2026-04-07 09:56:05,195 - INFO -   Generating candidate 4/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:57:03,352 - INFO - 
+----- Candidate 4/5 raw response begin -----
+<reasoning>
+I selected invariants that are (1) inductive (preserved by the body), (2) strong enough to explain the loop's state transitions, and (3) useful at loop exit.
+
+Core relational equality (conservation law):
+- 2*(qn - 1) == nbis*(nbis + 1)
+  This captures exactly how qn accumulates the successive new values of nbis: qn starts at 1 and each iteration adds the updated nbis, so after nbis iterations qn = 1 + sum_{i=1..nbis} i = 1 + nbis*(nbis+1)/2. Writing it as 2*(qn-1) == nbis*(nbis+1) avoids fractional arithmetic and uses only allowed operators.
+
+Bounds / progress:
+- 0 <= nbis <= an ensures nbis is a non-decreasing counter bounded by an (the loop guard is nbis < an; the invariant uses the non-strict bound).
+- loop variant (an - nbis) gives a decreasing natural measure: while the guard holds an - nbis > 0 and nbis increases by at least 1 each iteration, so the variant decreases.
+
+Other useful invariants:
+- 0 <= ve <= 3 captures the effect of the final ve = ve % 4: at loop head ve is always in 0..3.
+- vpw == 1 is true initially and vpw is never modified; it is needed to reason about ve and l7 updates.
+- l7 >= 0 captures non-negativity of l7 (it starts 0 and each update adds a non-negative amount l7*l7 + something >= 0).
 
 Loop assigns:
-- The list cbd, z1qh, nyi, se4g, dtb, u, gb, m is exact: those are precisely the variables modified in the loop body.
+- The body modifies exactly nbis, ve, qn, l7, so loop assigns lists them exactly.
 
-I avoided a loop variant because igv (and therefore igv - cbd) could be negative depending on the initial parameter m, and a variant must be non-negative at loop entry. The provided invariants give the necessary inductive facts for verification without forcing a non-negative variant expression.
+All these invariants hold initially (given the initial state), and they are preserved by the loop body:
+- nbis increases by 1 so 0 <= nbis' <= an holds (since we only enter the body when nbis < an).
+- qn' = qn + nbis' and algebra shows 2*(qn' - 1) == nbis'*(nbis' + 1).
+- ve is reduced modulo 4 at the end of the body, so 0 <= ve <= 3 holds at loop head.
+- l7 is assigned l7*l7 + (ve + vpw + 3) where (ve + vpw + 3) >= 4, so l7 stays >= 0.
 
-All invariants use only available variables and \at(...) only on the function parameter m, as required.
+These invariants together are inductive and provide a clear explanation of loop behavior for WP.
 </reasoning>
 <code>
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
 
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
 
   /*@
-    loop invariant u == cbd;
-    loop invariant cbd >= 0;
-    loop invariant z1qh >= 0;
-    loop invariant z1qh <= dtb;
-    loop invariant se4g >= 4;
-    loop invariant dtb >= 4;
-    loop invariant nyi >= 0;
-    loop invariant gb >= cbd;
-    loop invariant m >= \at(m, Pre);
-    loop invariant igv == \at(m, Pre) - 8;
-    loop assigns cbd, z1qh, nyi, se4g, dtb, u, gb, m;
+    loop invariant 0 <= nbis && nbis <= an;
+    loop invariant 0 <= ve && ve <= 3;
+    loop invariant vpw == 1;
+    loop invariant 2*(qn - 1) == nbis*(nbis + 1);
+    loop invariant l7 >= 0;
+    loop assigns nbis, ve, qn, l7;
+    loop variant an - nbis;
   */
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
+while (nbis < an) {
+      nbis = nbis + 1 + (ve += vpw, 0);
+      ve = ve + 3;
+      qn += nbis;
+      l7 = l7*l7+ve;
+      ve = ve%4;
   }
 
 }
 </code>
------ Candidate 2/8 raw response end -----
-2026-03-22 14:47:32,801 - INFO -   Candidate 3 selected prompt: simple_cot.txt
-2026-03-22 14:47:32,814 - INFO -   Generating candidate 3/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:48:14,316 - INFO - 
------ Candidate 3/8 raw response begin -----
+----- Candidate 4/5 raw response end -----
+2026-04-07 09:57:03,353 - INFO -   Candidate 5 selected prompt: simple_cot.txt
+2026-04-07 09:57:03,419 - INFO -   Generating candidate 5/5 with model=gpt-5-nano, prompt=simple_cot.txt...
+2026-04-07 09:58:10,742 - INFO - 
+----- Candidate 5/5 raw response begin -----
 <reasoning>
-I chose invariants that are inductive w.r.t. the loop body and that expose the key conservation and monotonicity facts useful for verification:
+I choose invariants that are inductive, explain the loop's state transition, and give the necessary progress bounds.
 
-- Core relational/conservation equality: (cbd == u). Both cbd and u are initialized to 0 and both are incremented by 1 in every loop iteration. This equality is preserved and explains the tight coupling between the loop counter and the auxiliary counter.
-- Bounds and monotonicity:
-  - (0 <= cbd): cbd is a non-negative loop counter (starts at 0 and increases).
-  - (0 <= z1qh && z1qh <= dtb): z1qh is never negative (decrements only when >0) and is only incremented when it is strictly less than the current dtb, so it never exceeds dtb. Because dtb is updated after z1qh changes and dtb is non-decreasing, z1qh <= dtb remains true after the dtb update.
-  - (dtb >= 4) and (se4g >= 4): They start at 4; se4g only increases, and dtb increases by (se4g + 1) each iteration, hence dtb never drops below 4.
-  - (nyi >= 0): nyi is only incremented, so it stays non-negative.
-  - (gb >= cbd): gb is initialized equal to cbd and thereafter increases by dtb (>=4) each iteration while cbd increases by 1, so gb - cbd stays non-negative and in fact grows.
-  - (m >= \at(m, Pre)): m is only increased in the loop by adding gb (which is non-negative), so m never falls below its initial value. Using \at(m, Pre) is allowed here because m is a function parameter.
+- Core conservation/relational equality: qn accumulates the successive values of nbis (nbis takes values 1,2,...). With initial qn = 1 and initial nbis = 0, after k iterations nbis == k and qn == 1 + k*(k+1)/2. Thus the strong invariant qn == 1 + (nbis*(nbis+1))/2 exactly captures the cumulative update to qn and is preserved by the loop body (qn increases by the new nbis which is old nbis+1).
 
-- loop assigns: I listed exactly the variables modified in the loop body: cbd, z1qh, nyi, se4g, u, dtb, gb, m.
+- ve invariant: ve is 0 at loop entry and, although it is temporarily changed inside the iteration (via the comma expression and additions), the final statement in the body sets ve = ve % 4, which yields 0 for the sequence produced here. Hence ve == 0 holds at the loop head initially and is preserved at the next iteration head. This simple equality is very useful because the comma side-effect (ve += vpw) does not affect nbis's arithmetic increment (the comma expression returns 0) but must be tracked for inductiveness.
 
-I avoided a loop variant to prevent problems when igv may be negative (the loop may not run), so no global integer variant is provided. All invariants are expressible without quantifiers and without using \at on local variables (only \at(m, Pre) is used on the parameter m).
+- Progress bounds: nbis is a natural loop counter. We assert (0 <= nbis) and (nbis <= an) at the loop head. Together with the body giving nbis := nbis + 1 + (ve += vpw, 0) (so nbis increases by exactly 1 each iteration), the loop variant (an - nbis) is a non-negative integer that strictly decreases by 1 each iteration, ensuring termination.
+
+- loop assigns: the loop modifies exactly nbis, ve, qn and l7; an and vpw are not modified and therefore are not listed.
+
+These invariants are (1) true before the first iteration given the provided pre-state, (2) preserved by the body (inductive), and (3) with the negation of the guard (nbis >= an) give the usual loop-exit facts. They avoid quantifiers and use only the available variables.
 </reasoning>
 <code>
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
 
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
 
   /*@
-    loop invariant (cbd == u);
-    loop invariant (0 <= cbd);
-    loop invariant (0 <= z1qh && z1qh <= dtb);
-    loop invariant (dtb >= 4);
-    loop invariant (se4g >= 4);
-    loop invariant (nyi >= 0);
-    loop invariant (gb >= cbd);
-    loop invariant (m >= \at(m, Pre));
-    loop assigns cbd, z1qh, nyi, se4g, u, dtb, gb, m;
+    loop invariant (0 <= nbis) && (nbis <= an);
+    loop invariant ve == 0;
+    loop invariant qn == 1 + (nbis*(nbis + 1))/2;
+    loop assigns nbis, ve, qn, l7;
+    loop variant (an - nbis);
   */
-  while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
+  while (nbis < an) {
+        nbis = nbis + 1 + (ve += vpw, 0);
+        ve = ve + 3;
+        qn += nbis;
+        l7 = l7*l7+ve;
+        ve = ve%4;
   }
 
 }
 </code>
------ Candidate 3/8 raw response end -----
-2026-03-22 14:48:14,316 - INFO -   Candidate 4 selected prompt: simple_cot.txt
-2026-03-22 14:48:14,334 - INFO -   Generating candidate 4/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:53:26,504 - INFO - 
------ Candidate 4/8 raw response begin -----
-<reasoning>We need inductive, verification-friendly loop annotations for the given loop. The loop updates several integers each iteration and terminates once cbd >= igv, where igv is fixed at loop entry to m-8. To keep invariants robust for all possible initial m (igv can be negative), we avoid relying on cbd <= igv unconditionally. Instead we provide:
+----- Candidate 5/5 raw response end -----
+2026-04-07 09:58:10,744 - INFO - 
+----- Candidate 1/5 full code begin -----
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
 
-- A strong, inductive relation linking the loop counters: u == cbd. Both start at 0 and are incremented by 1 every iteration, so this relation is preserved across iterations and holds even when the loop is not entered (pre-state cbd=0, u=0).
-
-- Basic bounds and relations that are safe regardless of igv:
-  - 0 <= cbd
-  - (igv > 0) ==> (cbd <= igv)  (when igv <= 0, the loop never runs; the implication is vacuously true)
-  - 0 <= z1qh and z1qh <= dtb (z1qh is clamped by dtb in code)
-  - 0 <= nyi and nyi <= cbd (nyi increments only when cbd%3==0 and z1qh>0, so nyi never exceeds the number of iterations cbd)
-  - se4g >= 0
-  - dtb >= 0
-
-- A loop variant to show progress: igv - cbd, which strictly decreases by 1 each iteration while cbd < igv.
-
-- An exact loop assigns clause listing all modified variables: cbd, u, dtb, gb, m, z1qh, nyi, se4g.
-
-- A core relational/conservation idea captured by u == cbd, expressing that the loop counter u tracks the number of iterations, identical to cbd.
-
-These invariants are designed to be independent of the initial sign of igv and to be preserved by the loop body as it updates the variables. The assignment set is complete for the loop body. The invariant set avoids using illegal constructs and stays within the allowed operators and semantics of ACSL. </reasoning>
-<code>int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 0 <= cbd;
-    loop invariant (igv > 0) ==> (cbd <= igv);
-    loop invariant u == cbd;
-    loop invariant 0 <= z1qh;
-    loop invariant z1qh <= dtb;
-    loop invariant 0 <= nyi;
-    loop invariant nyi <= cbd;
-    loop invariant se4g >= 0;
-    loop invariant dtb >= 0;
-    loop assigns cbd, u, dtb, gb, m, z1qh, nyi, se4g;
-    loop variant igv - cbd;
-  */
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
-  }
-
-}</code>
------ Candidate 4/8 raw response end -----
-2026-03-22 14:53:26,504 - INFO -   Candidate 5 selected prompt: simple_cot.txt
-2026-03-22 14:53:26,517 - INFO -   Generating candidate 5/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:56:23,272 - INFO - 
------ Candidate 5/8 raw response begin -----
-<reasoning>
-I selected invariants to be strong, inductive, and focused on the key relations created by the loop updates:
-
-- Core conservation / relational equality: u == cbd. Both u and cbd are incremented by exactly 1 on every loop iteration and both are initialized to 0, so this equality explains the paired updates and is easy for WP to check inductively.
-
-- Progress / bounds:
-  - 0 <= cbd and 0 <= u: simple nonnegativity for the loop counter and the synchronized counter.
-  - dtb >= 4 and se4g >= 4: both start at 4 and only increase, so these lower bounds are preserved; they let us reason about positive growth in dtb and gb.
-  - 0 <= z1qh && z1qh <= dtb: z1qh is only decremented while non-negative and only incremented when it is strictly less than dtb; moreover dtb grows in the same iteration by at least a positive amount, so the upper bound is preserved.
-  - gb >= cbd: gb starts equal to cbd and increases by dtb each iteration while cbd increases by 1, so gb grows faster and remains >= cbd.
-  - 0 <= nyi && nyi <= cbd: nyi increments at most once per iteration whereas cbd always increments once, so nyi is bounded above by cbd.
-  - se4g <= 4 + cbd: se4g starts at 4 and can increase by at most 1 per iteration, while cbd increases by 1 each iteration; hence se4g is at most 4 + cbd. This is helpful to bound se4g relative to the loop counter.
-  - m >= \at(m, Pre): m is a function parameter and is only increased in the loop (by adding nonnegative gb), so it never falls below its initial value. Using \at(m, Pre) is allowed only for parameters, which is the case here.
-
-- Assigns: I listed exactly the variables modified inside the loop: cbd, z1qh, nyi, dtb, u, se4g, gb, m.
-
-Together these invariants are inductive: they hold initially (given the assignments before the loop) and are preserved by each branch of the loop body. The core conservation equality (u == cbd) captures the essential per-iteration relation; the other invariants provide nonnegativity and monotonicity facts that WP can use to discharge verification conditions, and the assigns clause is complete and exact.
-</reasoning>
-<code>
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
 
   /*@
-    loop invariant u == cbd;
-    loop invariant 0 <= cbd;
-    loop invariant 0 <= u;
-    loop invariant dtb >= 4;
-    loop invariant se4g >= 4;
-    loop invariant 0 <= z1qh && z1qh <= dtb;
-    loop invariant gb >= cbd;
-    loop invariant 0 <= nyi && nyi <= cbd;
-    loop invariant se4g <= 4 + cbd;
-    loop invariant m >= \at(m, Pre);
-    loop assigns cbd, z1qh, nyi, dtb, u, se4g, gb, m;
+    loop invariant 0 <= nbis && nbis <= an;
+    loop invariant (qn == an + (nbis*(nbis+1))/2);
+    loop invariant vpw == an;
+    loop invariant 0 <= ve && ve < 4;
+    loop invariant l7 >= 0;
+    loop assigns nbis, ve, qn, l7;
+    loop variant (an - nbis);
   */
-  while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
+  while (nbis < an) {
+        nbis = nbis + 1 + (ve += vpw, 0);
+        ve = ve + 3;
+        qn += nbis;
+        l7 = l7*l7+ve;
+        ve = ve%4;
   }
 
 }
-</code>
------ Candidate 5/8 raw response end -----
-2026-03-22 14:56:23,272 - INFO -   Candidate 6 selected prompt: simple_cot.txt
-2026-03-22 14:56:23,285 - INFO -   Generating candidate 6/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 14:57:08,659 - INFO - 
------ Candidate 6/8 raw response begin -----
-<reasoning>
-I chose a small set of strong, mutually supporting invariants that are inductive and directly reflect the loop updates:
+----- Candidate 1/5 full code end -----
+2026-04-07 09:58:10,744 - INFO - 
+----- Candidate 2/5 full code begin -----
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
 
-- Core relational equality (conservation law): u == cbd. Both variables are initialized to 0 and increment together once per iteration, so this explains the one-to-one step relation between these two loop counters and is central to reasoning about iteration counts.
-
-- Non-negativity / progress bounds: 0 <= cbd, 0 <= u, z1qh >= 0, nyi >= 0, gb >= 0 and m >= \at(m, Pre). These all hold initially and are preserved: decrements happen only when positive, increments make values stay non-negative, and m grows by adding non-negative gb.
-
-- Tight upper / monotonicity bounds where feasible:
-  - se4g >= 4 and se4g <= 4 + u: se4g starts at 4 and can increase at most once per iteration.
-  - nyi <= u: nyi increases at most once per iteration.
-  - dtb >= 4 + 5*u: dtb starts at 4 and each iteration increases by (se4g + 1) which is at least 5 because se4g >= 4; this gives a useful lower bound that is inductive.
-  - z1qh <= dtb: initially true (both 4) and preserved because dtb grows by at least 5 each iteration while z1qh changes by at most +/-1 under guarded conditions.
-  - gb >= cbd: gb starts equal to cbd and then increases by dtb >=5 each iteration while cbd only increases by 1, so gb remains >= cbd.
-
-- assigns clause lists exactly the variables modified by the loop body: cbd, z1qh, se4g, nyi, u, dtb, gb, m.
-
-All invariants are stated without quantifiers, use only the available variables, and only use \at(m, Pre) for the function parameter m (to state monotonicity of m w.r.t. its entry value). These invariants are inductive: they hold initially and are preserved by each possible path through the loop body. They are also geared to help the WP plugin verify safety and termination-related properties (e.g. bounds and monotonicity).
-
-I avoided adding a loop variant because igv may be negative at entry (igv = m-8) and a variant would require being non-negative at loop head; instead the invariants give the necessary bounds and relations required for verification.
-</reasoning>
-<code>
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
 
   /*@
-    loop invariant (u == cbd);
-    loop invariant (0 <= cbd);
-    loop invariant (0 <= u);
-    loop invariant (z1qh >= 0);
-    loop invariant (nyi >= 0);
-    loop invariant (gb >= 0);
-    loop invariant (se4g >= 4);
-    loop invariant (se4g <= 4 + u);
-    loop invariant (nyi <= u);
-    loop invariant (dtb >= 4 + 5 * u);
-    loop invariant (z1qh <= dtb);
-    loop invariant (gb >= cbd);
-    loop invariant (m >= \at(m, Pre));
-    loop assigns cbd, z1qh, se4g, nyi, u, dtb, gb, m;
+    loop invariant 0 <= nbis && nbis <= an;
+    loop invariant qn == 1 + (nbis*(nbis+1))/2;
+    loop invariant ve == 0;
+    loop invariant l7 % 4 == 0;
+    loop invariant vpw == an;
+    loop invariant an == 1;
+    loop assigns nbis, ve, qn, l7;
+    loop variant an - nbis;
   */
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
+  while (nbis < an) {
+        nbis = nbis + 1 + (ve += vpw, 0);
+        ve = ve + 3;
+        qn += nbis;
+        l7 = l7*l7+ve;
+        ve = ve%4;
   }
 
 }
-</code>
------ Candidate 6/8 raw response end -----
-2026-03-22 14:57:08,659 - INFO -   Candidate 7 selected prompt: simple_cot.txt
-2026-03-22 14:57:08,675 - INFO -   Generating candidate 7/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 15:01:47,786 - INFO - 
------ Candidate 7/8 raw response begin -----
-<reasoning>We need inductive loop invariants that are verification-friendly for Frama-C/WP, using only the available variables and without altering the original code. The loop body updates several variables in a deterministic way. The following invariants capture a robust, inductive state relation:
+----- Candidate 2/5 full code end -----
+2026-04-07 09:58:10,744 - INFO - 
+----- Candidate 3/5 full code begin -----
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
 
-- A core conservation/relational equality: cbd == u. Both cbd and u start at 0 and are incremented by exactly 1 in every loop iteration, so this equality is preserved across iterations and provides a strong link between these two counters.
-- Progress and bounds: 
-  - 0 <= cbd and 0 <= u ensure we have non-negative counters.
-  - z1qh <= dtb and 0 <= z1qh keep the interdependence between z1qh and dtb in view, since z1qh is updated only when compared against dtb, and dtb grows over time.
-  - dtb >= 4 and se4g >= 4 reflect the non-decreasing nature of these counters from their initial values.
-  - gb >= 0, nyi >= 0, and m >= \at(m, Pre) provide simple lower bounds and a relational link to the initial parameter m.
-- The invariant m >= \at(m, Pre) explicitly ties the current m to its initial value at function entry, which is a stable reference despite m being updated inside the loop.
-
-The loop assigns must include all variables that are modified inside the loop: cbd, u, dtb, gb, m, z1qh, nyi, se4g. The invariants are kept tight and avoid tautologies, while still being easy for WP to discharge. We do not introduce a loop variant to avoid potential issues with the initial state when igv could be negative; this keeps verification robust across all possible initial m values. The invariants together ensure a sound inductive reasoning about the loop state evolution and support termination reasoning via the existing break condition dependent on cbd and igv. </reasoning>
-<code>/*@
-  loop invariant cbd == u;
-  loop invariant 0 <= cbd;
-  loop invariant 0 <= u;
-  loop invariant z1qh <= dtb;
-  loop invariant 0 <= z1qh;
-  loop invariant dtb >= 4;
-  loop invariant se4g >= 4;
-  loop invariant gb >= 0;
-  loop invariant nyi >= 0;
-  loop invariant m >= \at(m, Pre);
-  loop assigns cbd, u, dtb, gb, m, z1qh, nyi, se4g;
-*/
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
-  }</code>
------ Candidate 7/8 raw response end -----
-2026-03-22 15:01:47,787 - INFO -   Candidate 8 selected prompt: simple_cot.txt
-2026-03-22 15:01:47,801 - INFO -   Generating candidate 8/8 with model=gpt-5-nano, prompt=simple_cot.txt...
-2026-03-22 15:02:21,978 - INFO - 
------ Candidate 8/8 raw response begin -----
-<reasoning>
-I chose invariants that are true at loop entry given the preceding initializations and that are preserved by every iteration of the loop. Key decisions:
-
-- Core relational equality (state conservation): u == cbd. Both u and cbd are initialized to 0 and both are incremented by exactly 1 each loop iteration; this equality captures that tight relation and explains the paired updates.
-
-- Progress bound and variant: The loop condition is cbd < igv. To allow a sound numeric variant I used (igv - cbd). The invariant ((igv < 0) || (cbd <= igv)) is true before the loop (since cbd == 0) and, when the guard holds (cbd < igv), ensures the variant is non-negative and strictly decreases each iteration.
-
-- Non-negativity and monotonicity facts:
-  - cbd >= 0 (initial cbd = 0 and only incremented).
-  - nyi >= 0 and nyi <= u (nyi increments at most once per iteration and never decrements).
-  - se4g >= 4 and se4g <= 4 + u (starts at 4 and increases by at most 1 per iteration).
-  - dtb >= 4 and dtb >= z1qh (dtb starts at 4 and increases; z1qh kept between 0 and dtb).
-  - z1qh bounded 0 <= z1qh <= dtb (it only decrements when >0 and only increments when <dtb).
-  - gb >= cbd (gb starts equal to cbd and is increased by positive dtb each iteration).
-  - m >= \at(m, Pre) (m only increases by adding gb each iteration; \at(m, Pre) allowed because m is a parameter).
-
-- Assigns clause: I listed exactly the variables modified inside the loop body: cbd, z1qh, nyi, se4g, dtb, u, gb, m.
-
-These invariants are modular, inductive, and verification-friendly: they capture the key conservation law (u == cbd), provide sufficient bounds to show progress (variant igv - cbd), and maintain monotonicity/non-negativity facts needed to reason about the arithmetic updates without introducing quantifiers or any \at() on local variables.
-</reasoning>
-<code>
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
 
   /*@
-    loop invariant (cbd >= 0);
-    loop invariant ((igv < 0) || (cbd <= igv));
-    loop invariant (u == cbd);
-    loop invariant (nyi >= 0 && nyi <= u);
-    loop invariant (z1qh >= 0 && z1qh <= dtb);
-    loop invariant (se4g >= 4 && se4g <= (4 + u));
-    loop invariant (dtb >= 4 && dtb >= z1qh);
-    loop invariant (gb >= cbd);
-    loop invariant (m >= \at(m, Pre));
-    loop assigns cbd, z1qh, nyi, se4g, dtb, u, gb, m;
-    loop variant (igv - cbd);
+    loop invariant 0 <= nbis && nbis <= an;
+    loop invariant ve == 0;
+    loop invariant qn == 1 + (nbis*(nbis+1))/2;
+    loop invariant l7 >= 0;
+    loop invariant vpw == 1;
+    loop assigns nbis, ve, qn, l7;
+    loop variant an - nbis;
   */
-  while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
+  while (nbis < an) {
+        nbis = nbis + 1 + (ve += vpw, 0);
+        ve = ve + 3;
+        qn += nbis;
+        l7 = l7*l7+ve;
+        ve = ve%4;
   }
 
 }
-</code>
------ Candidate 8/8 raw response end -----
-2026-03-22 15:02:21,978 - INFO - 
------ Candidate 1/8 full code begin -----
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
+----- Candidate 3/5 full code end -----
+2026-04-07 09:58:10,744 - INFO - 
+----- Candidate 4/5 full code begin -----
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
 
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
 
   /*@
-    loop invariant u == cbd;
-    loop invariant igv == \at(m, Pre) - 8;
-    loop invariant 0 <= cbd && cbd <= igv;
-    loop invariant dtb >= 4 && se4g >= 4 && dtb >= se4g;
-    loop invariant z1qh >= 0 && nyi >= 0 && nyi <= cbd;
-    loop invariant gb >= 0 && m >= \at(m, Pre);
-    loop assigns cbd, z1qh, se4g, nyi, dtb, u, gb, m;
-    loop variant igv - cbd;
+    loop invariant 0 <= nbis && nbis <= an;
+    loop invariant 0 <= ve && ve <= 3;
+    loop invariant vpw == 1;
+    loop invariant 2*(qn - 1) == nbis*(nbis + 1);
+    loop invariant l7 >= 0;
+    loop assigns nbis, ve, qn, l7;
+    loop variant an - nbis;
   */
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
+while (nbis < an) {
+      nbis = nbis + 1 + (ve += vpw, 0);
+      ve = ve + 3;
+      qn += nbis;
+      l7 = l7*l7+ve;
+      ve = ve%4;
   }
 
 }
------ Candidate 1/8 full code end -----
-2026-03-22 15:02:21,978 - INFO - 
------ Candidate 2/8 full code begin -----
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
+----- Candidate 4/5 full code end -----
+2026-04-07 09:58:10,744 - INFO - 
+----- Candidate 5/5 full code begin -----
+int main1(){
+  int an, nbis, ve, qn, vpw, l7;
 
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
+  an=1;
+  nbis=0;
+  ve=0;
+  qn=an;
+  vpw=an;
+  l7=nbis;
 
   /*@
-    loop invariant u == cbd;
-    loop invariant cbd >= 0;
-    loop invariant z1qh >= 0;
-    loop invariant z1qh <= dtb;
-    loop invariant se4g >= 4;
-    loop invariant dtb >= 4;
-    loop invariant nyi >= 0;
-    loop invariant gb >= cbd;
-    loop invariant m >= \at(m, Pre);
-    loop invariant igv == \at(m, Pre) - 8;
-    loop assigns cbd, z1qh, nyi, se4g, dtb, u, gb, m;
+    loop invariant (0 <= nbis) && (nbis <= an);
+    loop invariant ve == 0;
+    loop invariant qn == 1 + (nbis*(nbis + 1))/2;
+    loop assigns nbis, ve, qn, l7;
+    loop variant (an - nbis);
   */
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
+  while (nbis < an) {
+        nbis = nbis + 1 + (ve += vpw, 0);
+        ve = ve + 3;
+        qn += nbis;
+        l7 = l7*l7+ve;
+        ve = ve%4;
   }
 
 }
------ Candidate 2/8 full code end -----
-2026-03-22 15:02:21,978 - INFO - 
------ Candidate 3/8 full code begin -----
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
-
-  /*@
-    loop invariant (cbd == u);
-    loop invariant (0 <= cbd);
-    loop invariant (0 <= z1qh && z1qh <= dtb);
-    loop invariant (dtb >= 4);
-    loop invariant (se4g >= 4);
-    loop invariant (nyi >= 0);
-    loop invariant (gb >= cbd);
-    loop invariant (m >= \at(m, Pre));
-    loop assigns cbd, z1qh, nyi, se4g, u, dtb, gb, m;
-  */
-  while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
-  }
-
-}
------ Candidate 3/8 full code end -----
-2026-03-22 15:02:21,978 - INFO - 
------ Candidate 4/8 full code begin -----
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
-
-  /* >>> LOOP INVARIANT TO FILL <<< */
-  /*@
-    loop invariant 0 <= cbd;
-    loop invariant (igv > 0) ==> (cbd <= igv);
-    loop invariant u == cbd;
-    loop invariant 0 <= z1qh;
-    loop invariant z1qh <= dtb;
-    loop invariant 0 <= nyi;
-    loop invariant nyi <= cbd;
-    loop invariant se4g >= 0;
-    loop invariant dtb >= 0;
-    loop assigns cbd, u, dtb, gb, m, z1qh, nyi, se4g;
-    loop variant igv - cbd;
-  */
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
-  }
-
-}
------ Candidate 4/8 full code end -----
-2026-03-22 15:02:21,978 - INFO - 
------ Candidate 5/8 full code begin -----
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
-
-  /*@
-    loop invariant u == cbd;
-    loop invariant 0 <= cbd;
-    loop invariant 0 <= u;
-    loop invariant dtb >= 4;
-    loop invariant se4g >= 4;
-    loop invariant 0 <= z1qh && z1qh <= dtb;
-    loop invariant gb >= cbd;
-    loop invariant 0 <= nyi && nyi <= cbd;
-    loop invariant se4g <= 4 + cbd;
-    loop invariant m >= \at(m, Pre);
-    loop assigns cbd, z1qh, nyi, dtb, u, se4g, gb, m;
-  */
-  while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
-  }
-
-}
------ Candidate 5/8 full code end -----
-2026-03-22 15:02:21,978 - INFO - 
------ Candidate 6/8 full code begin -----
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
-
-  /*@
-    loop invariant (u == cbd);
-    loop invariant (0 <= cbd);
-    loop invariant (0 <= u);
-    loop invariant (z1qh >= 0);
-    loop invariant (nyi >= 0);
-    loop invariant (gb >= 0);
-    loop invariant (se4g >= 4);
-    loop invariant (se4g <= 4 + u);
-    loop invariant (nyi <= u);
-    loop invariant (dtb >= 4 + 5 * u);
-    loop invariant (z1qh <= dtb);
-    loop invariant (gb >= cbd);
-    loop invariant (m >= \at(m, Pre));
-    loop assigns cbd, z1qh, se4g, nyi, u, dtb, gb, m;
-  */
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
-  }
-
-}
------ Candidate 6/8 full code end -----
-2026-03-22 15:02:21,978 - INFO - 
------ Candidate 7/8 full code begin -----
-/*@
-  loop invariant cbd == u;
-  loop invariant 0 <= cbd;
-  loop invariant 0 <= u;
-  loop invariant z1qh <= dtb;
-  loop invariant 0 <= z1qh;
-  loop invariant dtb >= 4;
-  loop invariant se4g >= 4;
-  loop invariant gb >= 0;
-  loop invariant nyi >= 0;
-  loop invariant m >= \at(m, Pre);
-  loop assigns cbd, u, dtb, gb, m, z1qh, nyi, se4g;
-*/
-while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
-  }
------ Candidate 7/8 full code end -----
-2026-03-22 15:02:21,978 - INFO - 
------ Candidate 8/8 full code begin -----
-int main1(int m,int q){
-  int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-
-  igv=m-8;
-  cbd=0;
-  z1qh=4;
-  se4g=4;
-  nyi=0;
-  dtb=4;
-  u=0;
-  gb=cbd;
-
-  /*@
-    loop invariant (cbd >= 0);
-    loop invariant ((igv < 0) || (cbd <= igv));
-    loop invariant (u == cbd);
-    loop invariant (nyi >= 0 && nyi <= u);
-    loop invariant (z1qh >= 0 && z1qh <= dtb);
-    loop invariant (se4g >= 4 && se4g <= (4 + u));
-    loop invariant (dtb >= 4 && dtb >= z1qh);
-    loop invariant (gb >= cbd);
-    loop invariant (m >= \at(m, Pre));
-    loop assigns cbd, z1qh, nyi, se4g, dtb, u, gb, m;
-    loop variant (igv - cbd);
-  */
-  while (1) {
-      if (!(cbd<igv)) {
-          break;
-      }
-      if (!(!(cbd%3==0))) {
-          if (z1qh>0) {
-              z1qh -= 1;
-              nyi = nyi + 1;
-          }
-      }
-      else {
-          if (z1qh<dtb) {
-              z1qh++;
-              se4g += 1;
-          }
-      }
-      cbd = cbd + 1;
-      u = u + 1;
-      dtb = dtb + se4g;
-      dtb += 1;
-      gb += dtb;
-      m = m + gb;
-  }
-
-}
------ Candidate 8/8 full code end -----
-2026-03-22 15:02:21,978 - INFO - Successfully generated 8/8 candidates
-2026-03-22 15:02:21,980 - INFO - Checking 49 invariants for conflicts...
-2026-03-22 15:02:21,985 - INFO -   Conflict detected:
-2026-03-22 15:02:21,985 - INFO -     [24] (igv > 0) ==> (cbd <= igv)
-2026-03-22 15:02:21,985 - INFO -     [45] ((igv < 0) || (cbd <= igv))
-2026-03-22 15:02:21,987 - INFO - DEBUG: First 10 lines of code written to file:
-2026-03-22 15:02:21,987 - INFO -   1: int main1(int m,int q){
-2026-03-22 15:02:21,987 - INFO -   2:   int igv, cbd, z1qh, se4g, nyi, dtb, u, gb;
-2026-03-22 15:02:21,987 - INFO -   3: 
-2026-03-22 15:02:21,987 - INFO -   4:   igv=m-8;
-2026-03-22 15:02:21,987 - INFO -   5:   cbd=0;
-2026-03-22 15:02:21,987 - INFO -   6:   z1qh=4;
-2026-03-22 15:02:21,987 - INFO -   7:   se4g=4;
-2026-03-22 15:02:21,987 - INFO -   8:   nyi=0;
-2026-03-22 15:02:21,987 - INFO -   9:   dtb=4;
-2026-03-22 15:02:21,987 - INFO -   10:   u=0;
-2026-03-22 15:02:21,987 - INFO - DEBUG: Total lines: 90
-2026-03-22 15:02:22,221 - INFO - syntax Correct
-2026-03-22 15:02:56,119 - INFO - Validate:
-2026-03-22 15:02:56,119 - INFO - [True, True, False, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 15:02:56,119 - INFO - 
-2026-03-22 15:02:56,119 - INFO - Verify:
-2026-03-22 15:02:56,119 - INFO - []
-2026-03-22 15:02:56,119 - INFO - 
-2026-03-22 15:02:56,119 - INFO - Houdini iteration 1: Removed 1 failed invariants
-2026-03-22 15:02:56,119 - INFO -   Before: 48 invariants
-2026-03-22 15:02:56,119 - INFO -   After: 47 invariants
-2026-03-22 15:02:56,119 - INFO -   Remaining invariants:
-2026-03-22 15:02:56,119 - INFO -     [1] u == cbd
-2026-03-22 15:02:56,119 - INFO -     [2] igv == \at(m, Pre) - 8
-2026-03-22 15:02:56,119 - INFO -     [3] dtb >= 4 && se4g >= 4 && dtb >= se4g
-2026-03-22 15:02:56,119 - INFO -     [4] z1qh >= 0 && nyi >= 0 && nyi <= cbd
-2026-03-22 15:02:56,119 - INFO -     [5] gb >= 0 && m >= \at(m, Pre)
-2026-03-22 15:02:56,119 - INFO -     [6] cbd >= 0
-2026-03-22 15:02:56,119 - INFO -     [7] z1qh >= 0
-2026-03-22 15:02:56,119 - INFO -     [8] z1qh <= dtb
-2026-03-22 15:02:56,119 - INFO -     [9] se4g >= 4
-2026-03-22 15:02:56,119 - INFO -     [10] dtb >= 4
-2026-03-22 15:02:56,119 - INFO -     [11] nyi >= 0
-2026-03-22 15:02:56,119 - INFO -     [12] gb >= cbd
-2026-03-22 15:02:56,119 - INFO -     [13] m >= \at(m, Pre)
-2026-03-22 15:02:56,119 - INFO -     [14] (cbd == u)
-2026-03-22 15:02:56,119 - INFO -     [15] (0 <= cbd)
-2026-03-22 15:02:56,119 - INFO -     [16] (0 <= z1qh && z1qh <= dtb)
-2026-03-22 15:02:56,119 - INFO -     [17] (dtb >= 4)
-2026-03-22 15:02:56,119 - INFO -     [18] (se4g >= 4)
-2026-03-22 15:02:56,119 - INFO -     [19] (nyi >= 0)
-2026-03-22 15:02:56,119 - INFO -     [20] (gb >= cbd)
-2026-03-22 15:02:56,119 - INFO -     [21] (m >= \at(m, Pre))
-2026-03-22 15:02:56,119 - INFO -     [22] 0 <= cbd
-2026-03-22 15:02:56,119 - INFO -     [23] (igv > 0) ==> (cbd <= igv)
-2026-03-22 15:02:56,119 - INFO -     [24] 0 <= z1qh
-2026-03-22 15:02:56,119 - INFO -     [25] 0 <= nyi
-2026-03-22 15:02:56,119 - INFO -     [26] nyi <= cbd
-2026-03-22 15:02:56,119 - INFO -     [27] se4g >= 0
-2026-03-22 15:02:56,119 - INFO -     [28] dtb >= 0
-2026-03-22 15:02:56,119 - INFO -     [29] 0 <= u
-2026-03-22 15:02:56,119 - INFO -     [30] 0 <= z1qh && z1qh <= dtb
-2026-03-22 15:02:56,119 - INFO -     [31] 0 <= nyi && nyi <= cbd
-2026-03-22 15:02:56,119 - INFO -     [32] se4g <= 4 + cbd
-2026-03-22 15:02:56,119 - INFO -     [33] (u == cbd)
-2026-03-22 15:02:56,119 - INFO -     [34] (0 <= u)
-2026-03-22 15:02:56,119 - INFO -     [35] (z1qh >= 0)
-2026-03-22 15:02:56,119 - INFO -     [36] (gb >= 0)
-2026-03-22 15:02:56,119 - INFO -     [37] (se4g <= 4 + u)
-2026-03-22 15:02:56,119 - INFO -     [38] (nyi <= u)
-2026-03-22 15:02:56,119 - INFO -     [39] (dtb >= 4 + 5 * u)
-2026-03-22 15:02:56,119 - INFO -     [40] (z1qh <= dtb)
-2026-03-22 15:02:56,119 - INFO -     [41] cbd == u
-2026-03-22 15:02:56,119 - INFO -     [42] gb >= 0
-2026-03-22 15:02:56,119 - INFO -     [43] (cbd >= 0)
-2026-03-22 15:02:56,119 - INFO -     [44] (nyi >= 0 && nyi <= u)
-2026-03-22 15:02:56,119 - INFO -     [45] (z1qh >= 0 && z1qh <= dtb)
-2026-03-22 15:02:56,119 - INFO -     [46] (se4g >= 4 && se4g <= (4 + u))
-2026-03-22 15:02:56,119 - INFO -     [47] (dtb >= 4 && dtb >= z1qh)
-2026-03-22 15:02:56,312 - INFO - syntax Correct
-2026-03-22 15:03:29,637 - INFO - Validate:
-2026-03-22 15:03:29,637 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 15:03:29,637 - INFO - 
-2026-03-22 15:03:29,637 - INFO - Verify:
-2026-03-22 15:03:29,637 - INFO - []
-2026-03-22 15:03:29,637 - INFO - 
-2026-03-22 15:03:29,637 - INFO - Houdini iteration 2: All invariants are valid
-2026-03-22 15:03:29,841 - INFO - syntax Correct
-2026-03-22 15:04:03,207 - INFO - Validate:
-2026-03-22 15:04:03,207 - INFO - [True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True, True]
-2026-03-22 15:04:03,207 - INFO - 
-2026-03-22 15:04:03,207 - INFO - Verify:
-2026-03-22 15:04:03,207 - INFO - []
-2026-03-22 15:04:03,207 - INFO - 
-2026-03-22 15:05:12,903 - INFO - Deduplicated 49 loop invariants in final code
-2026-03-22 15:05:13,130 - INFO - syntax Correct
-2026-03-22 15:06:14,080 - INFO - Validate:
-2026-03-22 15:06:14,080 - INFO - [True, False, False, True, True, True, True, False, True, False]
-2026-03-22 15:06:14,080 - INFO - 
-2026-03-22 15:06:14,080 - INFO - Verify:
-2026-03-22 15:06:14,080 - INFO - []
-2026-03-22 15:06:14,080 - INFO - 
-2026-03-22 15:06:14,080 - WARNING - Dedup result failed verification, keeping original final code: syntax=True, valid=False, satisfy=False, has_assert=False
-2026-03-22 15:06:14,081 - INFO - Pass 1 summary: syntax=True, valid=True, satisfy=False
-2026-03-22 15:06:14,081 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_90/1.c
-2026-03-22 15:06:14,081 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_90/1_invariants.txt
-2026-03-22 15:06:14,081 - INFO - 
+----- Candidate 5/5 full code end -----
+2026-04-07 09:58:10,744 - INFO - Successfully generated 5/5 candidates
+2026-04-07 09:58:10,746 - INFO - Checking 13 invariants for conflicts...
+2026-04-07 09:58:10,752 - INFO - DEBUG: First 10 lines of code written to file:
+2026-04-07 09:58:10,752 - INFO -   1: int main1(){
+2026-04-07 09:58:10,752 - INFO -   2:   int an, nbis, ve, qn, vpw, l7;
+2026-04-07 09:58:10,752 - INFO -   3: 
+2026-04-07 09:58:10,752 - INFO -   4:   an=1;
+2026-04-07 09:58:10,752 - INFO -   5:   nbis=0;
+2026-04-07 09:58:10,752 - INFO -   6:   ve=0;
+2026-04-07 09:58:10,752 - INFO -   7:   qn=an;
+2026-04-07 09:58:10,752 - INFO -   8:   vpw=an;
+2026-04-07 09:58:10,752 - INFO -   9:   l7=nbis;
+2026-04-07 09:58:10,752 - INFO -   10: 
+2026-04-07 09:58:10,752 - INFO - DEBUG: Total lines: 37
+2026-04-07 09:58:10,789 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:58:10,789 - WARNING - All invariants were removed, deleted entire /*@ */ block
+2026-04-07 09:58:10,789 - INFO - Houdini iteration 1: Removed 13 failed invariants
+2026-04-07 09:58:10,789 - INFO -   Before: 13 invariants
+2026-04-07 09:58:10,789 - INFO -   After: 0 invariants
+2026-04-07 09:58:10,789 - ERROR - All invariants were removed by Houdini
+2026-04-07 09:58:10,817 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:58:50,966 - INFO - Deduplicated 13 loop invariants in final code
+2026-04-07 09:58:50,994 - INFO - syntax Error
+[Errno 2] No such file or directory: 'frama-c'
+2026-04-07 09:58:50,995 - WARNING - Dedup result failed verification, keeping original final code: syntax=False, valid=False, satisfy=False, has_assert=False
+2026-04-07 09:58:50,995 - INFO - Pass 1 summary: syntax=False, valid=False, satisfy=False
+2026-04-07 09:58:50,995 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_90/1.c
+2026-04-07 09:58:50,995 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_90/1_invariants.txt
+2026-04-07 09:58:50,995 - INFO - 
 ============================================================
-2026-03-22 15:06:14,081 - INFO - Final first_pass results:
-2026-03-22 15:06:14,081 - INFO -   syntax=1
-2026-03-22 15:06:14,081 - INFO -   valid=1
-2026-03-22 15:06:14,081 - INFO -   satisfy=None
-2026-03-22 15:06:14,081 - INFO - ============================================================
-2026-03-22 15:06:14,081 - INFO - 
+2026-04-07 09:58:50,995 - INFO - Final first_pass results:
+2026-04-07 09:58:50,995 - INFO -   syntax=None
+2026-04-07 09:58:50,995 - INFO -   valid=None
+2026-04-07 09:58:50,995 - INFO -   satisfy=None
+2026-04-07 09:58:50,995 - INFO - ============================================================
+2026-04-07 09:58:50,995 - INFO - 
 ============================================================
-2026-03-22 15:06:14,081 - INFO - 📊 Token Usage Statistics (Current Session):
-2026-03-22 15:06:14,081 - INFO -   Total API calls: 37
-2026-03-22 15:06:14,081 - INFO -   Total prompt tokens (input): 50,899
-2026-03-22 15:06:14,081 - INFO -   Total completion tokens (output): 238,923
-2026-03-22 15:06:14,081 - INFO -   Total tokens: 289,822
-2026-03-22 15:06:14,081 - INFO -   Average per call:
-2026-03-22 15:06:14,081 - INFO -     Prompt: 1375.6 tokens
-2026-03-22 15:06:14,081 - INFO -     Completion: 6457.4 tokens
-2026-03-22 15:06:14,081 - INFO -     Total: 7833.0 tokens
-2026-03-22 15:06:14,081 - INFO - ============================================================
-2026-03-22 15:06:14,081 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_90/1.c
-2026-03-22 15:06:14,081 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_2765622_1774150633_90/1_invariants.txt
-2026-03-22 15:06:51,881 - INFO - LLM quality-gate raw response: {
-  "ok": true,
-  "reason": "pass"
-}
-2026-03-22 15:06:55 - INFO - COT Phase#1: generating reverse-COTs for 48 code pieces (existing=1558, dedup inside)...
-2026-03-22 15:43:53 - INFO - COT Phase#1: 48/48 unique COTs generated successfully.
-2026-03-22 15:43:53 - INFO - COT Phase#2: generating rejected reverse-COTs for 602 unique dpo_aug.rejected code pieces (existing=12432)...
+2026-04-07 09:58:50,995 - INFO - 📊 Token Usage Statistics (Current Session):
+2026-04-07 09:58:50,995 - INFO -   Total API calls: 31
+2026-04-07 09:58:50,995 - INFO -   Total prompt tokens (input): 34,401
+2026-04-07 09:58:50,995 - INFO -   Total completion tokens (output): 116,980
+2026-04-07 09:58:50,995 - INFO -   Total tokens: 151,381
+2026-04-07 09:58:50,995 - INFO -   Average per call:
+2026-04-07 09:58:50,995 - INFO -     Prompt: 1109.7 tokens
+2026-04-07 09:58:50,995 - INFO -     Completion: 3773.5 tokens
+2026-04-07 09:58:50,995 - INFO -     Total: 4883.3 tokens
+2026-04-07 09:58:50,995 - INFO - ============================================================
+2026-04-07 09:58:50,996 - INFO - Annotated C code saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_90/1.c
+2026-04-07 09:58:50,996 - INFO - Invariants summary saved to /home/yangfp/SAM2INV/src/output/loop_factory_batch_tmp_1247954_1775525057_90/1_invariants.txt
+2026-04-07 10:05:07 - INFO - COT Phase#1: generating reverse-COTs for 0 code pieces (existing=2161, dedup inside)...
+2026-04-07 10:05:08 - INFO - COT Phase#1: 0/0 unique COTs generated successfully.
+2026-04-07 10:05:11 - INFO - COT output written to /home/yangfp/SAM2INV/loop_factory/generated/test
