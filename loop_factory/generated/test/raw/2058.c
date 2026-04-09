@@ -1,17 +1,21 @@
 int main1(){
-  int jy, ws, k, o, ru;
+  int i3, t2, s, pu1, k9s, bhr;
 
-  jy=1+25;
-  ws=0;
-  k=ws;
-  o=-1;
-  ru=jy;
+  i3=1;
+  t2=0;
+  s=t2;
+  pu1=t2;
+  k9s=6;
+  bhr=i3;
 
-  while (ws < jy) {
-      ru--;
-      ws = ws + 1;
-      k = k*k+k;
-      o = o+(ru%5);
+  while (1) {
+      if (!(t2 < i3)) {
+          break;
+      }
+      s += pu1;
+      pu1 = pu1 + k9s;
+      k9s += bhr;
+      t2++;
   }
 
 }

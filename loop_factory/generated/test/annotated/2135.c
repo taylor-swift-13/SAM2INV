@@ -1,24 +1,26 @@
-int main1(int v){
-  int e7zt, b03, e, oc, ta3;
-  e7zt=v+15;
-  b03=0;
-  e=e7zt;
-  oc=v - 0;
-  ta3=e7zt;
+int main1(int f){
+  int we7f, uk, je, w;
+  we7f=(f%32)+9;
+  uk=0;
+  je=we7f;
+  w=f;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant e == (e7zt + b03);
-  loop invariant ta3 == (e7zt * (b03 + 1));
-  loop invariant oc == (v - b03);
-  loop invariant e7zt == (\at(v, Pre) + 15);
-  loop invariant 0 <= b03;
-  loop invariant (e7zt >= 0) ==> (b03 <= e7zt);
-  loop assigns b03, oc, ta3, e;
+  loop invariant je + w == \at(f, Pre) + we7f;
+  loop invariant we7f == (\at(f, Pre) % 32) + 9;
+  loop invariant f == \at(f, Pre) + uk * we7f;
+  loop invariant (we7f >= 0 ==> 0 <= uk && uk <= we7f) && (we7f < 0 ==> uk == 0);
+  loop assigns uk, je, w, f;
 */
-while (b03 < e7zt) {
-      b03 += 1;
-      oc = (v)+(-(b03));
-      ta3 += e7zt;
-      e += 1;
+while (1) {
+      if (!(uk < we7f)) {
+          break;
+      }
+      uk += 1;
+      if (je >= f) {
+          je -= f;
+          w += f;
+      }
+      f = f + we7f;
   }
 }

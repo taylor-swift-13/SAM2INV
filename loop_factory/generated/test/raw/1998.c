@@ -1,20 +1,20 @@
-int main1(int s){
-  int ng7, oy0, bkz, n;
+int main1(){
+  int qz, wvn, jmbw, a44, np3b;
 
-  ng7=s*4;
-  oy0=0;
-  bkz=-4;
-  n=ng7;
+  qz=23;
+  wvn=0;
+  jmbw=0;
+  a44=qz;
+  np3b=1+4;
 
-  while (oy0 < ng7) {
-      if (bkz > 0) {
-          bkz--;
+  while (1) {
+      if (!(wvn < qz)) {
+          break;
       }
-      if (!(!(n > 0))) {
-          n = n - 1;
-      }
-      oy0++;
-      s += n;
+      np3b = (wvn + 1) * a44;
+      jmbw = jmbw + np3b;
+      wvn += 1;
+      a44 = a44 + wvn;
   }
 
 }

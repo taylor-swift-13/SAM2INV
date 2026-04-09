@@ -1,17 +1,20 @@
-int main1(){
-  int f, z, fs, qw, x6m;
+int main1(int d){
+  int ax6n, f7zu, r, cqc8, cv;
 
-  f=10;
-  z=0;
-  fs=f;
-  qw=f;
-  x6m=z;
+  ax6n=(d%23)+10;
+  f7zu=0;
+  r=0;
+  cqc8=0;
+  cv=ax6n;
 
-  while (z < f) {
-      z += 1;
-      fs = z;
-      qw = qw+0;
-      x6m = x6m+0;
+  while (1) {
+      if (!(f7zu < ax6n)) {
+          break;
+      }
+      r += d;
+      f7zu = f7zu + 1;
+      cqc8 += r;
+      cv = cv+(cqc8%3);
   }
 
 }

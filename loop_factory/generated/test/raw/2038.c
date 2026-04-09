@@ -1,17 +1,17 @@
 int main1(){
-  int x8m, z, to, fy, tqy;
+  int x1, rd, a, q0n, b63;
 
-  x8m=1+7;
-  z=0;
-  to=z;
-  fy=z;
-  tqy=0;
+  x1=44;
+  rd=0;
+  a=x1;
+  q0n=1;
+  b63=rd;
 
-  while (z < x8m) {
-      fy = (fy)+(-(1));
-      to = to - 1;
-      z += 1;
-      tqy = tqy - 1;
+  while (rd < x1) {
+      rd++;
+      b63 = b63*2+(a%7)+2;
+      q0n = q0n+(a%9);
+      b63 = b63*b63+a;
   }
 
 }

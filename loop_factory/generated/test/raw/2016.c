@@ -1,18 +1,16 @@
-int main1(){
-  int oesp, ozu, ai0, m;
+int main1(int p){
+  int o0b3, i2, o, bvj;
 
-  oesp=1+3;
-  ozu=0;
-  ai0=0;
-  m=ozu;
+  o0b3=(p%21)+13;
+  i2=0;
+  o=i2;
+  bvj=o0b3;
 
-  while (ozu < oesp) {
-      if (!(!(ozu >= oesp/2))) {
-          ai0 = ai0 + m;
-      }
-      m += ai0;
-      ozu += 1;
-      m++;
+  while (i2 < o0b3) {
+      p = p + i2;
+      o = o + 1;
+      bvj += 2;
+      i2 = o0b3;
   }
 
 }

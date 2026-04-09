@@ -1,18 +1,17 @@
 int main1(){
-  int kj, xs, bfe, qa79;
+  int za5q, su, lt, s, x;
 
-  kj=76;
-  xs=0;
-  bfe=-5;
-  qa79=xs;
+  za5q=95;
+  su=0;
+  lt=1;
+  s=0;
+  x=1;
 
-  while (1) {
-      if (!(xs < kj)) {
-          break;
-      }
-      xs++;
-      bfe += qa79;
-      qa79 = qa79 + bfe;
+  while (su < za5q) {
+      s += x;
+      lt = lt*4+(s%5)+0;
+      x += 2;
+      su++;
   }
 
 }

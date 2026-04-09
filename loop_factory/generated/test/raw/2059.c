@@ -1,21 +1,17 @@
 int main1(){
-  int i3, t2, s, pu1, k9s, bhr;
+  int f, z, fs, qw, x6m;
 
-  i3=1;
-  t2=0;
-  s=t2;
-  pu1=t2;
-  k9s=6;
-  bhr=i3;
+  f=10;
+  z=0;
+  fs=f;
+  qw=f;
+  x6m=z;
 
-  while (1) {
-      if (!(t2 < i3)) {
-          break;
-      }
-      s += pu1;
-      pu1 = pu1 + k9s;
-      k9s += bhr;
-      t2++;
+  while (z < f) {
+      z += 1;
+      fs = z;
+      qw = qw+0;
+      x6m = x6m+0;
   }
 
 }

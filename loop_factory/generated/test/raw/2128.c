@@ -1,20 +1,21 @@
-int main1(){
-  int xja, xfe, i5q, d, vd;
+int main1(int e){
+  int fc7, yg7, f, ub, b, x;
 
-  xja=(1%40)+17;
-  xfe=xja;
-  i5q=xja;
-  d=xja;
-  vd=xja;
+  fc7=55;
+  yg7=0;
+  f=yg7;
+  ub=2;
+  b=16;
+  x=0;
 
   while (1) {
-      if (vd>xja) {
+      if (!(yg7 < fc7 && ub > 0 && b > 0)) {
           break;
       }
-      xfe = xfe + i5q;
-      i5q += d;
-      d += 6;
-      vd = (1)+(vd);
+      f = (ub--, b--, f - e);
+      x += fc7;
+      yg7 = yg7 + 1;
+      x = x + 3;
   }
 
 }

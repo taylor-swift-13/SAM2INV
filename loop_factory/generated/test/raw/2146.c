@@ -1,16 +1,20 @@
-int main1(){
-  int ev, vm2, l, g;
+int main1(int a){
+  int r5, ja, or, xzc, rl;
 
-  ev=(1%22)+17;
-  vm2=0;
-  l=0;
-  g=4;
+  r5=(a%14)+14;
+  ja=0;
+  or=r5;
+  xzc=-3;
+  rl=ja;
 
-  while (vm2<ev&&g>0) {
-      vm2++;
-      l = l + g;
-      l = l + 1;
-      g -= 1;
+  while (1) {
+      if (!(ja < r5)) {
+          break;
+      }
+      ja += 1;
+      or = or + xzc;
+      rl = rl + xzc;
+      or = or + 1;
   }
 
 }

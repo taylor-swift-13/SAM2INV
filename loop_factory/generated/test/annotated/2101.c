@@ -1,20 +1,26 @@
-int main1(){
-  int fi, d, g4, baz, j1f;
-  fi=1;
-  d=0;
-  g4=1;
-  baz=2;
-  j1f=3;
+int main1(int y){
+  int lq, zd, jg, c;
+  lq=y*3;
+  zd=lq;
+  jg=0;
+  c=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (0 <= d && d <= fi);
-  loop invariant baz == (2 + d * j1f);
-  loop invariant g4 == (1 + d * 2 + j1f * ((d * (d - 1)) / 2));
-  loop assigns g4, d, baz;
+  loop invariant zd == lq;
+  loop invariant lq == 3 * \at(y, Pre);
+  loop invariant 1 <= c && (lq < 1 || c <= lq + 1);
+  loop invariant (zd % 2 == 0 ==> jg == (c - 1)) && (zd % 2 != 0 ==> jg == -(c - 1));
+  loop invariant ((zd % 2 == 0) ==> (jg == (c - 1))) &&
+                   ((zd % 2 != 0) ==> (jg == -(c - 1)));
+  loop assigns jg, c;
 */
-while (d < fi) {
-      g4 = g4 + baz;
-      d++;
-      baz = (j1f)+(baz);
+while (c<=lq) {
+      if (!(!(zd%2==0))) {
+          jg += 1;
+      }
+      else {
+          jg = jg - 1;
+      }
+      c = c + 1;
   }
 }

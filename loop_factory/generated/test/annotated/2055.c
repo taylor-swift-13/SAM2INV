@@ -1,29 +1,27 @@
-int main1(int z){
-  int v, x, n, ah5s, ao;
-  v=53;
-  x=0;
-  n=z;
-  ah5s=-8;
-  ao=-5;
+int main1(int c){
+  int f, iq2, agy, u, w676;
+  f=c;
+  iq2=0;
+  agy=0;
+  u=f;
+  w676=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (0 <= x);
-  loop invariant (x <= v);
-  loop invariant v == 53;
-  loop invariant (ao == -5 + (x*(x+1))/2);
-  loop invariant ((x <= v/2) ==> (n == \at(z, Pre)));
-  loop invariant (x <= (v/2)) ==> (ah5s == -8 + x * \at(z, Pre));
-  loop invariant \at(z, Pre) <= n;
-  loop invariant n <= \at(z, Pre) + 2 * x;
-  loop invariant ah5s >= -8 + x * \at(z, Pre);
-  loop assigns n, ah5s, x, ao;
+  loop invariant (w676 == agy);
+  loop invariant (f == \at(c, Pre));
+  loop invariant (iq2 == 0);
+  loop invariant (u <= f);
+  loop invariant c == \at(c, Pre) + iq2 * agy;
+  loop invariant agy >= 0 && (agy > 0 ==> agy <= f);
+  loop invariant (agy == 0 ==> u == \at(c, Pre)) && (agy > 0 ==> u == agy - 1);
+  loop assigns u, agy, w676, c;
 */
-while (x<=v-1) {
-      if (!(!(x>=v/2))) {
-          n += 2;
+while (agy<=f-1) {
+      if (w676<f) {
+          u = agy;
       }
-      ah5s += n;
-      x = x + 1;
-      ao += x;
+      agy = agy + 1;
+      w676 = w676 + 1;
+      c += iq2;
   }
 }

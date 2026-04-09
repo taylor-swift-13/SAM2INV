@@ -1,20 +1,20 @@
-int main1(){
-  int hm, a36, bn, n, f26;
+int main1(int s){
+  int x4mk, z, y83, jm, a;
 
-  hm=1+21;
-  a36=0;
-  bn=0;
-  n=25;
-  f26=0;
+  x4mk=73;
+  z=0;
+  y83=0;
+  jm=0;
+  a=s;
 
   while (1) {
-      if (!(a36 < hm*hm)) {
+      if (!(z < x4mk)) {
           break;
       }
-      f26 = f26 + (a36++, (bn = 1 - bn), bn);
-      bn = bn+f26-f26;
-      n = n+f26-f26;
-      a36 = hm*hm;
+      y83 = (1 - (z % 2)) * a + (z % 2) * y83;
+      jm = (z % 2) * a + (1 - (z % 2)) * jm;
+      a = a + jm;
+      z += 1;
   }
 
 }

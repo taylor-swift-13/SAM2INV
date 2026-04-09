@@ -1,14 +1,16 @@
-int main1(int c){
-  int vo, j, s;
+int main1(){
+  int i3zr, u9, a2, ny, r0;
 
-  vo=(c%32)+13;
-  j=0;
-  s=-8;
+  i3zr=1;
+  u9=i3zr;
+  a2=3*i3zr;
+  ny=2*i3zr;
+  r0=i3zr;
 
-  while (j < vo) {
-      c = c + s;
-      j++;
-      s = s + 3;
+  while (u9 > 0) {
+      u9--;
+      ny += r0;
+      a2 += u9;
   }
 
 }

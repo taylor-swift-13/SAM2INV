@@ -1,15 +1,15 @@
 int main1(){
-  int aud2, dbfp, ef, r;
+  int row, fv, g, wz;
 
-  aud2=1+18;
-  dbfp=0;
-  ef=aud2;
-  r=aud2;
+  row=1+17;
+  fv=0;
+  g=0;
+  wz=0;
 
-  while (ef >= (2*dbfp + 1)) {
-      ef = (ef)+(-((2*dbfp + 1)));
-      r += aud2;
-      dbfp++;
+  while (fv < row) {
+      fv++;
+      g += fv;
+      g = g+wz+wz;
   }
 
 }

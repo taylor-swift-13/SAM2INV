@@ -1,21 +1,24 @@
-int main1(int y){
-  int g, kdm, b2, b;
-  g=y+4;
-  kdm=0;
-  b2=g;
-  b=-2;
+int main1(int z){
+  int jy, p, wgk, tnjg;
+  jy=z*2;
+  p=0;
+  wgk=6;
+  tnjg=p;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant b2 == y + 4 + kdm * y;
-  loop invariant b == -2 - kdm * y;
-  loop invariant b2 == (g + kdm * y);
-  loop invariant kdm >= 0;
-  loop invariant (g >= 0 ==> kdm <= g);
-  loop assigns b2, kdm, b;
+  loop invariant tnjg == 0;
+  loop invariant wgk == (p + 6);
+  loop invariant p >= 0;
+  loop invariant jy == 2 * \at(z, Pre);
+  loop invariant (jy < 0) || (p <= jy);
+  loop assigns p, wgk, tnjg;
 */
-while (kdm < g) {
-      b2 = b2 + y;
-      kdm++;
-      b = (b)+(-(y));
+while (1) {
+      if (!(p < jy)) {
+          break;
+      }
+      tnjg = tnjg + tnjg;
+      wgk += 1;
+      p++;
   }
 }

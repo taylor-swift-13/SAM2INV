@@ -1,26 +1,24 @@
 int main1(){
-  int ep, t, bfu, y6, dl29, x;
-  ep=1+5;
-  t=0;
-  bfu=0;
-  y6=0;
-  dl29=0;
-  x=ep;
+  int b0, fd, t8, yk1, th7;
+  b0=10;
+  fd=0;
+  t8=0;
+  yk1=4;
+  th7=fd;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= t;
-  loop invariant t <= ep;
-  loop invariant bfu == dl29 + (t*(t+1))/2;
-  loop invariant x >= ep;
-  loop invariant y6 >= 0;
-  loop invariant dl29 >= 0;
-  loop invariant x >= 6;
-  loop assigns t, bfu, y6, dl29, x;
+  loop invariant 0 <= fd;
+  loop invariant fd <= b0;
+  loop invariant 2 * th7 == fd + t8;
+  loop invariant (t8 == 0) || (t8 == 1);
+  loop invariant yk1 >= 4;
+  loop invariant th7 == (fd + 1) / 2;
+  loop assigns t8, fd, th7, yk1;
 */
-while (t < ep) {
-      t = (bfu += x, y6 += bfu, t + 1);
-      dl29 += x;
-      x = x*2+(y6%4)+3;
-      bfu += t;
+while (fd < b0) {
+      t8 = 1 - t8;
+      fd++;
+      th7 += t8;
+      yk1 = yk1*yk1+yk1;
   }
 }

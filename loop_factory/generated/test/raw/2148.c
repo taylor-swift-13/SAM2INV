@@ -1,17 +1,19 @@
-int main1(int e){
-  int k0, gzhs, lk7e, prr, lhr;
+int main1(){
+  int hv, n, krv, dq;
 
-  k0=57;
-  gzhs=0;
-  lk7e=-1;
-  prr=-2;
-  lhr=4;
+  hv=0;
+  n=0;
+  krv=0;
+  dq=(1%18)+5;
 
-  while (gzhs < k0) {
-      prr = prr - (e*(e>=0) - e*(e<0));
-      gzhs = gzhs + 1;
-      lk7e = lk7e + (e*(e>=0) - e*(e<0));
-      lhr += gzhs;
+  while (1) {
+      if (!(dq>0)) {
+          break;
+      }
+      krv = krv+1*1;
+      hv = hv+1*1;
+      dq--;
+      n = n+1*1;
   }
 
 }

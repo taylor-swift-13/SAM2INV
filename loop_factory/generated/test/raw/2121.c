@@ -1,17 +1,17 @@
 int main1(){
-  int h, e34, y1rg, ovw;
+  int uv, jz, l70, eb92, eu;
 
-  h=(1%18)+5;
-  e34=0;
-  y1rg=0;
-  ovw=1;
+  uv=1+16;
+  jz=0;
+  l70=-5;
+  eb92=jz;
+  eu=jz;
 
-  while (e34 < h) {
-      if (!(!(y1rg + ovw <= h))) {
-          y1rg += ovw;
-      }
-      e34 = e34 + 1;
-      ovw = ovw+y1rg-y1rg;
+  while (jz<=uv-1) {
+      l70 = l70 + 9;
+      eb92 = eb92 + l70;
+      eu += eb92;
+      jz = uv;
   }
 
 }

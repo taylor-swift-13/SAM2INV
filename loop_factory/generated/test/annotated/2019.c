@@ -1,29 +1,25 @@
-int main1(int m){
-  int yo, ea, kt, du1, nrg;
-  yo=m-8;
-  ea=0;
-  kt=0;
-  du1=ea;
-  nrg=ea;
+int main1(int r){
+  int v1h, w3, ret, lt, dog;
+  v1h=(r%7)+17;
+  w3=0;
+  ret=0;
+  lt=0;
+  dog=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant ea == 0;
-  loop invariant yo == \at(m, Pre) - 8;
-  loop invariant nrg == ea * kt;
-  loop invariant kt >= 0;
-  loop invariant (yo >= 0) ==> (kt <= yo);
-  loop invariant du1 == ea;
-  loop invariant (yo <= 0 ==> kt == 0);
-  loop assigns nrg, du1, kt;
+  loop invariant r == (\at(r, Pre) + dog * w3);
+  loop invariant ret == 3 * w3;
+  loop invariant lt == w3;
+  loop invariant 0 <= w3;
+  loop invariant w3 <= v1h;
+  loop invariant v1h == ((\at(r, Pre) % 7) + 17);
+  loop invariant (dog == 0);
+  loop assigns ret, r, w3, lt;
 */
-while (1) {
-      if (kt>=yo) {
-          break;
-      }
-      if (nrg<=du1) {
-          du1 = nrg;
-      }
-      nrg += ea;
-      kt++;
+while (w3 < v1h) {
+      ret = ret + 3;
+      r += dog;
+      w3 += 1;
+      lt += 1;
   }
 }

@@ -1,21 +1,20 @@
 int main1(){
-  int b, i, x, oy1, jg, p;
+  int g67, m8q3, gd, vu, ij;
 
-  b=15;
-  i=0;
-  x=i;
-  oy1=0;
-  jg=0;
-  p=1;
+  g67=1+14;
+  m8q3=0;
+  gd=0;
+  vu=0;
+  ij=0;
 
   while (1) {
-      if (!(i < b)) {
+      if (!(m8q3 < g67)) {
           break;
       }
-      p = p * x;
-      jg = (1)+(i);
-      i = i + 1;
-      oy1 = oy1 + jg * p;
+      m8q3 = (gd += 5, vu += 5, ij += 5, m8q3 + 1);
+      vu = vu + m8q3;
+      gd = gd + 5;
+      ij = ij + m8q3;
   }
 
 }

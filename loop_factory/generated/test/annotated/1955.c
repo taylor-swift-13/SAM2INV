@@ -1,32 +1,29 @@
 int main1(){
-  int j2, sc, qs, xk, ucy;
-  j2=1+5;
-  sc=0;
-  qs=j2;
-  xk=j2;
-  ucy=qs;
+  int zk, ha2, hva, e8l, j4fd;
+  zk=22;
+  ha2=0;
+  hva=ha2;
+  e8l=0;
+  j4fd=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant j2 == 1 + 5;
-  loop invariant qs == j2;
-  loop invariant ucy == qs;
-  loop invariant 0 <= sc;
-  loop invariant sc <= j2;
-  loop invariant sc == 0 || sc == j2;
-  loop invariant (sc == 0 && xk == j2) || (sc == j2 && xk == 2 * j2);
-  loop invariant (xk == qs || xk == qs + j2);
-  loop invariant (sc == j2) <==> (xk == qs + j2);
-  loop invariant xk >= j2;
-  loop invariant xk <= 2 * j2;
-  loop invariant (xk % j2) == 0;
-  loop assigns sc, ucy, xk;
+  loop invariant ha2 == 0 || ha2 == zk;
+  loop invariant (ha2 == 0) ==> (e8l == 0 && hva == 0);
+  loop invariant (ha2 == zk) ==>
+                   (e8l == (j4fd % zk) && 0 <= e8l && e8l < zk && hva == e8l);
+  loop invariant (0 <= e8l && e8l < zk);
+  loop invariant ((ha2 == 0 && e8l == 0 && hva == 0)
+                    || (ha2 == zk && e8l == (j4fd % zk) && hva == (j4fd % zk)));
+  loop invariant j4fd == 1;
+  loop invariant (ha2 * (ha2 - zk)) == 0;
+  loop invariant hva >= e8l;
+  loop invariant (ha2 == 0 && e8l == 0 && hva == 0)
+                   || (ha2 == zk && 0 <= e8l && e8l < zk && hva == e8l);
+  loop assigns e8l, hva, ha2;
 */
-while (1) {
-      if (!(sc < j2)) {
-          break;
-      }
-      ucy = (sc++, (ucy < qs ? ucy : qs));
-      xk += j2;
-      sc = j2;
+while (ha2 < zk) {
+      e8l = (e8l + j4fd) % zk;
+      hva = hva + e8l;
+      ha2 = zk;
   }
 }

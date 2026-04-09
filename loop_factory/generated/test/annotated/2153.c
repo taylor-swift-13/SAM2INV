@@ -1,26 +1,27 @@
-int main1(){
-  int g67, m8q3, gd, vu, ij;
-  g67=1+14;
-  m8q3=0;
-  gd=0;
-  vu=0;
-  ij=0;
+int main1(int z){
+  int npb9, to, w, u2, i8, e06;
+  npb9=79;
+  to=0;
+  w=0;
+  u2=0;
+  i8=z;
+  e06=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= m8q3;
-  loop invariant m8q3 <= g67;
-  loop invariant gd == 10 * m8q3;
-  loop invariant ij == (m8q3 * (m8q3 + 1)) / 2 + 5 * m8q3;
-  loop invariant vu == ij;
-  loop assigns m8q3, gd, vu, ij;
+  loop invariant to == 2 * u2;
+  loop invariant e06 == 0;
+  loop invariant i8 == z + 2 * u2;
+  loop invariant w == z * u2;
+  loop invariant (u2 == 0 ==> npb9 == 79) && (u2 > 0 ==> npb9 == 2 * u2 - 1);
+  loop invariant u2 >= 0;
+  loop invariant i8 == \at(z, Pre) + 2 * u2;
+  loop invariant u2 <= 1;
+  loop assigns w, i8, u2, npb9, to;
 */
-while (1) {
-      if (!(m8q3 < g67)) {
-          break;
-      }
-      m8q3 = (gd += 5, vu += 5, ij += 5, m8q3 + 1);
-      vu = vu + m8q3;
-      gd = gd + 5;
-      ij = ij + m8q3;
+while (to++ < npb9) {
+      w = w - e06 + z;
+      i8 += 2;
+      u2 += 1;
+      npb9 = to++;
   }
 }

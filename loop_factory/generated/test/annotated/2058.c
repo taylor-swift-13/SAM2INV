@@ -1,24 +1,31 @@
 int main1(){
-  int jy, ws, k, o, ru;
-  jy=1+25;
-  ws=0;
-  k=ws;
-  o=-1;
-  ru=jy;
+  int i3, t2, s, pu1, k9s, bhr;
+  i3=1;
+  t2=0;
+  s=t2;
+  pu1=t2;
+  k9s=6;
+  bhr=i3;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (ru + ws == jy);
-  loop invariant (k == 0);
-  loop invariant (0 <= ws && ws <= jy);
-  loop invariant (0 <= ru && ru <= jy);
-  loop invariant (-1 <= o && o <= -1 + jy * 4);
-  loop invariant (-1 <= o && o <= -1 + 4*ws);
-  loop assigns ru, ws, k, o;
+  loop invariant (0 <= t2);
+  loop invariant (t2 <= i3);
+  loop invariant (bhr == 1);
+  loop invariant (k9s == 6 + bhr * t2);
+  loop invariant pu1 == (6 * t2) + (bhr * (t2 * (t2 - 1) / 2));
+  loop invariant s == (6 * (t2 * (t2 - 1) / 2)) + (bhr * (t2 * (t2 - 1) * (t2 - 2) / 6));
+  loop invariant 2 * pu1 == 12 * t2 + bhr * (t2 * (t2 - 1));
+  loop invariant 6 * s == 18 * t2 * (t2 - 1) + bhr * (t2 * (t2 - 1) * (t2 - 2));
+  loop invariant s == (3 * t2 * (t2 - 1) + bhr * (t2 * (t2 - 1) * (t2 - 2) / 6));
+  loop assigns s, pu1, k9s, t2;
 */
-while (ws < jy) {
-      ru--;
-      ws = ws + 1;
-      k = k*k+k;
-      o = o+(ru%5);
+while (1) {
+      if (!(t2 < i3)) {
+          break;
+      }
+      s += pu1;
+      pu1 = pu1 + k9s;
+      k9s += bhr;
+      t2++;
   }
 }

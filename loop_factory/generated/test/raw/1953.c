@@ -1,15 +1,15 @@
 int main1(){
-  int qb, ast7, yn, u5;
+  int r1q, ynn, o, d;
 
-  qb=188;
-  ast7=0;
-  yn=-2;
-  u5=0;
+  r1q=1+20;
+  ynn=0;
+  o=0;
+  d=0;
 
-  while (ast7 < qb) {
-      u5 = u5 + 2*ast7 + 1;
-      ast7 += 1;
-      yn += u5;
+  while (ynn < r1q) {
+      ynn += 1;
+      o = o + 1;
+      d = d - o;
   }
 
 }

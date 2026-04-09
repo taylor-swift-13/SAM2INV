@@ -1,15 +1,15 @@
-int main1(int m){
-  int w6d, m9ec, gvs, g7;
+int main1(){
+  int khn, y, ch, m6;
 
-  w6d=28;
-  m9ec=0;
-  gvs=1;
-  g7=0;
+  khn=(1%38)+11;
+  y=0;
+  ch=0;
+  m6=-2;
 
-  while (m9ec < w6d) {
-      g7 += gvs;
-      m9ec = m9ec + 1;
-      gvs = gvs * m;
+  while (y < khn) {
+      y++;
+      ch = ch + m6;
+      m6 = m6 + ch;
   }
 
 }

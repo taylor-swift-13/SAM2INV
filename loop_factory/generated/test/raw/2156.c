@@ -1,17 +1,20 @@
-int main1(int l){
-  int g4p, pon, jg4, v3, sun;
+int main1(){
+  int i50, u4, zpg9, hbe, l1;
 
-  g4p=l+9;
-  pon=0;
-  jg4=0;
-  v3=g4p;
-  sun=l;
+  i50=72;
+  u4=0;
+  zpg9=-2;
+  hbe=i50;
+  l1=i50;
 
-  while (pon < g4p) {
-      l = l+g4p-pon;
-      jg4 = (pon++, jg4 + v3);
-      v3 += sun;
-      pon = g4p;
+  while (1) {
+      if (!(u4 < i50)) {
+          break;
+      }
+      zpg9 = zpg9 + hbe;
+      hbe = hbe + l1;
+      u4++;
+      l1 += zpg9;
   }
 
 }

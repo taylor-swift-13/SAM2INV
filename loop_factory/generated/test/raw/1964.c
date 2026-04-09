@@ -1,16 +1,16 @@
-int main1(int s){
-  int p, evdq, mi, btv, w;
+int main1(){
+  int gv, v1, knt, h, qf2i;
 
-  p=(s%15)+17;
-  evdq=p;
-  mi=s;
-  btv=s;
-  w=s;
+  gv=13;
+  v1=0;
+  knt=0;
+  h=gv;
+  qf2i=-5;
 
-  while (evdq > 0) {
-      evdq = (mi = mi>0 ? mi-1 : 0, btv = btv>0 ? btv-1 : 0, w = w>0 ? w-1 : 0, evdq-1);
-      mi = mi + 3;
-      w += mi;
+  while (v1 < gv) {
+      v1 += 1;
+      qf2i = qf2i * h;
+      knt = knt * h;
   }
 
 }

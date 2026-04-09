@@ -1,20 +1,20 @@
 int main1(){
-  int meb, jy, cs, g99;
+  int h, emy, t3, h3, xs;
 
-  meb=1+19;
-  jy=meb;
-  cs=-2;
-  g99=meb;
+  h=1;
+  emy=0;
+  t3=0;
+  h3=0;
+  xs=0;
 
   while (1) {
-      if (jy>=meb) {
+      if (!(emy < h)) {
           break;
       }
-      if (!(!(g99<=cs))) {
-          cs = g99;
-      }
-      g99 += cs;
-      jy += 1;
+      xs = xs + emy*emy*emy;
+      emy++;
+      h3 += h;
+      t3 = t3+h3+h3;
   }
 
 }

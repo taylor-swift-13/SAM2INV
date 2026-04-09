@@ -1,17 +1,19 @@
-int main1(int m){
-  int d, jn, nu, ar, dd;
+int main1(int z){
+  int v, x, n, ah5s, ao;
 
-  d=m;
-  jn=0;
-  nu=0;
-  ar=0;
-  dd=1;
+  v=53;
+  x=0;
+  n=z;
+  ah5s=-8;
+  ao=-5;
 
-  while (jn < d) {
-      ar += dd;
-      dd += 2;
-      jn = jn + 1;
-      nu = nu+(dd%3);
+  while (x<=v-1) {
+      if (!(!(x>=v/2))) {
+          n += 2;
+      }
+      ah5s += n;
+      x = x + 1;
+      ao += x;
   }
 
 }

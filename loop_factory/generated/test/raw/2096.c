@@ -1,18 +1,15 @@
-int main1(int k){
-  int o2, ks, gb, np;
+int main1(int p){
+  int yk4, ked, ap, uj;
 
-  o2=k;
-  ks=0;
-  gb=o2;
-  np=0;
+  yk4=9;
+  ked=0;
+  ap=0;
+  uj=0;
 
-  while (1) {
-      if (!(ks<=o2-1)) {
-          break;
-      }
-      np = np + ks*k;
-      ks = ks + 1;
-      gb = (np)+(gb);
+  while (ked < yk4) {
+      ap += p;
+      ked += 1;
+      uj = uj + ap;
   }
 
 }

@@ -1,25 +1,23 @@
-int main1(int e){
-  int buhz, nc, t, sv;
-  buhz=e+7;
-  nc=0;
-  t=0;
-  sv=0;
+int main1(){
+  int j, cj, l, wbh;
+  j=1;
+  cj=0;
+  l=8;
+  wbh=-3;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant sv == (e * nc);
-  loop invariant t == ((e * nc * (nc + 1)) / 2);
-  loop invariant buhz == \at(e, Pre) + 7;
-  loop invariant e == \at(e, Pre);
-  loop invariant (nc >= 0);
-  loop invariant (buhz <= 0) || (nc <= buhz);
-  loop assigns nc, sv, t;
+  loop invariant j == 1;
+  loop invariant wbh == -3 - (cj * (cj - 1)) / 2;
+  loop invariant l == 8 + (cj * (-3)) - (cj * (cj - 1) * (cj - 2)) / 6;
+  loop invariant 0 <= cj <= j;
+  loop assigns cj, l, wbh;
 */
 while (1) {
-      if (!(nc < buhz)) {
+      if (!(cj < j)) {
           break;
       }
-      nc += 1;
-      sv = sv + e;
-      t = t + sv;
+      cj++;
+      l = l + wbh;
+      wbh = wbh+j-cj;
   }
 }

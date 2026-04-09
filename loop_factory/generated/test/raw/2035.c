@@ -1,19 +1,17 @@
-int main1(int q){
-  int yybl, a8zh, tc6, tm;
+int main1(){
+  int ahqp, n, lo6, j, kpy;
 
-  yybl=q;
-  a8zh=1;
-  tc6=1;
-  tm=-8;
+  ahqp=174;
+  n=0;
+  lo6=0;
+  j=0;
+  kpy=0;
 
-  while (1) {
-      if (!(yybl >= a8zh)) {
-          break;
-      }
-      yybl = yybl - a8zh;
-      tc6 = (2)+(tc6);
-      tm = tm + 3;
-      a8zh += 2;
+  while (n < ahqp) {
+      j = j + 3;
+      n += 1;
+      lo6 = lo6 + lo6;
+      kpy = kpy+(j%7);
   }
 
 }

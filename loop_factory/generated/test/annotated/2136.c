@@ -1,26 +1,18 @@
-int main1(int f){
-  int we7f, uk, je, w;
-  we7f=(f%32)+9;
-  uk=0;
-  je=we7f;
-  w=f;
+int main1(){
+  int nn1, nd5z, swkr;
+  nn1=1;
+  nd5z=0;
+  swkr=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant je + w == \at(f, Pre) + we7f;
-  loop invariant we7f == (\at(f, Pre) % 32) + 9;
-  loop invariant f == \at(f, Pre) + uk * we7f;
-  loop invariant (we7f >= 0 ==> 0 <= uk && uk <= we7f) && (we7f < 0 ==> uk == 0);
-  loop assigns uk, je, w, f;
+  loop invariant 0 <= nd5z;
+  loop invariant nd5z <= nn1;
+  loop invariant (nd5z < nn1) ==> (nd5z + 1 == nn1 && swkr == 0);
+  loop invariant (nd5z == 0 && swkr == 0) || (nd5z == nn1 && swkr == 1);
+  loop assigns swkr, nd5z;
 */
-while (1) {
-      if (!(uk < we7f)) {
-          break;
-      }
-      uk += 1;
-      if (je >= f) {
-          je -= f;
-          w += f;
-      }
-      f = f + we7f;
+while (nd5z < nn1) {
+      swkr = swkr + ((nd5z++ * 2 < nn1) ? 1 : -1);
+      nd5z = nn1;
   }
 }

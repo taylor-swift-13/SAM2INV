@@ -1,15 +1,16 @@
-int main1(){
-  int qr, i4i, d5, isz;
+int main1(int k){
+  int bld, tx, a;
 
-  qr=(1%39)+12;
-  i4i=0;
-  d5=qr;
-  isz=qr;
+  bld=k;
+  tx=0;
+  a=0;
 
-  while (i4i < qr) {
-      d5 += isz;
-      i4i = i4i + (qr - i4i + 1)/2;
-      d5 += 4;
+  while (tx<bld) {
+      if (!(!(tx>=bld/2))) {
+          a += 2;
+      }
+      tx += 1;
+      k += bld;
   }
 
 }

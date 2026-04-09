@@ -1,16 +1,14 @@
 int main1(){
-  int oz7, d, imo, s6, u;
+  int t7, x, o8, r1o;
 
-  oz7=1;
-  d=0;
-  imo=1*4;
-  s6=0;
-  u=d;
+  t7=1-8;
+  x=0;
+  o8=0;
+  r1o=x;
 
-  while (d < oz7) {
-      s6 = (u * d)+(s6);
-      d++;
-      imo += oz7;
+  while (x++ < t7) {
+      o8 += r1o;
+      t7 = x++;
   }
 
 }

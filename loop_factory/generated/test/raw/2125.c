@@ -1,20 +1,21 @@
-int main1(int r){
-  int u8wl, pay, qk, vnq, t3p3;
+int main1(){
+  int jsza, c8, ksu, q3m, p, k;
 
-  u8wl=r;
-  pay=0;
-  qk=0;
-  vnq=0;
-  t3p3=u8wl;
+  jsza=1;
+  c8=0;
+  ksu=1+2;
+  q3m=jsza;
+  p=0;
+  k=-6;
 
   while (1) {
-      if (!(pay < u8wl)) {
+      if (!(k != 0 && c8 < jsza)) {
           break;
       }
-      pay = pay + 1;
-      t3p3 += pay;
-      qk = qk + 1 - (pay % 2);
-      vnq = vnq + (pay % 2);
+      c8 += 1;
+      p = p % k;
+      ksu = ksu + c8;
+      ksu = ksu+q3m+q3m;
   }
 
 }

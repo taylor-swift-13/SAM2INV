@@ -1,22 +1,17 @@
-int main1(int b){
-  int pvt, y, w;
+int main1(int v){
+  int e7zt, b03, e, oc, ta3;
 
-  pvt=b;
-  y=0;
-  w=0;
+  e7zt=v+15;
+  b03=0;
+  e=e7zt;
+  oc=v - 0;
+  ta3=e7zt;
 
-  while (1) {
-      if (!(y<pvt)) {
-          break;
-      }
-      if (!(!(y<pvt/2))) {
-          w = w - 3;
-      }
-      else {
-          w = w + 3;
-      }
-      y++;
-      b += pvt;
+  while (b03 < e7zt) {
+      b03 += 1;
+      oc = (v)+(-(b03));
+      ta3 += e7zt;
+      e += 1;
   }
 
 }

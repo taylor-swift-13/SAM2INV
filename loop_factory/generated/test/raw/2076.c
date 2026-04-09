@@ -1,17 +1,15 @@
 int main1(){
-  int rk, uz, b, baj;
+  int k, klq, za, rv;
 
-  rk=69;
-  uz=0;
-  b=rk;
-  baj=b;
+  k=1+5;
+  klq=3;
+  za=k - klq;
+  rv=klq;
 
-  while (uz < rk) {
-      uz += 1;
-      if (b != baj) {
-          baj = b;
-      }
-      b = b + uz;
+  while (klq < k) {
+      za = (k)+(-((++klq)));
+      rv += klq;
+      klq = k;
   }
 
 }

@@ -1,21 +1,27 @@
-int main1(int k){
-  int sju, i6p, za, at;
-  sju=k;
-  i6p=0;
-  za=0;
-  at=1;
+int main1(){
+  int xja, xfe, i5q, d, vd;
+  xja=(1%40)+17;
+  xfe=xja;
+  i5q=xja;
+  d=xja;
+  vd=xja;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant sju == \at(k, Pre);
-  loop invariant (i6p == 0 || i6p == sju);
-  loop invariant (i6p == 0 ==> at == 1) && (i6p != 0 ==> at == k);
-  loop invariant (i6p == 0 ==> za == 0) && (i6p != 0 ==> za == at);
-  loop invariant i6p >= 0;
-  loop invariant (i6p == 0 || (sju > 0 && i6p == sju));
-  loop assigns at, i6p, za;
+  loop invariant (d - xja) == 6 * (vd - xja);
+  loop invariant 0 <= (vd - xja);
+  loop invariant (vd - xja) <= 1;
+  loop invariant i5q == xja*(1 + (vd - xja)) + 3*(vd - xja)*((vd - xja) - 1);
+  loop invariant xfe == xja*(1 + (((vd - xja)*((vd - xja) + 1))/2)) + (vd - xja)*((vd - xja) - 1)*((vd - xja) - 2);
+  loop invariant (d == 6*vd - 90);
+  loop assigns xfe, i5q, d, vd;
 */
-while (i6p < sju && (at *= k, i6p++, 1)) {
-      za = za + at;
-      i6p = sju;
+while (1) {
+      if (vd>xja) {
+          break;
+      }
+      xfe = xfe + i5q;
+      i5q += d;
+      d += 6;
+      vd = (1)+(vd);
   }
 }

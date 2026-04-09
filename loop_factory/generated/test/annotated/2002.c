@@ -1,27 +1,24 @@
-int main1(int k){
-  int cz1, wkz, o, l, e9;
-  cz1=k+24;
-  wkz=0;
-  o=-4;
-  l=wkz;
-  e9=0;
+int main1(int b){
+  int ed3m, m8, gf, bsg, hg;
+  ed3m=b*2;
+  m8=0;
+  gf=1;
+  bsg=1;
+  hg=ed3m;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant cz1 == k + 24;
-  loop invariant l == 0;
-  loop invariant e9 == 0;
-  loop invariant (o + 4) % 3 == 0;
-  loop invariant o >= -4;
-  loop invariant wkz <= 0;
-  loop assigns wkz, l, o, e9;
+  loop invariant ed3m == b * 2;
+  loop invariant m8 >= 0;
+  loop invariant (ed3m >= 0) ==> (m8 <= ed3m);
+  loop invariant hg == ed3m + (m8 * (m8 + 1)) / 2;
+  loop invariant bsg == gf;
+  loop invariant ed3m == \at(b,Pre) * 2;
+  loop assigns m8, bsg, gf, hg;
 */
-while (1) {
-      if (!(wkz > cz1 && (o > k || l > k || e9 > k))) {
-          break;
-      }
-      wkz = wkz-((o>k)+(l>k)+(e9>k));
-      l += l;
-      o = o + 3;
-      e9 += l;
+while (m8 < ed3m) {
+      m8 = m8 + 1;
+      bsg = bsg * b;
+      gf = gf * b;
+      hg = hg + m8;
   }
 }

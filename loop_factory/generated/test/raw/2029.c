@@ -1,17 +1,21 @@
 int main1(){
-  int b0, fd, t8, yk1, th7;
+  int hor, r08, ub, xz, e1z, v1v;
 
-  b0=10;
-  fd=0;
-  t8=0;
-  yk1=4;
-  th7=fd;
+  hor=63;
+  r08=hor;
+  ub=0;
+  xz=0;
+  e1z=4;
+  v1v=r08;
 
-  while (fd < b0) {
-      t8 = 1 - t8;
-      fd++;
-      th7 += t8;
-      yk1 = yk1*yk1+yk1;
+  while (1) {
+      if (!(ub<hor&&e1z>0)) {
+          break;
+      }
+      ub += 1;
+      xz += e1z;
+      e1z = e1z - 1;
+      v1v += xz;
   }
 
 }

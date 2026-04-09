@@ -1,27 +1,23 @@
 int main1(){
-  int h, emy, t3, h3, xs;
-  h=1;
-  emy=0;
-  t3=0;
-  h3=0;
-  xs=0;
+  int w9, mmz1, ctct, w4r, g8;
+  w9=1;
+  mmz1=1;
+  ctct=0;
+  w4r=-4;
+  g8=w9;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= emy;
-  loop invariant emy <= h;
-  loop invariant h3 == emy * h;
-  loop invariant t3 == h * emy * (emy + 1);
-  loop invariant xs == ((emy*(emy - 1)/2) * (emy*(emy - 1)/2));
-  loop invariant (4 * xs) == ((emy * (emy - 1)) * (emy * (emy - 1)));
-  loop assigns xs, emy, h3, t3;
+  loop invariant mmz1 >= 1;
+  loop invariant (g8 == 1 + ctct * w9);
+  loop invariant (w4r == -4 + 2 * ctct + w9 * ctct * (ctct + 1));
+  loop invariant mmz1 == (1 << ctct);
+  loop invariant w9 == 1;
+  loop assigns ctct, mmz1, g8, w4r;
 */
-while (1) {
-      if (!(emy < h)) {
-          break;
-      }
-      xs = xs + emy*emy*emy;
-      emy++;
-      h3 += h;
-      t3 = t3+h3+h3;
+while (mmz1<w9) {
+      ctct++;
+      mmz1 = 2*mmz1;
+      g8 += w9;
+      w4r = w4r+g8+g8;
   }
 }

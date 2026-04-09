@@ -1,21 +1,29 @@
 int main1(){
-  int cqq, k, h, bn;
-  cqq=1;
-  k=0;
-  h=k;
-  bn=12;
+  int v2, j3k, el4s, el, av;
+  v2=1+9;
+  j3k=1;
+  el4s=0;
+  el=0;
+  av=8;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant bn + h == 12;
-  loop invariant h == k;
-  loop invariant bn + k == 12;
-  loop invariant cqq == 1;
-  loop invariant (0 <= k && k <= cqq);
-  loop assigns bn, k, h;
+  loop invariant 1 <= j3k;
+  loop invariant j3k <= v2;
+  loop invariant (el == 0) || (el == 4);
+  loop invariant el4s >= 0;
+  loop invariant el4s <= av;
+  loop invariant (j3k == 1) || (j3k == v2);
+  loop invariant (j3k < v2) ==> (el == 0 && el4s == 0);
+  loop invariant (el4s == 0) || (el4s == av);
+  loop invariant (j3k < v2) <==> (el == 0);
+  loop assigns el4s, el, j3k;
 */
-while (k < cqq) {
-      bn -= 1;
-      k += 1;
-      h += 1;
+while (1) {
+      if (!(j3k < v2)) {
+          break;
+      }
+      el4s = el4s + av / (j3k++);
+      el += 4;
+      j3k = v2;
   }
 }

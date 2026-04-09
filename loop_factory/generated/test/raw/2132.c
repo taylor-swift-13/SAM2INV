@@ -1,20 +1,19 @@
-int main1(int f){
-  int grzc, gyc, h0, we, la;
+int main1(int v){
+  int i6e, i4, mb, x;
 
-  grzc=52;
-  gyc=0;
-  h0=gyc;
-  we=gyc;
-  la=grzc;
+  i6e=v;
+  i4=0;
+  mb=v;
+  x=v;
 
   while (1) {
-      if (!(gyc < grzc)) {
+      if (!(i4 < i6e)) {
           break;
       }
-      gyc += 1;
-      h0 = h0 + 2*(gyc % 2 == 0) - 1;
-      la += grzc;
-      we = (we + 2*(gyc % 3 == 0))+(-(1));
+      mb = mb + 1;
+      v++;
+      x += 2;
+      i4++;
   }
 
 }

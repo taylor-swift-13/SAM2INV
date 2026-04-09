@@ -1,22 +1,25 @@
-int main1(){
-  int kuy, jq2, y0c, oh;
-  kuy=1+21;
-  jq2=0;
-  y0c=jq2;
-  oh=0;
+int main1(int q){
+  int pv, ho, lg7, x;
+  pv=34;
+  ho=0;
+  lg7=-4;
+  x=pv;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant oh == y0c;
-  loop invariant 0 <= jq2;
-  loop invariant jq2 <= kuy;
-  loop invariant 0 <= oh;
-  loop invariant oh <= jq2;
-  loop invariant kuy == 1 + 21;
-  loop assigns jq2, oh, y0c;
+  loop invariant 0 <= ho;
+  loop invariant ho <= pv;
+  loop invariant lg7 == -4;
+  loop invariant ( (x >= pv) ==> (x - pv == ho) ) && ( (x <= pv) ==> (pv - x == ho) );
+  loop invariant pv == 34;
+  loop invariant (pv >= q) ==> (x - q == pv - q - ho);
+  loop invariant (pv <= q) ==> (x - q == pv - q + ho);
+  loop invariant ((\at(q,Pre) <= pv) ==> (\at(q,Pre) <= x && x <= pv)) &&
+                 ((pv <= \at(q,Pre)) ==> (pv <= x && x <= \at(q,Pre)));
+  loop assigns x, ho, lg7;
 */
-while (jq2 < kuy) {
-      jq2 = jq2 + 1 + ((kuy - jq2) / (oh + 2));
-      oh += 1;
-      y0c++;
+while (ho < pv && x != q) {
+      x = x + (x < q ? 1 : -1);
+      ho += 1;
+      lg7 = lg7+x-x;
   }
 }

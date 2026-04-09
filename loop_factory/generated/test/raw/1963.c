@@ -1,18 +1,16 @@
-int main1(){
-  int tj4, a, pbso, oij;
+int main1(int s){
+  int p, evdq, mi, btv, w;
 
-  tj4=(1%10)+20;
-  a=0;
-  pbso=0;
-  oij=0;
+  p=(s%15)+17;
+  evdq=p;
+  mi=s;
+  btv=s;
+  w=s;
 
-  while (1) {
-      if (!(a < tj4)) {
-          break;
-      }
-      pbso = pbso + oij * ++a;
-      oij += tj4;
-      a = tj4;
+  while (evdq > 0) {
+      evdq = (mi = mi>0 ? mi-1 : 0, btv = btv>0 ? btv-1 : 0, w = w>0 ? w-1 : 0, evdq-1);
+      mi = mi + 3;
+      w += mi;
   }
 
 }

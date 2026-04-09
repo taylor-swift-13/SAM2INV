@@ -1,23 +1,29 @@
 int main1(){
-  int h, e34, y1rg, ovw;
-  h=(1%18)+5;
-  e34=0;
-  y1rg=0;
-  ovw=1;
+  int uv, jz, l70, eb92, eu;
+  uv=1+16;
+  jz=0;
+  l70=-5;
+  eb92=jz;
+  eu=jz;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant ovw == 1;
-  loop invariant h == (1 % 18) + 5;
-  loop invariant (0 <= e34 && e34 <= h);
-  loop invariant (0 <= y1rg && y1rg <= h);
-  loop invariant y1rg <= (e34 * ovw);
-  loop assigns e34, ovw, y1rg;
+  loop invariant ((jz == 0) && (l70 == -5) && (eb92 == 0) && (eu == 0))
+                   || ((jz == uv) && (l70 == 4) && (eb92 == 4) && (eu == 4));
+  loop invariant (jz == 0) ==> (l70 == -5 && eb92 == 0 && eu == 0);
+  loop invariant 0 <= jz;
+  loop invariant jz <= uv;
+  loop invariant eu >= eb92;
+  loop invariant eb92 >= 0;
+  loop invariant (jz == 0 && eu == 0 && eb92 == 0 && l70 == -5)
+                   || (jz == uv && l70 == (-5 + 9) && eb92 == l70 && eu == eb92);
+  loop invariant (jz == 0 && l70 == -5 && eb92 == 0 && eu == 0)
+                   || (jz == uv && l70 == 4 && eb92 == 4 && eu == 4);
+  loop assigns l70, eb92, eu, jz;
 */
-while (e34 < h) {
-      if (!(!(y1rg + ovw <= h))) {
-          y1rg += ovw;
-      }
-      e34 = e34 + 1;
-      ovw = ovw+y1rg-y1rg;
+while (jz<=uv-1) {
+      l70 = l70 + 9;
+      eb92 = eb92 + l70;
+      eu += eb92;
+      jz = uv;
   }
 }

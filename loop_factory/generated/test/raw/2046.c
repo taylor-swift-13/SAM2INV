@@ -1,20 +1,17 @@
-int main1(){
-  int w, td4, rmt, xr, qfq;
+int main1(int z){
+  int nr, b55, f4, ir, xbx2;
 
-  w=29;
-  td4=0;
-  rmt=1;
-  xr=0;
-  qfq=0;
+  nr=91;
+  b55=0;
+  f4=0;
+  ir=0;
+  xbx2=0;
 
-  while (1) {
-      if (!(td4 < w)) {
-          break;
-      }
-      rmt = rmt * xr;
-      qfq = qfq + rmt;
-      xr = xr + w;
-      td4++;
+  while (b55 < nr) {
+      ir = ir + b55 * z;
+      xbx2 = xbx2 + b55 * b55 * z;
+      f4 += z;
+      b55 = b55 + 1;
   }
 
 }

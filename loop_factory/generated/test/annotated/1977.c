@@ -1,23 +1,27 @@
-int main1(){
-  int l, k3u5, f6, f, fx;
-  l=29;
-  k3u5=0;
-  f6=k3u5;
-  f=k3u5;
-  fx=l;
+int main1(int j){
+  int uc1, uu, afe;
+  uc1=14;
+  uu=0;
+  afe=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (0 <= k3u5);
-  loop invariant (k3u5 <= l);
-  loop invariant (fx == l);
-  loop invariant (f6 == (fx * k3u5));
-  loop invariant (f == (k3u5 * (l + 1)));
-  loop assigns k3u5, f6, f;
+  loop invariant uu <= 19;
+  loop invariant 0 <= afe;
+  loop invariant afe <= uu;
+  loop invariant uc1 == 14 + 32*uu - 36*afe;
+  loop assigns uc1, afe, uu;
 */
-while (k3u5 < l) {
-      k3u5++;
-      f6 += fx;
-      f += l;
-      f = f + 1;
+while (1) {
+      if (!(uu<=18)) {
+          break;
+      }
+      if (!(uc1>=0)) {
+          uc1 = uc1+-4;
+          afe = afe + 1;
+      }
+      else {
+          uc1 = uc1 + 32;
+      }
+      uu = uu + 1;
   }
 }

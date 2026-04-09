@@ -1,20 +1,18 @@
-int main1(int i){
-  int now, o9ae, j59, inu, qvw;
+int main1(){
+  int hw, l, ugh, sik, hz, en;
 
-  now=i;
-  o9ae=0;
-  j59=1;
-  inu=5;
-  qvw=o9ae;
+  hw=1-5;
+  l=0;
+  ugh=10;
+  sik=hw;
+  hz=l;
+  en=l;
 
-  while (1) {
-      if (!(o9ae < i && j59 < now)) {
-          break;
-      }
-      o9ae = o9ae + 1;
-      j59 = j59 * 2;
-      qvw += o9ae;
-      inu = inu*inu+inu;
+  while (l < hw) {
+      ugh = ugh+(sik%4);
+      hz = hz+(en%9);
+      l = l + 1;
+      en = en + 3;
   }
 
 }

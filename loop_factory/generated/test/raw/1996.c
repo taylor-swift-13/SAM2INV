@@ -1,15 +1,17 @@
-int main1(){
-  int ck, dtm, a, cerh;
+int main1(int m){
+  int b, z9, zm5, ihli, bdj;
 
-  ck=1+22;
-  dtm=0;
-  a=1;
-  cerh=3;
+  b=m+6;
+  z9=0;
+  zm5=-m;
+  ihli=b;
+  bdj=0;
 
-  while (dtm < ck) {
-      a = (dtm += 1, a *= 2, a);
-      cerh = cerh*3+(a%3)+1;
-      dtm = ck;
+  while (z9 < b && zm5 < 0) {
+      ihli += 1;
+      z9 += 1;
+      zm5 += 1;
+      bdj += zm5;
   }
 
 }

@@ -1,16 +1,18 @@
-int main1(){
-  int d, atb, n, pnb, v;
+int main1(int j){
+  int p78, qy, r1d0, ie;
 
-  d=(1%6)+18;
-  atb=0;
-  n=0;
-  pnb=0;
-  v=0;
+  p78=60;
+  qy=0;
+  r1d0=0;
+  ie=2;
 
-  while (atb < d) {
-      v = (n = (pnb = (atb = atb + 1)));
-      pnb += pnb;
-      atb = d;
+  while (1) {
+      if (!(qy < p78)) {
+          break;
+      }
+      qy = qy + 1;
+      r1d0 -= ie;
+      j = j+r1d0-r1d0;
   }
 
 }

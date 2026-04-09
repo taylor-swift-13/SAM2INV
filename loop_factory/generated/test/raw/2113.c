@@ -1,15 +1,14 @@
-int main1(){
-  int xa, u, ms5, nel;
+int main1(int c){
+  int vo, j, s;
 
-  xa=xa;
-  u=0;
-  ms5=xa;
-  nel=8;
+  vo=(c%32)+13;
+  j=0;
+  s=-8;
 
-  while (u > 0) {
-      ms5 = ms5 + ms5;
-      u--;
-      nel = nel + nel;
+  while (j < vo) {
+      c = c + s;
+      j++;
+      s = s + 3;
   }
 
 }

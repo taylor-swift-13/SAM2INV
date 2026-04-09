@@ -1,17 +1,16 @@
 int main1(int e){
-  int v1q, h6d, q2bn, k44y, c6oa;
+  int u8, sg5, ln5, dr;
 
-  v1q=e*2;
-  h6d=0;
-  q2bn=e;
-  k44y=v1q;
-  c6oa=v1q;
+  u8=31;
+  sg5=0;
+  ln5=e;
+  dr=e;
 
-  while (v1q > 0 && h6d < v1q) {
-      h6d = h6d + 1;
-      c6oa = h6d % v1q;
-      q2bn = h6d / v1q;
-      k44y = q2bn;
+  while (sg5 < u8) {
+      ln5 -= 1;
+      sg5++;
+      dr++;
+      e = e + ln5;
   }
 
 }

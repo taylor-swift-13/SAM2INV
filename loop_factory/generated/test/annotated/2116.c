@@ -1,24 +1,22 @@
-int main1(int a){
-  int a7, q, wj, fh, f;
-  a7=a+21;
-  q=0;
-  wj=1;
-  fh=0;
-  f=-3;
+int main1(int l){
+  int o0i, p87, u3, f, n;
+  o0i=22;
+  p87=0;
+  u3=p87;
+  f=0;
+  n=o0i;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (wj + fh == 1);
-  loop invariant (q == 0 || q == a7);
-  loop invariant (f == -3 || (1 <= f && f <= a7));
-  loop invariant a7 == \at(a, Pre) + 21;
-  loop invariant ((q == 0 && f == -3) || (q == a7 && f == 1));
-  loop invariant a7 == a + 21;
-  loop invariant (q >= 0) && (q == 0 || q <= a7);
-  loop assigns f, wj, fh, q;
+  loop invariant (n == o0i + p87);
+  loop invariant ((f == 0) || (f == 1));
+  loop invariant (0 <= p87);
+  loop invariant (2*o0i - (2*p87 + (1 - f)) >= 0);
+  loop invariant u3 == o0i*(2*p87 - f) + p87*(p87 - f);
+  loop assigns u3, p87, f, n;
 */
-while (q < a7) {
-      f = (wj += (q < a7/2 ? a : -a), fh -= (q < a7/2 ? a : -a), ++q);
-      wj = wj+f-f;
-      q = a7;
+while (p87 < o0i) {
+      u3 += n;
+      p87 = p87 + (f ^= 1);
+      n += f;
   }
 }

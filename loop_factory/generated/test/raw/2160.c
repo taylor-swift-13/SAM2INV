@@ -1,21 +1,16 @@
-int main1(){
-  int s0, vw, n1u, z4, soq, xul;
+int main1(int p){
+  int mq, x, wm, rx;
 
-  s0=(1%32)+20;
-  vw=0;
-  n1u=s0;
-  z4=3;
-  soq=s0;
-  xul=0;
+  mq=p+25;
+  x=0;
+  wm=p;
+  rx=p;
 
-  while (1) {
-      if (!(vw < s0)) {
-          break;
-      }
-      vw = vw + 1;
-      z4 = z4*4+(z4%5)+1;
-      n1u = n1u*2+(soq%2)+1;
-      xul = xul + 3;
+  while (x < mq) {
+      rx = rx + p < mq ? rx + p : mq;
+      x = x + 1;
+      wm = wm + p < mq ? wm + p : mq;
+      p += x;
   }
 
 }

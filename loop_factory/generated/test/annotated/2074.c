@@ -1,29 +1,21 @@
-int main1(int x){
-  int jh0, itu, ue, zygf;
-  jh0=x*5;
-  itu=0;
-  ue=2;
-  zygf=itu;
+int main1(){
+  int ji, b3, o8, w73;
+  ji=1;
+  b3=ji + 10;
+  o8=ji + 20;
+  w73=ji + 30;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant jh0 == x * 5;
-  loop invariant (itu == 0 ==> ue == 2) && (itu > 0 ==> ue == jh0 - itu);
-  loop invariant (itu == 0 ==> zygf == 0) && (itu > 0 ==> zygf == x - itu);
-  loop invariant itu >= 0;
-  loop invariant ((itu == 0 && ue == 2 && zygf == 0) ||
-                    (1 <= itu && itu <= jh0 && ue == jh0 - itu && zygf == x - itu));
-  loop invariant (itu == 0 || itu <= jh0);
-  loop invariant jh0 == 5 * \at(x, Pre);
-  loop invariant (itu == 0 && ue == 2 && zygf == 0)
-                   || (itu > 0 && (ue + itu) == jh0 && zygf == (\at(x, Pre) - itu));
-  loop assigns itu, zygf, ue;
+  loop invariant ji == 1;
+  loop invariant ji <= b3;
+  loop invariant b3 <= ji + 10;
+  loop invariant o8 == (2 * b3) - ji;
+  loop invariant w73 == (3 * b3) - (2 * ji);
+  loop assigns b3, o8, w73;
 */
-while (1) {
-      if (!(itu < jh0)) {
-          break;
-      }
-      itu += 1;
-      zygf = (x)+(-(itu));
-      ue = jh0-itu;
+while (b3 > ji) {
+      o8 -= 2;
+      b3 = b3 - 1;
+      w73 = w73 - 3;
   }
 }

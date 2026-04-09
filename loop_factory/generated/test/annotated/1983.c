@@ -1,23 +1,29 @@
-int main1(int x){
-  int w6, gh, t22s;
-  w6=x;
-  gh=0;
-  t22s=0;
+int main1(int q){
+  int vqss, ynmp, fu, itd2, m6;
+  vqss=76;
+  ynmp=0;
+  fu=0;
+  itd2=0;
+  m6=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant t22s == (gh % 2);
-  loop invariant w6 == \at(x, Pre);
-  loop invariant (gh == 0) ==> (x == \at(x, Pre));
-  loop invariant (gh >= 1) ==> (x == 0);
-  loop invariant 0 <= gh;
-  loop invariant (w6 >= 0) ==> (gh <= w6);
-  loop invariant (gh == 0 ==> x == \at(x, Pre)) && (gh > 0 ==> x == 0);
-  loop assigns gh, t22s, x;
+  loop invariant (ynmp == 0) || (ynmp == vqss);
+  loop invariant (ynmp != vqss) ==> (fu == 0 && itd2 == 0 && m6 == 0);
+  loop invariant (ynmp == vqss) ==> (m6 == itd2);
+  loop invariant (ynmp == 0 && fu == 0 && itd2 == 0 && m6 == 0)
+                   || (ynmp == vqss && fu == q + 1 && itd2 == q && m6 == q);
+  loop invariant ( (ynmp == 0 && fu == 0 && itd2 == 0 && m6 == 0)
+                  || (ynmp == vqss && fu == q + 1 && itd2 == q && m6 == q) );
+  loop invariant vqss == 76;
+  loop assigns fu, itd2, m6, ynmp;
 */
-while (gh < w6) {
-      gh = gh + 1;
-      t22s = 1 - t22s;
-      x = x+(gh%2);
-      x -= x;
+while (1) {
+      if (!(ynmp < vqss)) {
+          break;
+      }
+      itd2 = itd2 + (fu += q, ynmp++, fu);
+      fu = fu + 1;
+      m6 = m6 + itd2;
+      ynmp = vqss;
   }
 }

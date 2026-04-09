@@ -1,18 +1,17 @@
-int main1(int z){
-  int npb9, to, w, u2, i8, e06;
+int main1(){
+  int f6o, yzv, q01, v46p, eu3s;
 
-  npb9=79;
-  to=0;
-  w=0;
-  u2=0;
-  i8=z;
-  e06=0;
+  f6o=1*2;
+  yzv=0;
+  q01=0;
+  v46p=0;
+  eu3s=yzv;
 
-  while (to++ < npb9) {
-      w = w - e06 + z;
-      i8 += 2;
-      u2 += 1;
-      npb9 = to++;
+  while (yzv < f6o * f6o) {
+      q01 = yzv / f6o;
+      v46p = yzv - q01 * f6o;
+      yzv++;
+      eu3s = eu3s + f6o;
   }
 
 }

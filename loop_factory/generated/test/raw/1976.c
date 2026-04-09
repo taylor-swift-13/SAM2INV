@@ -1,15 +1,17 @@
 int main1(){
-  int v, d, n, x07;
+  int l, k3u5, f6, f, fx;
 
-  v=145;
-  d=v;
-  n=-3;
-  x07=-2;
+  l=29;
+  k3u5=0;
+  f6=k3u5;
+  f=k3u5;
+  fx=l;
 
-  while (d > 0) {
-      n = (3)+(n);
-      d = d/2;
-      x07 = x07*2+(n%3)+2;
+  while (k3u5 < l) {
+      k3u5++;
+      f6 += fx;
+      f += l;
+      f = f + 1;
   }
 
 }

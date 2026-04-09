@@ -1,17 +1,15 @@
-int main1(int y){
-  int yi, x, ifp, xj8g;
+int main1(){
+  int v, d, n, x07;
 
-  yi=y+10;
-  x=0;
-  ifp=y*yi;
-  xj8g=0;
+  v=145;
+  d=v;
+  n=-3;
+  x07=-2;
 
-  while (1) {
-      if (!((xj8g += y, x++ < yi))) {
-          break;
-      }
-      ifp = ifp - y;
-      yi = xj8g += y, x++;
+  while (d > 0) {
+      n = (3)+(n);
+      d = d/2;
+      x07 = x07*2+(n%3)+2;
   }
 
 }

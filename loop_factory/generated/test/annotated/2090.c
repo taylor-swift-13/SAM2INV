@@ -1,27 +1,26 @@
-int main1(int j){
-  int dba, jz, ke, p, aus7;
-  dba=j-10;
-  jz=j;
-  ke=0;
-  p=jz;
-  aus7=dba;
+int main1(){
+  int d, atb, n, pnb, v;
+  d=(1%6)+18;
+  atb=0;
+  n=0;
+  pnb=0;
+  v=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant j == \at(j,Pre) + (jz - \at(j,Pre)) * \at(j,Pre)
-                            + ((jz - \at(j,Pre)) * (jz - \at(j,Pre) + 1)) / 2;
-  loop invariant dba == \at(j,Pre) - 10;
-  loop invariant p == \at(j,Pre);
-  loop invariant aus7 == dba;
-  loop invariant j - (jz*(jz + 1))/2 == (\at(j, Pre) - (\at(j, Pre) * (\at(j, Pre) + 1))/2);
-  loop invariant jz >= \at(j, Pre);
-  loop invariant ke == 0;
-  loop invariant 2 * (j - \at(j,Pre)) == 2 * ( (jz - \at(j,Pre)) * \at(j,Pre) ) + ( (jz - \at(j,Pre)) * ( (jz - \at(j,Pre)) + 1 ) );
-  loop invariant 2 * j == ((jz - \at(j,Pre) + 1) * (\at(j,Pre) + jz));
-  loop invariant j >= \at(j,Pre);
-  loop assigns j, jz;
+  loop invariant 0 <= atb;
+  loop invariant atb <= d;
+  loop invariant 0 <= n;
+  loop invariant n <= d;
+  loop invariant 0 <= pnb;
+  loop invariant pnb <= 2 * d;
+  loop invariant ((atb == 0 && n == 0 && pnb == 0 && v == 0)
+                    || (atb == d && 1 <= n && n <= d && pnb == 2 * n && v == n));
+  loop invariant v == n;
+  loop assigns atb, pnb, n, v;
 */
-while (jz < dba && ke >= jz && p >= jz && aus7 >= jz) {
-      jz = jz + 1;
-      j += jz;
+while (atb < d) {
+      v = (n = (pnb = (atb = atb + 1)));
+      pnb += pnb;
+      atb = d;
   }
 }

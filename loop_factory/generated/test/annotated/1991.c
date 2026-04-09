@@ -1,22 +1,23 @@
-int main1(int q){
-  int gpi, ls, g, vl;
-  gpi=q;
-  ls=0;
-  g=5;
-  vl=q*2;
+int main1(int t){
+  int q, atz, tk, l9;
+  q=t*5;
+  atz=0;
+  tk=13;
+  l9=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant vl - g == (2 * \at(q, Pre) - 5);
-  loop invariant gpi == \at(q, Pre);
-  loop invariant (gpi >= 0 ==> ls <= gpi);
-  loop invariant ls >= 0;
-  loop invariant q >= \at(q,Pre);
-  loop assigns g, ls, vl, q;
+  loop invariant tk == 13 + 3*atz;
+  loop invariant l9 == 1 + 3*atz;
+  loop invariant t + 12*atz == \at(t,Pre);
+  loop invariant q == \at(t,Pre) * 5;
+  loop invariant atz >= 0;
+  loop invariant (q >= 0) ==> (atz <= q);
+  loop assigns tk, atz, l9, t;
 */
-while (ls < gpi) {
-      g = g + q;
-      ls++;
-      vl = vl + q;
-      q = q + ls;
+while (atz < q) {
+      tk = tk + 3;
+      atz += 1;
+      l9 = l9 + 3;
+      t = t+l9-tk;
   }
 }

@@ -1,19 +1,19 @@
-int main1(int z){
-  int v, x, n, ah5s, ao;
+int main1(int c){
+  int f, iq2, agy, u, w676;
 
-  v=53;
-  x=0;
-  n=z;
-  ah5s=-8;
-  ao=-5;
+  f=c;
+  iq2=0;
+  agy=0;
+  u=f;
+  w676=0;
 
-  while (x<=v-1) {
-      if (!(!(x>=v/2))) {
-          n += 2;
+  while (agy<=f-1) {
+      if (w676<f) {
+          u = agy;
       }
-      ah5s += n;
-      x = x + 1;
-      ao += x;
+      agy = agy + 1;
+      w676 = w676 + 1;
+      c += iq2;
   }
 
 }

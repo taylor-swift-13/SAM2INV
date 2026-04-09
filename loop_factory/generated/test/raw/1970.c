@@ -1,18 +1,15 @@
-int main1(int q){
-  int s, gnwb, tx, cra;
+int main1(int d){
+  int fe, f0, nr5, w;
 
-  s=q;
-  gnwb=0;
-  tx=0;
-  cra=q;
+  fe=38;
+  f0=0;
+  nr5=f0;
+  w=0;
 
-  while (1) {
-      if (!(gnwb < s)) {
-          break;
-      }
-      tx = tx + 2*gnwb + 1;
-      cra += tx;
-      gnwb++;
+  while (f0 < fe) {
+      f0 = f0 + 1;
+      w = w + d * (f0 >= fe);
+      nr5 = nr5 + d * (f0 >= fe);
   }
 
 }

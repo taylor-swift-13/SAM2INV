@@ -1,20 +1,21 @@
-int main1(int d){
-  int ax6n, f7zu, r, cqc8, cv;
+int main1(){
+  int gl, y0, ix8y, v, zyx, e;
 
-  ax6n=(d%23)+10;
-  f7zu=0;
-  r=0;
-  cqc8=0;
-  cv=ax6n;
+  gl=1+25;
+  y0=gl+3;
+  ix8y=y0;
+  v=gl;
+  zyx=3;
+  e=0;
 
   while (1) {
-      if (!(f7zu < ax6n)) {
+      if (e>gl) {
           break;
       }
-      r += d;
-      f7zu = f7zu + 1;
-      cqc8 += r;
-      cv = cv+(cqc8%3);
+      ix8y += v;
+      v = (zyx)+(v);
+      e += 1;
+      zyx += 6;
   }
 
 }

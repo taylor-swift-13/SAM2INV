@@ -1,15 +1,15 @@
 int main1(){
-  int khn, y, ch, m6;
+  int cqq, k, h, bn;
 
-  khn=(1%38)+11;
-  y=0;
-  ch=0;
-  m6=-2;
+  cqq=1;
+  k=0;
+  h=k;
+  bn=12;
 
-  while (y < khn) {
-      y++;
-      ch = ch + m6;
-      m6 = m6 + ch;
+  while (k < cqq) {
+      bn -= 1;
+      k += 1;
+      h += 1;
   }
 
 }

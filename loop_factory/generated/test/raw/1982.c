@@ -1,17 +1,15 @@
-int main1(int c){
-  int cl, ek, fg, j, zq2;
+int main1(int x){
+  int w6, gh, t22s;
 
-  cl=38;
-  ek=0;
-  fg=0;
-  j=0;
-  zq2=0;
+  w6=x;
+  gh=0;
+  t22s=0;
 
-  while (ek < cl) {
-      fg = fg + c;
-      zq2 = zq2 + fg*fg;
-      j = j + fg;
-      ek = cl;
+  while (gh < w6) {
+      gh = gh + 1;
+      t22s = 1 - t22s;
+      x = x+(gh%2);
+      x -= x;
   }
 
 }

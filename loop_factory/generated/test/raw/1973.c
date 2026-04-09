@@ -1,18 +1,19 @@
-int main1(int v){
-  int ka, w, z, gsx;
+int main1(){
+  int lgbd, e, uu5, rew, w6;
 
-  ka=53;
-  w=0;
-  z=w;
-  gsx=v;
+  lgbd=(1%18)+20;
+  e=0;
+  uu5=e;
+  rew=-2;
+  w6=lgbd;
 
   while (1) {
-      if (!(w < ka)) {
+      if (!(e < lgbd)) {
           break;
       }
-      z += 1;
-      v += gsx;
-      w += 1;
+      rew = rew + uu5;
+      e += 1;
+      w6 += rew;
   }
 
 }

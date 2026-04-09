@@ -1,24 +1,31 @@
 int main1(){
-  int niho, e1h, z, q;
-  niho=1;
-  e1h=0;
-  z=niho;
-  q=e1h;
+  int rr, dm, x2vq, fwq;
+  rr=1+22;
+  dm=0;
+  x2vq=dm;
+  fwq=2;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant q == e1h * niho;
-  loop invariant z == 1 - (e1h % 2);
-  loop invariant 0 <= e1h;
-  loop invariant e1h <= niho;
-  loop invariant z == (niho + e1h) % 2;
-  loop assigns q, z, e1h;
+  loop invariant (rr == dm) || (rr == 1+22);
+  loop invariant dm == 0;
+  loop invariant fwq == 2;
+  loop invariant 0 <= x2vq;
+  loop invariant x2vq <= 1+22;
+  loop invariant (rr == dm) || (rr >= (dm + 1));
+  loop invariant x2vq >= dm;
+  loop assigns x2vq, fwq, rr;
 */
 while (1) {
-      if (!(e1h < niho)) {
+      if (!(dm+1<=rr)) {
           break;
       }
-      q += niho;
-      z = 1-z;
-      e1h += 1;
+      if (x2vq+3<=rr) {
+          x2vq = x2vq + 3;
+      }
+      else {
+          x2vq = rr;
+      }
+      fwq = fwq + dm;
+      rr = (dm+1)-1;
   }
 }

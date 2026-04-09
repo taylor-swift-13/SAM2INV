@@ -1,23 +1,19 @@
 int main1(){
-  int oz7, d, imo, s6, u;
-  oz7=1;
-  d=0;
-  imo=1*4;
-  s6=0;
-  u=d;
+  int t7, x, o8, r1o;
+  t7=1-8;
+  x=0;
+  o8=0;
+  r1o=x;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant oz7 == 1;
-  loop invariant u == 0;
-  loop invariant 0 <= d;
-  loop invariant d <= oz7;
-  loop invariant imo == 4 + (oz7 * d);
-  loop invariant 2 * s6 == (u * d * (d - 1));
-  loop assigns d, s6, imo;
+  loop invariant r1o == 0;
+  loop invariant o8 == 0;
+  loop invariant x >= 0;
+  loop invariant (t7 == x - 1) || ((t7 == 1 - 8) && (x == 0));
+  loop assigns x, t7, o8;
 */
-while (d < oz7) {
-      s6 = (u * d)+(s6);
-      d++;
-      imo += oz7;
+while (x++ < t7) {
+      o8 += r1o;
+      t7 = x++;
   }
 }

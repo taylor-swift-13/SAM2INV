@@ -1,17 +1,16 @@
-int main1(){
-  int ijg9, wx, rc6, qa, xe6;
+int main1(int h){
+  int q, w1r7, b1, wl;
 
-  ijg9=1+17;
-  wx=0;
-  rc6=1;
-  qa=0;
-  xe6=0;
+  q=h;
+  w1r7=0;
+  b1=0;
+  wl=0;
 
-  while (wx < ijg9) {
-      wx = wx + (ijg9 - wx + rc6 - 1) / rc6;
-      rc6 = rc6 + 1;
-      xe6 = xe6 + rc6;
-      qa = qa + 1;
+  while (w1r7<q) {
+      wl += 2;
+      b1 += 2;
+      w1r7 += 2;
+      h = h + w1r7;
   }
 
 }

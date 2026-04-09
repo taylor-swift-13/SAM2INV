@@ -1,19 +1,20 @@
-int main1(int p){
-  int yk4, ked, ap, uj;
-  yk4=9;
-  ked=0;
-  ap=0;
-  uj=0;
+int main1(int x){
+  int yd, avcw, z0e;
+  yd=x-8;
+  avcw=0;
+  z0e=avcw;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (ap == ked * p);
-  loop invariant (2 * uj == p * ked * (ked + 1));
-  loop invariant 0 <= ked <= yk4;
-  loop assigns ap, ked, uj;
+  loop invariant (z0e == 0);
+  loop invariant (avcw >= 0);
+  loop invariant x == \at(x, Pre) + 2*avcw;
+  loop invariant yd == \at(x, Pre) - 8;
+  loop invariant (avcw <= yd) || (avcw == 0);
+  loop assigns x, z0e, avcw;
 */
-while (ked < yk4) {
-      ap += p;
-      ked += 1;
-      uj = uj + ap;
+while (avcw < yd) {
+      x += 2;
+      z0e = z0e + z0e;
+      avcw++;
   }
 }

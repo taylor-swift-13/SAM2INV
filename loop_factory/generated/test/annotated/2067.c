@@ -1,26 +1,25 @@
 int main1(){
-  int z1z, x5, j, w7, c;
-  z1z=1;
-  x5=0;
-  j=-1;
-  w7=-3;
-  c=2;
+  int qefv, p, w6n, g6l, j2y4;
+  qefv=1;
+  p=qefv;
+  w6n=p;
+  g6l=p;
+  j2y4=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant w7 == -3 + c * x5;
-  loop invariant j == -1 - 3 * x5 + (c * x5 * (x5 - 1)) / 2;
-  loop invariant 0 <= x5;
-  loop invariant x5 <= z1z;
-  loop invariant j == (x5 * x5 - 4 * x5 - 1);
-  loop invariant w7 - c * x5 == -3;
-  loop invariant j == -1 + x5 * w7 - c * ((x5 * (x5 + 1)) / 2);
-  loop invariant c == 2;
-  loop invariant z1z == 1;
-  loop assigns j, x5, w7;
+  loop invariant j2y4 == 0;
+  loop invariant g6l == w6n;
+  loop invariant w6n == 1;
+  loop invariant qefv == 1;
+  loop invariant (1 <= p && p <= qefv);
+  loop assigns g6l, j2y4, p;
 */
-while (x5 < z1z) {
-      j += w7;
-      x5 += 1;
-      w7 = w7 + c;
+while (1) {
+      if (!(p < qefv)) {
+          break;
+      }
+      g6l = (g6l+g6l)+(-(w6n));
+      j2y4 = j2y4+j2y4-j2y4;
+      p++;
   }
 }

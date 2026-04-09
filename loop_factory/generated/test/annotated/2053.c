@@ -1,26 +1,22 @@
-int main1(int a){
-  int w4n, hg, eu, k, ufa;
-  w4n=55;
-  hg=0;
-  eu=0;
-  k=0;
-  ufa=0;
+int main1(int m){
+  int d, jn, nu, ar, dd;
+  d=m;
+  jn=0;
+  nu=0;
+  ar=0;
+  dd=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant k == hg;
-  loop invariant 0 <= hg;
-  loop invariant hg <= w4n;
-  loop invariant a == \at(a, Pre);
-  loop invariant -3 * hg <= eu;
-  loop invariant eu <= hg;
-  loop invariant -3 * hg * (hg + 1) / 2 <= ufa;
-  loop invariant ufa <= hg * (hg + 1) / 2;
-  loop assigns hg, eu, k, ufa;
+  loop invariant dd == 2 * jn + 1;
+  loop invariant ar == jn * jn;
+  loop invariant d == \at(m, Pre);
+  loop invariant (jn >= 0) && (0 <= nu && nu <= 2 * jn) && ((d >= 0) ==> (jn <= d));
+  loop assigns ar, dd, jn, nu;
 */
-while (hg < w4n) {
-      hg = hg + 1;
-      eu = eu + ((a + k) % 3 - 1);
-      k += 1;
-      ufa += eu;
+while (jn < d) {
+      ar += dd;
+      dd += 2;
+      jn = jn + 1;
+      nu = nu+(dd%3);
   }
 }

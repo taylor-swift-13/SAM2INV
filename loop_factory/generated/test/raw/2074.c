@@ -1,18 +1,15 @@
-int main1(int x){
-  int jh0, itu, ue, zygf;
+int main1(){
+  int ji, b3, o8, w73;
 
-  jh0=x*5;
-  itu=0;
-  ue=2;
-  zygf=itu;
+  ji=1;
+  b3=ji + 10;
+  o8=ji + 20;
+  w73=ji + 30;
 
-  while (1) {
-      if (!(itu < jh0)) {
-          break;
-      }
-      itu += 1;
-      zygf = (x)+(-(itu));
-      ue = jh0-itu;
+  while (b3 > ji) {
+      o8 -= 2;
+      b3 = b3 - 1;
+      w73 = w73 - 3;
   }
 
 }

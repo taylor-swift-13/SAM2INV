@@ -1,17 +1,18 @@
-int main1(int b){
-  int ed3m, m8, gf, bsg, hg;
+int main1(){
+  int zfj, mg7z, d0a, o, zkto, nh9;
 
-  ed3m=b*2;
-  m8=0;
-  gf=1;
-  bsg=1;
-  hg=ed3m;
+  zfj=1+3;
+  mg7z=0;
+  d0a=zfj;
+  o=mg7z;
+  zkto=13;
+  nh9=mg7z;
 
-  while (m8 < ed3m) {
-      m8 = m8 + 1;
-      bsg = bsg * b;
-      gf = gf * b;
-      hg = hg + m8;
+  while (mg7z < zfj) {
+      d0a = d0a * (1 + ((mg7z++) % 2) * (zkto - 1));
+      o += 4;
+      nh9 += 4;
+      mg7z = zfj;
   }
 
 }

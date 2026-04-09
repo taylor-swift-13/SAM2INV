@@ -1,31 +1,26 @@
-int main1(){
-  int rr, dm, x2vq, fwq;
-  rr=1+22;
-  dm=0;
-  x2vq=dm;
-  fwq=2;
+int main1(int f){
+  int grzc, gyc, h0, we, la;
+  grzc=52;
+  gyc=0;
+  h0=gyc;
+  we=gyc;
+  la=grzc;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (rr == dm) || (rr == 1+22);
-  loop invariant dm == 0;
-  loop invariant fwq == 2;
-  loop invariant 0 <= x2vq;
-  loop invariant x2vq <= 1+22;
-  loop invariant (rr == dm) || (rr >= (dm + 1));
-  loop invariant x2vq >= dm;
-  loop assigns x2vq, fwq, rr;
+  loop invariant (0 <= gyc && gyc <= grzc);
+  loop invariant (we == (-gyc + 2*(gyc/3)));
+  loop invariant la == grzc * (gyc + 1);
+  loop invariant h0 == - (gyc % 2);
+  loop invariant grzc == 52;
+  loop assigns gyc, h0, la, we;
 */
 while (1) {
-      if (!(dm+1<=rr)) {
+      if (!(gyc < grzc)) {
           break;
       }
-      if (x2vq+3<=rr) {
-          x2vq = x2vq + 3;
-      }
-      else {
-          x2vq = rr;
-      }
-      fwq = fwq + dm;
-      rr = (dm+1)-1;
+      gyc += 1;
+      h0 = h0 + 2*(gyc % 2 == 0) - 1;
+      la += grzc;
+      we = (we + 2*(gyc % 3 == 0))+(-(1));
   }
 }

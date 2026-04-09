@@ -1,22 +1,20 @@
 int main1(){
-  int rk, uz, b, baj;
-  rk=69;
-  uz=0;
-  b=rk;
-  baj=b;
+  int k, klq, za, rv;
+  k=1+5;
+  klq=3;
+  za=k - klq;
+  rv=klq;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= uz;
-  loop invariant uz <= rk;
-  loop invariant b == (rk + ((uz*(uz+1))/2));
-  loop invariant baj == b - uz;
-  loop assigns uz, b, baj;
+  loop invariant (klq == k) || (klq < k && za == k - klq && rv == klq);
+  loop invariant 0 <= klq;
+  loop invariant 0 <= za;
+  loop invariant za <= k;
+  loop assigns za, rv, klq;
 */
-while (uz < rk) {
-      uz += 1;
-      if (b != baj) {
-          baj = b;
-      }
-      b = b + uz;
+while (klq < k) {
+      za = (k)+(-((++klq)));
+      rv += klq;
+      klq = k;
   }
 }

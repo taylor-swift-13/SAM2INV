@@ -1,15 +1,18 @@
-int main1(int m){
-  int rgv, bo, ks0, d8er;
+int main1(int e){
+  int buhz, nc, t, sv;
 
-  rgv=m;
-  bo=0;
-  ks0=0;
-  d8er=1;
+  buhz=e+7;
+  nc=0;
+  t=0;
+  sv=0;
 
-  while (bo<rgv) {
-      ks0 = ks0 + d8er;
-      bo += 1;
-      d8er += 2;
+  while (1) {
+      if (!(nc < buhz)) {
+          break;
+      }
+      nc += 1;
+      sv = sv + e;
+      t = t + sv;
   }
 
 }

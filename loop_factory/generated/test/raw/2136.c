@@ -1,21 +1,13 @@
-int main1(int f){
-  int we7f, uk, je, w;
+int main1(){
+  int nn1, nd5z, swkr;
 
-  we7f=(f%32)+9;
-  uk=0;
-  je=we7f;
-  w=f;
+  nn1=1;
+  nd5z=0;
+  swkr=0;
 
-  while (1) {
-      if (!(uk < we7f)) {
-          break;
-      }
-      uk += 1;
-      if (je >= f) {
-          je -= f;
-          w += f;
-      }
-      f = f + we7f;
+  while (nd5z < nn1) {
+      swkr = swkr + ((nd5z++ * 2 < nn1) ? 1 : -1);
+      nd5z = nn1;
   }
 
 }

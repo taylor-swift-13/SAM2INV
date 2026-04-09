@@ -1,23 +1,29 @@
-int main1(int v){
-  int i, of2n, lgnc, vk;
-  i=v;
-  of2n=0;
-  lgnc=0;
-  vk=0;
+int main1(){
+  int b, i, x, oy1, jg, p;
+  b=15;
+  i=0;
+  x=i;
+  oy1=0;
+  jg=0;
+  p=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= of2n;
-  loop invariant v == i + ((of2n + 1) / 2);
-  loop invariant lgnc == of2n % 2;
-  loop invariant vk == of2n % 2;
-  loop invariant i == \at(v, Pre);
-  loop invariant (i >= 0) ==> (of2n <= i);
-  loop assigns of2n, lgnc, vk, v;
+  loop invariant 0 <= i;
+  loop invariant i <= b;
+  loop invariant jg == i;
+  loop invariant (i == 0) ==> (p == 1 && oy1 == 0 && jg == 0);
+  loop invariant x == 0;
+  loop invariant oy1 == 0;
+  loop invariant (i == 0 && p == 1) || (i > 0 && p == 0);
+  loop assigns i, jg, oy1, p;
 */
-while (of2n < i) {
-      of2n++;
-      vk = 1 - vk;
-      lgnc = 1 - lgnc;
-      v += lgnc;
+while (1) {
+      if (!(i < b)) {
+          break;
+      }
+      p = p * x;
+      jg = (1)+(i);
+      i = i + 1;
+      oy1 = oy1 + jg * p;
   }
 }

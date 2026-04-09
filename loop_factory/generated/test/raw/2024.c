@@ -1,20 +1,18 @@
 int main1(){
-  int jg, x3, d, tv, jc;
+  int k86, j, le, ct3, xq, g3a7;
 
-  jg=1;
-  x3=0;
-  d=0;
-  tv=x3;
-  jc=x3;
+  k86=(1%40)+16;
+  j=0;
+  le=j;
+  ct3=0;
+  xq=0;
+  g3a7=k86;
 
-  while (1) {
-      if (!(x3 < jg)) {
-          break;
-      }
-      d = d - jc;
-      tv = tv + jc;
-      x3 = x3 + 1;
-      jc += tv;
+  while (j < k86) {
+      ct3 = ct3 + le;
+      xq += g3a7;
+      j++;
+      g3a7 = g3a7+(xq%4);
   }
 
 }

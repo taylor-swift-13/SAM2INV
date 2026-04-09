@@ -1,15 +1,16 @@
-int main1(){
-  int c2e, ly, l, dqs;
+int main1(int v){
+  int l, h63d, xwn2, c4zl, jx;
 
-  c2e=(1%19)+16;
-  ly=0;
-  l=0;
-  dqs=0;
+  l=v+4;
+  h63d=0;
+  xwn2=l;
+  c4zl=1;
+  jx=l;
 
-  while (ly < c2e) {
-      ly++;
-      l = 1 - l;
-      dqs = (1)+(-(dqs));
+  while (h63d < l) {
+      jx++;
+      c4zl = c4zl + xwn2;
+      h63d = h63d + 1;
   }
 
 }

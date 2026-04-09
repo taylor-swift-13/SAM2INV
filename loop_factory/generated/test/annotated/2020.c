@@ -1,25 +1,23 @@
-int main1(int r){
-  int v1h, w3, ret, lt, dog;
-  v1h=(r%7)+17;
-  w3=0;
-  ret=0;
-  lt=0;
-  dog=0;
+int main1(){
+  int z1u, btt, wp3i, ks7, wl;
+  z1u=1+13;
+  btt=0;
+  wp3i=btt;
+  ks7=0;
+  wl=btt;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r == (\at(r, Pre) + dog * w3);
-  loop invariant ret == 3 * w3;
-  loop invariant lt == w3;
-  loop invariant 0 <= w3;
-  loop invariant w3 <= v1h;
-  loop invariant v1h == ((\at(r, Pre) % 7) + 17);
-  loop invariant (dog == 0);
-  loop assigns ret, r, w3, lt;
+  loop invariant wl == z1u * btt;
+  loop invariant ks7 == z1u * (((btt - 1) * btt * (2 * btt - 1)) / 6);
+  loop invariant wp3i == 0;
+  loop invariant 0 <= btt;
+  loop invariant btt <= z1u;
+  loop assigns ks7, wp3i, btt, wl;
 */
-while (w3 < v1h) {
-      ret = ret + 3;
-      r += dog;
-      w3 += 1;
-      lt += 1;
+while (btt < z1u) {
+      ks7 = ks7 + btt*wl;
+      wp3i = wp3i*2;
+      btt = btt + 1;
+      wl += z1u;
   }
 }

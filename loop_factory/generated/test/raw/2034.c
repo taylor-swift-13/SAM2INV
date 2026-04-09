@@ -1,17 +1,19 @@
-int main1(int v){
-  int b8, rq, p, hkyc, k4q;
+int main1(int q){
+  int yybl, a8zh, tc6, tm;
 
-  b8=116;
-  rq=-4;
-  p=5;
-  hkyc=0;
-  k4q=0;
+  yybl=q;
+  a8zh=1;
+  tc6=1;
+  tm=-8;
 
-  while (rq < b8) {
-      hkyc = (p = p + ((v>0)-(v<=0)), rq = rq + 1, hkyc + ((v>0)-(v<=0)));
-      k4q = k4q+(hkyc%9);
-      p = p + hkyc;
-      rq = b8;
+  while (1) {
+      if (!(yybl >= a8zh)) {
+          break;
+      }
+      yybl = yybl - a8zh;
+      tc6 = (2)+(tc6);
+      tm = tm + 3;
+      a8zh += 2;
   }
 
 }

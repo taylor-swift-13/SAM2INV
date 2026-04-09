@@ -1,29 +1,27 @@
-int main1(int i){
-  int now, o9ae, j59, inu, qvw;
-  now=i;
-  o9ae=0;
-  j59=1;
-  inu=5;
-  qvw=o9ae;
+int main1(){
+  int hw, l, ugh, sik, hz, en;
+  hw=1-5;
+  l=0;
+  ugh=10;
+  sik=hw;
+  hz=l;
+  en=l;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant qvw == o9ae * (o9ae + 1) / 2;
-  loop invariant o9ae >= 0;
-  loop invariant now == i;
-  loop invariant (i < 0) || (o9ae <= i);
-  loop invariant j59 >= 1;
-  loop invariant inu >= 5;
-  loop invariant now == \at(i, Pre);
-  loop invariant (\at(i, Pre) >= 0 ==> o9ae <= \at(i, Pre));
-  loop assigns o9ae, j59, qvw, inu;
+  loop invariant (en - 3 * l == 0);
+  loop invariant (sik == hw);
+  loop invariant (l >= 0);
+  loop invariant (0 <= en % 9 && en % 9 <= 6);
+  loop invariant (0 <= hz && hz <= 6 * l);
+  loop invariant ugh == 10 + (sik % 4) * l;
+  loop invariant (l % 3 == 0 || l % 3 == 1) ==> hz == 9 * (l / 3);
+  loop invariant (l % 3 == 2) ==> hz == 9 * (l / 3) + 3;
+  loop assigns ugh, hz, l, en;
 */
-while (1) {
-      if (!(o9ae < i && j59 < now)) {
-          break;
-      }
-      o9ae = o9ae + 1;
-      j59 = j59 * 2;
-      qvw += o9ae;
-      inu = inu*inu+inu;
+while (l < hw) {
+      ugh = ugh+(sik%4);
+      hz = hz+(en%9);
+      l = l + 1;
+      en = en + 3;
   }
 }

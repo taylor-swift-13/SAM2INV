@@ -1,16 +1,18 @@
-int main1(int l){
-  int o0i, p87, u3, f, n;
+int main1(){
+  int kj, xs, bfe, qa79;
 
-  o0i=22;
-  p87=0;
-  u3=p87;
-  f=0;
-  n=o0i;
+  kj=76;
+  xs=0;
+  bfe=-5;
+  qa79=xs;
 
-  while (p87 < o0i) {
-      u3 += n;
-      p87 = p87 + (f ^= 1);
-      n += f;
+  while (1) {
+      if (!(xs < kj)) {
+          break;
+      }
+      xs++;
+      bfe += qa79;
+      qa79 = qa79 + bfe;
   }
 
 }

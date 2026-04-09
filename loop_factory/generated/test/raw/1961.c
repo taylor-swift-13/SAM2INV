@@ -1,16 +1,15 @@
 int main1(){
-  int w, u4, b9, e6, b2;
+  int z, e7, pm, y9ty;
 
-  w=58;
-  u4=w;
-  b9=w;
-  e6=8;
-  b2=u4;
+  z=75;
+  e7=0;
+  pm=0;
+  y9ty=0;
 
-  while (u4*u4>w) {
-      b9 = (b9-b2)+(b9);
-      e6 += b2;
-      u4 = (u4+w/u4)/2;
+  while (e7<z) {
+      e7 = e7 + 1;
+      pm = 1-pm;
+      y9ty = y9ty + pm;
   }
 
 }

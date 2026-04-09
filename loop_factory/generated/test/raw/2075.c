@@ -1,15 +1,17 @@
 int main1(){
-  int ji, b3, o8, w73;
+  int rk, uz, b, baj;
 
-  ji=1;
-  b3=ji + 10;
-  o8=ji + 20;
-  w73=ji + 30;
+  rk=69;
+  uz=0;
+  b=rk;
+  baj=b;
 
-  while (b3 > ji) {
-      o8 -= 2;
-      b3 = b3 - 1;
-      w73 = w73 - 3;
+  while (uz < rk) {
+      uz += 1;
+      if (b != baj) {
+          baj = b;
+      }
+      b = b + uz;
   }
 
 }

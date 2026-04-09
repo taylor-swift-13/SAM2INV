@@ -1,20 +1,17 @@
-int main1(int k){
-  int cz1, wkz, o, l, e9;
+int main1(int b){
+  int ed3m, m8, gf, bsg, hg;
 
-  cz1=k+24;
-  wkz=0;
-  o=-4;
-  l=wkz;
-  e9=0;
+  ed3m=b*2;
+  m8=0;
+  gf=1;
+  bsg=1;
+  hg=ed3m;
 
-  while (1) {
-      if (!(wkz > cz1 && (o > k || l > k || e9 > k))) {
-          break;
-      }
-      wkz = wkz-((o>k)+(l>k)+(e9>k));
-      l += l;
-      o = o + 3;
-      e9 += l;
+  while (m8 < ed3m) {
+      m8 = m8 + 1;
+      bsg = bsg * b;
+      gf = gf * b;
+      hg = hg + m8;
   }
 
 }

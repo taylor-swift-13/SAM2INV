@@ -1,16 +1,16 @@
-int main1(){
-  int i3zr, u9, a2, ny, r0;
+int main1(int a){
+  int a7, q, wj, fh, f;
 
-  i3zr=1;
-  u9=i3zr;
-  a2=3*i3zr;
-  ny=2*i3zr;
-  r0=i3zr;
+  a7=a+21;
+  q=0;
+  wj=1;
+  fh=0;
+  f=-3;
 
-  while (u9 > 0) {
-      u9--;
-      ny += r0;
-      a2 += u9;
+  while (q < a7) {
+      f = (wj += (q < a7/2 ? a : -a), fh -= (q < a7/2 ? a : -a), ++q);
+      wj = wj+f-f;
+      q = a7;
   }
 
 }

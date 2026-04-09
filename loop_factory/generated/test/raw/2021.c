@@ -1,17 +1,20 @@
 int main1(){
-  int z1u, btt, wp3i, ks7, wl;
+  int nz, te, a, zpr, k30;
 
-  z1u=1+13;
-  btt=0;
-  wp3i=btt;
-  ks7=0;
-  wl=btt;
+  nz=1*3;
+  te=0;
+  a=0;
+  zpr=-8;
+  k30=te;
 
-  while (btt < z1u) {
-      ks7 = ks7 + btt*wl;
-      wp3i = wp3i*2;
-      btt = btt + 1;
-      wl += z1u;
+  while (1) {
+      if (!(te < nz)) {
+          break;
+      }
+      a = (1)+(a);
+      te++;
+      zpr += 2;
+      k30 = k30 + te;
   }
 
 }

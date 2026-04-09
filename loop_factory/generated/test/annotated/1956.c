@@ -1,29 +1,26 @@
 int main1(){
-  int zk, ha2, hva, e8l, j4fd;
-  zk=22;
-  ha2=0;
-  hva=ha2;
-  e8l=0;
-  j4fd=1;
+  int jmx, h, w2, kw;
+  jmx=10;
+  h=0;
+  w2=h;
+  kw=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant ha2 == 0 || ha2 == zk;
-  loop invariant (ha2 == 0) ==> (e8l == 0 && hva == 0);
-  loop invariant (ha2 == zk) ==>
-                   (e8l == (j4fd % zk) && 0 <= e8l && e8l < zk && hva == e8l);
-  loop invariant (0 <= e8l && e8l < zk);
-  loop invariant ((ha2 == 0 && e8l == 0 && hva == 0)
-                    || (ha2 == zk && e8l == (j4fd % zk) && hva == (j4fd % zk)));
-  loop invariant j4fd == 1;
-  loop invariant (ha2 * (ha2 - zk)) == 0;
-  loop invariant hva >= e8l;
-  loop invariant (ha2 == 0 && e8l == 0 && hva == 0)
-                   || (ha2 == zk && 0 <= e8l && e8l < zk && hva == e8l);
-  loop assigns e8l, hva, ha2;
+  loop invariant 0 <= h;
+  loop invariant h <= jmx;
+  loop invariant (h >= jmx/2) ==> (w2 == (jmx - h) && kw == ((h - jmx/2)*jmx - h*(h+1)/2 + (jmx/2)*((jmx/2)+1)));
+  loop invariant 0 <= w2;
+  loop invariant 0 <= kw;
+  loop invariant jmx == 10;
+  loop invariant (2*h <= jmx) ==> (w2 == h && kw == (h*(h+1))/2);
+  loop assigns h, w2, kw;
 */
-while (ha2 < zk) {
-      e8l = (e8l + j4fd) % zk;
-      hva = hva + e8l;
-      ha2 = zk;
+while (1) {
+      if (!(h < jmx)) {
+          break;
+      }
+      w2 = w2 + (1 - 2*(2*h/jmx));
+      h += 1;
+      kw = kw + w2;
   }
 }

@@ -1,26 +1,30 @@
-int main1(int z){
-  int q, kj, c, s;
-  q=18;
-  kj=0;
-  c=0;
-  s=z;
+int main1(){
+  int z, jhb, v, afc, u6t3, j;
+  z=1*2;
+  jhb=0;
+  v=1;
+  afc=1;
+  u6t3=1;
+  j=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= kj;
-  loop invariant kj <= q;
-  loop invariant s == z;
-  loop invariant (kj <= q/2 ==> c == 3*kj) && (kj >= q/2 ==> c == kj + q);
-  loop invariant (2*kj <= q ==> c == 3*kj) && (2*kj >= q ==> c == kj + q);
-  loop invariant ((kj <= 9) && c == 3*kj) || ((kj >= 9) && c == kj + 18);
-  loop invariant ((kj <= 9) && s == \at(z, Pre) + 3*kj*(kj+1)/2) ||
-                   ((kj >= 9) && s == \at(z, Pre) + (kj*(kj+1)/2 + 18*kj - 72));
-  loop invariant (2*kj >= q) ==> (c == kj + 2*(q/2));
-  loop assigns kj, c, s, z;
+  loop invariant jhb >= 0;
+  loop invariant jhb <= z;
+  loop invariant j == 1;
+  loop invariant u6t3 == j * v;
+  loop invariant v >= 1;
+  loop invariant afc >= 1;
+  loop invariant afc <= 1 + jhb;
+  loop invariant z == 2;
+  loop assigns v, jhb, u6t3, afc;
 */
-while (kj < q) {
-      kj = (c += (2*kj < q ? 1 : -1), kj + 1);
-      c += 2;
-      s = s + c;
-      z = z + c;
+while (1) {
+      if (!(jhb < z)) {
+          break;
+      }
+      v = (v + u6t3) * afc;
+      jhb += 1;
+      u6t3 = j * v;
+      afc = afc+(u6t3%2);
   }
 }

@@ -1,22 +1,22 @@
-int main1(){
-  int c2e, ly, l, dqs;
-  c2e=(1%19)+16;
-  ly=0;
-  l=0;
-  dqs=0;
+int main1(int v){
+  int l, h63d, xwn2, c4zl, jx;
+  l=v+4;
+  h63d=0;
+  xwn2=l;
+  c4zl=1;
+  jx=l;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= ly;
-  loop invariant ly <= c2e;
-  loop invariant l == (ly % 2);
-  loop invariant dqs == (ly % 2);
-  loop invariant (l == 0) || (l == 1);
-  loop invariant (dqs == 0) || (dqs == 1);
-  loop assigns ly, l, dqs;
+  loop invariant xwn2 == l;
+  loop invariant h63d >= 0;
+  loop invariant c4zl == 1 + h63d * xwn2;
+  loop invariant jx == l + h63d;
+  loop invariant (l < 0) || (h63d <= l);
+  loop assigns jx, c4zl, h63d;
 */
-while (ly < c2e) {
-      ly++;
-      l = 1 - l;
-      dqs = (1)+(-(dqs));
+while (h63d < l) {
+      jx++;
+      c4zl = c4zl + xwn2;
+      h63d = h63d + 1;
   }
 }

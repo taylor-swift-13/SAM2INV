@@ -1,18 +1,16 @@
-int main1(int b){
-  int do2, c3e, kqt, rt;
+int main1(){
+  int g, zk, shq, niss, rv28;
 
-  do2=19;
-  c3e=0;
-  kqt=0;
-  rt=1;
+  g=1+11;
+  zk=0;
+  shq=5;
+  niss=zk;
+  rv28=-6;
 
-  while (1) {
-      if (!(c3e < do2)) {
-          break;
-      }
-      kqt = (kqt + b) % do2;
-      c3e += 1;
-      rt = rt + c3e;
+  while (zk < g) {
+      niss = zk % 2 == 0 ? niss + shq : niss + rv28;
+      zk++;
+      shq = shq + zk;
   }
 
 }

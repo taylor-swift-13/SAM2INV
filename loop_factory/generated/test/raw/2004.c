@@ -1,18 +1,22 @@
 int main1(){
-  int zfj, mg7z, d0a, o, zkto, nh9;
+  int vq0, e0s, dpip, nn, jn6;
 
-  zfj=1+3;
-  mg7z=0;
-  d0a=zfj;
-  o=mg7z;
-  zkto=13;
-  nh9=mg7z;
+  vq0=1+24;
+  e0s=0;
+  dpip=0;
+  nn=0;
+  jn6=1;
 
-  while (mg7z < zfj) {
-      d0a = d0a * (1 + ((mg7z++) % 2) * (zkto - 1));
-      o += 4;
-      nh9 += 4;
-      mg7z = zfj;
+  while (1) {
+      if (!(e0s < vq0)) {
+          break;
+      }
+      if (1) {
+          dpip += jn6;
+          jn6 = jn6 * nn;
+          e0s = e0s + 1;
+      }
+      nn = (dpip)+(nn);
   }
 
 }

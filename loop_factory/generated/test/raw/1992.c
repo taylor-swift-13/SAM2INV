@@ -1,16 +1,19 @@
-int main1(int t){
-  int q, atz, tk, l9;
+int main1(){
+  int zz, v7b, lj8f, s0w, dw;
 
-  q=t*5;
-  atz=0;
-  tk=13;
-  l9=1;
+  zz=(1%12)+11;
+  v7b=0;
+  lj8f=v7b;
+  s0w=lj8f;
+  dw=3;
 
-  while (atz < q) {
-      tk = tk + 3;
-      atz += 1;
-      l9 = l9 + 3;
-      t = t+l9-tk;
+  while (v7b < zz) {
+      v7b++;
+      if (lj8f < s0w) {
+          s0w = lj8f;
+      }
+      dw = dw + v7b;
+      lj8f += 4;
   }
 
 }

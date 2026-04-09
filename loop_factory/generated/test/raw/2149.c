@@ -1,19 +1,16 @@
 int main1(){
-  int hv, n, krv, dq;
+  int n5, d3, r6, i;
 
-  hv=0;
-  n=0;
-  krv=0;
-  dq=(1%18)+5;
+  n5=(1%30)+8;
+  d3=0;
+  r6=0;
+  i=d3;
 
-  while (1) {
-      if (!(dq>0)) {
-          break;
-      }
-      krv = krv+1*1;
-      hv = hv+1*1;
-      dq--;
-      n = n+1*1;
+  while (d3 < n5) {
+      r6 = r6 + (d3 * (d3 + 1)) / 2;
+      d3++;
+      i = (r6)+(i);
+      i = i + 1;
   }
 
 }

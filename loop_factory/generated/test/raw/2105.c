@@ -1,15 +1,19 @@
 int main1(){
-  int cqq, k, h, bn;
+  int v2, j3k, el4s, el, av;
 
-  cqq=1;
-  k=0;
-  h=k;
-  bn=12;
+  v2=1+9;
+  j3k=1;
+  el4s=0;
+  el=0;
+  av=8;
 
-  while (k < cqq) {
-      bn -= 1;
-      k += 1;
-      h += 1;
+  while (1) {
+      if (!(j3k < v2)) {
+          break;
+      }
+      el4s = el4s + av / (j3k++);
+      el += 4;
+      j3k = v2;
   }
 
 }

@@ -1,28 +1,33 @@
-int main1(){
-  int a850, lo, k9k, vpku, w, xz;
-  a850=191;
-  lo=1;
-  k9k=2;
-  vpku=w - xz;
-  w=a850;
-  xz=-6;
+int main1(int v){
+  int b8, rq, p, hkyc, k4q;
+  b8=116;
+  rq=-4;
+  p=5;
+  hkyc=0;
+  k4q=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (lo == 1) || (lo == a850);
-  loop invariant xz == -6;
-  loop invariant w >= 0;
-  loop invariant a850 == 191;
-  loop invariant (lo == 1 && k9k == 2 && w == a850)
-                   || (lo == a850 && k9k == 2 + vpku && w == a850/2);
-  loop assigns vpku, k9k, w, lo;
+  loop invariant (p - 2*hkyc) == 5;
+  loop invariant k4q == (hkyc % 9);
+  loop invariant rq <= b8;
+  loop invariant (rq == -4) || (rq == b8);
+  loop invariant ( (rq == -4 && p == 5 && hkyc == 0 && k4q == 0)
+                    ||
+                    ( rq == b8
+                      &&
+                      ( (v > 0  ==> (hkyc ==  1 && p == 7 && k4q ==  1))
+                        &&
+                        (v <= 0 ==> (hkyc == -1 && p == 3 && k4q == -1))
+                      )
+                    )
+                  );
+  loop invariant ((rq < b8) ==> (p == 5 && hkyc == 0 && k4q == 0));
+  loop assigns hkyc, k4q, p, rq;
 */
-while (1) {
-      if (!(lo < a850)) {
-          break;
-      }
-      vpku = vpku + w - xz;
-      k9k += vpku;
-      w = w/2;
-      lo = a850;
+while (rq < b8) {
+      hkyc = (p = p + ((v>0)-(v<=0)), rq = rq + 1, hkyc + ((v>0)-(v<=0)));
+      k4q = k4q+(hkyc%9);
+      p = p + hkyc;
+      rq = b8;
   }
 }

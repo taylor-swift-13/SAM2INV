@@ -1,21 +1,20 @@
 int main1(){
-  int kb0p, li, x, aw, s2, w2;
+  int pi, w, w0f, z, n8;
 
-  kb0p=1;
-  li=0;
-  x=5;
-  aw=li;
-  s2=kb0p;
-  w2=kb0p;
+  pi=1-1;
+  w=0;
+  w0f=1;
+  z=2;
+  n8=3;
 
   while (1) {
-      if (!(li<kb0p)) {
+      if (!(w < pi)) {
           break;
       }
-      x = aw+s2+w2;
-      li = li + 1;
-      s2 = s2 + w2;
-      aw += x;
+      w0f += z;
+      z += n8;
+      n8++;
+      w += 1;
   }
 
 }

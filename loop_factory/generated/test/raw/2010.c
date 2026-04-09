@@ -1,17 +1,17 @@
-int main1(int f){
-  int izlp, xk1, g0;
+int main1(){
+  int m, dmyt, l, czc, iy;
 
-  izlp=f;
-  xk1=53;
-  g0=0;
+  m=1+21;
+  dmyt=0;
+  l=dmyt;
+  czc=m;
+  iy=0;
 
-  while (1) {
-      if (!(xk1>=1)) {
-          break;
-      }
-      xk1--;
-      f = f + izlp;
-      g0++;
+  while (dmyt < m) {
+      dmyt += 1;
+      czc += 1;
+      iy++;
+      l = l + 1;
   }
 
 }

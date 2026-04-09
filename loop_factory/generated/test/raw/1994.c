@@ -1,17 +1,17 @@
-int main1(){
-  int hv, lvy, i, f, zd;
+int main1(int x){
+  int c6m, hh, oz, osfx, v;
 
-  hv=1;
-  lvy=0;
-  i=0;
-  f=0;
-  zd=0;
+  c6m=42;
+  hh=0;
+  oz=0;
+  osfx=0;
+  v=x;
 
-  while (lvy < hv) {
-      i = i + 1;
-      f = f + i;
-      lvy += 1;
-      zd += f;
+  while (hh < c6m) {
+      v = v + 3;
+      hh++;
+      oz = oz + 3;
+      osfx++;
   }
 
 }

@@ -1,16 +1,15 @@
-int main1(int i){
-  int e, cx, vfkn, sy, oz;
+int main1(int r){
+  int nj2, ma, p2i, x65o;
 
-  e=i+17;
-  cx=0;
-  vfkn=2;
-  sy=vfkn;
-  oz=vfkn;
+  nj2=r+21;
+  ma=0;
+  p2i=1;
+  x65o=0;
 
-  while (cx < e) {
-      oz = sy;
-      sy = vfkn;
-      cx = cx + 1;
+  while (ma < nj2) {
+      p2i = p2i * r;
+      x65o += 2;
+      ma = nj2;
   }
 
 }

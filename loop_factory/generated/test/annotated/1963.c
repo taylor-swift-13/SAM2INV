@@ -1,22 +1,27 @@
-int main1(){
-  int tj4, a, pbso, oij;
-  tj4=(1%10)+20;
-  a=0;
-  pbso=0;
-  oij=0;
+int main1(int s){
+  int p, evdq, mi, btv, w;
+  p=(s%15)+17;
+  evdq=p;
+  mi=s;
+  btv=s;
+  w=s;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant pbso == 0;
-  loop invariant ((a == 0 && oij == 0) || (a == tj4 && oij == tj4));
-  loop invariant (0 <= a && a <= tj4);
-  loop assigns pbso, oij, a;
+  loop invariant p == (\at(s, Pre) % 15 + 17);
+  loop invariant evdq <= p;
+  loop invariant evdq >= 0;
+  loop invariant (p - evdq == 0) ==> btv == \at(s, Pre);
+  loop invariant (p - evdq > 0 && \at(s, Pre) > (p - evdq)) ==> btv == \at(s, Pre) - (p - evdq);
+  loop invariant (p - evdq > 0 && \at(s, Pre) <= (p - evdq)) ==> btv == 0;
+  loop invariant (\at(s, Pre) > 0) ==> mi == \at(s, Pre) + 2 * (p - evdq);
+  loop invariant (\at(s, Pre) <= 0 && (p - evdq) == 0) ==> mi == \at(s, Pre);
+  loop invariant (\at(s, Pre) <= 0 && (p - evdq) > 0) ==> mi == 2 * (p - evdq) + 1;
+  loop invariant w >= mi;
+  loop assigns evdq, mi, btv, w;
 */
-while (1) {
-      if (!(a < tj4)) {
-          break;
-      }
-      pbso = pbso + oij * ++a;
-      oij += tj4;
-      a = tj4;
+while (evdq > 0) {
+      evdq = (mi = mi>0 ? mi-1 : 0, btv = btv>0 ? btv-1 : 0, w = w>0 ? w-1 : 0, evdq-1);
+      mi = mi + 3;
+      w += mi;
   }
 }

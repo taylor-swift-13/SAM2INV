@@ -1,25 +1,28 @@
-int main1(int b){
-  int q, vn, waw, u, vk;
-  q=b+10;
-  vn=0;
-  waw=b;
-  u=0;
-  vk=1;
+int main1(){
+  int a850, lo, k9k, vpku, w, xz;
+  a850=191;
+  lo=1;
+  k9k=2;
+  vpku=w - xz;
+  w=a850;
+  xz=-6;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant u == b * (vn % 2);
-  loop invariant vk == 1 - 2 * (vn % 2);
-  loop invariant vn >= 0;
-  loop invariant q == b + 10;
-  loop invariant vn >= 0 && (q < 0 || vn <= q);
-  loop invariant waw - \at(b, Pre) >= -6 * vn;
-  loop invariant waw - \at(b, Pre) <= 6 * vn;
-  loop assigns u, vn, vk, waw;
+  loop invariant (lo == 1) || (lo == a850);
+  loop invariant xz == -6;
+  loop invariant w >= 0;
+  loop invariant a850 == 191;
+  loop invariant (lo == 1 && k9k == 2 && w == a850)
+                   || (lo == a850 && k9k == 2 + vpku && w == a850/2);
+  loop assigns vpku, k9k, w, lo;
 */
-while (vn < q) {
-      u = u + vk * b;
-      vn = vn + 1;
-      vk = -vk;
-      waw = waw+(u%7);
+while (1) {
+      if (!(lo < a850)) {
+          break;
+      }
+      vpku = vpku + w - xz;
+      k9k += vpku;
+      w = w/2;
+      lo = a850;
   }
 }

@@ -1,30 +1,25 @@
 int main1(){
-  int z, jhb, v, afc, u6t3, j;
-  z=1*2;
-  jhb=0;
-  v=1;
-  afc=1;
-  u6t3=1;
-  j=1;
+  int w, td4, rmt, xr, qfq;
+  w=29;
+  td4=0;
+  rmt=1;
+  xr=0;
+  qfq=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant jhb >= 0;
-  loop invariant jhb <= z;
-  loop invariant j == 1;
-  loop invariant u6t3 == j * v;
-  loop invariant v >= 1;
-  loop invariant afc >= 1;
-  loop invariant afc <= 1 + jhb;
-  loop invariant z == 2;
-  loop assigns v, jhb, u6t3, afc;
+  loop invariant td4 <= w;
+  loop invariant xr == (td4 * w);
+  loop invariant (td4 == 0 && rmt == 1) || (td4 >= 1 && rmt == 0);
+  loop invariant qfq == 0;
+  loop assigns rmt, qfq, xr, td4;
 */
 while (1) {
-      if (!(jhb < z)) {
+      if (!(td4 < w)) {
           break;
       }
-      v = (v + u6t3) * afc;
-      jhb += 1;
-      u6t3 = j * v;
-      afc = afc+(u6t3%2);
+      rmt = rmt * xr;
+      qfq = qfq + rmt;
+      xr = xr + w;
+      td4++;
   }
 }

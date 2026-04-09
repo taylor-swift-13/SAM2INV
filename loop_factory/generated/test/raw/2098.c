@@ -1,14 +1,15 @@
-int main1(int x){
-  int yd, avcw, z0e;
+int main1(int y){
+  int g, kdm, b2, b;
 
-  yd=x-8;
-  avcw=0;
-  z0e=avcw;
+  g=y+4;
+  kdm=0;
+  b2=g;
+  b=-2;
 
-  while (avcw < yd) {
-      x += 2;
-      z0e = z0e + z0e;
-      avcw++;
+  while (kdm < g) {
+      b2 = b2 + y;
+      kdm++;
+      b = (b)+(-(y));
   }
 
 }

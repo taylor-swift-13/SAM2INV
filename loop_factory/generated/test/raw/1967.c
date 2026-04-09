@@ -1,15 +1,16 @@
-int main1(int r){
-  int nj2, ma, p2i, x65o;
+int main1(){
+  int w6k, cjz, al9;
 
-  nj2=r+21;
-  ma=0;
-  p2i=1;
-  x65o=0;
+  w6k=1;
+  cjz=0;
+  al9=0;
 
-  while (ma < nj2) {
-      p2i = p2i * r;
-      x65o += 2;
-      ma = nj2;
+  while (1) {
+      if (!(cjz++ < w6k)) {
+          break;
+      }
+      al9 = (al9 + (cjz % 2) * 2)+(-(1));
+      w6k = cjz++;
   }
 
 }

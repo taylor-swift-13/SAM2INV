@@ -1,25 +1,25 @@
-int main1(){
-  int lgbd, e, uu5, rew, w6;
-  lgbd=(1%18)+20;
-  e=0;
-  uu5=e;
-  rew=-2;
-  w6=lgbd;
+int main1(int y){
+  int yi, x, ifp, xj8g;
+  yi=y+10;
+  x=0;
+  ifp=y*yi;
+  xj8g=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant uu5 == 0;
-  loop invariant rew == -2;
-  loop invariant w6 == lgbd + e * rew;
-  loop invariant w6 == lgbd - 2*e;
-  loop invariant (0 <= e && e <= lgbd);
-  loop assigns rew, e, w6;
+  loop invariant (2 * ifp + x * y) == (2 * \at(y, Pre) * (\at(y, Pre) + 10));
+  loop invariant (x * y) == xj8g;
+  loop invariant x >= 0;
+  loop invariant (x % 2) == 0;
+  loop invariant (x != 0) ==> (yi == xj8g);
+  loop invariant ifp + (x/2) * y == \at(y, Pre) * (\at(y, Pre) + 10);
+  loop invariant 2 * ((\at(y, Pre) * (\at(y, Pre) + 10)) - ifp) == (y * x);
+  loop assigns x, xj8g, ifp, yi;
 */
 while (1) {
-      if (!(e < lgbd)) {
+      if (!((xj8g += y, x++ < yi))) {
           break;
       }
-      rew = rew + uu5;
-      e += 1;
-      w6 += rew;
+      ifp = ifp - y;
+      yi = xj8g += y, x++;
   }
 }

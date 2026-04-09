@@ -1,33 +1,26 @@
-int main1(int v){
-  int b8, rq, p, hkyc, k4q;
-  b8=116;
-  rq=-4;
-  p=5;
-  hkyc=0;
-  k4q=0;
+int main1(int q){
+  int yybl, a8zh, tc6, tm;
+  yybl=q;
+  a8zh=1;
+  tc6=1;
+  tm=-8;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (p - 2*hkyc) == 5;
-  loop invariant k4q == (hkyc % 9);
-  loop invariant rq <= b8;
-  loop invariant (rq == -4) || (rq == b8);
-  loop invariant ( (rq == -4 && p == 5 && hkyc == 0 && k4q == 0)
-                    ||
-                    ( rq == b8
-                      &&
-                      ( (v > 0  ==> (hkyc ==  1 && p == 7 && k4q ==  1))
-                        &&
-                        (v <= 0 ==> (hkyc == -1 && p == 3 && k4q == -1))
-                      )
-                    )
-                  );
-  loop invariant ((rq < b8) ==> (p == 5 && hkyc == 0 && k4q == 0));
-  loop assigns hkyc, k4q, p, rq;
+  loop invariant tc6 == a8zh;
+  loop invariant a8zh >= 1;
+  loop invariant yybl == q - ((a8zh - 1) / 2) * ((a8zh - 1) / 2);
+  loop invariant 2 * tm + 16 == 3 * (a8zh - 1);
+  loop invariant (a8zh % 2) == 1;
+  loop invariant yybl == \at(q, Pre) - (((a8zh - 1) / 2) * ((a8zh - 1) / 2));
+  loop assigns yybl, tc6, tm, a8zh;
 */
-while (rq < b8) {
-      hkyc = (p = p + ((v>0)-(v<=0)), rq = rq + 1, hkyc + ((v>0)-(v<=0)));
-      k4q = k4q+(hkyc%9);
-      p = p + hkyc;
-      rq = b8;
+while (1) {
+      if (!(yybl >= a8zh)) {
+          break;
+      }
+      yybl = yybl - a8zh;
+      tc6 = (2)+(tc6);
+      tm = tm + 3;
+      a8zh += 2;
   }
 }

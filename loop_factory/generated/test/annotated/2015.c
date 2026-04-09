@@ -1,26 +1,25 @@
 int main1(){
-  int pi, w, w0f, z, n8;
-  pi=1-1;
-  w=0;
-  w0f=1;
-  z=2;
-  n8=3;
+  int oesp, ozu, ai0, m;
+  oesp=1+3;
+  ozu=0;
+  ai0=0;
+  m=ozu;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= w;
-  loop invariant w <= pi;
-  loop invariant n8 == (w + 3);
-  loop invariant z == (2 + 3*w + (w*(w-1))/2);
-  loop invariant w0f == 1 + (w*(w+1)*(w+5))/6;
-  loop assigns w0f, z, n8, w;
+  loop invariant 0 <= ozu;
+  loop invariant ozu <= oesp;
+  loop invariant ai0 >= 0;
+  loop invariant m - ai0 >= ozu;
+  loop invariant oesp == 4;
+  loop invariant (ozu <= oesp/2) ==> (ai0 == 0 && m == ozu);
+  loop assigns ai0, m, ozu;
 */
-while (1) {
-      if (!(w < pi)) {
-          break;
+while (ozu < oesp) {
+      if (!(!(ozu >= oesp/2))) {
+          ai0 = ai0 + m;
       }
-      w0f += z;
-      z += n8;
-      n8++;
-      w += 1;
+      m += ai0;
+      ozu += 1;
+      m++;
   }
 }

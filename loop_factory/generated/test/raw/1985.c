@@ -1,20 +1,20 @@
-int main1(int e){
-  int i, d0, ag, r2e, hd;
+int main1(int s){
+  int k4n, ae, lrw, z, axz;
 
-  i=e;
-  d0=0;
-  ag=3;
-  r2e=0;
-  hd=25;
+  k4n=s;
+  ae=0;
+  lrw=0;
+  z=0;
+  axz=s;
 
   while (1) {
-      if (!(d0 < i)) {
+      if (!(ae < k4n)) {
           break;
       }
-      ag += 1;
-      r2e -= 1;
-      d0++;
-      hd = hd + r2e;
+      lrw += z;
+      ae = ae + 1;
+      axz = axz + lrw;
+      z = z + s;
   }
 
 }

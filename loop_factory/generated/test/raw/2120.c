@@ -1,17 +1,17 @@
-int main1(int o){
-  int jqh, w5, ri, lm, c73f;
+int main1(){
+  int h, e34, y1rg, ovw;
 
-  jqh=(o%9)+16;
-  w5=0;
-  ri=o;
-  lm=o;
-  c73f=w5;
+  h=(1%18)+5;
+  e34=0;
+  y1rg=0;
+  ovw=1;
 
-  while (w5 < jqh) {
-      lm++;
-      w5++;
-      ri = ri + 1;
-      c73f = c73f + ri;
+  while (e34 < h) {
+      if (!(!(y1rg + ovw <= h))) {
+          y1rg += ovw;
+      }
+      e34 = e34 + 1;
+      ovw = ovw+y1rg-y1rg;
   }
 
 }

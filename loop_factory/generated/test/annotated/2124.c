@@ -1,27 +1,27 @@
-int main1(){
-  int uyo1, fhpy, hl, k5ye, jn;
-  uyo1=8;
-  fhpy=uyo1;
-  hl=uyo1 - 1;
-  k5ye=uyo1;
-  jn=uyo1 - 2;
+int main1(int r){
+  int u8wl, pay, qk, vnq, t3p3;
+  u8wl=r;
+  pay=0;
+  qk=0;
+  vnq=0;
+  t3p3=u8wl;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant k5ye == fhpy;
-  loop invariant jn == (k5ye - 2);
-  loop invariant 0 <= fhpy;
-  loop invariant fhpy <= uyo1;
-  loop invariant (fhpy == uyo1 && hl == (uyo1 - 1)) || hl == (2 * k5ye - 3);
-  loop invariant ((fhpy == uyo1) ==> (hl == uyo1 - 1));
-  loop invariant ((fhpy < uyo1) ==> (hl == 2 * k5ye - 3));
-  loop invariant ( (fhpy == uyo1 && hl == uyo1 - 1)
-                     || (fhpy < uyo1 && hl == 2 * k5ye - 3) );
-  loop assigns k5ye, fhpy, jn, hl;
+  loop invariant u8wl == \at(r, Pre);
+  loop invariant 0 <= pay;
+  loop invariant qk == (pay / 2);
+  loop invariant vnq == (pay - qk);
+  loop invariant t3p3 == (\at(r, Pre) + (pay * (pay + 1)) / 2);
+  loop invariant (u8wl < 0) || (pay <= u8wl);
+  loop assigns pay, t3p3, qk, vnq;
 */
-while (fhpy > 0) {
-      k5ye -= 1;
-      fhpy -= 1;
-      jn = (hl = k5ye - 1, k5ye - 2);
-      hl += jn;
+while (1) {
+      if (!(pay < u8wl)) {
+          break;
+      }
+      pay = pay + 1;
+      t3p3 += pay;
+      qk = qk + 1 - (pay % 2);
+      vnq = vnq + (pay % 2);
   }
 }

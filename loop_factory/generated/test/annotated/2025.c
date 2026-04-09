@@ -1,27 +1,28 @@
 int main1(){
-  int k86, j, le, ct3, xq, g3a7;
-  k86=(1%40)+16;
-  j=0;
-  le=j;
-  ct3=0;
-  xq=0;
-  g3a7=k86;
+  int jjd, ls, lm, rv56, m, bxlp;
+  jjd=72;
+  ls=0;
+  lm=0;
+  rv56=0;
+  m=6;
+  bxlp=ls;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (ct3 == le * j);
-  loop invariant (0 <= j);
-  loop invariant (j <= k86);
-  loop invariant le == 0;
-  loop invariant g3a7 >= k86;
-  loop invariant g3a7 <= k86 + 3 * j;
-  loop invariant xq >= j * k86;
-  loop invariant k86 == (1 % 40) + 16;
-  loop assigns ct3, xq, j, g3a7;
+  loop invariant m == 6 + 2 * lm;
+  loop invariant bxlp == (lm + 1) * ls;
+  loop invariant (lm == 0 && rv56 == 0) || rv56 == jjd - lm;
+  loop invariant (bxlp == ls * lm);
+  loop invariant (0 <= lm && lm <= jjd);
+  loop invariant (0 <= rv56 && rv56 <= jjd);
+  loop assigns lm, rv56, bxlp, m;
 */
-while (j < k86) {
-      ct3 = ct3 + le;
-      xq += g3a7;
-      j++;
-      g3a7 = g3a7+(xq%4);
+while (1) {
+      if (!(lm<jjd)) {
+          break;
+      }
+      lm++;
+      rv56 = jjd-lm;
+      bxlp = bxlp + ls;
+      m += 2;
   }
 }

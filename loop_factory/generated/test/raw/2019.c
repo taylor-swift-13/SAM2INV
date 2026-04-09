@@ -1,21 +1,17 @@
-int main1(int m){
-  int yo, ea, kt, du1, nrg;
+int main1(int r){
+  int v1h, w3, ret, lt, dog;
 
-  yo=m-8;
-  ea=0;
-  kt=0;
-  du1=ea;
-  nrg=ea;
+  v1h=(r%7)+17;
+  w3=0;
+  ret=0;
+  lt=0;
+  dog=0;
 
-  while (1) {
-      if (kt>=yo) {
-          break;
-      }
-      if (nrg<=du1) {
-          du1 = nrg;
-      }
-      nrg += ea;
-      kt++;
+  while (w3 < v1h) {
+      ret = ret + 3;
+      r += dog;
+      w3 += 1;
+      lt += 1;
   }
 
 }

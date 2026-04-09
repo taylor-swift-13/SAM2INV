@@ -1,21 +1,24 @@
 int main1(){
-  int row, fv, g, wz;
-  row=1+17;
-  fv=0;
-  g=0;
-  wz=0;
+  int vz, emo, zdq, cd9, sm2;
+  vz=71;
+  emo=0;
+  zdq=emo;
+  cd9=3;
+  sm2=5;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= fv;
-  loop invariant fv <= row;
-  loop invariant g == ((fv*(fv+1))/2) + (2 * wz * fv);
-  loop invariant row == 1 + 17;
-  loop invariant wz == 0;
-  loop assigns fv, g;
+  loop invariant sm2 == 5;
+  loop invariant cd9 == 3 + emo * sm2;
+  loop invariant zdq == 3*emo + sm2 * (emo * (emo - 1) / 2);
+  loop invariant (0 <= emo && emo <= vz);
+  loop assigns emo, zdq, cd9;
 */
-while (fv < row) {
-      fv++;
-      g += fv;
-      g = g+wz+wz;
+while (1) {
+      if (!(emo < vz)) {
+          break;
+      }
+      emo = emo + 1;
+      zdq += cd9;
+      cd9 += sm2;
   }
 }

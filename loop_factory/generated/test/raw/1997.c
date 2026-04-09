@@ -1,17 +1,20 @@
-int main1(int m){
-  int b, z9, zm5, ihli, bdj;
+int main1(int s){
+  int ng7, oy0, bkz, n;
 
-  b=m+6;
-  z9=0;
-  zm5=-m;
-  ihli=b;
-  bdj=0;
+  ng7=s*4;
+  oy0=0;
+  bkz=-4;
+  n=ng7;
 
-  while (z9 < b && zm5 < 0) {
-      ihli += 1;
-      z9 += 1;
-      zm5 += 1;
-      bdj += zm5;
+  while (oy0 < ng7) {
+      if (bkz > 0) {
+          bkz--;
+      }
+      if (!(!(n > 0))) {
+          n = n - 1;
+      }
+      oy0++;
+      s += n;
   }
 
 }

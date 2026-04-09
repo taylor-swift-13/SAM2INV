@@ -1,24 +1,19 @@
-int main1(int x){
-  int c6m, hh, oz, osfx, v;
-  c6m=42;
-  hh=0;
-  oz=0;
-  osfx=0;
-  v=x;
+int main1(){
+  int ck, dtm, a, cerh;
+  ck=1+22;
+  dtm=0;
+  a=1;
+  cerh=3;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant v == \at(x, Pre) + 3 * hh;
-  loop invariant oz == 3 * hh;
-  loop invariant osfx == hh;
-  loop invariant 0 <= hh;
-  loop invariant hh <= c6m;
-  loop invariant v - oz == \at(x, Pre);
-  loop assigns v, hh, oz, osfx;
+  loop invariant ((dtm == 0 && a == 1 && cerh == 3) || (dtm == ck && a == 2 && cerh == 12));
+  loop invariant 0 <= dtm;
+  loop invariant dtm <= ck;
+  loop assigns dtm, a, cerh;
 */
-while (hh < c6m) {
-      v = v + 3;
-      hh++;
-      oz = oz + 3;
-      osfx++;
+while (dtm < ck) {
+      a = (dtm += 1, a *= 2, a);
+      cerh = cerh*3+(a%3)+1;
+      dtm = ck;
   }
 }

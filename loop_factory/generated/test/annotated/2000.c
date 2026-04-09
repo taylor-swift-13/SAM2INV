@@ -1,25 +1,26 @@
-int main1(){
-  int b2r, o2, gu, pvo, u5;
-  b2r=1+12;
-  o2=0;
-  gu=o2;
-  pvo=1;
-  u5=0;
+int main1(int e){
+  int a, f, a2, g4t, sph;
+  a=e*5;
+  f=0;
+  a2=-1;
+  g4t=1;
+  sph=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant gu == o2 * (o2 + 1) / 2;
-  loop invariant ((o2 <= b2r) && ((o2 == 0) ==> (u5 == 0)) && ((o2 > 0) ==> (u5 == 1)));
-  loop invariant 0 <= o2;
-  loop invariant u5 + pvo == 1;
-  loop invariant 2 * gu == o2 * (o2 + 1);
-  loop invariant (o2 == 0 && pvo == 1) || (o2 >= 1 && pvo == 0);
-  loop invariant (o2 == 0 && u5 == 0) || (o2 >= 1 && u5 == 1);
-  loop assigns u5, pvo, o2, gu;
+  loop invariant 0 <= f;
+  loop invariant (a >= 0 ==> f <= a);
+  loop invariant sph == (f * (f + 1 - a));
+  loop invariant a2 == (-1 + f * g4t);
+  loop invariant e == (\at(e, Pre) + (f * (f + 1) * (2 * f + 4 - 3 * a)) / 6);
+  loop invariant a == (\at(e, Pre) * 5);
+  loop invariant g4t == 1;
+  loop invariant 6 * (e - \at(e, Pre)) == f * (f + 1) * (2 * f + 4 - 3 * a);
+  loop assigns f, sph, e, a2;
 */
-while (o2 < b2r) {
-      u5 = u5 + pvo;
-      pvo = pvo * gu;
-      o2 += 1;
-      gu = gu + o2;
+while (f < a) {
+      f = f + 1;
+      sph = sph + (f - (a - f));
+      e = e + sph;
+      a2 = a2 + g4t;
   }
 }

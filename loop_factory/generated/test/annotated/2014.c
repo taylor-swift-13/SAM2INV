@@ -1,30 +1,26 @@
 int main1(){
-  int kb0p, li, x, aw, s2, w2;
-  kb0p=1;
-  li=0;
-  x=5;
-  aw=li;
-  s2=kb0p;
-  w2=kb0p;
+  int pi, w, w0f, z, n8;
+  pi=1-1;
+  w=0;
+  w0f=1;
+  z=2;
+  n8=3;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant s2 == kb0p + li * w2;
-  loop invariant s2 == (1 + li * w2);
-  loop invariant (0 <= li && li <= kb0p);
-  loop invariant w2 == 1;
-  loop invariant 0 <= kb0p;
-  loop invariant w2 == kb0p;
-  loop invariant (aw >= 0);
-  loop invariant (x >= s2);
-  loop assigns x, li, s2, aw;
+  loop invariant 0 <= w;
+  loop invariant w <= pi;
+  loop invariant n8 == (w + 3);
+  loop invariant z == (2 + 3*w + (w*(w-1))/2);
+  loop invariant w0f == 1 + (w*(w+1)*(w+5))/6;
+  loop assigns w0f, z, n8, w;
 */
 while (1) {
-      if (!(li<kb0p)) {
+      if (!(w < pi)) {
           break;
       }
-      x = aw+s2+w2;
-      li = li + 1;
-      s2 = s2 + w2;
-      aw += x;
+      w0f += z;
+      z += n8;
+      n8++;
+      w += 1;
   }
 }

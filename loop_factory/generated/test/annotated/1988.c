@@ -1,32 +1,23 @@
 int main1(int e){
-  int v1q, h6d, q2bn, k44y, c6oa;
-  v1q=e*2;
-  h6d=0;
-  q2bn=e;
-  k44y=v1q;
-  c6oa=v1q;
+  int u8, sg5, ln5, dr;
+  u8=31;
+  sg5=0;
+  ln5=e;
+  dr=e;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant v1q == e * 2;
-  loop invariant 0 <= h6d;
-  loop invariant (v1q > 0) ==> (h6d <= v1q);
-  loop invariant (v1q > 0 && h6d >= 1) ==> (q2bn == h6d / v1q && k44y == q2bn && c6oa == h6d % v1q);
-  loop invariant v1q == \at(e,Pre) * 2;
-  loop invariant (h6d == 0 && q2bn == \at(e,Pre) && c6oa == v1q && k44y == v1q)
-                   || (v1q > 0 && k44y == q2bn && q2bn * v1q + c6oa == h6d && 0 <= c6oa && c6oa < v1q);
-  loop invariant (h6d > 0) ==> q2bn == h6d / v1q;
-  loop invariant (h6d > 0) ==> k44y == q2bn;
-  loop invariant (h6d == 0) ==> c6oa == v1q;
-  loop invariant (h6d > 0) ==> (h6d == (q2bn * v1q + c6oa));
-  loop invariant (h6d > 0) ==> (0 <= c6oa && c6oa < v1q);
-  loop invariant (h6d == 0 ==> q2bn == e && k44y == v1q && c6oa == v1q)
-                   && (h6d > 0 && v1q > 0 ==> q2bn == (h6d / v1q) && k44y == q2bn && c6oa == (h6d % v1q));
-  loop assigns h6d, c6oa, q2bn, k44y;
+  loop invariant 0 <= sg5;
+  loop invariant sg5 <= u8;
+  loop invariant (ln5 + sg5) == \at(e, Pre);
+  loop invariant dr == \at(e, Pre) + sg5;
+  loop invariant e + ((sg5*(sg5+1))/2) == ((sg5+1) * \at(e, Pre));
+  loop invariant u8 == 31;
+  loop assigns ln5, sg5, dr, e;
 */
-while (v1q > 0 && h6d < v1q) {
-      h6d = h6d + 1;
-      c6oa = h6d % v1q;
-      q2bn = h6d / v1q;
-      k44y = q2bn;
+while (sg5 < u8) {
+      ln5 -= 1;
+      sg5++;
+      dr++;
+      e = e + ln5;
   }
 }

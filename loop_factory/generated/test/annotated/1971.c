@@ -1,21 +1,23 @@
-int main1(int d){
-  int fe, f0, nr5, w;
-  fe=38;
-  f0=0;
-  nr5=f0;
-  w=0;
+int main1(int n){
+  int ft3, ihn9, f, ydv;
+  ft3=(n%16)+20;
+  ihn9=0;
+  f=2;
+  ydv=-3;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (f0 >= fe) ==> (nr5 == \at(d, Pre));
-  loop invariant 0 <= f0 <= fe;
-  loop invariant fe == 38;
-  loop invariant nr5 == d * (f0 / fe);
-  loop invariant ((f0 < fe) ==> (nr5 == 0 && w == 0)) && ((f0 >= fe) ==> (nr5 == d && w == d));
-  loop assigns f0, w, nr5;
+  loop invariant f == 2 + ihn9;
+  loop invariant ydv == -3 + (ihn9 * (ihn9 + 1)) / 2;
+  loop invariant ft3 == (\at(n, Pre) % 16) + 20;
+  loop invariant (0 <= ihn9 && ihn9 <= ft3);
+  loop assigns f, ihn9, ydv;
 */
-while (f0 < fe) {
-      f0 = f0 + 1;
-      w = w + d * (f0 >= fe);
-      nr5 = nr5 + d * (f0 >= fe);
+while (1) {
+      if (ihn9>=ft3) {
+          break;
+      }
+      f = f + 1;
+      ihn9++;
+      ydv += ihn9;
   }
 }

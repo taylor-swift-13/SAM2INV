@@ -1,19 +1,21 @@
-int main1(int l){
-  int ich, f5, dc, xzw;
+int main1(int m){
+  int yo, ea, kt, du1, nrg;
 
-  ich=l+16;
-  f5=0;
-  dc=11;
-  xzw=-3;
+  yo=m-8;
+  ea=0;
+  kt=0;
+  du1=ea;
+  nrg=ea;
 
   while (1) {
-      if (f5>=ich) {
+      if (kt>=yo) {
           break;
       }
-      f5 += 1;
-      dc += 2;
-      xzw = xzw+ich-f5;
-      xzw++;
+      if (nrg<=du1) {
+          du1 = nrg;
+      }
+      nrg += ea;
+      kt++;
   }
 
 }

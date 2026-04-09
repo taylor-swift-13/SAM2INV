@@ -1,17 +1,20 @@
-int main1(int e){
-  int a, f, a2, g4t, sph;
+int main1(int k){
+  int cz1, wkz, o, l, e9;
 
-  a=e*5;
-  f=0;
-  a2=-1;
-  g4t=1;
-  sph=0;
+  cz1=k+24;
+  wkz=0;
+  o=-4;
+  l=wkz;
+  e9=0;
 
-  while (f < a) {
-      f = f + 1;
-      sph = sph + (f - (a - f));
-      e = e + sph;
-      a2 = a2 + g4t;
+  while (1) {
+      if (!(wkz > cz1 && (o > k || l > k || e9 > k))) {
+          break;
+      }
+      wkz = wkz-((o>k)+(l>k)+(e9>k));
+      l += l;
+      o = o + 3;
+      e9 += l;
   }
 
 }

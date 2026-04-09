@@ -1,25 +1,22 @@
-int main1(int j){
-  int p78, qy, r1d0, ie;
-  p78=60;
-  qy=0;
-  r1d0=0;
-  ie=2;
+int main1(){
+  int fgj, scfe, cl, gn;
+  fgj=5;
+  scfe=0;
+  cl=3;
+  gn=scfe;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= qy;
-  loop invariant qy <= p78;
-  loop invariant r1d0 == - ie * qy;
-  loop invariant j == \at(j, Pre);
-  loop invariant ie == 2;
-  loop invariant p78 == 60;
-  loop assigns qy, r1d0, j;
+  loop invariant cl + scfe == 3;
+  loop invariant gn == fgj * scfe;
+  loop invariant ((0 <= scfe) && (scfe <= fgj));
+  loop assigns scfe, gn, cl;
 */
 while (1) {
-      if (!(qy < p78)) {
+      if (!(scfe < fgj)) {
           break;
       }
-      qy = qy + 1;
-      r1d0 -= ie;
-      j = j+r1d0-r1d0;
+      scfe = scfe + 1;
+      gn = gn + fgj;
+      cl--;
   }
 }

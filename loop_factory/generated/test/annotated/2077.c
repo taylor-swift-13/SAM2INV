@@ -1,20 +1,20 @@
 int main1(){
-  int k, klq, za, rv;
-  k=1+5;
-  klq=3;
-  za=k - klq;
-  rv=klq;
+  int aud2, dbfp, ef, r;
+  aud2=1+18;
+  dbfp=0;
+  ef=aud2;
+  r=aud2;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (klq == k) || (klq < k && za == k - klq && rv == klq);
-  loop invariant 0 <= klq;
-  loop invariant 0 <= za;
-  loop invariant za <= k;
-  loop assigns za, rv, klq;
+  loop invariant ef == aud2 - dbfp*dbfp;
+  loop invariant r == aud2*(dbfp + 1);
+  loop invariant dbfp >= 0;
+  loop invariant ef >= 0;
+  loop assigns ef, r, dbfp;
 */
-while (klq < k) {
-      za = (k)+(-((++klq)));
-      rv += klq;
-      klq = k;
+while (ef >= (2*dbfp + 1)) {
+      ef = (ef)+(-((2*dbfp + 1)));
+      r += aud2;
+      dbfp++;
   }
 }

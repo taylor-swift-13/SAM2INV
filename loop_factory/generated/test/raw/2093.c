@@ -1,18 +1,15 @@
 int main1(){
-  int fgj, scfe, cl, gn;
+  int qr, i4i, d5, isz;
 
-  fgj=5;
-  scfe=0;
-  cl=3;
-  gn=scfe;
+  qr=(1%39)+12;
+  i4i=0;
+  d5=qr;
+  isz=qr;
 
-  while (1) {
-      if (!(scfe < fgj)) {
-          break;
-      }
-      scfe = scfe + 1;
-      gn = gn + fgj;
-      cl--;
+  while (i4i < qr) {
+      d5 += isz;
+      i4i = i4i + (qr - i4i + 1)/2;
+      d5 += 4;
   }
 
 }

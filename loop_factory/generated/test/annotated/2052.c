@@ -1,27 +1,26 @@
-int main1(){
-  int ukt, ki2g, e0id, qfm, pv, y;
-  ukt=(1%31)+10;
-  ki2g=1;
-  e0id=ki2g;
-  qfm=0;
-  pv=ki2g;
-  y=0;
+int main1(int a){
+  int w4n, hg, eu, k, ufa;
+  w4n=55;
+  hg=0;
+  eu=0;
+  k=0;
+  ufa=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant pv == 1;
-  loop invariant e0id == 1 + 5 * (1 - ki2g);
-  loop invariant (ki2g >= 0 && ki2g <= 1);
-  loop invariant qfm == (1 - ki2g);
-  loop invariant y == (1 - ki2g);
-  loop invariant ( (ki2g == 1 && y == 0 && qfm == 0 && e0id == 1)
-                    || (ki2g == 0 && y == 1 && qfm == 1 && e0id == 6) );
-  loop invariant ukt == 11;
-  loop assigns y, qfm, e0id, ki2g;
+  loop invariant k == hg;
+  loop invariant 0 <= hg;
+  loop invariant hg <= w4n;
+  loop invariant a == \at(a, Pre);
+  loop invariant -3 * hg <= eu;
+  loop invariant eu <= hg;
+  loop invariant -3 * hg * (hg + 1) / 2 <= ufa;
+  loop invariant ufa <= hg * (hg + 1) / 2;
+  loop assigns hg, eu, k, ufa;
 */
-while (ki2g > 0) {
-      y = (ki2g--, qfm += (y + pv) >= ukt, (y + pv) < ukt ? y + pv : y + pv - ukt);
-      qfm = qfm + y;
-      e0id = e0id*4+2;
-      ki2g = 0;
+while (hg < w4n) {
+      hg = hg + 1;
+      eu = eu + ((a + k) % 3 - 1);
+      k += 1;
+      ufa += eu;
   }
 }

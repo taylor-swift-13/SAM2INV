@@ -1,23 +1,20 @@
-int main1(){
-  int rr, dm, x2vq, fwq;
+int main1(int f){
+  int grzc, gyc, h0, we, la;
 
-  rr=1+22;
-  dm=0;
-  x2vq=dm;
-  fwq=2;
+  grzc=52;
+  gyc=0;
+  h0=gyc;
+  we=gyc;
+  la=grzc;
 
   while (1) {
-      if (!(dm+1<=rr)) {
+      if (!(gyc < grzc)) {
           break;
       }
-      if (x2vq+3<=rr) {
-          x2vq = x2vq + 3;
-      }
-      else {
-          x2vq = rr;
-      }
-      fwq = fwq + dm;
-      rr = (dm+1)-1;
+      gyc += 1;
+      h0 = h0 + 2*(gyc % 2 == 0) - 1;
+      la += grzc;
+      we = (we + 2*(gyc % 3 == 0))+(-(1));
   }
 
 }

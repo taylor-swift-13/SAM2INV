@@ -1,24 +1,30 @@
-int main1(int w){
-  int cm7, au8, c, dw, v;
-  cm7=w;
-  au8=0;
-  c=au8;
-  dw=11;
-  v=au8;
+int main1(){
+  int kb0p, li, x, aw, s2, w2;
+  kb0p=1;
+  li=0;
+  x=5;
+  aw=li;
+  s2=kb0p;
+  w2=kb0p;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant c == (au8 * (au8 - 3));
-  loop invariant v == (2 * au8);
-  loop invariant dw == (11 + 2 * au8);
-  loop invariant au8 >= 0;
-  loop invariant (cm7 >= 0) ==> (au8 <= cm7);
-  loop invariant cm7 == \at(w, Pre);
-  loop assigns au8, c, dw, v;
+  loop invariant s2 == kb0p + li * w2;
+  loop invariant s2 == (1 + li * w2);
+  loop invariant (0 <= li && li <= kb0p);
+  loop invariant w2 == 1;
+  loop invariant 0 <= kb0p;
+  loop invariant w2 == kb0p;
+  loop invariant (aw >= 0);
+  loop invariant (x >= s2);
+  loop assigns x, li, s2, aw;
 */
-while (au8 < cm7) {
-      au8 = (c--, dw--, v--, au8 + 1);
-      dw = dw + 3;
-      c += v;
-      v = v + 3;
+while (1) {
+      if (!(li<kb0p)) {
+          break;
+      }
+      x = aw+s2+w2;
+      li = li + 1;
+      s2 = s2 + w2;
+      aw += x;
   }
 }

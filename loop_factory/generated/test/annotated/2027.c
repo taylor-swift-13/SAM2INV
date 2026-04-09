@@ -1,27 +1,26 @@
 int main1(){
-  int ivns, tf0d, a7, bh, g;
-  ivns=56;
-  tf0d=ivns+6;
-  a7=0;
-  bh=12;
-  g=13;
+  int ep, t, bfu, y6, dl29, x;
+  ep=1+5;
+  t=0;
+  bfu=0;
+  y6=0;
+  dl29=0;
+  x=ep;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant a7 == 0;
-  loop invariant ((g == 13) || (g == bh * bh));
-  loop invariant ivns == 56;
-  loop invariant (1 <= tf0d && tf0d <= 62);
-  loop invariant (0 <= bh && bh <= 12);
-  loop invariant (0 <= g && g <= 144);
-  loop assigns a7, bh, g, tf0d;
+  loop invariant 0 <= t;
+  loop invariant t <= ep;
+  loop invariant bfu == dl29 + (t*(t+1))/2;
+  loop invariant x >= ep;
+  loop invariant y6 >= 0;
+  loop invariant dl29 >= 0;
+  loop invariant x >= 6;
+  loop assigns t, bfu, y6, dl29, x;
 */
-while (1) {
-      if (!(tf0d>1)) {
-          break;
-      }
-      a7 = a7*4;
-      bh = bh/4;
-      g = bh*bh;
-      tf0d = tf0d/2;
+while (t < ep) {
+      t = (bfu += x, y6 += bfu, t + 1);
+      dl29 += x;
+      x = x*2+(y6%4)+3;
+      bfu += t;
   }
 }

@@ -1,20 +1,17 @@
 int main1(){
-  int h, emy, t3, h3, xs;
+  int w9, mmz1, ctct, w4r, g8;
 
-  h=1;
-  emy=0;
-  t3=0;
-  h3=0;
-  xs=0;
+  w9=1;
+  mmz1=1;
+  ctct=0;
+  w4r=-4;
+  g8=w9;
 
-  while (1) {
-      if (!(emy < h)) {
-          break;
-      }
-      xs = xs + emy*emy*emy;
-      emy++;
-      h3 += h;
-      t3 = t3+h3+h3;
+  while (mmz1<w9) {
+      ctct++;
+      mmz1 = 2*mmz1;
+      g8 += w9;
+      w4r = w4r+g8+g8;
   }
 
 }

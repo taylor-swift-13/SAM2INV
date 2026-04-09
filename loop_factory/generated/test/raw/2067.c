@@ -1,16 +1,19 @@
 int main1(){
-  int z1z, x5, j, w7, c;
+  int qefv, p, w6n, g6l, j2y4;
 
-  z1z=1;
-  x5=0;
-  j=-1;
-  w7=-3;
-  c=2;
+  qefv=1;
+  p=qefv;
+  w6n=p;
+  g6l=p;
+  j2y4=0;
 
-  while (x5 < z1z) {
-      j += w7;
-      x5 += 1;
-      w7 = w7 + c;
+  while (1) {
+      if (!(p < qefv)) {
+          break;
+      }
+      g6l = (g6l+g6l)+(-(w6n));
+      j2y4 = j2y4+j2y4-j2y4;
+      p++;
   }
 
 }

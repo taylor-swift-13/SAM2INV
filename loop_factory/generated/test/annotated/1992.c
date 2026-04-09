@@ -1,23 +1,25 @@
-int main1(int t){
-  int q, atz, tk, l9;
-  q=t*5;
-  atz=0;
-  tk=13;
-  l9=1;
+int main1(){
+  int zz, v7b, lj8f, s0w, dw;
+  zz=(1%12)+11;
+  v7b=0;
+  lj8f=v7b;
+  s0w=lj8f;
+  dw=3;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant tk == 13 + 3*atz;
-  loop invariant l9 == 1 + 3*atz;
-  loop invariant t + 12*atz == \at(t,Pre);
-  loop invariant q == \at(t,Pre) * 5;
-  loop invariant atz >= 0;
-  loop invariant (q >= 0) ==> (atz <= q);
-  loop assigns tk, atz, l9, t;
+  loop invariant lj8f == 4 * v7b;
+  loop invariant dw == 3 + v7b * (v7b + 1) / 2;
+  loop invariant s0w == 0;
+  loop invariant s0w <= lj8f;
+  loop invariant (0 <= v7b && v7b <= zz);
+  loop assigns v7b, s0w, dw, lj8f;
 */
-while (atz < q) {
-      tk = tk + 3;
-      atz += 1;
-      l9 = l9 + 3;
-      t = t+l9-tk;
+while (v7b < zz) {
+      v7b++;
+      if (lj8f < s0w) {
+          s0w = lj8f;
+      }
+      dw = dw + v7b;
+      lj8f += 4;
   }
 }

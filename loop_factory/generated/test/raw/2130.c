@@ -1,18 +1,23 @@
 int main1(){
-  int niho, e1h, z, q;
+  int rr, dm, x2vq, fwq;
 
-  niho=1;
-  e1h=0;
-  z=niho;
-  q=e1h;
+  rr=1+22;
+  dm=0;
+  x2vq=dm;
+  fwq=2;
 
   while (1) {
-      if (!(e1h < niho)) {
+      if (!(dm+1<=rr)) {
           break;
       }
-      q += niho;
-      z = 1-z;
-      e1h += 1;
+      if (x2vq+3<=rr) {
+          x2vq = x2vq + 3;
+      }
+      else {
+          x2vq = rr;
+      }
+      fwq = fwq + dm;
+      rr = (dm+1)-1;
   }
 
 }

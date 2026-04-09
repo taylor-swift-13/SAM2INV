@@ -1,21 +1,17 @@
-int main1(){
-  int a850, lo, k9k, vpku, w, xz;
+int main1(int v){
+  int b8, rq, p, hkyc, k4q;
 
-  a850=191;
-  lo=1;
-  k9k=2;
-  vpku=w - xz;
-  w=a850;
-  xz=-6;
+  b8=116;
+  rq=-4;
+  p=5;
+  hkyc=0;
+  k4q=0;
 
-  while (1) {
-      if (!(lo < a850)) {
-          break;
-      }
-      vpku = vpku + w - xz;
-      k9k += vpku;
-      w = w/2;
-      lo = a850;
+  while (rq < b8) {
+      hkyc = (p = p + ((v>0)-(v<=0)), rq = rq + 1, hkyc + ((v>0)-(v<=0)));
+      k4q = k4q+(hkyc%9);
+      p = p + hkyc;
+      rq = b8;
   }
 
 }

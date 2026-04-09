@@ -1,25 +1,29 @@
-int main1(int l){
-  int ich, f5, dc, xzw;
-  ich=l+16;
-  f5=0;
-  dc=11;
-  xzw=-3;
+int main1(int m){
+  int yo, ea, kt, du1, nrg;
+  yo=m-8;
+  ea=0;
+  kt=0;
+  du1=ea;
+  nrg=ea;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant ich == \at(l, Pre) + 16;
-  loop invariant dc == 11 + 2 * f5;
-  loop invariant xzw == -3 + f5 * ich - (f5 * (f5 - 1)) / 2;
-  loop invariant f5 >= 0;
-  loop invariant (ich >= 0) ==> (f5 <= ich);
-  loop assigns f5, dc, xzw;
+  loop invariant ea == 0;
+  loop invariant yo == \at(m, Pre) - 8;
+  loop invariant nrg == ea * kt;
+  loop invariant kt >= 0;
+  loop invariant (yo >= 0) ==> (kt <= yo);
+  loop invariant du1 == ea;
+  loop invariant (yo <= 0 ==> kt == 0);
+  loop assigns nrg, du1, kt;
 */
 while (1) {
-      if (f5>=ich) {
+      if (kt>=yo) {
           break;
       }
-      f5 += 1;
-      dc += 2;
-      xzw = xzw+ich-f5;
-      xzw++;
+      if (nrg<=du1) {
+          du1 = nrg;
+      }
+      nrg += ea;
+      kt++;
   }
 }

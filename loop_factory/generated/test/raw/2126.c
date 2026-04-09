@@ -1,21 +1,14 @@
-int main1(){
-  int jsza, c8, ksu, q3m, p, k;
+int main1(int k){
+  int sju, i6p, za, at;
 
-  jsza=1;
-  c8=0;
-  ksu=1+2;
-  q3m=jsza;
-  p=0;
-  k=-6;
+  sju=k;
+  i6p=0;
+  za=0;
+  at=1;
 
-  while (1) {
-      if (!(k != 0 && c8 < jsza)) {
-          break;
-      }
-      c8 += 1;
-      p = p % k;
-      ksu = ksu + c8;
-      ksu = ksu+q3m+q3m;
+  while (i6p < sju && (at *= k, i6p++, 1)) {
+      za = za + at;
+      i6p = sju;
   }
 
 }

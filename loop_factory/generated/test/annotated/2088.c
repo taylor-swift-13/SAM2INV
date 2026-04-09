@@ -1,24 +1,27 @@
-int main1(int m){
-  int wfv, mg4, ki, e;
-  wfv=m;
-  mg4=0;
-  ki=m;
-  e=0;
+int main1(){
+  int wr, vk, a8s, a4;
+  wr=13;
+  vk=wr;
+  a8s=0;
+  a4=wr;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant ki + mg4 == wfv;
-  loop invariant mg4 >= 0 && (\at(m, Pre) >= 0 ==> mg4 <= \at(m, Pre));
-  loop invariant wfv == \at(m, Pre);
-  loop invariant e == (mg4 * \at(m, Pre) - (mg4 * (mg4 + 1)) / 2);
-  loop invariant ki <= m;
-  loop assigns mg4, ki, e;
+  loop invariant (vk <= wr);
+  loop invariant a8s == 3*(vk - wr);
+  loop invariant 2*(a4 - wr) == (vk - wr)*(2*wr + (vk - wr) + 1);
+  loop invariant 2*a4 == (vk * vk) + vk - (wr * wr) + wr;
+  loop invariant 13 <= vk;
+  loop invariant a8s == 3 * (vk - 13);
+  loop invariant a4 == 13 + (vk - 13) * 13 + ((vk - 13) * ((vk - 13) + 1)) / 2;
+  loop invariant a4 == wr + (vk - wr) * wr + ((vk - wr) * ((vk - wr) + 1)) / 2;
+  loop assigns a8s, vk, a4;
 */
 while (1) {
-      if (!(mg4 < wfv)) {
+      if (vk>=wr) {
           break;
       }
-      mg4 = mg4 + 1;
-      ki = ki - 1;
-      e += ki;
+      a8s = a8s + 3;
+      vk = vk + 1;
+      a4 = a4 + vk;
   }
 }

@@ -1,19 +1,17 @@
-int main1(int f){
-  int xx, l2, lf, l;
+int main1(int w){
+  int cm7, au8, c, dw, v;
 
-  xx=f-5;
-  l2=0;
-  lf=f;
-  l=0;
+  cm7=w;
+  au8=0;
+  c=au8;
+  dw=11;
+  v=au8;
 
-  while (1) {
-      if (!(l2 < xx)) {
-          break;
-      }
-      l = l + 2*l2 + 1;
-      lf += l;
-      l2 += 1;
-      lf = lf + 1;
+  while (au8 < cm7) {
+      au8 = (c--, dw--, v--, au8 + 1);
+      dw = dw + 3;
+      c += v;
+      v = v + 3;
   }
 
 }

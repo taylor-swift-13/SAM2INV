@@ -1,24 +1,25 @@
-int main1(int v){
-  int ka, w, z, gsx;
-  ka=53;
-  w=0;
-  z=w;
-  gsx=v;
+int main1(){
+  int lgbd, e, uu5, rew, w6;
+  lgbd=(1%18)+20;
+  e=0;
+  uu5=e;
+  rew=-2;
+  w6=lgbd;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant v == (\at(v, Pre) + w * gsx);
-  loop invariant z == w;
-  loop invariant gsx == \at(v, Pre);
-  loop invariant 0 <= w;
-  loop invariant w <= ka;
-  loop assigns z, v, w;
+  loop invariant uu5 == 0;
+  loop invariant rew == -2;
+  loop invariant w6 == lgbd + e * rew;
+  loop invariant w6 == lgbd - 2*e;
+  loop invariant (0 <= e && e <= lgbd);
+  loop assigns rew, e, w6;
 */
 while (1) {
-      if (!(w < ka)) {
+      if (!(e < lgbd)) {
           break;
       }
-      z += 1;
-      v += gsx;
-      w += 1;
+      rew = rew + uu5;
+      e += 1;
+      w6 += rew;
   }
 }

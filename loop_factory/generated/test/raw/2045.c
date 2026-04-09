@@ -1,21 +1,20 @@
 int main1(){
-  int z, jhb, v, afc, u6t3, j;
+  int w, td4, rmt, xr, qfq;
 
-  z=1*2;
-  jhb=0;
-  v=1;
-  afc=1;
-  u6t3=1;
-  j=1;
+  w=29;
+  td4=0;
+  rmt=1;
+  xr=0;
+  qfq=0;
 
   while (1) {
-      if (!(jhb < z)) {
+      if (!(td4 < w)) {
           break;
       }
-      v = (v + u6t3) * afc;
-      jhb += 1;
-      u6t3 = j * v;
-      afc = afc+(u6t3%2);
+      rmt = rmt * xr;
+      qfq = qfq + rmt;
+      xr = xr + w;
+      td4++;
   }
 
 }

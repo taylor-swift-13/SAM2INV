@@ -1,27 +1,25 @@
 int main1(){
-  int qz, wvn, jmbw, a44, np3b;
-  qz=23;
-  wvn=0;
-  jmbw=0;
-  a44=qz;
-  np3b=1+4;
+  int b2r, o2, gu, pvo, u5;
+  b2r=1+12;
+  o2=0;
+  gu=o2;
+  pvo=1;
+  u5=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= wvn;
-  loop invariant wvn <= qz;
-  loop invariant a44 == 23 + (wvn * (wvn + 1)) / 2;
-  loop invariant (wvn > 0) ==> (np3b == wvn * (a44 - wvn));
-  loop invariant jmbw >= 0;
-  loop invariant np3b >= 0;
-  loop assigns np3b, jmbw, wvn, a44;
+  loop invariant gu == o2 * (o2 + 1) / 2;
+  loop invariant ((o2 <= b2r) && ((o2 == 0) ==> (u5 == 0)) && ((o2 > 0) ==> (u5 == 1)));
+  loop invariant 0 <= o2;
+  loop invariant u5 + pvo == 1;
+  loop invariant 2 * gu == o2 * (o2 + 1);
+  loop invariant (o2 == 0 && pvo == 1) || (o2 >= 1 && pvo == 0);
+  loop invariant (o2 == 0 && u5 == 0) || (o2 >= 1 && u5 == 1);
+  loop assigns u5, pvo, o2, gu;
 */
-while (1) {
-      if (!(wvn < qz)) {
-          break;
-      }
-      np3b = (wvn + 1) * a44;
-      jmbw = jmbw + np3b;
-      wvn += 1;
-      a44 = a44 + wvn;
+while (o2 < b2r) {
+      u5 = u5 + pvo;
+      pvo = pvo * gu;
+      o2 += 1;
+      gu = gu + o2;
   }
 }

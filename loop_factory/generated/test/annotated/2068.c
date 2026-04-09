@@ -1,25 +1,24 @@
-int main1(){
-  int qefv, p, w6n, g6l, j2y4;
-  qefv=1;
-  p=qefv;
-  w6n=p;
-  g6l=p;
-  j2y4=0;
+int main1(int b){
+  int do2, c3e, kqt, rt;
+  do2=19;
+  c3e=0;
+  kqt=0;
+  rt=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant j2y4 == 0;
-  loop invariant g6l == w6n;
-  loop invariant w6n == 1;
-  loop invariant qefv == 1;
-  loop invariant (1 <= p && p <= qefv);
-  loop assigns g6l, j2y4, p;
+  loop invariant (kqt == ((c3e * \at(b, Pre)) % do2));
+  loop invariant (rt == (1 + (c3e * (c3e + 1)) / 2));
+  loop invariant (0 <= c3e && c3e <= do2);
+  loop invariant do2 == 19;
+  loop invariant 2 * (rt - 1) == c3e * (c3e + 1);
+  loop assigns kqt, c3e, rt;
 */
 while (1) {
-      if (!(p < qefv)) {
+      if (!(c3e < do2)) {
           break;
       }
-      g6l = (g6l+g6l)+(-(w6n));
-      j2y4 = j2y4+j2y4-j2y4;
-      p++;
+      kqt = (kqt + b) % do2;
+      c3e += 1;
+      rt = rt + c3e;
   }
 }

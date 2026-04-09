@@ -1,30 +1,20 @@
-int main1(){
-  int sqvr, o9, kd, eot, g9j;
-  sqvr=1+8;
-  o9=0;
-  kd=-6;
-  eot=0;
-  g9j=0;
+int main1(int j){
+  int k, krf, pb2;
+  k=(j%10)+14;
+  krf=0;
+  pb2=j;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (o9 == 0) || (o9 == sqvr);
-  loop invariant 0 <= o9;
-  loop invariant o9 <= sqvr;
-  loop invariant eot <= 0;
-  loop invariant g9j >= 0;
-  loop invariant kd == -6;
-  loop invariant sqvr == 1 + 8;
-  loop invariant g9j == 0;
-  loop invariant (o9 == 0) ==> eot == 0;
-  loop invariant (o9 == sqvr) ==> eot == kd;
-  loop assigns eot, g9j, o9;
+  loop invariant k == (\at(j, Pre) % 10) + 14;
+  loop invariant 0 <= krf;
+  loop invariant krf <= k;
+  loop invariant (\at(j, Pre) >= 0 ==> pb2 >= \at(j, Pre)) && (\at(j, Pre) <= 0 ==> pb2 <= \at(j, Pre));
+  loop invariant j == \at(j, Pre);
+  loop assigns j, pb2, krf;
 */
-while (1) {
-      if (!(o9 < sqvr)) {
-          break;
-      }
-      eot = (eot + kd < g9j ? eot + kd : (o9++, eot + kd - g9j));
-      g9j += o9;
-      o9 = sqvr;
+while (j-- > 0) {
+      pb2 += pb2;
+      krf = (krf + 1 > k) ? (2*k - (krf + 1)) : ((krf - 1 < 0) ? -(krf - 1) : (krf + 1));
+      j++;
   }
 }

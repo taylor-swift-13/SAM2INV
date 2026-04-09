@@ -1,17 +1,21 @@
-int main1(int v){
-  int e7zt, b03, e, oc, ta3;
+int main1(int f){
+  int we7f, uk, je, w;
 
-  e7zt=v+15;
-  b03=0;
-  e=e7zt;
-  oc=v - 0;
-  ta3=e7zt;
+  we7f=(f%32)+9;
+  uk=0;
+  je=we7f;
+  w=f;
 
-  while (b03 < e7zt) {
-      b03 += 1;
-      oc = (v)+(-(b03));
-      ta3 += e7zt;
-      e += 1;
+  while (1) {
+      if (!(uk < we7f)) {
+          break;
+      }
+      uk += 1;
+      if (je >= f) {
+          je -= f;
+          w += f;
+      }
+      f = f + we7f;
   }
 
 }

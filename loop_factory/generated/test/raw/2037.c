@@ -1,20 +1,17 @@
-int main1(int x){
-  int e1, gn, ua, fu, z;
+int main1(){
+  int x8m, z, to, fy, tqy;
 
-  e1=134;
-  gn=e1+2;
-  ua=6;
-  fu=6;
-  z=gn;
+  x8m=1+7;
+  z=0;
+  to=z;
+  fy=z;
+  tqy=0;
 
-  while (1) {
-      if (!(gn<e1)) {
-          break;
-      }
-      fu = fu + 1;
-      ua++;
-      z += e1;
-      gn = gn + 1;
+  while (z < x8m) {
+      fy = (fy)+(-(1));
+      to = to - 1;
+      z += 1;
+      tqy = tqy - 1;
   }
 
 }

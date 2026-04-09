@@ -1,25 +1,25 @@
-int main1(int l){
-  int j, gl80, kbp, j3a, bb;
-  j=134;
-  gl80=0;
-  kbp=j;
-  j3a=j;
-  bb=gl80;
+int main1(){
+  int mjb, yko, jty, qmb;
+  mjb=1;
+  yko=0;
+  jty=0;
+  qmb=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant j3a == j - gl80;
-  loop invariant bb == j * gl80 - (gl80 * (gl80 + 1)) / 2;
-  loop invariant (gl80 == 0 ==> kbp == j3a) && (gl80 > 0 ==> kbp == j3a + 1);
-  loop invariant (0 <= gl80 && gl80 <= j);
-  loop assigns bb, gl80, j3a, kbp;
+  loop invariant 0 <= yko <= mjb;
+  loop invariant jty == 2 * yko;
+  loop invariant qmb >= 0;
+  loop invariant qmb % 2 == 0;
+  loop invariant mjb == 1;
+  loop assigns jty, qmb, yko;
 */
 while (1) {
-      if (!(gl80 < j)) {
+      if (!(yko < mjb)) {
           break;
       }
-      gl80 = gl80 + 1;
-      kbp = j3a;
-      j3a = j - gl80;
-      bb += j3a;
+      jty += 2;
+      qmb = qmb + yko;
+      qmb += qmb;
+      yko = yko + 1;
   }
 }

@@ -1,27 +1,26 @@
 int main1(){
-  int e4, b, np0, ltzw, rt;
-  e4=1;
-  b=0;
-  np0=0;
-  ltzw=e4;
-  rt=0;
+  int jg, x3, d, tv, jc;
+  jg=1;
+  x3=0;
+  d=0;
+  tv=x3;
+  jc=x3;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant rt == 0;
-  loop invariant np0 == 0;
-  loop invariant 0 <= b;
-  loop invariant b <= e4;
-  loop invariant ltzw == 1 + (b*(b+1))/2;
-  loop invariant ltzw == e4 + (b*(b+1))/2;
-  loop assigns b, np0, rt, ltzw;
+  loop invariant (0 <= x3);
+  loop invariant (x3 <= jg);
+  loop invariant (jc == 0);
+  loop invariant d == 0;
+  loop invariant tv == 0;
+  loop assigns d, tv, x3, jc;
 */
 while (1) {
-      if (!(b < e4)) {
+      if (!(x3 < jg)) {
           break;
       }
-      b += 1;
-      np0 += rt;
-      rt += np0;
-      ltzw += b;
+      d = d - jc;
+      tv = tv + jc;
+      x3 = x3 + 1;
+      jc += tv;
   }
 }

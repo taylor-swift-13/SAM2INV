@@ -1,14 +1,19 @@
-int main1(int n){
-  int cb, urw, xi;
+int main1(){
+  int sqvr, o9, kd, eot, g9j;
 
-  cb=n;
-  urw=0;
-  xi=-3;
+  sqvr=1+8;
+  o9=0;
+  kd=-6;
+  eot=0;
+  g9j=0;
 
-  while (urw < cb) {
-      xi += urw;
-      n = n + xi;
-      urw += 1;
+  while (1) {
+      if (!(o9 < sqvr)) {
+          break;
+      }
+      eot = (eot + kd < g9j ? eot + kd : (o9++, eot + kd - g9j));
+      g9j += o9;
+      o9 = sqvr;
   }
 
 }

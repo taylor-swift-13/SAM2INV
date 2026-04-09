@@ -1,19 +1,16 @@
 int main1(){
-  int v2, j3k, el4s, el, av;
+  int mv, dn, bf, bl0, ijm;
 
-  v2=1+9;
-  j3k=1;
-  el4s=0;
-  el=0;
-  av=8;
+  mv=1+21;
+  dn=0;
+  bf=bl0;
+  bl0=dn;
+  ijm=dn;
 
-  while (1) {
-      if (!(j3k < v2)) {
-          break;
-      }
-      el4s = el4s + av / (j3k++);
-      el += 4;
-      j3k = v2;
+  while (dn < mv) {
+      dn = dn + 1;
+      bf = bf < ijm ? bf : ijm;
+      ijm = ijm + mv;
   }
 
 }

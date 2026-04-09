@@ -1,28 +1,27 @@
-int main1(int s){
-  int ng7, oy0, bkz, n;
-  ng7=s*4;
-  oy0=0;
-  bkz=-4;
-  n=ng7;
+int main1(){
+  int qz, wvn, jmbw, a44, np3b;
+  qz=23;
+  wvn=0;
+  jmbw=0;
+  a44=qz;
+  np3b=1+4;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant n + oy0 == ng7;
-  loop invariant bkz == -4;
-  loop invariant ng7 == \at(s, Pre) * 4;
-  loop invariant s == \at(s, Pre) + ( (ng7*(ng7-1)) - (n*(n-1)) ) / 2;
-  loop invariant (ng7 > 0) ==> (oy0 >= 0 && oy0 <= ng7 && n >= 0 && n <= ng7);
-  loop invariant 0 <= oy0;
-  loop invariant s == \at(s, Pre) + oy0 * ng7 - (oy0 * (oy0 + 1)) / 2;
-  loop assigns bkz, n, oy0, s;
+  loop invariant 0 <= wvn;
+  loop invariant wvn <= qz;
+  loop invariant a44 == 23 + (wvn * (wvn + 1)) / 2;
+  loop invariant (wvn > 0) ==> (np3b == wvn * (a44 - wvn));
+  loop invariant jmbw >= 0;
+  loop invariant np3b >= 0;
+  loop assigns np3b, jmbw, wvn, a44;
 */
-while (oy0 < ng7) {
-      if (bkz > 0) {
-          bkz--;
+while (1) {
+      if (!(wvn < qz)) {
+          break;
       }
-      if (!(!(n > 0))) {
-          n = n - 1;
-      }
-      oy0++;
-      s += n;
+      np3b = (wvn + 1) * a44;
+      jmbw = jmbw + np3b;
+      wvn += 1;
+      a44 = a44 + wvn;
   }
 }

@@ -1,19 +1,22 @@
-int main1(int v){
-  int i6e, i4, mb, x;
+int main1(int b){
+  int pvt, y, w;
 
-  i6e=v;
-  i4=0;
-  mb=v;
-  x=v;
+  pvt=b;
+  y=0;
+  w=0;
 
   while (1) {
-      if (!(i4 < i6e)) {
+      if (!(y<pvt)) {
           break;
       }
-      mb = mb + 1;
-      v++;
-      x += 2;
-      i4++;
+      if (!(!(y<pvt/2))) {
+          w = w - 3;
+      }
+      else {
+          w = w + 3;
+      }
+      y++;
+      b += pvt;
   }
 
 }

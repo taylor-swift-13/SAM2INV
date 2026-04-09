@@ -1,16 +1,14 @@
-int main1(int z){
-  int lso9, d7, ng, rh, oi;
+int main1(int s){
+  int a1, r9, x2v;
 
-  lso9=z;
-  d7=0;
-  ng=0;
-  rh=d7;
-  oi=0;
+  a1=s;
+  r9=0;
+  x2v=r9;
 
-  while (d7 < lso9) {
-      d7 += 1;
-      oi = oi + 3;
-      ng = ng+ng-rh;
+  while (r9 < a1) {
+      r9 = r9 + s;
+      s = s + 3;
+      x2v = x2v + r9;
   }
 
 }

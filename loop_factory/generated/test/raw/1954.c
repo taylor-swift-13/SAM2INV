@@ -1,15 +1,19 @@
 int main1(){
-  int r1q, ynn, o, d;
+  int j2, sc, qs, xk, ucy;
 
-  r1q=1+20;
-  ynn=0;
-  o=0;
-  d=0;
+  j2=1+5;
+  sc=0;
+  qs=j2;
+  xk=j2;
+  ucy=qs;
 
-  while (ynn < r1q) {
-      ynn += 1;
-      o = o + 1;
-      d = d - o;
+  while (1) {
+      if (!(sc < j2)) {
+          break;
+      }
+      ucy = (sc++, (ucy < qs ? ucy : qs));
+      xk += j2;
+      sc = j2;
   }
 
 }

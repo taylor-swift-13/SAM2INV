@@ -1,24 +1,29 @@
-int main1(){
-  int x1, rd, a, q0n, b63;
-  x1=44;
-  rd=0;
-  a=x1;
-  q0n=1;
-  b63=rd;
+int main1(int i){
+  int now, o9ae, j59, inu, qvw;
+  now=i;
+  o9ae=0;
+  j59=1;
+  inu=5;
+  qvw=o9ae;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= rd;
-  loop invariant rd <= x1;
-  loop invariant q0n == 1 + rd * (a % 9);
-  loop invariant b63 >= 0;
-  loop invariant a == 44;
-  loop invariant x1 == 44;
-  loop assigns rd, b63, q0n;
+  loop invariant qvw == o9ae * (o9ae + 1) / 2;
+  loop invariant o9ae >= 0;
+  loop invariant now == i;
+  loop invariant (i < 0) || (o9ae <= i);
+  loop invariant j59 >= 1;
+  loop invariant inu >= 5;
+  loop invariant now == \at(i, Pre);
+  loop invariant (\at(i, Pre) >= 0 ==> o9ae <= \at(i, Pre));
+  loop assigns o9ae, j59, qvw, inu;
 */
-while (rd < x1) {
-      rd++;
-      b63 = b63*2+(a%7)+2;
-      q0n = q0n+(a%9);
-      b63 = b63*b63+a;
+while (1) {
+      if (!(o9ae < i && j59 < now)) {
+          break;
+      }
+      o9ae = o9ae + 1;
+      j59 = j59 * 2;
+      qvw += o9ae;
+      inu = inu*inu+inu;
   }
 }

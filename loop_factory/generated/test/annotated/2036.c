@@ -1,25 +1,27 @@
-int main1(){
-  int ahqp, n, lo6, j, kpy;
-  ahqp=174;
-  n=0;
-  lo6=0;
-  j=0;
-  kpy=0;
+int main1(int x){
+  int e1, gn, ua, fu, z;
+  e1=134;
+  gn=e1+2;
+  ua=6;
+  fu=6;
+  z=gn;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant j == 3 * n;
-  loop invariant lo6 == 0;
-  loop invariant 0 <= n;
-  loop invariant n <= ahqp;
-  loop invariant 0 <= kpy;
-  loop invariant kpy <= 6 * n;
-  loop invariant ahqp == 174;
-  loop assigns j, n, lo6, kpy;
+  loop invariant z - e1*gn == (1 - e1)*(e1 + 2);
+  loop invariant fu == ua;
+  loop invariant gn >= e1 + 2;
+  loop invariant ua >= 6;
+  loop invariant (fu - gn) == (4 - e1);
+  loop invariant e1 == 134;
+  loop assigns fu, ua, z, gn;
 */
-while (n < ahqp) {
-      j = j + 3;
-      n += 1;
-      lo6 = lo6 + lo6;
-      kpy = kpy+(j%7);
+while (1) {
+      if (!(gn<e1)) {
+          break;
+      }
+      fu = fu + 1;
+      ua++;
+      z += e1;
+      gn = gn + 1;
   }
 }

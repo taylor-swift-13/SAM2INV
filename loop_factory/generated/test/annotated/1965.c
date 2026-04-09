@@ -1,24 +1,22 @@
-int main1(){
-  int gv, v1, knt, h, qf2i;
-  gv=13;
-  v1=0;
-  knt=0;
-  h=gv;
-  qf2i=-5;
+int main1(int i){
+  int e, cx, vfkn, sy, oz;
+  e=i+17;
+  cx=0;
+  vfkn=2;
+  sy=vfkn;
+  oz=vfkn;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant knt == 0;
-  loop invariant h == gv;
-  loop invariant h != 0;
-  loop invariant (v1 == 0) ==> (qf2i == -5);
-  loop invariant (v1 > 0) ==> (qf2i % h == 0);
-  loop invariant (0 <= v1 && v1 <= gv);
-  loop invariant qf2i % 5 == 0;
-  loop assigns v1, qf2i, knt;
+  loop invariant (sy == vfkn);
+  loop invariant e == \at(i, Pre) + 17;
+  loop invariant cx >= 0;
+  loop invariant oz == sy;
+  loop invariant (e >= 0 ==> cx <= e);
+  loop assigns oz, sy, cx;
 */
-while (v1 < gv) {
-      v1 += 1;
-      qf2i = qf2i * h;
-      knt = knt * h;
+while (cx < e) {
+      oz = sy;
+      sy = vfkn;
+      cx = cx + 1;
   }
 }

@@ -1,24 +1,31 @@
-int main1(int l){
-  int g4p, pon, jg4, v3, sun;
-  g4p=l+9;
-  pon=0;
-  jg4=0;
-  v3=g4p;
-  sun=l;
+int main1(){
+  int i50, u4, zpg9, hbe, l1;
+  i50=72;
+  u4=0;
+  zpg9=-2;
+  hbe=i50;
+  l1=i50;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant g4p == \at(l, Pre) + 9;
-  loop invariant sun == \at(l, Pre);
-  loop invariant (pon == 0) || (pon == g4p);
-  loop invariant (pon == 0) ==> (jg4 == 0 && v3 == g4p && l == \at(l, Pre));
-  loop invariant 0 <= pon;
-  loop invariant (pon == g4p) ==> ((jg4 == 0 && v3 == g4p) || (jg4 == g4p && v3 == l));
-  loop assigns l, jg4, v3, pon;
+  loop invariant 0 <= u4;
+  loop invariant u4 <= i50;
+  loop invariant i50 == 72;
+  loop invariant hbe >= 72;
+  loop invariant l1 >= 72;
+  loop invariant zpg9 >= -2;
+  loop invariant (hbe % 2) == 0;
+  loop invariant (l1 % 2) == 0;
+  loop invariant (zpg9 % 2) == 0;
+  loop invariant zpg9 < l1;
+  loop assigns zpg9, hbe, u4, l1;
 */
-while (pon < g4p) {
-      l = l+g4p-pon;
-      jg4 = (pon++, jg4 + v3);
-      v3 += sun;
-      pon = g4p;
+while (1) {
+      if (!(u4 < i50)) {
+          break;
+      }
+      zpg9 = zpg9 + hbe;
+      hbe = hbe + l1;
+      u4++;
+      l1 += zpg9;
   }
 }

@@ -1,24 +1,31 @@
 int main1(){
-  int b0, fd, t8, yk1, th7;
-  b0=10;
-  fd=0;
-  t8=0;
-  yk1=4;
-  th7=fd;
+  int hor, r08, ub, xz, e1z, v1v;
+  hor=63;
+  r08=hor;
+  ub=0;
+  xz=0;
+  e1z=4;
+  v1v=r08;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= fd;
-  loop invariant fd <= b0;
-  loop invariant 2 * th7 == fd + t8;
-  loop invariant (t8 == 0) || (t8 == 1);
-  loop invariant yk1 >= 4;
-  loop invariant th7 == (fd + 1) / 2;
-  loop assigns t8, fd, th7, yk1;
+  loop invariant 0 <= ub;
+  loop invariant ub <= hor;
+  loop invariant 0 <= e1z;
+  loop invariant (6 * (v1v - 63)) == (ub * (ub + 1) * (13 - ub));
+  loop invariant 2*xz == ub*(9 - ub);
+  loop invariant e1z + ub == 4;
+  loop invariant xz == (ub*(9 - ub))/2;
+  loop invariant v1v == 63 + (ub*(ub + 1)*(13 - ub))/6;
+  loop invariant 0 <= xz;
+  loop assigns ub, xz, e1z, v1v;
 */
-while (fd < b0) {
-      t8 = 1 - t8;
-      fd++;
-      th7 += t8;
-      yk1 = yk1*yk1+yk1;
+while (1) {
+      if (!(ub<hor&&e1z>0)) {
+          break;
+      }
+      ub += 1;
+      xz += e1z;
+      e1z = e1z - 1;
+      v1v += xz;
   }
 }

@@ -1,18 +1,15 @@
 int main1(){
-  int j, cj, l, wbh;
+  int kuy, jq2, y0c, oh;
 
-  j=1;
-  cj=0;
-  l=8;
-  wbh=-3;
+  kuy=1+21;
+  jq2=0;
+  y0c=jq2;
+  oh=0;
 
-  while (1) {
-      if (!(cj < j)) {
-          break;
-      }
-      cj++;
-      l = l + wbh;
-      wbh = wbh+j-cj;
+  while (jq2 < kuy) {
+      jq2 = jq2 + 1 + ((kuy - jq2) / (oh + 2));
+      oh += 1;
+      y0c++;
   }
 
 }

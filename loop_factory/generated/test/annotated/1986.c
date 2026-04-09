@@ -1,31 +1,25 @@
-int main1(int s){
-  int k4n, ae, lrw, z, axz;
-  k4n=s;
-  ae=0;
-  lrw=0;
-  z=0;
-  axz=s;
+int main1(int e){
+  int ah, y, w33, z, qf;
+  ah=10;
+  y=0;
+  w33=y;
+  z=2;
+  qf=25;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant k4n == \at(s, Pre);
-  loop invariant z == ae * \at(s, Pre);
-  loop invariant 2 * lrw == \at(s, Pre) * ae * (ae - 1);
-  loop invariant 6 * (axz - \at(s, Pre)) == \at(s, Pre) * ae * (ae + 1) * (ae - 1);
-  loop invariant ae >= 0;
-  loop invariant (k4n >= 0) ==> (ae <= k4n);
-  loop invariant z == ae * s;
-  loop invariant lrw == s * ae * (ae - 1) / 2;
-  loop invariant axz == \at(s, Pre) + \at(s, Pre) * ae * (ae + 1) * (ae - 1) / 6;
-  loop invariant k4n == s;
-  loop assigns lrw, ae, axz, z;
+  loop invariant 0 <= y;
+  loop invariant y <= ah;
+  loop invariant 2 * w33 == y * (y - 1);
+  loop invariant 6 * (qf - 25) == (y * (y - 1) * (y + 1));
+  loop invariant 24 * (z - 2 - y * (25 + \at(e, Pre))) == (y * (y - 1) * (y + 1) * (y + 2));
+  loop invariant e == \at(e, Pre);
+  loop invariant ah == 10;
+  loop assigns w33, y, qf, z;
 */
-while (1) {
-      if (!(ae < k4n)) {
-          break;
-      }
-      lrw += z;
-      ae = ae + 1;
-      axz = axz + lrw;
-      z = z + s;
+while (y < ah) {
+      w33 = w33 + y;
+      y++;
+      qf = qf + w33;
+      z = z+qf+e;
   }
 }

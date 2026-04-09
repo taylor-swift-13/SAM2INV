@@ -1,20 +1,20 @@
 int main1(){
-  int nz, te, a, zpr, k30;
+  int e4, b, np0, ltzw, rt;
 
-  nz=1*3;
-  te=0;
-  a=0;
-  zpr=-8;
-  k30=te;
+  e4=1;
+  b=0;
+  np0=0;
+  ltzw=e4;
+  rt=0;
 
   while (1) {
-      if (!(te < nz)) {
+      if (!(b < e4)) {
           break;
       }
-      a = (1)+(a);
-      te++;
-      zpr += 2;
-      k30 = k30 + te;
+      b += 1;
+      np0 += rt;
+      rt += np0;
+      ltzw += b;
   }
 
 }

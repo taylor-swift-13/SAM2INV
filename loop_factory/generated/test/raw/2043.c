@@ -1,21 +1,16 @@
-int main1(){
-  int b6d, a, pw, e, jd8;
+int main1(int z){
+  int q, kj, c, s;
 
-  b6d=1+7;
-  a=0;
-  pw=b6d;
-  e=-5;
-  jd8=a;
+  q=18;
+  kj=0;
+  c=0;
+  s=z;
 
-  while (a < b6d) {
-      if (jd8 >= e) {
-          jd8 = jd8 - e;
-      }
-      else {
-          a++;
-      }
-      pw += b6d;
-      pw = pw*pw+pw;
+  while (kj < q) {
+      kj = (c += (2*kj < q ? 1 : -1), kj + 1);
+      c += 2;
+      s = s + c;
+      z = z + c;
   }
 
 }

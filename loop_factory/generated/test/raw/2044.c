@@ -1,16 +1,21 @@
-int main1(int z){
-  int q, kj, c, s;
+int main1(){
+  int z, jhb, v, afc, u6t3, j;
 
-  q=18;
-  kj=0;
-  c=0;
-  s=z;
+  z=1*2;
+  jhb=0;
+  v=1;
+  afc=1;
+  u6t3=1;
+  j=1;
 
-  while (kj < q) {
-      kj = (c += (2*kj < q ? 1 : -1), kj + 1);
-      c += 2;
-      s = s + c;
-      z = z + c;
+  while (1) {
+      if (!(jhb < z)) {
+          break;
+      }
+      v = (v + u6t3) * afc;
+      jhb += 1;
+      u6t3 = j * v;
+      afc = afc+(u6t3%2);
   }
 
 }

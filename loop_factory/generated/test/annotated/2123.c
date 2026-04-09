@@ -1,23 +1,27 @@
 int main1(){
-  int it, z2, ro, d, p;
-  it=(1%25)+11;
-  z2=0;
-  ro=z2;
-  d=6;
-  p=it;
+  int uyo1, fhpy, hl, k5ye, jn;
+  uyo1=8;
+  fhpy=uyo1;
+  hl=uyo1 - 1;
+  k5ye=uyo1;
+  jn=uyo1 - 2;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= z2;
-  loop invariant z2 <= it;
-  loop invariant p == it + 2*z2;
-  loop invariant d == 6 - z2;
-  loop invariant ro == z2*(it + 9) + (z2*(z2 - 1))/2;
-  loop assigns z2, p, d, ro;
+  loop invariant k5ye == fhpy;
+  loop invariant jn == (k5ye - 2);
+  loop invariant 0 <= fhpy;
+  loop invariant fhpy <= uyo1;
+  loop invariant (fhpy == uyo1 && hl == (uyo1 - 1)) || hl == (2 * k5ye - 3);
+  loop invariant ((fhpy == uyo1) ==> (hl == uyo1 - 1));
+  loop invariant ((fhpy < uyo1) ==> (hl == 2 * k5ye - 3));
+  loop invariant ( (fhpy == uyo1 && hl == uyo1 - 1)
+                     || (fhpy < uyo1 && hl == 2 * k5ye - 3) );
+  loop assigns k5ye, fhpy, jn, hl;
 */
-while (z2 < it) {
-      z2 = (p = p + 1, d = d - 1, z2 + 1);
-      ro += 2;
-      p++;
-      ro = ro+d+p;
+while (fhpy > 0) {
+      k5ye -= 1;
+      fhpy -= 1;
+      jn = (hl = k5ye - 1, k5ye - 2);
+      hl += jn;
   }
 }

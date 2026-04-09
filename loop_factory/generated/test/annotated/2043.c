@@ -1,29 +1,26 @@
-int main1(){
-  int b6d, a, pw, e, jd8;
-  b6d=1+7;
-  a=0;
-  pw=b6d;
-  e=-5;
-  jd8=a;
+int main1(int z){
+  int q, kj, c, s;
+  q=18;
+  kj=0;
+  c=0;
+  s=z;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant b6d == 1 + 7;
-  loop invariant e == -5;
-  loop invariant 0 <= a;
-  loop invariant a <= b6d;
-  loop invariant jd8 % 5 == 0;
-  loop invariant pw >= b6d;
-  loop invariant (jd8 >= 0);
-  loop assigns a, jd8, pw;
+  loop invariant 0 <= kj;
+  loop invariant kj <= q;
+  loop invariant s == z;
+  loop invariant (kj <= q/2 ==> c == 3*kj) && (kj >= q/2 ==> c == kj + q);
+  loop invariant (2*kj <= q ==> c == 3*kj) && (2*kj >= q ==> c == kj + q);
+  loop invariant ((kj <= 9) && c == 3*kj) || ((kj >= 9) && c == kj + 18);
+  loop invariant ((kj <= 9) && s == \at(z, Pre) + 3*kj*(kj+1)/2) ||
+                   ((kj >= 9) && s == \at(z, Pre) + (kj*(kj+1)/2 + 18*kj - 72));
+  loop invariant (2*kj >= q) ==> (c == kj + 2*(q/2));
+  loop assigns kj, c, s, z;
 */
-while (a < b6d) {
-      if (jd8 >= e) {
-          jd8 = jd8 - e;
-      }
-      else {
-          a++;
-      }
-      pw += b6d;
-      pw = pw*pw+pw;
+while (kj < q) {
+      kj = (c += (2*kj < q ? 1 : -1), kj + 1);
+      c += 2;
+      s = s + c;
+      z = z + c;
   }
 }

@@ -1,19 +1,15 @@
 int main1(){
-  int vz, emo, zdq, cd9, sm2;
+  int go1, tder, q, ep;
 
-  vz=71;
-  emo=0;
-  zdq=emo;
-  cd9=3;
-  sm2=5;
+  go1=1;
+  tder=0;
+  q=tder;
+  ep=go1;
 
-  while (1) {
-      if (!(emo < vz)) {
-          break;
-      }
-      emo = emo + 1;
-      zdq += cd9;
-      cd9 += sm2;
+  while (tder < go1) {
+      q += 1;
+      ep = ep - ep/(tder+1);
+      tder += 1;
   }
 
 }

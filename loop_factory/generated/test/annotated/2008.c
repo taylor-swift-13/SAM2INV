@@ -1,25 +1,26 @@
 int main1(){
-  int mjb, yko, jty, qmb;
-  mjb=1;
-  yko=0;
-  jty=0;
-  qmb=0;
+  int io, gm, p3, m8ay, ye;
+  io=1*3;
+  gm=-1;
+  p3=1;
+  m8ay=io;
+  ye=io;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= yko <= mjb;
-  loop invariant jty == 2 * yko;
-  loop invariant qmb >= 0;
-  loop invariant qmb % 2 == 0;
-  loop invariant mjb == 1;
-  loop assigns jty, qmb, yko;
+  loop invariant m8ay == ye / p3;
+  loop invariant p3 >= 1;
+  loop invariant gm <= io;
+  loop invariant ye == io;
+  loop invariant io > 0;
+  loop invariant (p3 == 1 || p3 % 2 == 0);
+  loop assigns gm, p3, m8ay;
 */
 while (1) {
-      if (!(yko < mjb)) {
+      if (!(++gm < io)) {
           break;
       }
-      jty += 2;
-      qmb = qmb + yko;
-      qmb += qmb;
-      yko = yko + 1;
+      p3 = p3*2;
+      m8ay = ye/p3;
+      gm = io;
   }
 }

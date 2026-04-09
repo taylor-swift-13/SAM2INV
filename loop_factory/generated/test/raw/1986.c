@@ -1,20 +1,17 @@
-int main1(int s){
-  int k4n, ae, lrw, z, axz;
+int main1(int e){
+  int ah, y, w33, z, qf;
 
-  k4n=s;
-  ae=0;
-  lrw=0;
-  z=0;
-  axz=s;
+  ah=10;
+  y=0;
+  w33=y;
+  z=2;
+  qf=25;
 
-  while (1) {
-      if (!(ae < k4n)) {
-          break;
-      }
-      lrw += z;
-      ae = ae + 1;
-      axz = axz + lrw;
-      z = z + s;
+  while (y < ah) {
+      w33 = w33 + y;
+      y++;
+      qf = qf + w33;
+      z = z+qf+e;
   }
 
 }

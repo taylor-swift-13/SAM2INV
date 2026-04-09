@@ -1,18 +1,16 @@
-int main1(int d){
-  int wkze, ui, go, x93l;
+int main1(){
+  int xut, jrx3, sq, b, fc;
 
-  wkze=(d%21)+17;
-  ui=0;
-  go=1;
-  x93l=d;
+  xut=51;
+  jrx3=0;
+  sq=0;
+  b=jrx3;
+  fc=0;
 
-  while (1) {
-      if (!(ui < wkze)) {
-          break;
-      }
-      go = (ui++, go * d);
-      x93l += go;
-      ui = wkze;
+  while (jrx3 < xut) {
+      jrx3++;
+      sq += b;
+      fc += sq;
   }
 
 }

@@ -1,15 +1,16 @@
-int main1(int j){
-  int dba, jz, ke, p, aus7;
+int main1(){
+  int d, atb, n, pnb, v;
 
-  dba=j-10;
-  jz=j;
-  ke=0;
-  p=jz;
-  aus7=dba;
+  d=(1%6)+18;
+  atb=0;
+  n=0;
+  pnb=0;
+  v=0;
 
-  while (jz < dba && ke >= jz && p >= jz && aus7 >= jz) {
-      jz = jz + 1;
-      j += jz;
+  while (atb < d) {
+      v = (n = (pnb = (atb = atb + 1)));
+      pnb += pnb;
+      atb = d;
   }
 
 }

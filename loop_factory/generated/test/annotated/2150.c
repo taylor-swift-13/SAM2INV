@@ -1,28 +1,23 @@
-int main1(){
-  int n5, d3, r6, i;
-  n5=(1%30)+8;
-  d3=0;
-  r6=0;
-  i=d3;
+int main1(int v){
+  int i, of2n, lgnc, vk;
+  i=v;
+  of2n=0;
+  lgnc=0;
+  vk=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= d3 && d3 <= n5;
-  loop invariant r6 == (d3 * (d3 * d3 - 1)) / 6;
-  loop invariant i == d3 + ((d3 - 1) * d3 * (d3 + 1) * (d3 + 2)) / 24;
-  loop invariant 6 * r6 == (d3 * (d3 - 1) * (d3 + 1));
-  loop invariant 24 * i == ((d3 * d3 * d3 * d3) + 2 * d3 * d3 * d3 - d3 * d3 + 22 * d3);
-  loop invariant r6 >= 0 && i >= 0;
-  loop invariant (24 * i == d3 * d3 * d3 * d3 + 2 * d3 * d3 * d3 - d3 * d3 + 22 * d3);
-  loop invariant r6 == (d3 * (d3 - 1) * (d3 + 1)) / 6;
-  loop invariant i == (d3 * (d3 - 1) * (d3 + 1) * (d3 + 2)) / 24 + d3;
-  loop invariant (6 * r6) == (d3 * (d3 - 1) * (d3 + 1));
-  loop invariant (24 * i) == (24 * d3 + d3 * (d3 - 1) * (d3 + 1) * (d3 + 2));
-  loop assigns d3, r6, i;
+  loop invariant 0 <= of2n;
+  loop invariant v == i + ((of2n + 1) / 2);
+  loop invariant lgnc == of2n % 2;
+  loop invariant vk == of2n % 2;
+  loop invariant i == \at(v, Pre);
+  loop invariant (i >= 0) ==> (of2n <= i);
+  loop assigns of2n, lgnc, vk, v;
 */
-while (d3 < n5) {
-      r6 = r6 + (d3 * (d3 + 1)) / 2;
-      d3++;
-      i = (r6)+(i);
-      i = i + 1;
+while (of2n < i) {
+      of2n++;
+      vk = 1 - vk;
+      lgnc = 1 - lgnc;
+      v += lgnc;
   }
 }

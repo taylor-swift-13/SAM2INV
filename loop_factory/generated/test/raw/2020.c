@@ -1,17 +1,17 @@
-int main1(int r){
-  int v1h, w3, ret, lt, dog;
+int main1(){
+  int z1u, btt, wp3i, ks7, wl;
 
-  v1h=(r%7)+17;
-  w3=0;
-  ret=0;
-  lt=0;
-  dog=0;
+  z1u=1+13;
+  btt=0;
+  wp3i=btt;
+  ks7=0;
+  wl=btt;
 
-  while (w3 < v1h) {
-      ret = ret + 3;
-      r += dog;
-      w3 += 1;
-      lt += 1;
+  while (btt < z1u) {
+      ks7 = ks7 + btt*wl;
+      wp3i = wp3i*2;
+      btt = btt + 1;
+      wl += z1u;
   }
 
 }

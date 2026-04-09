@@ -1,27 +1,26 @@
-int main1(int z){
-  int npb9, to, w, u2, i8, e06;
-  npb9=79;
-  to=0;
-  w=0;
-  u2=0;
-  i8=z;
-  e06=0;
+int main1(){
+  int f6o, yzv, q01, v46p, eu3s;
+  f6o=1*2;
+  yzv=0;
+  q01=0;
+  v46p=0;
+  eu3s=yzv;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant to == 2 * u2;
-  loop invariant e06 == 0;
-  loop invariant i8 == z + 2 * u2;
-  loop invariant w == z * u2;
-  loop invariant (u2 == 0 ==> npb9 == 79) && (u2 > 0 ==> npb9 == 2 * u2 - 1);
-  loop invariant u2 >= 0;
-  loop invariant i8 == \at(z, Pre) + 2 * u2;
-  loop invariant u2 <= 1;
-  loop assigns w, i8, u2, npb9, to;
+  loop invariant eu3s == f6o * yzv;
+  loop invariant (0 <= yzv && yzv <= (f6o * f6o));
+  loop invariant (0 <= v46p && v46p < f6o);
+  loop invariant (0 <= q01 && q01 <= f6o - 1);
+  loop invariant f6o > 0;
+  loop invariant (yzv == 0) ==> (q01 == 0 && v46p == 0);
+  loop invariant (yzv > 0) ==> ((yzv - 1) == q01 * f6o + v46p);
+  loop invariant (q01 * f6o + v46p == yzv) || (q01 * f6o + v46p == (yzv - 1));
+  loop assigns q01, v46p, yzv, eu3s;
 */
-while (to++ < npb9) {
-      w = w - e06 + z;
-      i8 += 2;
-      u2 += 1;
-      npb9 = to++;
+while (yzv < f6o * f6o) {
+      q01 = yzv / f6o;
+      v46p = yzv - q01 * f6o;
+      yzv++;
+      eu3s = eu3s + f6o;
   }
 }

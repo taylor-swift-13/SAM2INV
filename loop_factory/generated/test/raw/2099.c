@@ -1,15 +1,18 @@
-int main1(int y){
-  int g, kdm, b2, b;
+int main1(int z){
+  int jy, p, wgk, tnjg;
 
-  g=y+4;
-  kdm=0;
-  b2=g;
-  b=-2;
+  jy=z*2;
+  p=0;
+  wgk=6;
+  tnjg=p;
 
-  while (kdm < g) {
-      b2 = b2 + y;
-      kdm++;
-      b = (b)+(-(y));
+  while (1) {
+      if (!(p < jy)) {
+          break;
+      }
+      tnjg = tnjg + tnjg;
+      wgk += 1;
+      p++;
   }
 
 }

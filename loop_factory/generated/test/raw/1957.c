@@ -1,18 +1,18 @@
-int main1(){
-  int jmx, h, w2, kw;
+int main1(int g){
+  int ny, uq, h, m;
 
-  jmx=10;
-  h=0;
-  w2=h;
-  kw=0;
+  ny=g;
+  uq=0;
+  h=ny;
+  m=-8;
 
   while (1) {
-      if (!(h < jmx)) {
+      if (!(uq < ny)) {
           break;
       }
-      w2 = w2 + (1 - 2*(2*h/jmx));
-      h += 1;
-      kw = kw + w2;
+      uq += 1;
+      h = h + m;
+      g += uq;
   }
 
 }

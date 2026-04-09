@@ -1,17 +1,20 @@
-int main1(){
-  int uyo1, fhpy, hl, k5ye, jn;
+int main1(int r){
+  int u8wl, pay, qk, vnq, t3p3;
 
-  uyo1=8;
-  fhpy=uyo1;
-  hl=uyo1 - 1;
-  k5ye=uyo1;
-  jn=uyo1 - 2;
+  u8wl=r;
+  pay=0;
+  qk=0;
+  vnq=0;
+  t3p3=u8wl;
 
-  while (fhpy > 0) {
-      k5ye -= 1;
-      fhpy -= 1;
-      jn = (hl = k5ye - 1, k5ye - 2);
-      hl += jn;
+  while (1) {
+      if (!(pay < u8wl)) {
+          break;
+      }
+      pay = pay + 1;
+      t3p3 += pay;
+      qk = qk + 1 - (pay % 2);
+      vnq = vnq + (pay % 2);
   }
 
 }

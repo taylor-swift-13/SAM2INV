@@ -1,18 +1,18 @@
-int main1(int m){
-  int wfv, mg4, ki, e;
+int main1(){
+  int wr, vk, a8s, a4;
 
-  wfv=m;
-  mg4=0;
-  ki=m;
-  e=0;
+  wr=13;
+  vk=wr;
+  a8s=0;
+  a4=wr;
 
   while (1) {
-      if (!(mg4 < wfv)) {
+      if (vk>=wr) {
           break;
       }
-      mg4 = mg4 + 1;
-      ki = ki - 1;
-      e += ki;
+      a8s = a8s + 3;
+      vk = vk + 1;
+      a4 = a4 + vk;
   }
 
 }

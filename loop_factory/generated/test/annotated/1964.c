@@ -1,27 +1,24 @@
-int main1(int s){
-  int p, evdq, mi, btv, w;
-  p=(s%15)+17;
-  evdq=p;
-  mi=s;
-  btv=s;
-  w=s;
+int main1(){
+  int gv, v1, knt, h, qf2i;
+  gv=13;
+  v1=0;
+  knt=0;
+  h=gv;
+  qf2i=-5;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant p == (\at(s, Pre) % 15 + 17);
-  loop invariant evdq <= p;
-  loop invariant evdq >= 0;
-  loop invariant (p - evdq == 0) ==> btv == \at(s, Pre);
-  loop invariant (p - evdq > 0 && \at(s, Pre) > (p - evdq)) ==> btv == \at(s, Pre) - (p - evdq);
-  loop invariant (p - evdq > 0 && \at(s, Pre) <= (p - evdq)) ==> btv == 0;
-  loop invariant (\at(s, Pre) > 0) ==> mi == \at(s, Pre) + 2 * (p - evdq);
-  loop invariant (\at(s, Pre) <= 0 && (p - evdq) == 0) ==> mi == \at(s, Pre);
-  loop invariant (\at(s, Pre) <= 0 && (p - evdq) > 0) ==> mi == 2 * (p - evdq) + 1;
-  loop invariant w >= mi;
-  loop assigns evdq, mi, btv, w;
+  loop invariant knt == 0;
+  loop invariant h == gv;
+  loop invariant h != 0;
+  loop invariant (v1 == 0) ==> (qf2i == -5);
+  loop invariant (v1 > 0) ==> (qf2i % h == 0);
+  loop invariant (0 <= v1 && v1 <= gv);
+  loop invariant qf2i % 5 == 0;
+  loop assigns v1, qf2i, knt;
 */
-while (evdq > 0) {
-      evdq = (mi = mi>0 ? mi-1 : 0, btv = btv>0 ? btv-1 : 0, w = w>0 ? w-1 : 0, evdq-1);
-      mi = mi + 3;
-      w += mi;
+while (v1 < gv) {
+      v1 += 1;
+      qf2i = qf2i * h;
+      knt = knt * h;
   }
 }

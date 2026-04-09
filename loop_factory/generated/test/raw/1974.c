@@ -1,19 +1,17 @@
-int main1(){
-  int lgbd, e, uu5, rew, w6;
+int main1(int y){
+  int yi, x, ifp, xj8g;
 
-  lgbd=(1%18)+20;
-  e=0;
-  uu5=e;
-  rew=-2;
-  w6=lgbd;
+  yi=y+10;
+  x=0;
+  ifp=y*yi;
+  xj8g=0;
 
   while (1) {
-      if (!(e < lgbd)) {
+      if (!((xj8g += y, x++ < yi))) {
           break;
       }
-      rew = rew + uu5;
-      e += 1;
-      w6 += rew;
+      ifp = ifp - y;
+      yi = xj8g += y, x++;
   }
 
 }

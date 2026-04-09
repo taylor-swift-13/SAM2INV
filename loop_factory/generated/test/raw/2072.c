@@ -1,19 +1,14 @@
-int main1(){
-  int sqvr, o9, kd, eot, g9j;
+int main1(int j){
+  int k, krf, pb2;
 
-  sqvr=1+8;
-  o9=0;
-  kd=-6;
-  eot=0;
-  g9j=0;
+  k=(j%10)+14;
+  krf=0;
+  pb2=j;
 
-  while (1) {
-      if (!(o9 < sqvr)) {
-          break;
-      }
-      eot = (eot + kd < g9j ? eot + kd : (o9++, eot + kd - g9j));
-      g9j += o9;
-      o9 = sqvr;
+  while (j-- > 0) {
+      pb2 += pb2;
+      krf = (krf + 1 > k) ? (2*k - (krf + 1)) : ((krf - 1 < 0) ? -(krf - 1) : (krf + 1));
+      j++;
   }
 
 }

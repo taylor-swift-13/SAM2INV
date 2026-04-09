@@ -1,18 +1,18 @@
-int main1(int e){
-  int buhz, nc, t, sv;
+int main1(){
+  int j, cj, l, wbh;
 
-  buhz=e+7;
-  nc=0;
-  t=0;
-  sv=0;
+  j=1;
+  cj=0;
+  l=8;
+  wbh=-3;
 
   while (1) {
-      if (!(nc < buhz)) {
+      if (!(cj < j)) {
           break;
       }
-      nc += 1;
-      sv = sv + e;
-      t = t + sv;
+      cj++;
+      l = l + wbh;
+      wbh = wbh+j-cj;
   }
 
 }

@@ -1,29 +1,23 @@
-int main1(int c){
-  int cl, ek, fg, j, zq2;
-  cl=38;
-  ek=0;
-  fg=0;
-  j=0;
-  zq2=0;
+int main1(int x){
+  int w6, gh, t22s;
+  w6=x;
+  gh=0;
+  t22s=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (ek == 0) || (ek == cl);
-  loop invariant (ek == 0) ==> (fg == 0 && j == 0 && zq2 == 0);
-  loop invariant (ek == cl) ==> (fg == c && j == c && zq2 == c*c);
-  loop invariant (
-       (ek == 0 && fg == 0 && j == 0 && zq2 == 0)
-       ||
-       (ek == cl && fg == \at(c, Pre) && j == \at(c, Pre)
-        && zq2 == (\at(c, Pre) * \at(c, Pre)))
-    );
-  loop invariant 0 <= cl - ek;
-  loop invariant (0 <= ek && ek <= cl);
-  loop assigns fg, zq2, j, ek;
+  loop invariant t22s == (gh % 2);
+  loop invariant w6 == \at(x, Pre);
+  loop invariant (gh == 0) ==> (x == \at(x, Pre));
+  loop invariant (gh >= 1) ==> (x == 0);
+  loop invariant 0 <= gh;
+  loop invariant (w6 >= 0) ==> (gh <= w6);
+  loop invariant (gh == 0 ==> x == \at(x, Pre)) && (gh > 0 ==> x == 0);
+  loop assigns gh, t22s, x;
 */
-while (ek < cl) {
-      fg = fg + c;
-      zq2 = zq2 + fg*fg;
-      j = j + fg;
-      ek = cl;
+while (gh < w6) {
+      gh = gh + 1;
+      t22s = 1 - t22s;
+      x = x+(gh%2);
+      x -= x;
   }
 }

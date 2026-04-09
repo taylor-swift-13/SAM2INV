@@ -1,24 +1,22 @@
-int main1(int b){
-  int do2, c3e, kqt, rt;
-  do2=19;
-  c3e=0;
-  kqt=0;
-  rt=1;
+int main1(){
+  int g, zk, shq, niss, rv28;
+  g=1+11;
+  zk=0;
+  shq=5;
+  niss=zk;
+  rv28=-6;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (kqt == ((c3e * \at(b, Pre)) % do2));
-  loop invariant (rt == (1 + (c3e * (c3e + 1)) / 2));
-  loop invariant (0 <= c3e && c3e <= do2);
-  loop invariant do2 == 19;
-  loop invariant 2 * (rt - 1) == c3e * (c3e + 1);
-  loop assigns kqt, c3e, rt;
+  loop invariant shq == 5 + zk*(zk + 1)/2;
+  loop invariant (0 <= zk && zk <= g && rv28 == -6);
+  loop invariant niss >= zk * rv28;
+  loop invariant niss <= zk * shq;
+  loop invariant shq <= 5 + g*(g+1)/2;
+  loop assigns niss, zk, shq;
 */
-while (1) {
-      if (!(c3e < do2)) {
-          break;
-      }
-      kqt = (kqt + b) % do2;
-      c3e += 1;
-      rt = rt + c3e;
+while (zk < g) {
+      niss = zk % 2 == 0 ? niss + shq : niss + rv28;
+      zk++;
+      shq = shq + zk;
   }
 }

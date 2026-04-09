@@ -1,15 +1,18 @@
 int main1(){
-  int z, e7, pm, y9ty;
+  int tj4, a, pbso, oij;
 
-  z=75;
-  e7=0;
-  pm=0;
-  y9ty=0;
+  tj4=(1%10)+20;
+  a=0;
+  pbso=0;
+  oij=0;
 
-  while (e7<z) {
-      e7 = e7 + 1;
-      pm = 1-pm;
-      y9ty = y9ty + pm;
+  while (1) {
+      if (!(a < tj4)) {
+          break;
+      }
+      pbso = pbso + oij * ++a;
+      oij += tj4;
+      a = tj4;
   }
 
 }

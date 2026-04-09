@@ -1,18 +1,15 @@
-int main1(){
-  int wr, vk, a8s, a4;
+int main1(int j){
+  int dba, jz, ke, p, aus7;
 
-  wr=13;
-  vk=wr;
-  a8s=0;
-  a4=wr;
+  dba=j-10;
+  jz=j;
+  ke=0;
+  p=jz;
+  aus7=dba;
 
-  while (1) {
-      if (vk>=wr) {
-          break;
-      }
-      a8s = a8s + 3;
-      vk = vk + 1;
-      a4 = a4 + vk;
+  while (jz < dba && ke >= jz && p >= jz && aus7 >= jz) {
+      jz = jz + 1;
+      j += jz;
   }
 
 }

@@ -1,29 +1,32 @@
-int main1(){
-  int gl, y0, ix8y, v, zyx, e;
-  gl=1+25;
-  y0=gl+3;
-  ix8y=y0;
-  v=gl;
-  zyx=3;
-  e=0;
+int main1(int y){
+  int aq, c00, lmha, re, l0, q;
+  aq=y+16;
+  c00=0;
+  lmha=aq;
+  re=aq;
+  l0=12;
+  q=-5;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant zyx - 6*e == 3;
-  loop invariant v == 26 + 3*e*e;
-  loop invariant ix8y == 29 + 26*e + (e*(e-1)*(2*e-1))/2;
-  loop invariant 0 <= e;
-  loop invariant e <= gl + 1;
-  loop invariant v == gl + 3*e*e;
-  loop invariant ix8y == (gl + 3) + e*gl + (e*(e-1)*(2*e-1))/2;
-  loop assigns ix8y, v, e, zyx;
+  loop invariant aq == \at(y, Pre) + 16;
+  loop invariant y == \at(y, Pre);
+  loop invariant l0 == 12;
+  loop invariant c00 >= 0;
+  loop invariant (l0 - c00 * y) >= 0;
+  loop invariant q == -5 + c00 * (l0 % 6);
+  loop invariant lmha >= aq;
+  loop invariant re >= aq;
+  loop invariant (aq >= 0 ==> c00 <= aq);
+  loop invariant (c00 == 0) ==> (lmha == aq && re == aq && q == -5);
+  loop assigns lmha, q, c00, re;
 */
 while (1) {
-      if (e>gl) {
+      if (!(c00 < aq && l0 - (c00 + 1) * y >= 0)) {
           break;
       }
-      ix8y += v;
-      v = (zyx)+(v);
-      e += 1;
-      zyx += 6;
+      lmha = lmha*2+2;
+      q = q+(l0%6);
+      c00 = c00 + 1;
+      re = (2)+(re*lmha);
   }
 }

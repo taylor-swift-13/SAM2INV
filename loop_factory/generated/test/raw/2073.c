@@ -1,14 +1,18 @@
-int main1(int j){
-  int k, krf, pb2;
+int main1(int x){
+  int jh0, itu, ue, zygf;
 
-  k=(j%10)+14;
-  krf=0;
-  pb2=j;
+  jh0=x*5;
+  itu=0;
+  ue=2;
+  zygf=itu;
 
-  while (j-- > 0) {
-      pb2 += pb2;
-      krf = (krf + 1 > k) ? (2*k - (krf + 1)) : ((krf - 1 < 0) ? -(krf - 1) : (krf + 1));
-      j++;
+  while (1) {
+      if (!(itu < jh0)) {
+          break;
+      }
+      itu += 1;
+      zygf = (x)+(-(itu));
+      ue = jh0-itu;
   }
 
 }

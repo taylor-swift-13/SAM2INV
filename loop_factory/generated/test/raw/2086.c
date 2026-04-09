@@ -1,15 +1,15 @@
-int main1(){
-  int kuy, jq2, y0c, oh;
+int main1(int q){
+  int pv, ho, lg7, x;
 
-  kuy=1+21;
-  jq2=0;
-  y0c=jq2;
-  oh=0;
+  pv=34;
+  ho=0;
+  lg7=-4;
+  x=pv;
 
-  while (jq2 < kuy) {
-      jq2 = jq2 + 1 + ((kuy - jq2) / (oh + 2));
-      oh += 1;
-      y0c++;
+  while (ho < pv && x != q) {
+      x = x + (x < q ? 1 : -1);
+      ho += 1;
+      lg7 = lg7+x-x;
   }
 
 }

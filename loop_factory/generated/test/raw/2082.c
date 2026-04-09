@@ -1,18 +1,15 @@
-int main1(){
-  int d2cm, aa, dh, frn;
+int main1(int m){
+  int rgv, bo, ks0, d8er;
 
-  d2cm=1+13;
-  aa=0;
-  dh=1;
-  frn=d2cm;
+  rgv=m;
+  bo=0;
+  ks0=0;
+  d8er=1;
 
-  while (1) {
-      if (!(aa < d2cm && dh <= frn)) {
-          break;
-      }
-      aa += 1;
-      frn -= dh;
-      dh += 2;
+  while (bo<rgv) {
+      ks0 = ks0 + d8er;
+      bo += 1;
+      d8er += 2;
   }
 
 }

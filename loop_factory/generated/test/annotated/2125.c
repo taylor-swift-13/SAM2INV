@@ -1,27 +1,27 @@
-int main1(int r){
-  int u8wl, pay, qk, vnq, t3p3;
-  u8wl=r;
-  pay=0;
-  qk=0;
-  vnq=0;
-  t3p3=u8wl;
+int main1(){
+  int jsza, c8, ksu, q3m, p, k;
+  jsza=1;
+  c8=0;
+  ksu=1+2;
+  q3m=jsza;
+  p=0;
+  k=-6;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant u8wl == \at(r, Pre);
-  loop invariant 0 <= pay;
-  loop invariant qk == (pay / 2);
-  loop invariant vnq == (pay - qk);
-  loop invariant t3p3 == (\at(r, Pre) + (pay * (pay + 1)) / 2);
-  loop invariant (u8wl < 0) || (pay <= u8wl);
-  loop assigns pay, t3p3, qk, vnq;
+  loop invariant p == 0;
+  loop invariant k == -6;
+  loop invariant q3m == jsza;
+  loop invariant ksu == 3 + (c8*(c8+1))/2 + 2*q3m*c8;
+  loop invariant 0 <= c8 <= jsza;
+  loop assigns c8, p, ksu;
 */
 while (1) {
-      if (!(pay < u8wl)) {
+      if (!(k != 0 && c8 < jsza)) {
           break;
       }
-      pay = pay + 1;
-      t3p3 += pay;
-      qk = qk + 1 - (pay % 2);
-      vnq = vnq + (pay % 2);
+      c8 += 1;
+      p = p % k;
+      ksu = ksu + c8;
+      ksu = ksu+q3m+q3m;
   }
 }

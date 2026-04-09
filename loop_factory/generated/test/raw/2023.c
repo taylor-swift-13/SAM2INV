@@ -1,20 +1,20 @@
 int main1(){
-  int e4, b, np0, ltzw, rt;
+  int jg, x3, d, tv, jc;
 
-  e4=1;
-  b=0;
-  np0=0;
-  ltzw=e4;
-  rt=0;
+  jg=1;
+  x3=0;
+  d=0;
+  tv=x3;
+  jc=x3;
 
   while (1) {
-      if (!(b < e4)) {
+      if (!(x3 < jg)) {
           break;
       }
-      b += 1;
-      np0 += rt;
-      rt += np0;
-      ltzw += b;
+      d = d - jc;
+      tv = tv + jc;
+      x3 = x3 + 1;
+      jc += tv;
   }
 
 }

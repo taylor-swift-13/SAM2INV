@@ -1,22 +1,25 @@
-int main1(){
-  int gof, nqg, t0ii, xf, km;
-  gof=1;
-  nqg=0;
-  t0ii=nqg;
-  xf=-1;
-  km=nqg;
+int main1(int q){
+  int s, gnwb, tx, cra;
+  s=q;
+  gnwb=0;
+  tx=0;
+  cra=q;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= nqg;
-  loop invariant nqg <= gof;
-  loop invariant km == nqg * t0ii;
-  loop invariant t0ii == 0;
-  loop invariant xf == (-1 + (nqg * (nqg + 1)) / 2);
-  loop assigns nqg, xf, km;
+  loop invariant s == q;
+  loop invariant gnwb >= 0;
+  loop invariant tx == gnwb * gnwb;
+  loop invariant cra == q + (gnwb * (gnwb + 1) * (2 * gnwb + 1)) / 6;
+  loop invariant (s >= 0) ==> (gnwb <= s);
+  loop invariant q == \at(q, Pre);
+  loop assigns tx, cra, gnwb;
 */
-while (nqg<gof) {
-      nqg += 1;
-      xf += nqg;
-      km += t0ii;
+while (1) {
+      if (!(gnwb < s)) {
+          break;
+      }
+      tx = tx + 2*gnwb + 1;
+      cra += tx;
+      gnwb++;
   }
 }

@@ -1,26 +1,23 @@
-int main1(){
-  int ijg9, wx, rc6, qa, xe6;
-  ijg9=1+17;
-  wx=0;
-  rc6=1;
-  qa=0;
-  xe6=0;
+int main1(int h){
+  int q, w1r7, b1, wl;
+  q=h;
+  w1r7=0;
+  b1=0;
+  wl=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant rc6 == qa + 1;
-  loop invariant xe6 * 2 == qa * (qa + 3);
-  loop invariant 0 <= qa;
-  loop invariant wx <= ijg9;
-  loop invariant (wx < ijg9) ==> (qa < ijg9);
-  loop invariant wx >= qa;
-  loop invariant (wx < ijg9) ==> ((ijg9 - wx + rc6 - 1) / rc6 >= 1);
-  loop invariant xe6 == ((rc6 * (rc6 + 1)) / 2) - 1;
-  loop assigns wx, rc6, xe6, qa;
+  loop invariant b1 == w1r7;
+  loop invariant wl == w1r7;
+  loop invariant w1r7 >= 0;
+  loop invariant 4 * (h - \at(h, Pre)) == w1r7 * (w1r7 + 2);
+  loop invariant q == \at(h,Pre);
+  loop invariant (q < 0) || (w1r7 <= q + 1);
+  loop assigns wl, b1, w1r7, h;
 */
-while (wx < ijg9) {
-      wx = wx + (ijg9 - wx + rc6 - 1) / rc6;
-      rc6 = rc6 + 1;
-      xe6 = xe6 + rc6;
-      qa = qa + 1;
+while (w1r7<q) {
+      wl += 2;
+      b1 += 2;
+      w1r7 += 2;
+      h = h + w1r7;
   }
 }

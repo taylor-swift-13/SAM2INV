@@ -1,19 +1,17 @@
 int main1(){
-  int zz, v7b, lj8f, s0w, dw;
+  int hv, lvy, i, f, zd;
 
-  zz=(1%12)+11;
-  v7b=0;
-  lj8f=v7b;
-  s0w=lj8f;
-  dw=3;
+  hv=1;
+  lvy=0;
+  i=0;
+  f=0;
+  zd=0;
 
-  while (v7b < zz) {
-      v7b++;
-      if (lj8f < s0w) {
-          s0w = lj8f;
-      }
-      dw = dw + v7b;
-      lj8f += 4;
+  while (lvy < hv) {
+      i = i + 1;
+      f = f + i;
+      lvy += 1;
+      zd += f;
   }
 
 }

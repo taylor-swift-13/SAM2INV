@@ -1,16 +1,18 @@
-int main1(){
-  int gof, nqg, t0ii, xf, km;
+int main1(int q){
+  int s, gnwb, tx, cra;
 
-  gof=1;
-  nqg=0;
-  t0ii=nqg;
-  xf=-1;
-  km=nqg;
+  s=q;
+  gnwb=0;
+  tx=0;
+  cra=q;
 
-  while (nqg<gof) {
-      nqg += 1;
-      xf += nqg;
-      km += t0ii;
+  while (1) {
+      if (!(gnwb < s)) {
+          break;
+      }
+      tx = tx + 2*gnwb + 1;
+      cra += tx;
+      gnwb++;
   }
 
 }

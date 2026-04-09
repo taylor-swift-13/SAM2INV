@@ -1,19 +1,18 @@
-int main1(){
-  int qefv, p, w6n, g6l, j2y4;
+int main1(int b){
+  int do2, c3e, kqt, rt;
 
-  qefv=1;
-  p=qefv;
-  w6n=p;
-  g6l=p;
-  j2y4=0;
+  do2=19;
+  c3e=0;
+  kqt=0;
+  rt=1;
 
   while (1) {
-      if (!(p < qefv)) {
+      if (!(c3e < do2)) {
           break;
       }
-      g6l = (g6l+g6l)+(-(w6n));
-      j2y4 = j2y4+j2y4-j2y4;
-      p++;
+      kqt = (kqt + b) % do2;
+      c3e += 1;
+      rt = rt + c3e;
   }
 
 }

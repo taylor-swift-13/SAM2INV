@@ -1,17 +1,16 @@
-int main1(int n){
-  int gn, f, d, pa, ma0;
+int main1(int b){
+  int z7x, ordi, uou, j;
 
-  gn=n+5;
-  f=0;
-  d=0;
-  pa=0;
-  ma0=16;
+  z7x=b*2;
+  ordi=0;
+  uou=0;
+  j=0;
 
-  while (f < gn) {
-      pa = 1 - pa;
-      f = f + 1;
-      d = d + ma0 * (2 * pa - 1);
-      ma0 += f;
+  while (ordi < z7x) {
+      uou = (ordi++, uou + (2*ordi - 1));
+      b = b+uou+uou;
+      j = j + uou;
+      ordi = z7x;
   }
 
 }

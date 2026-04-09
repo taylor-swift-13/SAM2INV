@@ -1,25 +1,28 @@
-int main1(int m){
-  int b, z9, zm5, ihli, bdj;
-  b=m+6;
-  z9=0;
-  zm5=-m;
-  ihli=b;
-  bdj=0;
+int main1(int s){
+  int ng7, oy0, bkz, n;
+  ng7=s*4;
+  oy0=0;
+  bkz=-4;
+  n=ng7;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant ihli == b + z9;
-  loop invariant bdj == (-\at(m, Pre)) * z9 + (z9 * (z9 + 1)) / 2;
-  loop invariant z9 >= 0;
-  loop invariant ((zm5 - z9) == (-m));
-  loop invariant (bdj == (-m * z9 + (z9 * (z9 + 1)) / 2));
-  loop invariant zm5 == -\at(m, Pre) + z9;
-  loop invariant (b >= 0) ==> (z9 <= b);
-  loop assigns ihli, z9, zm5, bdj;
+  loop invariant n + oy0 == ng7;
+  loop invariant bkz == -4;
+  loop invariant ng7 == \at(s, Pre) * 4;
+  loop invariant s == \at(s, Pre) + ( (ng7*(ng7-1)) - (n*(n-1)) ) / 2;
+  loop invariant (ng7 > 0) ==> (oy0 >= 0 && oy0 <= ng7 && n >= 0 && n <= ng7);
+  loop invariant 0 <= oy0;
+  loop invariant s == \at(s, Pre) + oy0 * ng7 - (oy0 * (oy0 + 1)) / 2;
+  loop assigns bkz, n, oy0, s;
 */
-while (z9 < b && zm5 < 0) {
-      ihli += 1;
-      z9 += 1;
-      zm5 += 1;
-      bdj += zm5;
+while (oy0 < ng7) {
+      if (bkz > 0) {
+          bkz--;
+      }
+      if (!(!(n > 0))) {
+          n = n - 1;
+      }
+      oy0++;
+      s += n;
   }
 }

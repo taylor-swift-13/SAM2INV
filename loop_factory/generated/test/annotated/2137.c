@@ -1,18 +1,25 @@
-int main1(){
-  int nn1, nd5z, swkr;
-  nn1=1;
-  nd5z=0;
-  swkr=0;
+int main1(int m){
+  int wpo4, zbr, gib, in7, b;
+  wpo4=m;
+  zbr=m;
+  gib=wpo4;
+  in7=7;
+  b=(m%6)+2;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= nd5z;
-  loop invariant nd5z <= nn1;
-  loop invariant (nd5z < nn1) ==> (nd5z + 1 == nn1 && swkr == 0);
-  loop invariant (nd5z == 0 && swkr == 0) || (nd5z == nn1 && swkr == 1);
-  loop assigns swkr, nd5z;
+  loop invariant wpo4 == \at(m, Pre);
+  loop invariant b == ((\at(m, Pre) % 6) + 2);
+  loop invariant gib == ((zbr - gib) * (b - 1)) + \at(m, Pre);
+  loop invariant in7 >= 7 && (in7 <= wpo4 || wpo4 < 7);
+  loop invariant wpo4 == m;
+  loop assigns zbr, gib, in7;
 */
-while (nd5z < nn1) {
-      swkr = swkr + ((nd5z++ * 2 < nn1) ? 1 : -1);
-      nd5z = nn1;
+while (1) {
+      if (in7>=wpo4) {
+          break;
+      }
+      zbr = zbr*b+m;
+      gib = gib*b;
+      in7 = in7 + 1;
   }
 }

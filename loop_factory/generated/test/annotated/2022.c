@@ -1,25 +1,27 @@
 int main1(){
-  int nz, te, a, zpr, k30;
-  nz=1*3;
-  te=0;
-  a=0;
-  zpr=-8;
-  k30=te;
+  int e4, b, np0, ltzw, rt;
+  e4=1;
+  b=0;
+  np0=0;
+  ltzw=e4;
+  rt=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant a == te;
-  loop invariant zpr == -8 + 2*te;
-  loop invariant k30 == (te*(te+1))/2;
-  loop invariant (0 <= te && te <= nz);
-  loop assigns a, te, zpr, k30;
+  loop invariant rt == 0;
+  loop invariant np0 == 0;
+  loop invariant 0 <= b;
+  loop invariant b <= e4;
+  loop invariant ltzw == 1 + (b*(b+1))/2;
+  loop invariant ltzw == e4 + (b*(b+1))/2;
+  loop assigns b, np0, rt, ltzw;
 */
 while (1) {
-      if (!(te < nz)) {
+      if (!(b < e4)) {
           break;
       }
-      a = (1)+(a);
-      te++;
-      zpr += 2;
-      k30 = k30 + te;
+      b += 1;
+      np0 += rt;
+      rt += np0;
+      ltzw += b;
   }
 }

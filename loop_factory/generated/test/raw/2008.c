@@ -1,19 +1,19 @@
 int main1(){
-  int mjb, yko, jty, qmb;
+  int io, gm, p3, m8ay, ye;
 
-  mjb=1;
-  yko=0;
-  jty=0;
-  qmb=0;
+  io=1*3;
+  gm=-1;
+  p3=1;
+  m8ay=io;
+  ye=io;
 
   while (1) {
-      if (!(yko < mjb)) {
+      if (!(++gm < io)) {
           break;
       }
-      jty += 2;
-      qmb = qmb + yko;
-      qmb += qmb;
-      yko = yko + 1;
+      p3 = p3*2;
+      m8ay = ye/p3;
+      gm = io;
   }
 
 }

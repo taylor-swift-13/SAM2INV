@@ -1,26 +1,26 @@
-int main1(int f){
-  int grzc, gyc, h0, we, la;
-  grzc=52;
-  gyc=0;
-  h0=gyc;
-  we=gyc;
-  la=grzc;
+int main1(int v){
+  int i6e, i4, mb, x;
+  i6e=v;
+  i4=0;
+  mb=v;
+  x=v;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (0 <= gyc && gyc <= grzc);
-  loop invariant (we == (-gyc + 2*(gyc/3)));
-  loop invariant la == grzc * (gyc + 1);
-  loop invariant h0 == - (gyc % 2);
-  loop invariant grzc == 52;
-  loop assigns gyc, h0, la, we;
+  loop invariant i6e == \at(v, Pre);
+  loop invariant i4 >= 0;
+  loop invariant mb == \at(v, Pre) + i4;
+  loop invariant v == \at(v, Pre) + i4;
+  loop invariant x == \at(v, Pre) + 2 * i4;
+  loop invariant (\at(v, Pre) > 0) ==> (i4 <= i6e);
+  loop assigns mb, v, x, i4;
 */
 while (1) {
-      if (!(gyc < grzc)) {
+      if (!(i4 < i6e)) {
           break;
       }
-      gyc += 1;
-      h0 = h0 + 2*(gyc % 2 == 0) - 1;
-      la += grzc;
-      we = (we + 2*(gyc % 3 == 0))+(-(1));
+      mb = mb + 1;
+      v++;
+      x += 2;
+      i4++;
   }
 }

@@ -1,20 +1,21 @@
-int main1(int x){
-  int yd, avcw, z0e;
-  yd=x-8;
-  avcw=0;
-  z0e=avcw;
+int main1(int y){
+  int g, kdm, b2, b;
+  g=y+4;
+  kdm=0;
+  b2=g;
+  b=-2;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (z0e == 0);
-  loop invariant (avcw >= 0);
-  loop invariant x == \at(x, Pre) + 2*avcw;
-  loop invariant yd == \at(x, Pre) - 8;
-  loop invariant (avcw <= yd) || (avcw == 0);
-  loop assigns x, z0e, avcw;
+  loop invariant b2 == y + 4 + kdm * y;
+  loop invariant b == -2 - kdm * y;
+  loop invariant b2 == (g + kdm * y);
+  loop invariant kdm >= 0;
+  loop invariant (g >= 0 ==> kdm <= g);
+  loop assigns b2, kdm, b;
 */
-while (avcw < yd) {
-      x += 2;
-      z0e = z0e + z0e;
-      avcw++;
+while (kdm < g) {
+      b2 = b2 + y;
+      kdm++;
+      b = (b)+(-(y));
   }
 }

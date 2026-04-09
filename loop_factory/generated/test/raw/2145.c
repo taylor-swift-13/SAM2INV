@@ -1,20 +1,16 @@
-int main1(int s){
-  int x4mk, z, y83, jm, a;
+int main1(){
+  int ev, vm2, l, g;
 
-  x4mk=73;
-  z=0;
-  y83=0;
-  jm=0;
-  a=s;
+  ev=(1%22)+17;
+  vm2=0;
+  l=0;
+  g=4;
 
-  while (1) {
-      if (!(z < x4mk)) {
-          break;
-      }
-      y83 = (1 - (z % 2)) * a + (z % 2) * y83;
-      jm = (z % 2) * a + (1 - (z % 2)) * jm;
-      a = a + jm;
-      z += 1;
+  while (vm2<ev&&g>0) {
+      vm2++;
+      l = l + g;
+      l = l + 1;
+      g -= 1;
   }
 
 }

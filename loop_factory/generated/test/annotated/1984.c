@@ -1,29 +1,27 @@
-int main1(int q){
-  int vqss, ynmp, fu, itd2, m6;
-  vqss=76;
-  ynmp=0;
-  fu=0;
-  itd2=0;
-  m6=0;
+int main1(int e){
+  int i, d0, ag, r2e, hd;
+  i=e;
+  d0=0;
+  ag=3;
+  r2e=0;
+  hd=25;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (ynmp == 0) || (ynmp == vqss);
-  loop invariant (ynmp != vqss) ==> (fu == 0 && itd2 == 0 && m6 == 0);
-  loop invariant (ynmp == vqss) ==> (m6 == itd2);
-  loop invariant (ynmp == 0 && fu == 0 && itd2 == 0 && m6 == 0)
-                   || (ynmp == vqss && fu == q + 1 && itd2 == q && m6 == q);
-  loop invariant ( (ynmp == 0 && fu == 0 && itd2 == 0 && m6 == 0)
-                  || (ynmp == vqss && fu == q + 1 && itd2 == q && m6 == q) );
-  loop invariant vqss == 76;
-  loop assigns fu, itd2, m6, ynmp;
+  loop invariant d0 >= 0;
+  loop invariant ag == d0 + 3;
+  loop invariant r2e == -d0;
+  loop invariant hd == 25 - d0 * (d0 + 1) / 2;
+  loop invariant (i >= 0) ==> (d0 <= i);
+  loop invariant i == \at(e, Pre);
+  loop assigns ag, d0, r2e, hd;
 */
 while (1) {
-      if (!(ynmp < vqss)) {
+      if (!(d0 < i)) {
           break;
       }
-      itd2 = itd2 + (fu += q, ynmp++, fu);
-      fu = fu + 1;
-      m6 = m6 + itd2;
-      ynmp = vqss;
+      ag += 1;
+      r2e -= 1;
+      d0++;
+      hd = hd + r2e;
   }
 }

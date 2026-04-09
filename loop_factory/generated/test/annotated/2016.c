@@ -1,25 +1,22 @@
-int main1(){
-  int oesp, ozu, ai0, m;
-  oesp=1+3;
-  ozu=0;
-  ai0=0;
-  m=ozu;
+int main1(int p){
+  int o0b3, i2, o, bvj;
+  o0b3=(p%21)+13;
+  i2=0;
+  o=i2;
+  bvj=o0b3;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= ozu;
-  loop invariant ozu <= oesp;
-  loop invariant ai0 >= 0;
-  loop invariant m - ai0 >= ozu;
-  loop invariant oesp == 4;
-  loop invariant (ozu <= oesp/2) ==> (ai0 == 0 && m == ozu);
-  loop assigns ai0, m, ozu;
+  loop invariant o0b3 == ((\at(p, Pre) % 21) + 13);
+  loop invariant bvj == o0b3 + 2 * o;
+  loop invariant p == \at(p, Pre);
+  loop invariant (o == 0 && i2 == 0) || (o == 1 && i2 == o0b3);
+  loop invariant (i2 == 0) <==> (o == 0);
+  loop assigns p, o, bvj, i2;
 */
-while (ozu < oesp) {
-      if (!(!(ozu >= oesp/2))) {
-          ai0 = ai0 + m;
-      }
-      m += ai0;
-      ozu += 1;
-      m++;
+while (i2 < o0b3) {
+      p = p + i2;
+      o = o + 1;
+      bvj += 2;
+      i2 = o0b3;
   }
 }

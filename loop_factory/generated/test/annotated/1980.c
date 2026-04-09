@@ -1,24 +1,27 @@
-int main1(){
-  int g3v, w, ds, qf, yq;
-  g3v=1+6;
-  w=g3v;
-  ds=0;
-  qf=w;
-  yq=-6;
+int main1(int a){
+  int epx, ojg, uil, lsr8, r2g;
+  epx=38;
+  ojg=0;
+  uil=3;
+  lsr8=epx;
+  r2g=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant g3v == 1+6;
-  loop invariant w >= 0;
-  loop invariant ds >= 0;
-  loop invariant (qf == (g3v + ds));
-  loop invariant (yq == (-6 + ds));
-  loop invariant w <= g3v;
-  loop assigns qf, ds, yq, w;
+  loop invariant r2g == ojg;
+  loop invariant uil == 3 + ((ojg * (ojg + 1)) / 2);
+  loop invariant lsr8 % epx == 0;
+  loop invariant lsr8 >= epx;
+  loop invariant (0 <= ojg && ojg <= epx);
+  loop invariant 2*(uil - 3) == (ojg * (ojg + 1));
+  loop assigns ojg, lsr8, r2g, uil;
 */
-while (w>0) {
-      qf += 1;
-      ds = (1)+(ds);
-      yq = yq + 1;
-      w = 0;
+while (1) {
+      if (!(ojg < epx)) {
+          break;
+      }
+      ojg += 1;
+      lsr8 = lsr8 + lsr8;
+      r2g = r2g + 1;
+      uil += ojg;
   }
 }

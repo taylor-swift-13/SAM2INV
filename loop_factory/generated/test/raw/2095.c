@@ -1,16 +1,18 @@
 int main1(int k){
-  int bld, tx, a;
+  int o2, ks, gb, np;
 
-  bld=k;
-  tx=0;
-  a=0;
+  o2=k;
+  ks=0;
+  gb=o2;
+  np=0;
 
-  while (tx<bld) {
-      if (!(!(tx>=bld/2))) {
-          a += 2;
+  while (1) {
+      if (!(ks<=o2-1)) {
+          break;
       }
-      tx += 1;
-      k += bld;
+      np = np + ks*k;
+      ks = ks + 1;
+      gb = (np)+(gb);
   }
 
 }

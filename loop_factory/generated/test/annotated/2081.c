@@ -1,19 +1,23 @@
 int main1(){
-  int go1, tder, q, ep;
-  go1=1;
-  tder=0;
-  q=tder;
-  ep=go1;
+  int d2cm, aa, dh, frn;
+  d2cm=1+13;
+  aa=0;
+  dh=1;
+  frn=d2cm;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant q == tder;
-  loop invariant (tder == 0 ==> ep == 1) && (tder >= 1 ==> ep == 0);
-  loop invariant (0 <= tder && tder <= go1);
-  loop assigns q, ep, tder;
+  loop invariant (frn + (aa * aa) == d2cm);
+  loop invariant (dh == (1 + 2 * aa));
+  loop invariant (0 <= aa && aa <= d2cm);
+  loop invariant (frn >= 0);
+  loop assigns aa, frn, dh;
 */
-while (tder < go1) {
-      q += 1;
-      ep = ep - ep/(tder+1);
-      tder += 1;
+while (1) {
+      if (!(aa < d2cm && dh <= frn)) {
+          break;
+      }
+      aa += 1;
+      frn -= dh;
+      dh += 2;
   }
 }

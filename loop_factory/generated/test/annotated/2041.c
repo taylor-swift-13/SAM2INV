@@ -1,27 +1,29 @@
 int main1(){
-  int hw, l, ugh, sik, hz, en;
-  hw=1-5;
-  l=0;
-  ugh=10;
-  sik=hw;
-  hz=l;
-  en=l;
+  int r, f92, kyww, xy, i, wx;
+  r=1;
+  f92=0;
+  kyww=r;
+  xy=r;
+  i=2;
+  wx=f92;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (en - 3 * l == 0);
-  loop invariant (sik == hw);
-  loop invariant (l >= 0);
-  loop invariant (0 <= en % 9 && en % 9 <= 6);
-  loop invariant (0 <= hz && hz <= 6 * l);
-  loop invariant ugh == 10 + (sik % 4) * l;
-  loop invariant (l % 3 == 0 || l % 3 == 1) ==> hz == 9 * (l / 3);
-  loop invariant (l % 3 == 2) ==> hz == 9 * (l / 3) + 3;
-  loop assigns ugh, hz, l, en;
+  loop invariant r == 1;
+  loop invariant kyww == xy;
+  loop invariant wx == 0;
+  loop invariant 0 <= f92;
+  loop invariant f92 <= r;
+  loop invariant (f92 == 0) ==> (i == 2);
+  loop invariant kyww + wx == r;
+  loop assigns f92, i, kyww, wx;
 */
-while (l < hw) {
-      ugh = ugh+(sik%4);
-      hz = hz+(en%9);
-      l = l + 1;
-      en = en + 3;
+while (1) {
+      if (!(f92 < r)) {
+          break;
+      }
+      f92 += 1;
+      i = kyww - xy;
+      kyww = kyww + (xy - kyww)/r;
+      wx = wx + i/r;
   }
 }

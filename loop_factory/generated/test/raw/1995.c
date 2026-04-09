@@ -1,17 +1,15 @@
-int main1(int x){
-  int c6m, hh, oz, osfx, v;
+int main1(){
+  int ck, dtm, a, cerh;
 
-  c6m=42;
-  hh=0;
-  oz=0;
-  osfx=0;
-  v=x;
+  ck=1+22;
+  dtm=0;
+  a=1;
+  cerh=3;
 
-  while (hh < c6m) {
-      v = v + 3;
-      hh++;
-      oz = oz + 3;
-      osfx++;
+  while (dtm < ck) {
+      a = (dtm += 1, a *= 2, a);
+      cerh = cerh*3+(a%3)+1;
+      dtm = ck;
   }
 
 }

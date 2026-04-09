@@ -1,24 +1,22 @@
-int main1(int o){
-  int t, pf, kx, v57;
-  t=o;
-  pf=0;
-  kx=0;
-  v57=5;
+int main1(int q){
+  int gpi, ls, g, vl;
+  gpi=q;
+  ls=0;
+  g=5;
+  vl=q*2;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant kx == (t + 1) * pf;
-  loop invariant 5 - pf <= v57;
-  loop invariant v57 <= 5 + pf;
-  loop invariant pf >= 0;
-  loop invariant (t >= 0) ==> (pf <= t);
-  loop invariant t == \at(o, Pre);
-  loop invariant (pf <= t/2) ==> (v57 == 5 + pf);
-  loop assigns kx, pf, v57;
+  loop invariant vl - g == (2 * \at(q, Pre) - 5);
+  loop invariant gpi == \at(q, Pre);
+  loop invariant (gpi >= 0 ==> ls <= gpi);
+  loop invariant ls >= 0;
+  loop invariant q >= \at(q,Pre);
+  loop assigns g, ls, vl, q;
 */
-while (pf < t) {
-      v57 = v57 + (pf < t/2 ? 1 : -1);
-      kx += t;
-      pf++;
-      kx += 1;
+while (ls < gpi) {
+      g = g + q;
+      ls++;
+      vl = vl + q;
+      q = q + ls;
   }
 }

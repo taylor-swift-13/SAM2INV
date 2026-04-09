@@ -1,27 +1,21 @@
-int main1(){
-  int jsza, c8, ksu, q3m, p, k;
-  jsza=1;
-  c8=0;
-  ksu=1+2;
-  q3m=jsza;
-  p=0;
-  k=-6;
+int main1(int k){
+  int sju, i6p, za, at;
+  sju=k;
+  i6p=0;
+  za=0;
+  at=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant p == 0;
-  loop invariant k == -6;
-  loop invariant q3m == jsza;
-  loop invariant ksu == 3 + (c8*(c8+1))/2 + 2*q3m*c8;
-  loop invariant 0 <= c8 <= jsza;
-  loop assigns c8, p, ksu;
+  loop invariant sju == \at(k, Pre);
+  loop invariant (i6p == 0 || i6p == sju);
+  loop invariant (i6p == 0 ==> at == 1) && (i6p != 0 ==> at == k);
+  loop invariant (i6p == 0 ==> za == 0) && (i6p != 0 ==> za == at);
+  loop invariant i6p >= 0;
+  loop invariant (i6p == 0 || (sju > 0 && i6p == sju));
+  loop assigns at, i6p, za;
 */
-while (1) {
-      if (!(k != 0 && c8 < jsza)) {
-          break;
-      }
-      c8 += 1;
-      p = p % k;
-      ksu = ksu + c8;
-      ksu = ksu+q3m+q3m;
+while (i6p < sju && (at *= k, i6p++, 1)) {
+      za = za + at;
+      i6p = sju;
   }
 }

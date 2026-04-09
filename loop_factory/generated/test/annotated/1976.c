@@ -1,22 +1,23 @@
 int main1(){
-  int v, d, n, x07;
-  v=145;
-  d=v;
-  n=-3;
-  x07=-2;
+  int l, k3u5, f6, f, fx;
+  l=29;
+  k3u5=0;
+  f6=k3u5;
+  f=k3u5;
+  fx=l;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant x07 == -2;
-  loop invariant v == 145;
-  loop invariant d >= 0;
-  loop invariant n >= -3;
-  loop invariant (n % 3) == 0;
-  loop invariant (d <= v);
-  loop assigns n, d, x07;
+  loop invariant (0 <= k3u5);
+  loop invariant (k3u5 <= l);
+  loop invariant (fx == l);
+  loop invariant (f6 == (fx * k3u5));
+  loop invariant (f == (k3u5 * (l + 1)));
+  loop assigns k3u5, f6, f;
 */
-while (d > 0) {
-      n = (3)+(n);
-      d = d/2;
-      x07 = x07*2+(n%3)+2;
+while (k3u5 < l) {
+      k3u5++;
+      f6 += fx;
+      f += l;
+      f = f + 1;
   }
 }

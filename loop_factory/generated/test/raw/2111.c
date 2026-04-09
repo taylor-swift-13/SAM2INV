@@ -1,14 +1,18 @@
 int main1(){
-  int t7, x, o8, r1o;
+  int t, q5o5, miqp;
 
-  t7=1-8;
-  x=0;
-  o8=0;
-  r1o=x;
+  t=1+7;
+  q5o5=0;
+  miqp=1;
 
-  while (x++ < t7) {
-      o8 += r1o;
-      t7 = x++;
+  while (q5o5+3<=t) {
+      if (miqp+1<=t) {
+          miqp++;
+      }
+      else {
+          miqp = t;
+      }
+      t = (q5o5+3)-1;
   }
 
 }

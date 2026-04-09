@@ -1,16 +1,16 @@
-int main1(int a){
-  int a7, q, wj, fh, f;
+int main1(int l){
+  int o0i, p87, u3, f, n;
 
-  a7=a+21;
-  q=0;
-  wj=1;
-  fh=0;
-  f=-3;
+  o0i=22;
+  p87=0;
+  u3=p87;
+  f=0;
+  n=o0i;
 
-  while (q < a7) {
-      f = (wj += (q < a7/2 ? a : -a), fh -= (q < a7/2 ? a : -a), ++q);
-      wj = wj+f-f;
-      q = a7;
+  while (p87 < o0i) {
+      u3 += n;
+      p87 = p87 + (f ^= 1);
+      n += f;
   }
 
 }

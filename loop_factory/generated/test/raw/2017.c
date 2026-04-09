@@ -1,16 +1,19 @@
-int main1(int p){
-  int o0b3, i2, o, bvj;
+int main1(int l){
+  int ich, f5, dc, xzw;
 
-  o0b3=(p%21)+13;
-  i2=0;
-  o=i2;
-  bvj=o0b3;
+  ich=l+16;
+  f5=0;
+  dc=11;
+  xzw=-3;
 
-  while (i2 < o0b3) {
-      p = p + i2;
-      o = o + 1;
-      bvj += 2;
-      i2 = o0b3;
+  while (1) {
+      if (f5>=ich) {
+          break;
+      }
+      f5 += 1;
+      dc += 2;
+      xzw = xzw+ich-f5;
+      xzw++;
   }
 
 }

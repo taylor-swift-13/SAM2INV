@@ -1,16 +1,21 @@
-int main1(int v){
-  int i, of2n, lgnc, vk;
+int main1(){
+  int b, i, x, oy1, jg, p;
 
-  i=v;
-  of2n=0;
-  lgnc=0;
-  vk=0;
+  b=15;
+  i=0;
+  x=i;
+  oy1=0;
+  jg=0;
+  p=1;
 
-  while (of2n < i) {
-      of2n++;
-      vk = 1 - vk;
-      lgnc = 1 - lgnc;
-      v += lgnc;
+  while (1) {
+      if (!(i < b)) {
+          break;
+      }
+      p = p * x;
+      jg = (1)+(i);
+      i = i + 1;
+      oy1 = oy1 + jg * p;
   }
 
 }

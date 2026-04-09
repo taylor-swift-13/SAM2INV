@@ -1,21 +1,21 @@
-int main1(){
-  int gl, y0, ix8y, v, zyx, e;
+int main1(int y){
+  int aq, c00, lmha, re, l0, q;
 
-  gl=1+25;
-  y0=gl+3;
-  ix8y=y0;
-  v=gl;
-  zyx=3;
-  e=0;
+  aq=y+16;
+  c00=0;
+  lmha=aq;
+  re=aq;
+  l0=12;
+  q=-5;
 
   while (1) {
-      if (e>gl) {
+      if (!(c00 < aq && l0 - (c00 + 1) * y >= 0)) {
           break;
       }
-      ix8y += v;
-      v = (zyx)+(v);
-      e += 1;
-      zyx += 6;
+      lmha = lmha*2+2;
+      q = q+(l0%6);
+      c00 = c00 + 1;
+      re = (2)+(re*lmha);
   }
 
 }

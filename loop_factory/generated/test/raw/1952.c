@@ -1,15 +1,15 @@
 int main1(){
-  int j4, z, qk6, sn4;
+  int qb, ast7, yn, u5;
 
-  j4=13;
-  z=0;
-  qk6=j4;
-  sn4=z;
+  qb=188;
+  ast7=0;
+  yn=-2;
+  u5=0;
 
-  while (z < j4) {
-      qk6 = qk6 + sn4;
-      z += 1;
-      sn4 = sn4 + 3;
+  while (ast7 < qb) {
+      u5 = u5 + 2*ast7 + 1;
+      ast7 += 1;
+      yn += u5;
   }
 
 }

@@ -1,19 +1,22 @@
 int main1(){
-  int t7, x, o8, r1o;
-  t7=1-8;
-  x=0;
-  o8=0;
-  r1o=x;
+  int t, q5o5, miqp;
+  t=1+7;
+  q5o5=0;
+  miqp=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant r1o == 0;
-  loop invariant o8 == 0;
-  loop invariant x >= 0;
-  loop invariant (t7 == x - 1) || ((t7 == 1 - 8) && (x == 0));
-  loop assigns x, t7, o8;
+  loop invariant q5o5 == 0;
+  loop invariant (t == q5o5 + 2) || (t >= q5o5 + 3);
+  loop invariant miqp >= 1;
+  loop assigns miqp, t;
 */
-while (x++ < t7) {
-      o8 += r1o;
-      t7 = x++;
+while (q5o5+3<=t) {
+      if (miqp+1<=t) {
+          miqp++;
+      }
+      else {
+          miqp = t;
+      }
+      t = (q5o5+3)-1;
   }
 }

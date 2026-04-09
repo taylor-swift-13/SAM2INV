@@ -1,28 +1,28 @@
 int main1(){
-  int hv, n, krv, dq;
-  hv=0;
-  n=0;
-  krv=0;
-  dq=(1%18)+5;
+  int n5, d3, r6, i;
+  n5=(1%30)+8;
+  d3=0;
+  r6=0;
+  i=d3;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant krv == hv;
-  loop invariant n == hv;
-  loop invariant 0 <= dq;
-  loop invariant 0 <= n;
-  loop invariant (dq <= 6);
-  loop invariant dq + n == 6;
-  loop invariant n <= 6;
-  loop invariant 0 <= krv;
-  loop assigns krv, hv, dq, n;
+  loop invariant 0 <= d3 && d3 <= n5;
+  loop invariant r6 == (d3 * (d3 * d3 - 1)) / 6;
+  loop invariant i == d3 + ((d3 - 1) * d3 * (d3 + 1) * (d3 + 2)) / 24;
+  loop invariant 6 * r6 == (d3 * (d3 - 1) * (d3 + 1));
+  loop invariant 24 * i == ((d3 * d3 * d3 * d3) + 2 * d3 * d3 * d3 - d3 * d3 + 22 * d3);
+  loop invariant r6 >= 0 && i >= 0;
+  loop invariant (24 * i == d3 * d3 * d3 * d3 + 2 * d3 * d3 * d3 - d3 * d3 + 22 * d3);
+  loop invariant r6 == (d3 * (d3 - 1) * (d3 + 1)) / 6;
+  loop invariant i == (d3 * (d3 - 1) * (d3 + 1) * (d3 + 2)) / 24 + d3;
+  loop invariant (6 * r6) == (d3 * (d3 - 1) * (d3 + 1));
+  loop invariant (24 * i) == (24 * d3 + d3 * (d3 - 1) * (d3 + 1) * (d3 + 2));
+  loop assigns d3, r6, i;
 */
-while (1) {
-      if (!(dq>0)) {
-          break;
-      }
-      krv = krv+1*1;
-      hv = hv+1*1;
-      dq--;
-      n = n+1*1;
+while (d3 < n5) {
+      r6 = r6 + (d3 * (d3 + 1)) / 2;
+      d3++;
+      i = (r6)+(i);
+      i = i + 1;
   }
 }

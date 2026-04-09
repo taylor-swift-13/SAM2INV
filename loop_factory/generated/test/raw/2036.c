@@ -1,17 +1,20 @@
-int main1(){
-  int ahqp, n, lo6, j, kpy;
+int main1(int x){
+  int e1, gn, ua, fu, z;
 
-  ahqp=174;
-  n=0;
-  lo6=0;
-  j=0;
-  kpy=0;
+  e1=134;
+  gn=e1+2;
+  ua=6;
+  fu=6;
+  z=gn;
 
-  while (n < ahqp) {
-      j = j + 3;
-      n += 1;
-      lo6 = lo6 + lo6;
-      kpy = kpy+(j%7);
+  while (1) {
+      if (!(gn<e1)) {
+          break;
+      }
+      fu = fu + 1;
+      ua++;
+      z += e1;
+      gn = gn + 1;
   }
 
 }

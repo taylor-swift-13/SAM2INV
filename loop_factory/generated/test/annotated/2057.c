@@ -1,28 +1,24 @@
 int main1(){
-  int z5ej, f3, f53, rs, cv;
-  z5ej=1+14;
-  f3=0;
-  f53=6;
-  rs=10;
-  cv=2;
+  int jy, ws, k, o, ru;
+  jy=1+25;
+  ws=0;
+  k=ws;
+  o=-1;
+  ru=jy;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (z5ej >= f3) || (z5ej == (f3 - 1));
-  loop invariant f3 >= 0;
-  loop invariant (f53 * rs) == 60;
-  loop invariant f3 % 2 == 0;
-  loop invariant cv == 2;
-  loop invariant f53 >= 6;
-  loop invariant ((f53 == 6 && rs == 10 && z5ej >= f3)
-                    || (f53 == 6 * cv && rs == 10 / cv && z5ej == f3 - 1));
-  loop assigns f3, f53, rs, z5ej;
+  loop invariant (ru + ws == jy);
+  loop invariant (k == 0);
+  loop invariant (0 <= ws && ws <= jy);
+  loop invariant (0 <= ru && ru <= jy);
+  loop invariant (-1 <= o && o <= -1 + jy * 4);
+  loop invariant (-1 <= o && o <= -1 + 4*ws);
+  loop assigns ru, ws, k, o;
 */
-while (1) {
-      if (!(f3++ < z5ej)) {
-          break;
-      }
-      f53 = f53 * cv;
-      rs = rs / cv;
-      z5ej = f3++;
+while (ws < jy) {
+      ru--;
+      ws = ws + 1;
+      k = k*k+k;
+      o = o+(ru%5);
   }
 }

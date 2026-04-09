@@ -1,16 +1,18 @@
 int main1(){
-  int zk, ha2, hva, e8l, j4fd;
+  int jmx, h, w2, kw;
 
-  zk=22;
-  ha2=0;
-  hva=ha2;
-  e8l=0;
-  j4fd=1;
+  jmx=10;
+  h=0;
+  w2=h;
+  kw=0;
 
-  while (ha2 < zk) {
-      e8l = (e8l + j4fd) % zk;
-      hva = hva + e8l;
-      ha2 = zk;
+  while (1) {
+      if (!(h < jmx)) {
+          break;
+      }
+      w2 = w2 + (1 - 2*(2*h/jmx));
+      h += 1;
+      kw = kw + w2;
   }
 
 }

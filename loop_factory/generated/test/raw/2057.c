@@ -1,19 +1,17 @@
 int main1(){
-  int z5ej, f3, f53, rs, cv;
+  int jy, ws, k, o, ru;
 
-  z5ej=1+14;
-  f3=0;
-  f53=6;
-  rs=10;
-  cv=2;
+  jy=1+25;
+  ws=0;
+  k=ws;
+  o=-1;
+  ru=jy;
 
-  while (1) {
-      if (!(f3++ < z5ej)) {
-          break;
-      }
-      f53 = f53 * cv;
-      rs = rs / cv;
-      z5ej = f3++;
+  while (ws < jy) {
+      ru--;
+      ws = ws + 1;
+      k = k*k+k;
+      o = o+(ru%5);
   }
 
 }

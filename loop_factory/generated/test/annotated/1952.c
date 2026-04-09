@@ -1,20 +1,20 @@
 int main1(){
-  int j4, z, qk6, sn4;
-  j4=13;
-  z=0;
-  qk6=j4;
-  sn4=z;
+  int qb, ast7, yn, u5;
+  qb=188;
+  ast7=0;
+  yn=-2;
+  u5=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant sn4 == (3 * z);
-  loop invariant qk6 == (j4 + (3 * z * (z - 1)) / 2);
-  loop invariant ((0 <= z) && (z <= j4));
-  loop invariant (j4 == 13);
-  loop assigns qk6, z, sn4;
+  loop invariant (0 <= ast7);
+  loop invariant (ast7 <= qb);
+  loop invariant u5 == ast7 * ast7;
+  loop invariant 6 * (yn + 2) == ast7 * (ast7 + 1) * (2 * ast7 + 1);
+  loop assigns ast7, u5, yn;
 */
-while (z < j4) {
-      qk6 = qk6 + sn4;
-      z += 1;
-      sn4 = sn4 + 3;
+while (ast7 < qb) {
+      u5 = u5 + 2*ast7 + 1;
+      ast7 += 1;
+      yn += u5;
   }
 }

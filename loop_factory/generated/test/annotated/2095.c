@@ -1,25 +1,23 @@
 int main1(int k){
-  int bld, tx, a;
-  bld=k;
-  tx=0;
-  a=0;
+  int o2, ks, gb, np;
+  o2=k;
+  ks=0;
+  gb=o2;
+  np=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant k == \at(k, Pre) + tx * bld;
-  loop invariant bld == \at(k, Pre);
-  loop invariant tx >= 0;
-  loop invariant 0 <= a;
-  loop invariant a <= 2 * tx;
-  loop invariant (a % 2) == 0;
-  loop invariant (bld >= 0) ==> (tx <= bld);
-  loop invariant (tx <= bld/2) ==> (a == 0);
-  loop assigns a, tx, k;
+  loop invariant ks >= 0 && (ks <= o2 || ks == 0);
+  loop invariant o2 == \at(k, Pre);
+  loop invariant 2 * np == k * ks * (ks - 1);
+  loop invariant 6 * (gb - \at(k, Pre)) == k * ks * (ks - 1) * (ks + 1);
+  loop assigns ks, np, gb;
 */
-while (tx<bld) {
-      if (!(!(tx>=bld/2))) {
-          a += 2;
+while (1) {
+      if (!(ks<=o2-1)) {
+          break;
       }
-      tx += 1;
-      k += bld;
+      np = np + ks*k;
+      ks = ks + 1;
+      gb = (np)+(gb);
   }
 }

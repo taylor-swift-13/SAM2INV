@@ -1,18 +1,21 @@
 int main1(){
-  int hw, l, ugh, sik, hz, en;
+  int r, f92, kyww, xy, i, wx;
 
-  hw=1-5;
-  l=0;
-  ugh=10;
-  sik=hw;
-  hz=l;
-  en=l;
+  r=1;
+  f92=0;
+  kyww=r;
+  xy=r;
+  i=2;
+  wx=f92;
 
-  while (l < hw) {
-      ugh = ugh+(sik%4);
-      hz = hz+(en%9);
-      l = l + 1;
-      en = en + 3;
+  while (1) {
+      if (!(f92 < r)) {
+          break;
+      }
+      f92 += 1;
+      i = kyww - xy;
+      kyww = kyww + (xy - kyww)/r;
+      wx = wx + i/r;
   }
 
 }

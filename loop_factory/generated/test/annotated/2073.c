@@ -1,20 +1,29 @@
-int main1(int j){
-  int k, krf, pb2;
-  k=(j%10)+14;
-  krf=0;
-  pb2=j;
+int main1(int x){
+  int jh0, itu, ue, zygf;
+  jh0=x*5;
+  itu=0;
+  ue=2;
+  zygf=itu;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant k == (\at(j, Pre) % 10) + 14;
-  loop invariant 0 <= krf;
-  loop invariant krf <= k;
-  loop invariant (\at(j, Pre) >= 0 ==> pb2 >= \at(j, Pre)) && (\at(j, Pre) <= 0 ==> pb2 <= \at(j, Pre));
-  loop invariant j == \at(j, Pre);
-  loop assigns j, pb2, krf;
+  loop invariant jh0 == x * 5;
+  loop invariant (itu == 0 ==> ue == 2) && (itu > 0 ==> ue == jh0 - itu);
+  loop invariant (itu == 0 ==> zygf == 0) && (itu > 0 ==> zygf == x - itu);
+  loop invariant itu >= 0;
+  loop invariant ((itu == 0 && ue == 2 && zygf == 0) ||
+                    (1 <= itu && itu <= jh0 && ue == jh0 - itu && zygf == x - itu));
+  loop invariant (itu == 0 || itu <= jh0);
+  loop invariant jh0 == 5 * \at(x, Pre);
+  loop invariant (itu == 0 && ue == 2 && zygf == 0)
+                   || (itu > 0 && (ue + itu) == jh0 && zygf == (\at(x, Pre) - itu));
+  loop assigns itu, zygf, ue;
 */
-while (j-- > 0) {
-      pb2 += pb2;
-      krf = (krf + 1 > k) ? (2*k - (krf + 1)) : ((krf - 1 < 0) ? -(krf - 1) : (krf + 1));
-      j++;
+while (1) {
+      if (!(itu < jh0)) {
+          break;
+      }
+      itu += 1;
+      zygf = (x)+(-(itu));
+      ue = jh0-itu;
   }
 }

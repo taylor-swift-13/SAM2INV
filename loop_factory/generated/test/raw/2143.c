@@ -1,20 +1,20 @@
-int main1(int a){
-  int sb, m, c, t3xt, hrq;
+int main1(){
+  int hm, a36, bn, n, f26;
 
-  sb=a;
-  m=0;
-  c=-2;
-  t3xt=20;
-  hrq=sb;
+  hm=1+21;
+  a36=0;
+  bn=0;
+  n=25;
+  f26=0;
 
   while (1) {
-      if (!(m < sb)) {
+      if (!(a36 < hm*hm)) {
           break;
       }
-      c = c + 3;
-      sb--;
-      t3xt = t3xt+t3xt-t3xt;
-      hrq = hrq + c;
+      f26 = f26 + (a36++, (bn = 1 - bn), bn);
+      bn = bn+f26-f26;
+      n = n+f26-f26;
+      a36 = hm*hm;
   }
 
 }

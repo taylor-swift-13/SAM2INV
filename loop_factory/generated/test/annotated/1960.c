@@ -1,22 +1,23 @@
 int main1(){
-  int xut, jrx3, sq, b, fc;
-  xut=51;
-  jrx3=0;
-  sq=0;
-  b=jrx3;
-  fc=0;
+  int w, u4, b9, e6, b2;
+  w=58;
+  u4=w;
+  b9=w;
+  e6=8;
+  b2=u4;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= jrx3;
-  loop invariant jrx3 <= xut;
-  loop invariant sq == (b * jrx3);
-  loop invariant (2 * fc) == (b * jrx3 * (jrx3 + 1));
-  loop invariant b == 0;
-  loop assigns jrx3, sq, fc;
+  loop invariant b2 == 58;
+  loop invariant b9 == b2;
+  loop invariant u4 >= 1;
+  loop invariant w == 58;
+  loop invariant (e6 % b2) == 8;
+  loop invariant u4 <= w;
+  loop assigns b9, e6, u4;
 */
-while (jrx3 < xut) {
-      jrx3++;
-      sq += b;
-      fc += sq;
+while (u4*u4>w) {
+      b9 = (b9-b2)+(b9);
+      e6 += b2;
+      u4 = (u4+w/u4)/2;
   }
 }

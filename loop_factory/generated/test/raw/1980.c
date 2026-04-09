@@ -1,17 +1,20 @@
-int main1(){
-  int g3v, w, ds, qf, yq;
+int main1(int a){
+  int epx, ojg, uil, lsr8, r2g;
 
-  g3v=1+6;
-  w=g3v;
-  ds=0;
-  qf=w;
-  yq=-6;
+  epx=38;
+  ojg=0;
+  uil=3;
+  lsr8=epx;
+  r2g=0;
 
-  while (w>0) {
-      qf += 1;
-      ds = (1)+(ds);
-      yq = yq + 1;
-      w = 0;
+  while (1) {
+      if (!(ojg < epx)) {
+          break;
+      }
+      ojg += 1;
+      lsr8 = lsr8 + lsr8;
+      r2g = r2g + 1;
+      uil += ojg;
   }
 
 }

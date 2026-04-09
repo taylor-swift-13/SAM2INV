@@ -1,26 +1,20 @@
-int main1(int y){
-  int lq, zd, jg, c;
-  lq=y*3;
-  zd=lq;
-  jg=0;
-  c=1;
+int main1(int m){
+  int w6d, m9ec, gvs, g7;
+  w6d=28;
+  m9ec=0;
+  gvs=1;
+  g7=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant zd == lq;
-  loop invariant lq == 3 * \at(y, Pre);
-  loop invariant 1 <= c && (lq < 1 || c <= lq + 1);
-  loop invariant (zd % 2 == 0 ==> jg == (c - 1)) && (zd % 2 != 0 ==> jg == -(c - 1));
-  loop invariant ((zd % 2 == 0) ==> (jg == (c - 1))) &&
-                   ((zd % 2 != 0) ==> (jg == -(c - 1)));
-  loop assigns jg, c;
+  loop invariant 0 <= m9ec;
+  loop invariant m9ec <= w6d;
+  loop invariant (m == 1) ==> (g7 == m9ec);
+  loop invariant (m - 1) * g7 + 1 == gvs;
+  loop assigns g7, m9ec, gvs;
 */
-while (c<=lq) {
-      if (!(!(zd%2==0))) {
-          jg += 1;
-      }
-      else {
-          jg = jg - 1;
-      }
-      c = c + 1;
+while (m9ec < w6d) {
+      g7 += gvs;
+      m9ec = m9ec + 1;
+      gvs = gvs * m;
   }
 }

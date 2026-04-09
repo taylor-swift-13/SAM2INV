@@ -1,18 +1,21 @@
 int main1(){
-  int k86, j, le, ct3, xq, g3a7;
+  int jjd, ls, lm, rv56, m, bxlp;
 
-  k86=(1%40)+16;
-  j=0;
-  le=j;
-  ct3=0;
-  xq=0;
-  g3a7=k86;
+  jjd=72;
+  ls=0;
+  lm=0;
+  rv56=0;
+  m=6;
+  bxlp=ls;
 
-  while (j < k86) {
-      ct3 = ct3 + le;
-      xq += g3a7;
-      j++;
-      g3a7 = g3a7+(xq%4);
+  while (1) {
+      if (!(lm<jjd)) {
+          break;
+      }
+      lm++;
+      rv56 = jjd-lm;
+      bxlp = bxlp + ls;
+      m += 2;
   }
 
 }

@@ -1,27 +1,29 @@
-int main1(){
-  int xja, xfe, i5q, d, vd;
-  xja=(1%40)+17;
-  xfe=xja;
-  i5q=xja;
-  d=xja;
-  vd=xja;
+int main1(int e){
+  int fc7, yg7, f, ub, b, x;
+  fc7=55;
+  yg7=0;
+  f=yg7;
+  ub=2;
+  b=16;
+  x=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (d - xja) == 6 * (vd - xja);
-  loop invariant 0 <= (vd - xja);
-  loop invariant (vd - xja) <= 1;
-  loop invariant i5q == xja*(1 + (vd - xja)) + 3*(vd - xja)*((vd - xja) - 1);
-  loop invariant xfe == xja*(1 + (((vd - xja)*((vd - xja) + 1))/2)) + (vd - xja)*((vd - xja) - 1)*((vd - xja) - 2);
-  loop invariant (d == 6*vd - 90);
-  loop assigns xfe, i5q, d, vd;
+  loop invariant b == 16 - yg7;
+  loop invariant f + yg7 * e == 0;
+  loop invariant x == yg7 * (fc7 + 3);
+  loop invariant ub + yg7 == 2;
+  loop invariant f == - yg7 * \at(e, Pre);
+  loop invariant (0 <= yg7 && yg7 <= fc7);
+  loop invariant (ub >= 0 && b >= 0);
+  loop assigns f, ub, b, x, yg7;
 */
 while (1) {
-      if (vd>xja) {
+      if (!(yg7 < fc7 && ub > 0 && b > 0)) {
           break;
       }
-      xfe = xfe + i5q;
-      i5q += d;
-      d += 6;
-      vd = (1)+(vd);
+      f = (ub--, b--, f - e);
+      x += fc7;
+      yg7 = yg7 + 1;
+      x = x + 3;
   }
 }

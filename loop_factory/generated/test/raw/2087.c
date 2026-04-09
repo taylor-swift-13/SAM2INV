@@ -1,15 +1,18 @@
-int main1(int q){
-  int pv, ho, lg7, x;
+int main1(int m){
+  int wfv, mg4, ki, e;
 
-  pv=34;
-  ho=0;
-  lg7=-4;
-  x=pv;
+  wfv=m;
+  mg4=0;
+  ki=m;
+  e=0;
 
-  while (ho < pv && x != q) {
-      x = x + (x < q ? 1 : -1);
-      ho += 1;
-      lg7 = lg7+x-x;
+  while (1) {
+      if (!(mg4 < wfv)) {
+          break;
+      }
+      mg4 = mg4 + 1;
+      ki = ki - 1;
+      e += ki;
   }
 
 }

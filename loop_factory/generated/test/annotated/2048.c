@@ -1,25 +1,24 @@
-int main1(){
-  int ejl0, ok, w, a, us5o, ti;
-  ejl0=1-8;
-  ok=0;
-  w=ok;
-  a=4;
-  us5o=0;
-  ti=ok;
+int main1(int n){
+  int gn, f, d, pa, ma0;
+  gn=n+5;
+  f=0;
+  d=0;
+  pa=0;
+  ma0=16;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant us5o == ok * ti;
-  loop invariant ok >= 0;
-  loop invariant w >= 0;
-  loop invariant ejl0 == 1 - 8;
-  loop invariant ti == 0;
-  loop invariant (a - w) >= 4;
-  loop assigns us5o, ok, w, a;
+  loop invariant pa == f % 2;
+  loop invariant gn == \at(n, Pre) + 5;
+  loop invariant ma0 == 16 + (f * (f + 1)) / 2;
+  loop invariant d <= f * ma0;
+  loop invariant -d <= f * ma0;
+  loop invariant 0 <= f && (gn <= 0 || f <= gn);
+  loop assigns f, pa, d, ma0;
 */
-while (ok < ejl0) {
-      us5o = (ti)+(us5o);
-      ok += 1;
-      w = w + a;
-      a = a + w;
+while (f < gn) {
+      pa = 1 - pa;
+      f = f + 1;
+      d = d + ma0 * (2 * pa - 1);
+      ma0 += f;
   }
 }

@@ -1,27 +1,24 @@
-int main1(int x){
-  int e1, gn, ua, fu, z;
-  e1=134;
-  gn=e1+2;
-  ua=6;
-  fu=6;
-  z=gn;
+int main1(){
+  int x8m, z, to, fy, tqy;
+  x8m=1+7;
+  z=0;
+  to=z;
+  fy=z;
+  tqy=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant z - e1*gn == (1 - e1)*(e1 + 2);
-  loop invariant fu == ua;
-  loop invariant gn >= e1 + 2;
-  loop invariant ua >= 6;
-  loop invariant (fu - gn) == (4 - e1);
-  loop invariant e1 == 134;
-  loop assigns fu, ua, z, gn;
+  loop invariant (fy == -z);
+  loop invariant (to == -z);
+  loop invariant (tqy == -z);
+  loop invariant (0 <= z);
+  loop invariant (z <= x8m);
+  loop invariant (x8m == 1 + 7);
+  loop assigns fy, to, z, tqy;
 */
-while (1) {
-      if (!(gn<e1)) {
-          break;
-      }
-      fu = fu + 1;
-      ua++;
-      z += e1;
-      gn = gn + 1;
+while (z < x8m) {
+      fy = (fy)+(-(1));
+      to = to - 1;
+      z += 1;
+      tqy = tqy - 1;
   }
 }

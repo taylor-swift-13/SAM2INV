@@ -1,21 +1,21 @@
 int main1(){
-  int r, f92, kyww, xy, i, wx;
+  int b6d, a, pw, e, jd8;
 
-  r=1;
-  f92=0;
-  kyww=r;
-  xy=r;
-  i=2;
-  wx=f92;
+  b6d=1+7;
+  a=0;
+  pw=b6d;
+  e=-5;
+  jd8=a;
 
-  while (1) {
-      if (!(f92 < r)) {
-          break;
+  while (a < b6d) {
+      if (jd8 >= e) {
+          jd8 = jd8 - e;
       }
-      f92 += 1;
-      i = kyww - xy;
-      kyww = kyww + (xy - kyww)/r;
-      wx = wx + i/r;
+      else {
+          a++;
+      }
+      pw += b6d;
+      pw = pw*pw+pw;
   }
 
 }

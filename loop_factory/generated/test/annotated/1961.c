@@ -1,23 +1,24 @@
 int main1(){
-  int w, u4, b9, e6, b2;
-  w=58;
-  u4=w;
-  b9=w;
-  e6=8;
-  b2=u4;
+  int z, e7, pm, y9ty;
+  z=75;
+  e7=0;
+  pm=0;
+  y9ty=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant b2 == 58;
-  loop invariant b9 == b2;
-  loop invariant u4 >= 1;
-  loop invariant w == 58;
-  loop invariant (e6 % b2) == 8;
-  loop invariant u4 <= w;
-  loop assigns b9, e6, u4;
+  loop invariant 0 <= e7;
+  loop invariant e7 <= z;
+  loop invariant pm == (e7 % 2);
+  loop invariant 2*y9ty == e7 + (e7 % 2);
+  loop invariant 0 <= y9ty;
+  loop invariant y9ty <= e7;
+  loop invariant (pm == 0) || (pm == 1);
+  loop invariant y9ty == ((e7 + pm) / 2);
+  loop assigns e7, pm, y9ty;
 */
-while (u4*u4>w) {
-      b9 = (b9-b2)+(b9);
-      e6 += b2;
-      u4 = (u4+w/u4)/2;
+while (e7<z) {
+      e7 = e7 + 1;
+      pm = 1-pm;
+      y9ty = y9ty + pm;
   }
 }

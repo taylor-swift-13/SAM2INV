@@ -1,18 +1,17 @@
-int main1(){
-  int ukt, ki2g, e0id, qfm, pv, y;
+int main1(int a){
+  int w4n, hg, eu, k, ufa;
 
-  ukt=(1%31)+10;
-  ki2g=1;
-  e0id=ki2g;
-  qfm=0;
-  pv=ki2g;
-  y=0;
+  w4n=55;
+  hg=0;
+  eu=0;
+  k=0;
+  ufa=0;
 
-  while (ki2g > 0) {
-      y = (ki2g--, qfm += (y + pv) >= ukt, (y + pv) < ukt ? y + pv : y + pv - ukt);
-      qfm = qfm + y;
-      e0id = e0id*4+2;
-      ki2g = 0;
+  while (hg < w4n) {
+      hg = hg + 1;
+      eu = eu + ((a + k) % 3 - 1);
+      k += 1;
+      ufa += eu;
   }
 
 }

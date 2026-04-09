@@ -1,17 +1,17 @@
 int main1(){
-  int uv, jz, l70, eb92, eu;
+  int it, z2, ro, d, p;
 
-  uv=1+16;
-  jz=0;
-  l70=-5;
-  eb92=jz;
-  eu=jz;
+  it=(1%25)+11;
+  z2=0;
+  ro=z2;
+  d=6;
+  p=it;
 
-  while (jz<=uv-1) {
-      l70 = l70 + 9;
-      eb92 = eb92 + l70;
-      eu += eb92;
-      jz = uv;
+  while (z2 < it) {
+      z2 = (p = p + 1, d = d - 1, z2 + 1);
+      ro += 2;
+      p++;
+      ro = ro+d+p;
   }
 
 }

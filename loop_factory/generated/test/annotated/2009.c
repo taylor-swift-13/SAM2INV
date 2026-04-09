@@ -1,26 +1,23 @@
-int main1(){
-  int io, gm, p3, m8ay, ye;
-  io=1*3;
-  gm=-1;
-  p3=1;
-  m8ay=io;
-  ye=io;
+int main1(int f){
+  int izlp, xk1, g0;
+  izlp=f;
+  xk1=53;
+  g0=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant m8ay == ye / p3;
-  loop invariant p3 >= 1;
-  loop invariant gm <= io;
-  loop invariant ye == io;
-  loop invariant io > 0;
-  loop invariant (p3 == 1 || p3 % 2 == 0);
-  loop assigns gm, p3, m8ay;
+  loop invariant izlp == \at(f, Pre);
+  loop invariant f == (\at(f, Pre) + g0 * izlp);
+  loop invariant xk1 + g0 == 53;
+  loop invariant (0 <= g0 && g0 <= 53);
+  loop invariant (0 <= xk1 && xk1 <= 53);
+  loop assigns f, xk1, g0;
 */
 while (1) {
-      if (!(++gm < io)) {
+      if (!(xk1>=1)) {
           break;
       }
-      p3 = p3*2;
-      m8ay = ye/p3;
-      gm = io;
+      xk1--;
+      f = f + izlp;
+      g0++;
   }
 }

@@ -1,15 +1,15 @@
 int main1(){
-  int k, klq, za, rv;
+  int aud2, dbfp, ef, r;
 
-  k=1+5;
-  klq=3;
-  za=k - klq;
-  rv=klq;
+  aud2=1+18;
+  dbfp=0;
+  ef=aud2;
+  r=aud2;
 
-  while (klq < k) {
-      za = (k)+(-((++klq)));
-      rv += klq;
-      klq = k;
+  while (ef >= (2*dbfp + 1)) {
+      ef = (ef)+(-((2*dbfp + 1)));
+      r += aud2;
+      dbfp++;
   }
 
 }

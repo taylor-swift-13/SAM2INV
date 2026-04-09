@@ -1,23 +1,22 @@
 int main1(){
-  int j, cj, l, wbh;
-  j=1;
-  cj=0;
-  l=8;
-  wbh=-3;
+  int kuy, jq2, y0c, oh;
+  kuy=1+21;
+  jq2=0;
+  y0c=jq2;
+  oh=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant j == 1;
-  loop invariant wbh == -3 - (cj * (cj - 1)) / 2;
-  loop invariant l == 8 + (cj * (-3)) - (cj * (cj - 1) * (cj - 2)) / 6;
-  loop invariant 0 <= cj <= j;
-  loop assigns cj, l, wbh;
+  loop invariant oh == y0c;
+  loop invariant 0 <= jq2;
+  loop invariant jq2 <= kuy;
+  loop invariant 0 <= oh;
+  loop invariant oh <= jq2;
+  loop invariant kuy == 1 + 21;
+  loop assigns jq2, oh, y0c;
 */
-while (1) {
-      if (!(cj < j)) {
-          break;
-      }
-      cj++;
-      l = l + wbh;
-      wbh = wbh+j-cj;
+while (jq2 < kuy) {
+      jq2 = jq2 + 1 + ((kuy - jq2) / (oh + 2));
+      oh += 1;
+      y0c++;
   }
 }

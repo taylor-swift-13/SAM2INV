@@ -1,17 +1,18 @@
-int main1(int z){
-  int nr, b55, f4, ir, xbx2;
+int main1(){
+  int ejl0, ok, w, a, us5o, ti;
 
-  nr=91;
-  b55=0;
-  f4=0;
-  ir=0;
-  xbx2=0;
+  ejl0=1-8;
+  ok=0;
+  w=ok;
+  a=4;
+  us5o=0;
+  ti=ok;
 
-  while (b55 < nr) {
-      ir = ir + b55 * z;
-      xbx2 = xbx2 + b55 * b55 * z;
-      f4 += z;
-      b55 = b55 + 1;
+  while (ok < ejl0) {
+      us5o = (ti)+(us5o);
+      ok += 1;
+      w = w + a;
+      a = a + w;
   }
 
 }

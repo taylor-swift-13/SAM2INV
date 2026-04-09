@@ -1,27 +1,27 @@
-int main1(){
-  int wr, vk, a8s, a4;
-  wr=13;
-  vk=wr;
-  a8s=0;
-  a4=wr;
+int main1(int j){
+  int dba, jz, ke, p, aus7;
+  dba=j-10;
+  jz=j;
+  ke=0;
+  p=jz;
+  aus7=dba;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (vk <= wr);
-  loop invariant a8s == 3*(vk - wr);
-  loop invariant 2*(a4 - wr) == (vk - wr)*(2*wr + (vk - wr) + 1);
-  loop invariant 2*a4 == (vk * vk) + vk - (wr * wr) + wr;
-  loop invariant 13 <= vk;
-  loop invariant a8s == 3 * (vk - 13);
-  loop invariant a4 == 13 + (vk - 13) * 13 + ((vk - 13) * ((vk - 13) + 1)) / 2;
-  loop invariant a4 == wr + (vk - wr) * wr + ((vk - wr) * ((vk - wr) + 1)) / 2;
-  loop assigns a8s, vk, a4;
+  loop invariant j == \at(j,Pre) + (jz - \at(j,Pre)) * \at(j,Pre)
+                            + ((jz - \at(j,Pre)) * (jz - \at(j,Pre) + 1)) / 2;
+  loop invariant dba == \at(j,Pre) - 10;
+  loop invariant p == \at(j,Pre);
+  loop invariant aus7 == dba;
+  loop invariant j - (jz*(jz + 1))/2 == (\at(j, Pre) - (\at(j, Pre) * (\at(j, Pre) + 1))/2);
+  loop invariant jz >= \at(j, Pre);
+  loop invariant ke == 0;
+  loop invariant 2 * (j - \at(j,Pre)) == 2 * ( (jz - \at(j,Pre)) * \at(j,Pre) ) + ( (jz - \at(j,Pre)) * ( (jz - \at(j,Pre)) + 1 ) );
+  loop invariant 2 * j == ((jz - \at(j,Pre) + 1) * (\at(j,Pre) + jz));
+  loop invariant j >= \at(j,Pre);
+  loop assigns j, jz;
 */
-while (1) {
-      if (vk>=wr) {
-          break;
-      }
-      a8s = a8s + 3;
-      vk = vk + 1;
-      a4 = a4 + vk;
+while (jz < dba && ke >= jz && p >= jz && aus7 >= jz) {
+      jz = jz + 1;
+      j += jz;
   }
 }

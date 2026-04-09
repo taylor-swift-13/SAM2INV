@@ -1,16 +1,16 @@
-int main1(){
-  int mv, dn, bf, bl0, ijm;
+int main1(int z){
+  int lso9, d7, ng, rh, oi;
 
-  mv=1+21;
-  dn=0;
-  bf=bl0;
-  bl0=dn;
-  ijm=dn;
+  lso9=z;
+  d7=0;
+  ng=0;
+  rh=d7;
+  oi=0;
 
-  while (dn < mv) {
-      dn = dn + 1;
-      bf = bf < ijm ? bf : ijm;
-      ijm = ijm + mv;
+  while (d7 < lso9) {
+      d7 += 1;
+      oi = oi + 3;
+      ng = ng+ng-rh;
   }
 
 }

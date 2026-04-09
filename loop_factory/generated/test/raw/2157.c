@@ -1,20 +1,17 @@
 int main1(){
-  int i50, u4, zpg9, hbe, l1;
+  int ijg9, wx, rc6, qa, xe6;
 
-  i50=72;
-  u4=0;
-  zpg9=-2;
-  hbe=i50;
-  l1=i50;
+  ijg9=1+17;
+  wx=0;
+  rc6=1;
+  qa=0;
+  xe6=0;
 
-  while (1) {
-      if (!(u4 < i50)) {
-          break;
-      }
-      zpg9 = zpg9 + hbe;
-      hbe = hbe + l1;
-      u4++;
-      l1 += zpg9;
+  while (wx < ijg9) {
+      wx = wx + (ijg9 - wx + rc6 - 1) / rc6;
+      rc6 = rc6 + 1;
+      xe6 = xe6 + rc6;
+      qa = qa + 1;
   }
 
 }

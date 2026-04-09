@@ -1,18 +1,18 @@
-int main1(int n){
-  int ft3, ihn9, f, ydv;
+int main1(int v){
+  int ka, w, z, gsx;
 
-  ft3=(n%16)+20;
-  ihn9=0;
-  f=2;
-  ydv=-3;
+  ka=53;
+  w=0;
+  z=w;
+  gsx=v;
 
   while (1) {
-      if (ihn9>=ft3) {
+      if (!(w < ka)) {
           break;
       }
-      f = f + 1;
-      ihn9++;
-      ydv += ihn9;
+      z += 1;
+      v += gsx;
+      w += 1;
   }
 
 }

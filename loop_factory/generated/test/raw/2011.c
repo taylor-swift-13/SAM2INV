@@ -1,17 +1,19 @@
-int main1(){
-  int m, dmyt, l, czc, iy;
+int main1(int f){
+  int xx, l2, lf, l;
 
-  m=1+21;
-  dmyt=0;
-  l=dmyt;
-  czc=m;
-  iy=0;
+  xx=f-5;
+  l2=0;
+  lf=f;
+  l=0;
 
-  while (dmyt < m) {
-      dmyt += 1;
-      czc += 1;
-      iy++;
-      l = l + 1;
+  while (1) {
+      if (!(l2 < xx)) {
+          break;
+      }
+      l = l + 2*l2 + 1;
+      lf += l;
+      l2 += 1;
+      lf = lf + 1;
   }
 
 }

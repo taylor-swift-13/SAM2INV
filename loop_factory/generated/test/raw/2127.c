@@ -1,14 +1,20 @@
-int main1(int k){
-  int sju, i6p, za, at;
+int main1(){
+  int xja, xfe, i5q, d, vd;
 
-  sju=k;
-  i6p=0;
-  za=0;
-  at=1;
+  xja=(1%40)+17;
+  xfe=xja;
+  i5q=xja;
+  d=xja;
+  vd=xja;
 
-  while (i6p < sju && (at *= k, i6p++, 1)) {
-      za = za + at;
-      i6p = sju;
+  while (1) {
+      if (vd>xja) {
+          break;
+      }
+      xfe = xfe + i5q;
+      i5q += d;
+      d += 6;
+      vd = (1)+(vd);
   }
 
 }

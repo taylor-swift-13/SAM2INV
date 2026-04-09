@@ -1,16 +1,16 @@
-int main1(int q){
-  int gpi, ls, g, vl;
+int main1(int t){
+  int q, atz, tk, l9;
 
-  gpi=q;
-  ls=0;
-  g=5;
-  vl=q*2;
+  q=t*5;
+  atz=0;
+  tk=13;
+  l9=1;
 
-  while (ls < gpi) {
-      g = g + q;
-      ls++;
-      vl = vl + q;
-      q = q + ls;
+  while (atz < q) {
+      tk = tk + 3;
+      atz += 1;
+      l9 = l9 + 3;
+      t = t+l9-tk;
   }
 
 }

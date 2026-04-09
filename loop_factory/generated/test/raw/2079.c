@@ -1,15 +1,19 @@
 int main1(){
-  int row, fv, g, wz;
+  int vz, emo, zdq, cd9, sm2;
 
-  row=1+17;
-  fv=0;
-  g=0;
-  wz=0;
+  vz=71;
+  emo=0;
+  zdq=emo;
+  cd9=3;
+  sm2=5;
 
-  while (fv < row) {
-      fv++;
-      g += fv;
-      g = g+wz+wz;
+  while (1) {
+      if (!(emo < vz)) {
+          break;
+      }
+      emo = emo + 1;
+      zdq += cd9;
+      cd9 += sm2;
   }
 
 }

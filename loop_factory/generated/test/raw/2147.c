@@ -1,20 +1,17 @@
-int main1(int a){
-  int r5, ja, or, xzc, rl;
+int main1(int e){
+  int k0, gzhs, lk7e, prr, lhr;
 
-  r5=(a%14)+14;
-  ja=0;
-  or=r5;
-  xzc=-3;
-  rl=ja;
+  k0=57;
+  gzhs=0;
+  lk7e=-1;
+  prr=-2;
+  lhr=4;
 
-  while (1) {
-      if (!(ja < r5)) {
-          break;
-      }
-      ja += 1;
-      or = or + xzc;
-      rl = rl + xzc;
-      or = or + 1;
+  while (gzhs < k0) {
+      prr = prr - (e*(e>=0) - e*(e<0));
+      gzhs = gzhs + 1;
+      lk7e = lk7e + (e*(e>=0) - e*(e<0));
+      lhr += gzhs;
   }
 
 }

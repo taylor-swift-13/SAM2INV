@@ -1,15 +1,20 @@
-int main1(int x){
-  int w6, gh, t22s;
+int main1(int q){
+  int vqss, ynmp, fu, itd2, m6;
 
-  w6=x;
-  gh=0;
-  t22s=0;
+  vqss=76;
+  ynmp=0;
+  fu=0;
+  itd2=0;
+  m6=0;
 
-  while (gh < w6) {
-      gh = gh + 1;
-      t22s = 1 - t22s;
-      x = x+(gh%2);
-      x -= x;
+  while (1) {
+      if (!(ynmp < vqss)) {
+          break;
+      }
+      itd2 = itd2 + (fu += q, ynmp++, fu);
+      fu = fu + 1;
+      m6 = m6 + itd2;
+      ynmp = vqss;
   }
 
 }

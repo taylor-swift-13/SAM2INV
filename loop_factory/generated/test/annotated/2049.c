@@ -1,24 +1,25 @@
-int main1(int n){
-  int gn, f, d, pa, ma0;
-  gn=n+5;
-  f=0;
-  d=0;
-  pa=0;
-  ma0=16;
+int main1(int b){
+  int z7x, ordi, uou, j;
+  z7x=b*2;
+  ordi=0;
+  uou=0;
+  j=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant pa == f % 2;
-  loop invariant gn == \at(n, Pre) + 5;
-  loop invariant ma0 == 16 + (f * (f + 1)) / 2;
-  loop invariant d <= f * ma0;
-  loop invariant -d <= f * ma0;
-  loop invariant 0 <= f && (gn <= 0 || f <= gn);
-  loop assigns f, pa, d, ma0;
+  loop invariant z7x == \at(b, Pre) * 2;
+  loop invariant (b - \at(b, Pre)) == 2 * j;
+  loop invariant j >= 0;
+  loop invariant 0 <= ordi;
+  loop invariant (ordi != z7x) ==> (uou == (ordi * ordi));
+  loop invariant (ordi == z7x) ==> (j == uou && (b - \at(b, Pre)) == (2 * uou));
+  loop invariant (ordi == 0 || ordi == z7x);
+  loop invariant (ordi == 0) ==> (uou == 0 && j == 0);
+  loop assigns uou, b, j, ordi;
 */
-while (f < gn) {
-      pa = 1 - pa;
-      f = f + 1;
-      d = d + ma0 * (2 * pa - 1);
-      ma0 += f;
+while (ordi < z7x) {
+      uou = (ordi++, uou + (2*ordi - 1));
+      b = b+uou+uou;
+      j = j + uou;
+      ordi = z7x;
   }
 }

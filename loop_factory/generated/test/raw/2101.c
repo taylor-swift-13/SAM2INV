@@ -1,16 +1,19 @@
-int main1(){
-  int fi, d, g4, baz, j1f;
+int main1(int y){
+  int lq, zd, jg, c;
 
-  fi=1;
-  d=0;
-  g4=1;
-  baz=2;
-  j1f=3;
+  lq=y*3;
+  zd=lq;
+  jg=0;
+  c=1;
 
-  while (d < fi) {
-      g4 = g4 + baz;
-      d++;
-      baz = (j1f)+(baz);
+  while (c<=lq) {
+      if (!(!(zd%2==0))) {
+          jg += 1;
+      }
+      else {
+          jg = jg - 1;
+      }
+      c = c + 1;
   }
 
 }

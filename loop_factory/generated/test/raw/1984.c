@@ -1,20 +1,20 @@
-int main1(int q){
-  int vqss, ynmp, fu, itd2, m6;
+int main1(int e){
+  int i, d0, ag, r2e, hd;
 
-  vqss=76;
-  ynmp=0;
-  fu=0;
-  itd2=0;
-  m6=0;
+  i=e;
+  d0=0;
+  ag=3;
+  r2e=0;
+  hd=25;
 
   while (1) {
-      if (!(ynmp < vqss)) {
+      if (!(d0 < i)) {
           break;
       }
-      itd2 = itd2 + (fu += q, ynmp++, fu);
-      fu = fu + 1;
-      m6 = m6 + itd2;
-      ynmp = vqss;
+      ag += 1;
+      r2e -= 1;
+      d0++;
+      hd = hd + r2e;
   }
 
 }

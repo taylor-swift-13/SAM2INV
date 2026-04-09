@@ -1,17 +1,17 @@
-int main1(){
-  int za5q, su, lt, s, x;
+int main1(int o){
+  int jqh, w5, ri, lm, c73f;
 
-  za5q=95;
-  su=0;
-  lt=1;
-  s=0;
-  x=1;
+  jqh=(o%9)+16;
+  w5=0;
+  ri=o;
+  lm=o;
+  c73f=w5;
 
-  while (su < za5q) {
-      s += x;
-      lt = lt*4+(s%5)+0;
-      x += 2;
-      su++;
+  while (w5 < jqh) {
+      lm++;
+      w5++;
+      ri = ri + 1;
+      c73f = c73f + ri;
   }
 
 }

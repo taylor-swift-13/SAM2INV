@@ -1,16 +1,14 @@
-int main1(){
-  int g, zk, shq, niss, rv28;
+int main1(int n){
+  int cb, urw, xi;
 
-  g=1+11;
-  zk=0;
-  shq=5;
-  niss=zk;
-  rv28=-6;
+  cb=n;
+  urw=0;
+  xi=-3;
 
-  while (zk < g) {
-      niss = zk % 2 == 0 ? niss + shq : niss + rv28;
-      zk++;
-      shq = shq + zk;
+  while (urw < cb) {
+      xi += urw;
+      n = n + xi;
+      urw += 1;
   }
 
 }

@@ -1,21 +1,18 @@
-int main1(int e){
-  int fc7, yg7, f, ub, b, x;
+int main1(){
+  int niho, e1h, z, q;
 
-  fc7=55;
-  yg7=0;
-  f=yg7;
-  ub=2;
-  b=16;
-  x=0;
+  niho=1;
+  e1h=0;
+  z=niho;
+  q=e1h;
 
   while (1) {
-      if (!(yg7 < fc7 && ub > 0 && b > 0)) {
+      if (!(e1h < niho)) {
           break;
       }
-      f = (ub--, b--, f - e);
-      x += fc7;
-      yg7 = yg7 + 1;
-      x = x + 3;
+      q += niho;
+      z = 1-z;
+      e1h += 1;
   }
 
 }

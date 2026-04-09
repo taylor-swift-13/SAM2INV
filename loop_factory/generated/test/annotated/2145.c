@@ -1,28 +1,23 @@
-int main1(int s){
-  int x4mk, z, y83, jm, a;
-  x4mk=73;
-  z=0;
-  y83=0;
-  jm=0;
-  a=s;
+int main1(){
+  int ev, vm2, l, g;
+  ev=(1%22)+17;
+  vm2=0;
+  l=0;
+  g=4;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= z;
-  loop invariant z <= x4mk;
-  loop invariant x4mk == 73;
-  loop invariant (z == 0) || ( ((z - 1) % 2 == 0) ==> (a - jm == y83) );
-  loop invariant (z == 0) || ( ((z - 1) % 2 == 1) ==> (a == 2 * jm) );
-  loop invariant s == \at(s, Pre);
-  loop invariant (z == 0) ==> (y83 == 0 && jm == 0 && a == \at(s, Pre));
-  loop assigns a, y83, jm, z;
+  loop invariant l - vm2 + (g*(g+1))/2 == 10;
+  loop invariant vm2 <= ev;
+  loop invariant 0 <= g;
+  loop invariant g <= 4;
+  loop invariant (g + vm2) == 4;
+  loop invariant 2 * l == vm2 * (11 - vm2);
+  loop assigns vm2, l, g;
 */
-while (1) {
-      if (!(z < x4mk)) {
-          break;
-      }
-      y83 = (1 - (z % 2)) * a + (z % 2) * y83;
-      jm = (z % 2) * a + (1 - (z % 2)) * jm;
-      a = a + jm;
-      z += 1;
+while (vm2<ev&&g>0) {
+      vm2++;
+      l = l + g;
+      l = l + 1;
+      g -= 1;
   }
 }

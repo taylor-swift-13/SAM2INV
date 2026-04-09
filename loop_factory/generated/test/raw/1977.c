@@ -1,17 +1,22 @@
-int main1(){
-  int l, k3u5, f6, f, fx;
+int main1(int j){
+  int uc1, uu, afe;
 
-  l=29;
-  k3u5=0;
-  f6=k3u5;
-  f=k3u5;
-  fx=l;
+  uc1=14;
+  uu=0;
+  afe=0;
 
-  while (k3u5 < l) {
-      k3u5++;
-      f6 += fx;
-      f += l;
-      f = f + 1;
+  while (1) {
+      if (!(uu<=18)) {
+          break;
+      }
+      if (!(uc1>=0)) {
+          uc1 = uc1+-4;
+          afe = afe + 1;
+      }
+      else {
+          uc1 = uc1 + 32;
+      }
+      uu = uu + 1;
   }
 
 }

@@ -1,31 +1,24 @@
-int main1(int b){
-  int pvt, y, w;
-  pvt=b;
-  y=0;
-  w=0;
+int main1(int v){
+  int e7zt, b03, e, oc, ta3;
+  e7zt=v+15;
+  b03=0;
+  e=e7zt;
+  oc=v - 0;
+  ta3=e7zt;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant pvt == \at(b, Pre);
-  loop invariant (pvt <= 0) ==> (y == 0 && w == 0 && b == \at(b, Pre));
-  loop invariant b == \at(b, Pre) + pvt * y;
-  loop invariant y >= 0;
-  loop invariant (pvt >= 0 ==> y <= pvt);
-  loop invariant (-3 * y) <= w;
-  loop invariant w <= (3 * y);
-  loop invariant (w % 3) == 0;
-  loop assigns b, w, y;
+  loop invariant e == (e7zt + b03);
+  loop invariant ta3 == (e7zt * (b03 + 1));
+  loop invariant oc == (v - b03);
+  loop invariant e7zt == (\at(v, Pre) + 15);
+  loop invariant 0 <= b03;
+  loop invariant (e7zt >= 0) ==> (b03 <= e7zt);
+  loop assigns b03, oc, ta3, e;
 */
-while (1) {
-      if (!(y<pvt)) {
-          break;
-      }
-      if (!(!(y<pvt/2))) {
-          w = w - 3;
-      }
-      else {
-          w = w + 3;
-      }
-      y++;
-      b += pvt;
+while (b03 < e7zt) {
+      b03 += 1;
+      oc = (v)+(-(b03));
+      ta3 += e7zt;
+      e += 1;
   }
 }

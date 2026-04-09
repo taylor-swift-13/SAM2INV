@@ -1,16 +1,20 @@
-int main1(int b){
-  int z7x, ordi, uou, j;
+int main1(){
+  int t7, ktt, v6, a, c;
 
-  z7x=b*2;
-  ordi=0;
-  uou=0;
-  j=0;
+  t7=1;
+  ktt=0;
+  v6=t7;
+  a=0;
+  c=0;
 
-  while (ordi < z7x) {
-      uou = (ordi++, uou + (2*ordi - 1));
-      b = b+uou+uou;
-      j = j + uou;
-      ordi = z7x;
+  while (1) {
+      if (!(ktt < t7)) {
+          break;
+      }
+      a += v6;
+      ktt = ktt + 1;
+      c = c + a;
+      v6 = v6+t7-ktt;
   }
 
 }

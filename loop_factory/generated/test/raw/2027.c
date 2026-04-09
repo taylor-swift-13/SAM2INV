@@ -1,20 +1,18 @@
 int main1(){
-  int ivns, tf0d, a7, bh, g;
+  int ep, t, bfu, y6, dl29, x;
 
-  ivns=56;
-  tf0d=ivns+6;
-  a7=0;
-  bh=12;
-  g=13;
+  ep=1+5;
+  t=0;
+  bfu=0;
+  y6=0;
+  dl29=0;
+  x=ep;
 
-  while (1) {
-      if (!(tf0d>1)) {
-          break;
-      }
-      a7 = a7*4;
-      bh = bh/4;
-      g = bh*bh;
-      tf0d = tf0d/2;
+  while (t < ep) {
+      t = (bfu += x, y6 += bfu, t + 1);
+      dl29 += x;
+      x = x*2+(y6%4)+3;
+      bfu += t;
   }
 
 }

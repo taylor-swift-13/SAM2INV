@@ -1,25 +1,25 @@
 int main1(){
-  int kj, xs, bfe, qa79;
-  kj=76;
-  xs=0;
-  bfe=-5;
-  qa79=xs;
+  int za5q, su, lt, s, x;
+  za5q=95;
+  su=0;
+  lt=1;
+  s=0;
+  x=1;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant (0 <= xs);
-  loop invariant (xs <= kj);
-  loop invariant bfe <= -5;
-  loop invariant qa79 <= 0;
-  loop invariant (bfe % 5) == 0;
-  loop invariant (qa79 % 5) == 0;
-  loop assigns xs, bfe, qa79;
+  loop invariant s == su * su;
+  loop invariant x == 1 + 2 * su;
+  loop invariant 0 <= su;
+  loop invariant su <= za5q;
+  loop invariant lt >= 1;
+  loop invariant 0 <= s % 5;
+  loop invariant s % 5 <= 4;
+  loop assigns su, s, x, lt;
 */
-while (1) {
-      if (!(xs < kj)) {
-          break;
-      }
-      xs++;
-      bfe += qa79;
-      qa79 = qa79 + bfe;
+while (su < za5q) {
+      s += x;
+      lt = lt*4+(s%5)+0;
+      x += 2;
+      su++;
   }
 }

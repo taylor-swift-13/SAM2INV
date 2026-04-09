@@ -1,23 +1,24 @@
-int main1(){
-  int hv, lvy, i, f, zd;
-  hv=1;
-  lvy=0;
-  i=0;
-  f=0;
-  zd=0;
+int main1(int x){
+  int c6m, hh, oz, osfx, v;
+  c6m=42;
+  hh=0;
+  oz=0;
+  osfx=0;
+  v=x;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant lvy == i;
-  loop invariant f == i*(i+1)/2;
-  loop invariant zd == i*(i+1)*(i+2)/6;
-  loop invariant (0 <= lvy && lvy <= hv);
-  loop invariant (0 <= i && i <= hv);
-  loop assigns i, f, lvy, zd;
+  loop invariant v == \at(x, Pre) + 3 * hh;
+  loop invariant oz == 3 * hh;
+  loop invariant osfx == hh;
+  loop invariant 0 <= hh;
+  loop invariant hh <= c6m;
+  loop invariant v - oz == \at(x, Pre);
+  loop assigns v, hh, oz, osfx;
 */
-while (lvy < hv) {
-      i = i + 1;
-      f = f + i;
-      lvy += 1;
-      zd += f;
+while (hh < c6m) {
+      v = v + 3;
+      hh++;
+      oz = oz + 3;
+      osfx++;
   }
 }

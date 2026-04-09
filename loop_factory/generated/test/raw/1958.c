@@ -1,18 +1,18 @@
-int main1(int g){
-  int ny, uq, h, m;
+int main1(int d){
+  int wkze, ui, go, x93l;
 
-  ny=g;
-  uq=0;
-  h=ny;
-  m=-8;
+  wkze=(d%21)+17;
+  ui=0;
+  go=1;
+  x93l=d;
 
   while (1) {
-      if (!(uq < ny)) {
+      if (!(ui < wkze)) {
           break;
       }
-      uq += 1;
-      h = h + m;
-      g += uq;
+      go = (ui++, go * d);
+      x93l += go;
+      ui = wkze;
   }
 
 }

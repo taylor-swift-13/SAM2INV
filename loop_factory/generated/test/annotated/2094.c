@@ -1,23 +1,25 @@
-int main1(){
-  int qr, i4i, d5, isz;
-  qr=(1%39)+12;
-  i4i=0;
-  d5=qr;
-  isz=qr;
+int main1(int k){
+  int bld, tx, a;
+  bld=k;
+  tx=0;
+  a=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant isz == qr;
-  loop invariant 0 <= i4i;
-  loop invariant i4i <= qr;
-  loop invariant d5 >= isz;
-  loop invariant d5 >= qr;
-  loop invariant qr == 13;
-  loop invariant (d5 - 13) % 17 == 0;
-  loop assigns d5, i4i;
+  loop invariant k == \at(k, Pre) + tx * bld;
+  loop invariant bld == \at(k, Pre);
+  loop invariant tx >= 0;
+  loop invariant 0 <= a;
+  loop invariant a <= 2 * tx;
+  loop invariant (a % 2) == 0;
+  loop invariant (bld >= 0) ==> (tx <= bld);
+  loop invariant (tx <= bld/2) ==> (a == 0);
+  loop assigns a, tx, k;
 */
-while (i4i < qr) {
-      d5 += isz;
-      i4i = i4i + (qr - i4i + 1)/2;
-      d5 += 4;
+while (tx<bld) {
+      if (!(!(tx>=bld/2))) {
+          a += 2;
+      }
+      tx += 1;
+      k += bld;
   }
 }

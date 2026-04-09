@@ -1,15 +1,18 @@
-int main1(int d){
-  int fe, f0, nr5, w;
+int main1(int n){
+  int ft3, ihn9, f, ydv;
 
-  fe=38;
-  f0=0;
-  nr5=f0;
-  w=0;
+  ft3=(n%16)+20;
+  ihn9=0;
+  f=2;
+  ydv=-3;
 
-  while (f0 < fe) {
-      f0 = f0 + 1;
-      w = w + d * (f0 >= fe);
-      nr5 = nr5 + d * (f0 >= fe);
+  while (1) {
+      if (ihn9>=ft3) {
+          break;
+      }
+      f = f + 1;
+      ihn9++;
+      ydv += ihn9;
   }
 
 }

@@ -1,18 +1,16 @@
-int main1(int z){
-  int jy, p, wgk, tnjg;
+int main1(){
+  int fi, d, g4, baz, j1f;
 
-  jy=z*2;
-  p=0;
-  wgk=6;
-  tnjg=p;
+  fi=1;
+  d=0;
+  g4=1;
+  baz=2;
+  j1f=3;
 
-  while (1) {
-      if (!(p < jy)) {
-          break;
-      }
-      tnjg = tnjg + tnjg;
-      wgk += 1;
-      p++;
+  while (d < fi) {
+      g4 = g4 + baz;
+      d++;
+      baz = (j1f)+(baz);
   }
 
 }

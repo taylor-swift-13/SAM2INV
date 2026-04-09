@@ -1,29 +1,23 @@
 int main1(){
-  int uv, jz, l70, eb92, eu;
-  uv=1+16;
-  jz=0;
-  l70=-5;
-  eb92=jz;
-  eu=jz;
+  int it, z2, ro, d, p;
+  it=(1%25)+11;
+  z2=0;
+  ro=z2;
+  d=6;
+  p=it;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant ((jz == 0) && (l70 == -5) && (eb92 == 0) && (eu == 0))
-                   || ((jz == uv) && (l70 == 4) && (eb92 == 4) && (eu == 4));
-  loop invariant (jz == 0) ==> (l70 == -5 && eb92 == 0 && eu == 0);
-  loop invariant 0 <= jz;
-  loop invariant jz <= uv;
-  loop invariant eu >= eb92;
-  loop invariant eb92 >= 0;
-  loop invariant (jz == 0 && eu == 0 && eb92 == 0 && l70 == -5)
-                   || (jz == uv && l70 == (-5 + 9) && eb92 == l70 && eu == eb92);
-  loop invariant (jz == 0 && l70 == -5 && eb92 == 0 && eu == 0)
-                   || (jz == uv && l70 == 4 && eb92 == 4 && eu == 4);
-  loop assigns l70, eb92, eu, jz;
+  loop invariant 0 <= z2;
+  loop invariant z2 <= it;
+  loop invariant p == it + 2*z2;
+  loop invariant d == 6 - z2;
+  loop invariant ro == z2*(it + 9) + (z2*(z2 - 1))/2;
+  loop assigns z2, p, d, ro;
 */
-while (jz<=uv-1) {
-      l70 = l70 + 9;
-      eb92 = eb92 + l70;
-      eu += eb92;
-      jz = uv;
+while (z2 < it) {
+      z2 = (p = p + 1, d = d - 1, z2 + 1);
+      ro += 2;
+      p++;
+      ro = ro+d+p;
   }
 }

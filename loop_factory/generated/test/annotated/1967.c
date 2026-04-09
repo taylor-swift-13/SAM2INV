@@ -1,24 +1,24 @@
-int main1(int r){
-  int nj2, ma, p2i, x65o;
-  nj2=r+21;
-  ma=0;
-  p2i=1;
-  x65o=0;
+int main1(){
+  int w6k, cjz, al9;
+  w6k=1;
+  cjz=0;
+  al9=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant ((ma == 0 && p2i == 1 && x65o == 0)
-                    || (ma == nj2 && p2i == r && x65o == 2));
-  loop invariant nj2 == \at(r, Pre) + 21;
-  loop invariant r == \at(r, Pre);
-  loop invariant (ma == 0 && p2i == 1 && x65o == 0) || (ma == nj2 && p2i == r && x65o == 2);
-  loop invariant ((ma == 0) && (p2i == 1) && (x65o == 0)) ||
-                   ((ma == nj2) && (p2i == r) && (x65o == 2));
-  loop invariant (ma == 0 ==> (p2i == 1 && x65o == 0));
-  loop assigns p2i, x65o, ma;
+  loop invariant 2 * al9 == cjz;
+  loop invariant cjz >= 0;
+  loop invariant (cjz == 0 && w6k == 1) || w6k == (cjz - 1);
+  loop invariant ( (cjz == 0 && w6k == 1 && al9 == 0)
+                    || (cjz >= 1 && w6k == (cjz - 1)) );
+  loop invariant w6k >= 1;
+  loop invariant ((cjz == 0 && w6k == 1 && al9 == 0) || (cjz >= 1 && w6k == cjz - 1 && al9 == 1));
+  loop assigns cjz, al9, w6k;
 */
-while (ma < nj2) {
-      p2i = p2i * r;
-      x65o += 2;
-      ma = nj2;
+while (1) {
+      if (!(cjz++ < w6k)) {
+          break;
+      }
+      al9 = (al9 + (cjz % 2) * 2)+(-(1));
+      w6k = cjz++;
   }
 }

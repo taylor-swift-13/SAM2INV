@@ -1,26 +1,27 @@
-int main1(int e){
-  int a, f, a2, g4t, sph;
-  a=e*5;
-  f=0;
-  a2=-1;
-  g4t=1;
-  sph=0;
+int main1(int k){
+  int cz1, wkz, o, l, e9;
+  cz1=k+24;
+  wkz=0;
+  o=-4;
+  l=wkz;
+  e9=0;
   /* >>> LOOP INVARIANT TO FILL <<< */
 /*@
-  loop invariant 0 <= f;
-  loop invariant (a >= 0 ==> f <= a);
-  loop invariant sph == (f * (f + 1 - a));
-  loop invariant a2 == (-1 + f * g4t);
-  loop invariant e == (\at(e, Pre) + (f * (f + 1) * (2 * f + 4 - 3 * a)) / 6);
-  loop invariant a == (\at(e, Pre) * 5);
-  loop invariant g4t == 1;
-  loop invariant 6 * (e - \at(e, Pre)) == f * (f + 1) * (2 * f + 4 - 3 * a);
-  loop assigns f, sph, e, a2;
+  loop invariant cz1 == k + 24;
+  loop invariant l == 0;
+  loop invariant e9 == 0;
+  loop invariant (o + 4) % 3 == 0;
+  loop invariant o >= -4;
+  loop invariant wkz <= 0;
+  loop assigns wkz, l, o, e9;
 */
-while (f < a) {
-      f = f + 1;
-      sph = sph + (f - (a - f));
-      e = e + sph;
-      a2 = a2 + g4t;
+while (1) {
+      if (!(wkz > cz1 && (o > k || l > k || e9 > k))) {
+          break;
+      }
+      wkz = wkz-((o>k)+(l>k)+(e9>k));
+      l += l;
+      o = o + 3;
+      e9 += l;
   }
 }
