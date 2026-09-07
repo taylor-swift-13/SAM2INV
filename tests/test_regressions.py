@@ -848,7 +848,7 @@ class RewardPatchRegressionTests(unittest.TestCase):
         self.assertNotIn("w_surv", request_fields)
         self.assertNotIn("reroll_threshold", request_fields)
         self.assertIn("w_shapley", request_fields)
-        self.assertIn("w_overflow", request_fields)
+        self.assertNotIn("w_overflow", request_fields)
         self.assertIn("reward_variant", request_fields)
         self.assertIn("credit_filter_order", request_fields)
         if hasattr(service.SamplerCfg, "model_fields"):
@@ -860,7 +860,7 @@ class RewardPatchRegressionTests(unittest.TestCase):
         self.assertFalse(hasattr(RewardCalculator(), "reroll_threshold"))
         configured = RewardCalculator(w_shapley=0.7)
         self.assertEqual(configured.w_shapley, 0.7)
-        self.assertEqual(configured.w_overflow, 0.1)
+        self.assertFalse(hasattr(configured, "w_overflow"))
         self.assertEqual(configured.credit_filter_order, "pooled")
 
     def test_pooled_filtering_assigns_survivors_before_shapley(self):
@@ -1336,7 +1336,7 @@ class RewardPatchRegressionTests(unittest.TestCase):
         self.assertAlmostEqual(sum(credits), 1.0)
         self.assertEqual(result.batch_score, 1.0)
 
-    def test_response_cap_truncates_and_penalizes_overflow_lines(self):
+    def test_response_cap_truncates_without_penalizing_overflow_lines(self):
         source = "void f(void) { int x = 0; while (x < 1) { x++; } }"
         examples = ExampleSet(
             program=parse_program(source),
@@ -1346,17 +1346,22 @@ class RewardPatchRegressionTests(unittest.TestCase):
         )
         rollout = [f"x >= {-index}" for index in range(25)]
 
-        score = RewardCalculator(
-            invariant_filter=self._IdentityFilter(), n_jobs=1
-        ).compute(source, [rollout], examples=examples).rollouts[0]
-
-        self.assertEqual(score.generated, 25)
-        self.assertEqual(score.accepted, 20)
-        self.assertEqual(score.overflow, 5)
-        self.assertEqual(score.overflow_penalty, 0.5)
-        self.assertEqual(len(score.invariants), 20)
-        self.assertNotIn("x >= -24", score.invariants)
-        self.assertEqual(score.reward, 0.8)
+        for variant in ('binary', 'whole_coverage', 'base', 'full'):
+            with self.subTest(variant=variant):
+                calculator = RewardCalculator(
+                    invariant_filter=self._IdentityFilter(), n_jobs=1,
+                    reward_variant=variant,
+                )
+                score = calculator.compute(source, [rollout], examples=examples).rollouts[0]
+                capped = calculator.compute(source, [rollout[:20]], examples=examples).rollouts[0]
+                self.assertEqual(score.generated, 25)
+                self.assertEqual(score.accepted, 20)
+                self.assertEqual(score.overflow, 5)
+                self.assertEqual(score.overflow_penalty, 0.0)
+                self.assertEqual(len(score.invariants), 20)
+                self.assertNotIn('x >= -24', score.invariants)
+                self.assertEqual(score.reward, capped.reward)
+                self.assertEqual(score.reward, 1.3 if variant == 'full' else 1.0)
 
     def test_supporting_clause_enables_standalone_coverage(self):
         source = "void f(void) { int x = 0; while (x < 1) { x++; } }"

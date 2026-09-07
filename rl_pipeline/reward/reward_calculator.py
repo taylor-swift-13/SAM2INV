@@ -9,7 +9,6 @@ each rollout and the batch, using synthetic negative candidates from the sampler
                 survive pooled Houdini filtering
   shapley[A]  = Shapley allocation of the group's rejection coverage
   reward[A]   = w_base * base[A] + w_shapley * shapley[A]
-                - w_overflow * overflow[A]
   batch_score = fraction of candidates rejected by Houdini(union)    (batch performance)
 
 The default credit path first pools all rollout clauses, runs Houdini once, and
@@ -80,7 +79,7 @@ class RolloutScore:
     overflow: int                 # clauses beyond max_invariants
     base: float
     shapley_credit: float         # allocation of group negative coverage
-    overflow_penalty: float
+    overflow_penalty: float       # compatibility field; always zero
     reward: float
     rejected: int                 # negatives rejected by attributed survivors
 
@@ -192,7 +191,6 @@ class RewardCalculator:
         invariant_filter=None,
         w_base: float = 1.0,
         w_shapley: float = 0.3,
-        w_overflow: float = 0.1,
         max_invariants: int = MAX_INVARIANTS_PER_RESPONSE,
         n_jobs: Optional[int] = None,     # parallel frama-c filter calls per group
         logger: Optional[logging.Logger] = None,
@@ -214,13 +212,12 @@ class RewardCalculator:
         self.filter = invariant_filter or filters.auto_filter(log)
         self.w_base = w_base
         self.w_shapley = w_shapley
-        self.w_overflow = w_overflow
         self.max_invariants = max_invariants
         self.n_jobs = n_jobs or min(16, (os.cpu_count() or 8))
         self.sampler_kwargs = sampler_kwargs or {}
         self.reward_variant = reward_variant
         self.credit_filter_order = credit_filter_order
-        if min(self.w_base, self.w_shapley, self.w_overflow) < 0:
+        if min(self.w_base, self.w_shapley) < 0:
             raise ValueError("reward weights must be non-negative")
         if not 1 <= self.max_invariants <= MAX_INVARIANTS_PER_RESPONSE:
             raise ValueError(
@@ -406,7 +403,8 @@ class RewardCalculator:
                 max(0, n_generated - self.max_invariants)
                 if cap_responses else 0
             )
-            overflow_penalty = self.w_overflow * overflow
+            # The cap limits admitted clauses; excess lines incur no reward cost.
+            overflow_penalty = 0.0
             if not scorable or self.reward_variant == "binary":
                 # Binary inductiveness: either the explicit ablation or the
                 # fallback when no negative trace exists to measure strength.
@@ -418,13 +416,11 @@ class RewardCalculator:
                 # sound subset from an imperfect response.
                 reward = (
                     (base if fully_verified(invs, surv) else 0.0)
-                    - overflow_penalty
                 )
             else:
                 reward = self.w_base * base
                 if self.reward_variant == "full":
                     reward += self.w_shapley * shapley_credit
-                reward -= overflow_penalty
             scores.append(RolloutScore(
                 index=idx, invariants=invs, survivors=surv,
                 generated=n_generated, accepted=n_accepted, overflow=overflow,

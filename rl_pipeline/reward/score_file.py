@@ -31,7 +31,6 @@ def score_file(input_path: str, output_path: str, cfg: io.IOConfig,
                include_program: bool = False,
                logger: Optional[logging.Logger] = None,
                w_shapley: float = 0.3,
-               w_overflow: float = 0.1,
                reward_variant: str = "full",
                credit_filter_order: str = "pooled") -> Dict[str, int]:
     sampler_kwargs = dict(sampler_kwargs or {})
@@ -42,7 +41,6 @@ def score_file(input_path: str, output_path: str, cfg: io.IOConfig,
     shared_filter = filters.auto_filter(logger)
     rc = RewardCalculator(invariant_filter=shared_filter, w_base=w_base,
                           w_shapley=w_shapley,
-                          w_overflow=w_overflow,
                           reward_variant=reward_variant,
                           credit_filter_order=credit_filter_order,
                           logger=logger)
@@ -93,7 +91,6 @@ def main() -> int:
     ap.add_argument("--group-field", default="group_id")
     ap.add_argument("--w-base", type=float, default=1.0)
     ap.add_argument("--w-shapley", type=float, default=0.3)
-    ap.add_argument("--w-overflow", type=float, default=0.1)
     ap.add_argument(
         "--reward-variant", choices=REWARD_VARIANTS, default="full"
     )
@@ -130,7 +127,6 @@ def main() -> int:
         args.input, args.output, cfg, sampler_kwargs,
         args.w_base, args.include_program, logger,
         w_shapley=args.w_shapley,
-        w_overflow=args.w_overflow,
         reward_variant=args.reward_variant,
         credit_filter_order=args.credit_filter_order,
     )
