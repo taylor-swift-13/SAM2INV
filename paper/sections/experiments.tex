@@ -61,12 +61,28 @@ Composition saturates by \(k{\approx}8\)--\(16\), while pass@\(k\) keeps growing
 \label{fig:base-model-probe}
 \end{figure}
 
+At \(k{=}1\), compose@1 exceeds pass@1 by 13.8--42.0 points across the six
+checkpoints.  This comparison is descriptive: pass@1 averages standalone
+success over the saved pool, whereas compose@1 evaluates its first filtered
+prefix.  It therefore captures the benefit of decomposing and filtering one
+response, before any cross-response aggregation.
+
+Beyond \(k{=}1\), the curves scale differently.  For every checkpoint,
+compose@16 is within 2.6 points of compose@32; from 16 to 32 responses,
+compose gains at most 2.53 points while pass gains 2.58--5.55 points.  Llama
+3.1-8B makes the contrast explicit: compose rises from 28.16\% at \(k{=}1\)
+to 55.06\% at \(k{=}16\) and then stops, whereas pass continues from 6.88\%
+to 10.88\%.  Composition is not monotonic in parameter count: Qwen3-30B-A3B
+trails the dense 8B and 14B checkpoints at compose@32.  We therefore carry
+forward four medium-sized dense models: Qwen3-4B, Qwen3-8B, Qwen3-14B, and
+Llama 3.1-8B.
+
 \begin{insightbox}
-\textbf{Insight.}
-Across all six checkpoints, compose@16 is within 2.6 points of compose@32,
-while pass@\(k\) keeps growing.  The verification benefit of clause pooling
-therefore saturates earlier than the probability of sampling a complete
-answer.
+\textbf{Finding.}
+Under the same model-call and response budget, compose@\(k\) substantially
+exceeds pass@\(k\) and saturates earlier.  Compositional utility should
+therefore be treated as a first-class optimization target rather than a
+by-product of standalone correctness.
 \end{insightbox}
 
 % ---------------------------------------------------------------------------
@@ -77,11 +93,10 @@ For each local backbone and training stage, Table~\ref{tab:rcf-paired}
 reports pass@\(k\) and compose@\(k\) side by side on all 832 programs at
 \(k{=}1,8\); the same summary is included for four reasoning-disabled API
 models.  Bare is the untrained checkpoint, and RL applies reinforcement
-learning directly to Bare.  Within a row, pass versus compose isolates
-inference-time composition; across local rows, Bare versus SFT measures
-offline distillation, while Bare versus RL and SFT versus SFT+RL isolate RL
-under the two initializations.  Section~\ref{sec:exp:rl} analyzes these paired
-comparisons separately.  Full
+learning directly to Bare.  Across all four local backbones, SFT raises
+compose@1 to 61.30--66.35\%, and subsequent RL adds another 2.40--5.33
+percentage points.  Section~\ref{sec:exp:rl} compares the effects of RL from
+Bare and SFT initializations.  Full
 sampling curves and benchmark-stratum breakdowns are deferred to
 Appendix~\ref{app:complete-results}.
 
@@ -92,31 +107,32 @@ Appendix~\ref{app:complete-results}.
 \setlength{\tabcolsep}{6.0pt}
 \begin{tabular}{llrrrr}
 \toprule
+\rowcolor{algobg}
 Backbone & Training & pass@1 & compose@1 & pass@8 & compose@8 \\
 \midrule
 \multirow{4}{*}{Qwen3-4B}
  & Bare   & 5.27 & 32.93 & 12.50 & 47.60 \\
  & RL     & 1.70 & 48.80 & 4.50 & 62.50 \\
  & SFT    & 40.43 & 62.62 & 59.99 & 76.20 \\
-\rowcolor{algobg} & SFT+RL (\sam{}) & 33.40 & 66.10 & 49.90 & 74.50 \\
+ & SFT+RL (\sam{}) & 33.40 & 66.10 & 49.90 & 74.50 \\
 \cmidrule(l{3pt}r{3pt}){1-6}
 \multirow{4}{*}{Qwen3-8B}
  & Bare   & 6.43 & 37.86 & 17.33 & 54.21 \\
  & RL     & 6.80 & 57.93 & 16.80 & 70.43 \\
  & SFT    & 41.93 & 63.90 & 61.11 & 76.20 \\
-\rowcolor{algobg} & SFT+RL (\sam{}) & 30.78 & 69.23 & 47.47 & 76.80 \\
+ & SFT+RL (\sam{}) & 30.78 & 69.23 & 47.47 & 76.80 \\
 \cmidrule(l{3pt}r{3pt}){1-6}
 \multirow{4}{*}{Qwen3-14B}
  & Bare   & 7.67 & 43.51 & 17.97 & 61.54 \\
  & RL     & 10.40 & 65.40 & 18.70 & 72.20 \\
  & SFT    & \textbf{45.66} & 66.35 & \textbf{63.50} & \textbf{78.37} \\
-\rowcolor{algobg} & SFT+RL (\sam{}) & 40.70 & \textbf{70.80} & 56.80 & 76.80 \\
+ & SFT+RL (\sam{}) & 40.70 & \textbf{70.80} & 56.80 & 76.80 \\
 \cmidrule(l{3pt}r{3pt}){1-6}
 \multirow{4}{*}{Llama 3.1-8B}
  & Bare   & 0.61 & 27.88 & 3.81 & 51.20 \\
  & RL     & 4.50 & 46.00 & 10.50 & 56.20 \\
  & SFT    & 39.24 & 61.30 & 56.86 & 73.08 \\
-\rowcolor{algobg} & SFT+RL (\sam{}) & 33.70 & 63.70 & 49.64 & 72.70 \\
+ & SFT+RL (\sam{}) & 33.70 & 63.70 & 49.64 & 72.70 \\
 \midrule
 \multicolumn{6}{l}{\textit{API models}} \\
 GPT-5-nano       & -- & 3.58  & 33.89 & 16.05 & 55.53 \\
@@ -127,8 +143,7 @@ DeepSeek V4-Flash & -- & 28.08 & 51.44 & 48.21 & 74.40 \\
 \end{tabular}
 \caption{Main results on all 832 programs (\% verified).  Pass evaluates
 complete responses, whereas compose decomposes, pools, and filters the same
-response pool.  Shaded rows are the final \sam{} checkpoints (SFT+RL).
-Bold marks the best value in each column across all rows, including the API
+response pool.  Bold marks the best value in each column across all rows, including the API
 baselines: trained local models lead every column, and \sam{} attains the
 best compose@1 (70.80\%).  API rows are evaluated without additional
 training.  Complete curves and stratum-level results are in
@@ -136,30 +151,24 @@ Appendix~\ref{app:complete-results}.}
 \label{tab:rcf-paired}
 \end{table}
 
-SFT amortizes multi-response compositional search into the policy: one SFT
-rollout reaches 63.90\% compose@1, exceeding the 57.81\% compose@32 of the
-Bare model and reducing the required inference calls by over \(32\times\) at
-a higher verification rate.
-
 \begin{insightbox}
-\textbf{Insight.}
-The pipeline improves every base checkpoint before training, and SFT brings
-all four trained backbones to a similar compose@1 range despite their widely
-different Bare performance.  These gains therefore transfer across model
-sizes and families.
+\textbf{Finding.}
+SFT amortizes multi-response compositional search into a single rollout,
+substantially improving exploration efficiency per model call.  RL then
+reshapes the exploration distribution using group-relative credit from
+negative rejection: one Qwen3-8B SFT+RL rollout reaches 69.23\% compose@1,
+surpassing the 57.81\% compose@32 of Bare with 32 rollouts.
 \end{insightbox}
 
 % ---------------------------------------------------------------------------
 \subsection{RQ3: How Does \sam{} Compare with Specialized Tools?}
 \label{sec:exp:tools}
 
-\begin{wrapfigure}[18]{r}{0.40\linewidth}
+\begin{wrapfigure}[11]{r}{0.40\linewidth}
 \vspace{-0.75\baselineskip}
 \centering
 \includegraphics[width=\linewidth]{figures/tool_pareto.pdf}
-\caption{Accuracy--cost frontier using GPT-5-nano with reasoning disabled;
-upper-left is better.  Full results are in
-Appendix~\ref{app:complete-results}.}
+\caption{GPT-5-nano accuracy--token frontier; upper-left is better.}
 \label{fig:tool-pareto}
 \vspace{-0.6\baselineskip}
 \end{wrapfigure}
@@ -173,10 +182,21 @@ mean total tokens under each system's native orchestration.  All three
 \sam{} budgets lie on the model-matched Pareto frontier: compose@4 verifies
 49.04\% with fewer tokens than AutoSpec, the strongest external baseline in
 this reasoning-disabled comparison (42.19\%), while compose@8 reaches
-55.53\%.  The comparison is end-to-end rather than call- or token-matched.
-The complete per-category accuracy, token, runtime, and reasoning-effort
-breakdown appears in Appendix~\ref{app:complete-results}; the benefit also
-holds for three additional API models (Table~\ref{tab:cross-model-main}).
+55.53\%.
+
+We compare systems end to end without matching calls or token
+budgets.  Appendix~\ref{app:complete-results} reports accuracy by category,
+token use, runtime, and reasoning effort.  The benefit also holds for three
+additional API models (Table~\ref{tab:cross-model-main}).
+
+\begin{insightbox}
+\textbf{Finding.}
+Under target hiding, orchestration efficiency matters as much as proposal
+strength.  CRAFT turns independent responses into reusable clauses: all three
+tested budgets lie on the model-matched Pareto frontier, and compose@4
+simultaneously beats the strongest external baseline in verification rate and
+mean tokens.
+\end{insightbox}
 
 % ---------------------------------------------------------------------------
 \subsection{RQ4: How Does RL Reshape Compositional Exploration Before and After SFT?}
@@ -184,51 +204,46 @@ holds for three additional API models (Table~\ref{tab:cross-model-main}).
 
 Prior work suggests that RLVR can reallocate probability toward behaviors
 already available to the base model rather than create fundamentally new
-reasoning patterns~\citep{yue2025rlcapacity}.  We examine this view at the
-level of compositional utility through matched Bare--RL and
-SFT--SFT+RL Qwen3-8B pairs under identical inference.  The first comparison
-measures how RL changes an untrained policy; the second asks what RL adds
-after SFT has distilled multi-response compositions.
+reasoning patterns~\citep{yue2025rlcapacity}.  We test this at the level of
+compositional utility using matched Bare--RL and SFT--SFT+RL Qwen3-8B pairs.
 
-Under both initializations, RL makes useful compositional content easier to
-sample, but the curves have different shapes.  From Bare, RL raises compose@1
-by 20.07 points and compose@32 by 15.39 points, while pass@1 is nearly
-unchanged (6.80\% vs.\ 6.43\%).  One RL rollout reaches 57.93\%
-compose@1, slightly exceeding the 57.81\% obtained from 32 Bare rollouts.
-The persistent gain at \(k{=}32\) is consistent with sharpening a diffuse
-long tail: useful clauses may be too rare under Bare for 32 samples to expose
-them reliably.  The finite sweep, however, does not establish whether those
-clauses were already present in that tail.  The same curve-wide improvement
-appears on Qwen3-4B, Qwen3-14B, and Llama~3.1-8B
+From Bare, RL raises compose@1 by 20.07 points and compose@32 by 15.39 while
+leaving pass@1 nearly unchanged (6.80\% vs.\ 6.43\%).  One RL rollout reaches
+57.93\% compose@1, slightly above the 57.81\% from 32 Bare rollouts.  The
+persistent large-\(k\) gain is consistent with sharpening a diffuse long tail,
+although the finite sweep cannot establish whether those clauses were already
+present.  The same curve-wide improvement holds for the other three backbones
 (Table~\ref{tab:rlzero-additional}).
 
-After SFT, the sharpening pattern becomes clearer.  RL raises compose@1 by
-5.33 points but compose@32 by only 0.47 points.  Once large-\(k\) exploration
-is already effective, RL changes primarily how quickly useful compositional
-content is recovered rather than how much is recovered at the largest tested
-budget.
-
-This probability shift favors compositional utility rather than complete
-responses.  Pass@1 falls from 41.93\% to 30.78\% and pass@32 from 67.98\% to
-53.47\%, whereas compose@1 rises from 63.90\% to 69.23\% and compose@32 from
-77.90\% to 78.37\%.  The compose@1 gain holds across all four backbones
-(2.40--5.33 points), all three benchmark strata, and the controlled clause-cap
-sweep (Tables~\ref{tab:rcf-paired} and~\ref{tab:rl-complete};
-Appendix~\ref{app:clause-cap}).
+After SFT, RL primarily improves the low-sample regime.  It raises compose@1
+from 63.90\% to 69.23\% (+5.33), but the gain contracts to 1.44
+points at \(k{=}4\), 0.60 at \(k{=}8\), 0.34 at \(k{=}16\), and 0.47 at
+\(k{=}32\).  Equivalently, the gap between compose@1 and compose@32 shrinks
+from 14.00 to 9.14 points.  Thus, after SFT has established broad
+large-budget coverage, RL mainly moves high-reward candidates into the
+small-budget regime rather than materially expanding the solutions recovered
+by 32 responses.  Meanwhile, pass@1 and pass@32 fall from
+41.93\%/67.98\% to 30.78\%/53.47\%.
+This pass reduction is compatible with our inference framework: useful
+clauses can still be recovered from a rollout that fails as a standalone
+answer, and RL may increase the probability of such rollouts, including ones
+with whole-response syntax errors.
+The small-\(k\) composition gain holds across all four backbones, all three
+strata, and the clause-cap sweep (Tables~\ref{tab:rcf-paired}
+and~\ref{tab:rl-complete}; Appendix~\ref{app:clause-cap}).
 
 \begin{insightbox}
-\textbf{Insight.}
-Across both initializations, RL makes useful compositional content easier to
-sample.  From Bare, this lifts the entire measured curve, consistent with
-sharpening a diffuse long tail; after SFT, the gains concentrate at small
-\(k\), revealing the sharpening pattern more clearly.  RL concentrates
-probability on compositionally useful outputs rather than improving
-whole-response correctness.
+\textbf{Finding.}
+RL shifts probability mass toward clauses favored by our target-independent
+reward, allowing successful compositions to emerge at smaller \(k\).  From
+Bare, this improves composition across all measured budgets; after SFT, the
+gains concentrate at small \(k\), reducing the sampling budget needed to
+recover much of the large-\(k\) performance.
 \end{insightbox}
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{figures/qwen_rlzero_probe.pdf}
+\includegraphics[width=0.85\textwidth]{figures/qwen_rlzero_probe.pdf}
 \caption{Matched Qwen3-8B effects: RL improves Bare throughout and still
   raises small-\(k\) composition after SFT saturates at large \(k\).}
 \label{fig:rl-panels}
@@ -238,14 +253,12 @@ whole-response correctness.
 \subsection{RQ5: How Should Credit Be Assigned for Compositional Inference?}
 \label{sec:exp:ablations}
 
-At inference, utility is determined only after responses are pooled and
-filtered.  Because targets remain hidden during RL, negative coverage of the
-pooled survivors serves as a target-independent surrogate.  We test where
-this credit should be assigned.  From the same Qwen3-8B Bare initialization,
-Binary and Whole-rollout use response-level credit, Clause-decomposed
-preserves credit for surviving \(V_i\), and Full adds the group allocation
-term \(w_g\phi_i\) (Equation~\eqref{eq:generation-reward}); all other settings
-are fixed.
+Because targets remain hidden during RL, we use negative coverage of the
+pooled survivors as a target-independent surrogate.  From the same Qwen3-8B
+Bare initialization, Binary and Whole-rollout use response-level credit,
+Clause-decomposed preserves credit for surviving \(V_i\), and Full adds the
+group allocation \(w_g\phi_i\) (Equation~\eqref{eq:generation-reward}); all
+other settings are fixed.
 
 \begin{figure}[H]
 \centering
@@ -258,32 +271,35 @@ are fixed.
 \end{figure}
 
 Whole-rollout credit raises pass@1 from 6.43\% to 16.67\% yet reduces
-compose@32 from 57.81\% to 22.72\%, showing that higher standalone success can
-coincide with worse pooled composition.  Clause-decomposed credit reverses
-this reduction, improving compose@1 and compose@32 over Bare by 10.22 and 4.09
-points; group credit adds another 9.62--11.30 points across \(k\) by rewarding
-nonredundant coverage.  Additional SFT-initialized controls show that Binary
-credit severely degrades composition, while Full credit improves compose@1
-over the corresponding Clause-decomposed or Whole-rollout control on all
-three tested backbones despite lower pass@1
-(Table~\ref{tab:reward-ablation}).
-The group term matters less after SFT: it adds 9.85 compose@1 points over
-clause-decomposed credit from Bare but only 1.80 points from SFT.  The reason
-is that SFT already reduces within-group redundancy
-(Table~\ref{tab:clause-cap-structure}), leaving less shared coverage for the
-Shapley allocation to reassign.
+compose@32 from 57.81\% to 22.72\%.  This exposes a tension between
+single-response correctness and exploration breadth.  Its all-or-nothing
+gate withholds credit from every useful surviving clause whenever any clause
+in the response is rejected, suppressing partial candidates that pooled
+inference can exploit.  Clause-decomposed credit removes the gate and credits
+each response for the coverage of its surviving \(V_i\).  Relative to
+Whole-rollout, it raises compose@1 from 18.87\% to 48.08\% and compose@32 from
+22.72\% to 61.90\%, surpassing Bare by 10.22 and 4.09 points, respectively.
 
-We also test how the target-independent surrogate should be constructed by
-comparing structured negatives with random perturbations.
-Structured negatives add 2.0--5.3 percentage points in compose@\(k\) over
-random perturbations.
-Appendix~\ref{app:ablation-definitions} gives the full results and
-Appendix~\ref{app:coverage-predictiveness} separately evaluates how well
-negative coverage aligns with final verification.
+Shapley group credit adds another 9.62--11.30 points across \(k\).  Its
+\(1/f(\nu)\) allocation gives more per-response weight to hard or rare
+rejections and discounts redundant ones.  This group-relative weighting also
+breaks coverage-count ties under GRPO, providing finer advantage signals and
+mitigating premature convergence to insufficiently diverse invariants.
+In the available SFT-initialized controls, Full improves compose@1 over
+Whole-rollout on Qwen3-4B and Llama~3.1-8B, and over Clause-decomposed on
+Qwen3-8B; the smaller post-SFT Shapley gain on Qwen3-8B is consistent with lower
+within-group redundancy (Tables~\ref{tab:reward-ablation}
+and~\ref{tab:clause-cap-structure}).
+
+Structured negatives add 2.0--5.3 compose@\(k\) points over random
+perturbations; Appendices~\ref{app:ablation-definitions}
+and~\ref{app:coverage-predictiveness} give the full results and predictive
+validity analysis.
 
 \begin{insightbox}
-\textbf{Insight.}
-When inference builds an answer from reusable parts, training should credit
-the parts that survive and discount contributions repeated across the group,
-rather than judge each response as a whole.
+\textbf{Finding.}
+Training credit should reflect the clauses retained by compositional
+inference.  Clause-decomposed credit preserves useful contributions lost
+under Whole-rollout's all-or-nothing reward; Shapley allocation further
+rewards contributions that reject negatives few other responses can reject.
 \end{insightbox}

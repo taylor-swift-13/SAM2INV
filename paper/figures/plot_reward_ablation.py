@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Generate the reward-function ablation figure (RQ5).
 
-Budget grid: k in {1, 4, 8, 16, 32}.  The top row reports Qwen3-8B reward
-ablations initialized from Bare; the bottom row reports their matched
-SFT-initialized counterparts.  Reference checkpoints before RL are dotted.
+Budget grid: k in {1, 4, 8, 16, 32}.  Both panels report Qwen3-8B reward
+ablations initialized from Bare.  Reference checkpoints before RL are dotted.
 """
 
 from pathlib import Path
@@ -55,36 +54,6 @@ UNTRAINED = {
     "pass": [6.43, 13.24, 17.33, 21.62, 25.96],
     "combine": [37.86, 50.60, 54.21, 56.37, 57.81],
 }
-
-SFT_REFERENCE = {
-    "pass": [41.93, 56.82, 61.11, 64.68, 67.98],
-    "combine": [63.90, 73.80, 76.20, 77.30, 77.90],
-}
-
-SFT_VARIANTS = {
-    "Binary": {
-        "pass": [13.90, 16.40, 17.60, 18.60, 19.50],
-        "combine": [13.70, 16.10, 17.90, 18.80, 19.70],
-        "color": RUST,
-        "marker": "o",
-        "style": "-",
-    },
-    "Clause-decomposed": {
-        "pass": [31.93, 44.91, 49.57, 53.18, 56.04],
-        "combine": [67.43, 75.12, 77.64, 78.61, 78.73],
-        "color": TEAL,
-        "marker": "^",
-        "style": "-",
-    },
-    "Full (ours)": {
-        "pass": [30.78, 43.44, 47.47, 50.63, 53.47],
-        "combine": [69.23, 75.24, 76.80, 77.64, 78.37],
-        "color": GREEN,
-        "marker": "D",
-        "style": "-",
-    },
-}
-
 
 def configure() -> None:
     use_paper_style()

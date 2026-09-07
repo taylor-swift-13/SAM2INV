@@ -39,7 +39,7 @@ def main() -> None:
         }
     )
 
-    fig, ax = plt.subplots(figsize=(4.0, 2.3))
+    fig, ax = plt.subplots(figsize=(4.0, 2.0))
 
     bx = [value[0] for value in BASELINES.values()]
     by = [value[1] for value in BASELINES.values()]
