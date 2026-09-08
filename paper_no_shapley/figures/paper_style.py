@@ -35,7 +35,7 @@ PANEL_BG = "#FBFCFB"
 CLAUSE = ["#2E7D5B", "#4C9A74", "#7FB99C", "#A9D0BD", "#3A8F83", "#62A98A"]
 
 
-def use_paper_style(base_size: float = 8.2) -> None:
+def use_paper_style(base_size: float = 10.0) -> None:
     """Matplotlib rcParams shared by all CRAFT data figures."""
     import matplotlib.pyplot as plt
 
@@ -43,12 +43,25 @@ def use_paper_style(base_size: float = 8.2) -> None:
         {
             "font.family": "DejaVu Sans",
             "font.size": base_size,
-            "axes.titlesize": base_size + 1.0,
-            "axes.labelsize": base_size + 0.3,
-            "legend.fontsize": base_size - 0.6,
-            "xtick.labelsize": base_size - 0.5,
-            "ytick.labelsize": base_size - 0.5,
+            "axes.titlesize": base_size + 0.5,
+            "axes.labelsize": base_size,
+            "legend.fontsize": base_size,
+            "xtick.labelsize": base_size - 0.8,
+            "ytick.labelsize": base_size - 0.8,
             "axes.edgecolor": MUTED,
+            "text.color": INK,
+            "axes.labelcolor": INK,
+            "axes.titlecolor": INK,
+            "axes.titlelocation": "left",
+            "axes.titlepad": 10,
+            "axes.labelpad": 7,
+            "axes.axisbelow": True,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "legend.frameon": False,
+            "legend.handlelength": 2.5,
+            "lines.linewidth": 1.4,
+            "lines.markersize": 4.6,
             "axes.linewidth": 0.6,
             "axes.facecolor": "white",
             "figure.facecolor": "white",

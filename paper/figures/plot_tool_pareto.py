@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plot the model-matched verification--token Pareto comparison for RQ3."""
+"""Plot RQ3 verification rates against token use and end-to-end time."""
 
 from pathlib import Path
 
@@ -8,136 +8,116 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from paper_style import FAINT, GREEN, INK, MUTED, OCHRE, use_paper_style
-
+from paper_style import FAINT, GREEN, INK, MUTED, RUST, use_paper_style
 
 OUT = Path(__file__).resolve().parent
 
-# All points use GPT-5-nano with reasoning disabled.  Token counts are the
-# archived mean total-token counts per task with at least one model call.
+# (mean total tokens / called task, verified %, mean seconds / task).
+# Source: appendix.tex, tab:tools-complete, reasoning-disabled rows.
 BASELINES = {
-    "AutoSpec": (2181.72, 42.19),
-    "SESpec": (22081.61, 29.69),
-    "Clause2Inv": (1056.25, 7.93),
-    "Loopy": (14513.37, 18.75),
+    "AutoSpec": (2181.72, 42.19, 27.34),
+    "SESpec": (22081.61, 29.69, 68.50),
+    "Clause2Inv": (1056.25, 7.93, 8.41),
+    "Loopy": (14513.37, 18.75, 147.16),
 }
-NAIVE = (225.95, 16.47)
+NAIVE = (225.95, 16.47, 2.98)
+DAIKON = (0, 20.91, 4.89)
+# GPT-5-nano CRAFT times combine archived generation latency with measured
+# prefix filtering and verification; see artifacts/v4/tool_compose_cost.json.
 OURS = {
-    "@1": (1136.82, 33.89),
-    "@4": (1905.10, 49.04),
-    "@8": (2929.47, 55.53),
+    "@1": (1136.82, 33.89, 24.52),
+    "@4": (1905.10, 49.04, 46.40),
+    "@8": (2929.47, 55.53, 69.99),
+}
+# User-supplied trained-checkpoint measurements, including end-to-end time.
+TRAINED = {
+    "@1": (1348, 70.31, 28.2),
+    "@4": (2053, 75.60, 33.5),
+    "@8": (2993, 77.28, 40.9),
 }
 
 
-def main() -> None:
-    use_paper_style(base_size=8.6)
-    plt.rcParams.update(
-        {
-            "axes.labelsize": 8.8,
-            "xtick.labelsize": 7.8,
-            "ytick.labelsize": 7.8,
-        }
-    )
-
-    fig, ax = plt.subplots(figsize=(4.0, 2.0))
-
-    bx = [value[0] for value in BASELINES.values()]
-    by = [value[1] for value in BASELINES.values()]
-    ax.scatter(
-        bx,
-        by,
-        s=42,
-        marker="o",
-        color=OCHRE,
-        edgecolor="white",
-        linewidth=0.7,
-        zorder=3,
-    )
-    ax.scatter(
-        [NAIVE[0]],
-        [NAIVE[1]],
-        s=39,
-        marker="o",
-        color=MUTED,
-        edgecolor="white",
-        linewidth=0.7,
-        zorder=3,
-    )
-
-    ox = [value[0] for value in OURS.values()]
-    oy = [value[1] for value in OURS.values()]
-    ax.plot(ox, oy, color=GREEN, linewidth=2.0, zorder=3)
-    ax.scatter(
-        ox,
-        oy,
-        s=58,
-        marker="D",
-        color=GREEN,
-        edgecolor="white",
-        linewidth=0.8,
-        zorder=4,
-    )
-
-    # The discrete upper-left frontier consists of direct prompting followed
-    # by the three CRAFT budgets; the dotted segment is only a visual guide.
-    ax.plot(
-        [NAIVE[0], *ox],
-        [NAIVE[1], *oy],
-        color=GREEN,
-        linewidth=1.0,
-        linestyle=(0, (2, 2)),
-        alpha=0.58,
-        zorder=2,
-    )
-
-    baseline_offsets = {
-        "AutoSpec": (6, -2),
-        "SESpec": (-43, 6),
-        "Clause2Inv": (-17, 7),
-        "Loopy": (-34, 6),
+def plot_panel(ax: plt.Axes, cost_index: int) -> None:
+    is_time = cost_index == 2
+    baseline_labels = {
+        "AutoSpec": ((-5, 5), "right") if is_time else ((5, -5), "left"),
+        "SESpec": ((7, 2), "left") if is_time else ((-3, -5), "right"),
+        "Clause2Inv": ((5, -3), "left") if is_time else ((2, 1), "left"),
+        "Loopy": ((-2, -10), "center") if is_time else ((-2, -12), "center"),
     }
-    for name, (x, y) in BASELINES.items():
-        ax.annotate(
-            name,
-            (x, y),
-            xytext=baseline_offsets[name],
-            textcoords="offset points",
-            color=INK,
-            fontsize=7.4,
-        )
-    ax.annotate(
-        "Naive",
-        NAIVE,
-        xytext=(6, 5),
-        textcoords="offset points",
-        color=INK,
-        fontsize=7.4,
-    )
-    for index, (budget, (x, y)) in enumerate(OURS.items()):
-        ax.annotate(
-            ("CRAFT " if index == 0 else "") + budget,
-            (x, y),
-            xytext=(7, -1),
-            textcoords="offset points",
-            va="center",
-            color=GREEN,
-            fontsize=7.7,
-            fontweight="bold",
-        )
+    for name, value in BASELINES.items():
+        point = (value[cost_index], value[1])
+        ax.scatter(*point, s=26, marker="o", color=MUTED,
+                   edgecolor="white", linewidth=0.5, zorder=3)
+        offset, alignment = baseline_labels[name]
+        ax.annotate(name, point, xytext=offset, ha=alignment,
+                    textcoords="offset points", color=INK, fontsize=7.0)
+
+    for name, value in [("Naive", NAIVE), *([("Daikon", DAIKON)] if is_time else [])]:
+        point = (value[cost_index], value[1])
+        ax.scatter(*point, s=26, marker="o", color=MUTED,
+                   edgecolor="white", linewidth=0.5, zorder=3)
+        ax.annotate(name, point, xytext=(0, -12) if is_time and name == "Naive" else (5, 6),
+                    textcoords="offset points",
+                    color=INK, fontsize=7.0)
+
+    for data, label, color, marker, style in (
+        (OURS, "CRAFT (GPT-5-nano)", GREEN, "D", "-"),
+        (TRAINED, "CRAFT (trained)", RUST, "^", "--"),
+    ):
+        xs = [value[cost_index] for value in data.values()]
+        ys = [value[1] for value in data.values()]
+        ax.plot(xs, ys, color=color, marker=marker, markersize=5.6,
+                markeredgecolor="white", markeredgewidth=0.5,
+                linewidth=1.4, linestyle=style, label=label, zorder=4)
+        for budget, value in data.items():
+            offset, alignment = (5, -3), "left"
+            if is_time and budget == "@4":
+                offset, alignment = (0, 11), "center"
+            if data is TRAINED:
+                offset, alignment = {
+                    "@1": ((-4, -9), "right"),
+                    "@4": ((-1, 9), "center"),
+                    "@8": ((4, 0), "left"),
+                }[budget]
+            ax.annotate(budget, (value[cost_index], value[1]), xytext=offset,
+                        textcoords="offset points", va="center", ha=alignment,
+                        color=color, fontsize=7.4, fontweight="bold")
 
     ax.set_xscale("log")
-    ax.set_xlim(170, 30000)
-    ax.set_ylim(3, 60)
-    ax.set_xticks([200, 1000, 2000, 10000, 20000])
-    ax.set_xticklabels(["0.2k", "1k", "2k", "10k", "20k"])
-    ax.set_yticks([10, 20, 30, 40, 50, 60])
-    ax.set_xlabel(r"Mean total tokens / called task  $\downarrow$")
-    ax.set_ylabel(r"Programs verified (%)  $\uparrow$")
+    if is_time:
+        ax.set_xlim(2.2, 220)
+        ax.set_xticks([3, 30, 200])
+        ax.set_xticklabels(["3", "30", "200"])
+        ax.set_xlabel("Time / task (s)", labelpad=5)
+        ax.set_title("(b) Time", loc="left", pad=7)
+    else:
+        ax.set_xlim(170, 30000)
+        ax.set_xticks([200, 2000, 20000])
+        ax.set_xticklabels(["0.2k", "2k", "20k"])
+        ax.set_xlabel("Tokens / called task", labelpad=5)
+        ax.set_title("(a) Tokens", loc="left", pad=7)
+    ax.set_ylim(0, 90)
+    ax.set_yticks([0, 20, 40, 60, 80])
     ax.grid(axis="y", color=FAINT, linewidth=0.55, alpha=0.9)
     ax.spines[["top", "right"]].set_visible(False)
     ax.tick_params(color="#92A39A", width=0.6)
 
-    fig.tight_layout(pad=0.35)
+
+def main() -> None:
+    use_paper_style(base_size=8.2)
+    plt.rcParams.update({"axes.titlesize": 8.5, "axes.labelsize": 8.2,
+                         "legend.fontsize": 8.2, "xtick.labelsize": 7.4,
+                         "ytick.labelsize": 7.4})
+    fig, axes = plt.subplots(1, 2, figsize=(3.65, 2.3), sharey=True)
+    plot_panel(axes[0], 0)
+    plot_panel(axes[1], 2)
+    axes[0].set_ylabel("Verified (%)", labelpad=5)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=2, frameon=False,
+               bbox_to_anchor=(0.53, 1.02), handlelength=1.8, columnspacing=1.2)
+    fig.subplots_adjust(left=0.13, right=0.985, bottom=0.25, top=0.72,
+                        wspace=0.23)
     fig.savefig(OUT / "tool_pareto.pdf", bbox_inches="tight")
     plt.close(fig)
 

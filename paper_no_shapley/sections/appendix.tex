@@ -826,9 +826,25 @@ penalty, re-roll, or target feedback.  Each RQ1 curve reuses the same saved
 response pool per task.  The model-specific pool sizes and the common reported
 budget grid are listed in Table~\ref{tab:constants}; every pool contains at
 least \(k_{\max}\) responses.
-For a pool with \(c\) standalone successes among \(n\) responses, pass@\(k\)
-uses \(1-\binom{n-c}{k}/\binom{n}{k}\); compose@\(k\) filters the first \(k\)
-responses in the saved order.
+For each task \(t\), both metrics use the same prefix
+\(y_{t,1:k}\) of its saved response pool, in the original saved order.
+Let \(s_{t,i}\in\{0,1\}\) indicate whether response \(i\) succeeds alone
+under the final verifier, and let \(c_{t,k}\in\{0,1\}\) indicate whether
+filtering and composing the clauses from \(y_{t,1:k}\) succeeds under that
+verifier.  For an evaluation set of \(N\) tasks, we report
+\[
+\begin{aligned}
+ \operatorname{pass}@k
+   &= \frac{100}{N}\sum_{t=1}^{N}\max_{1\leq i\leq k}s_{t,i},\\
+ \operatorname{compose}@k
+   &= \frac{100}{N}\sum_{t=1}^{N}c_{t,k}.
+\end{aligned}
+\]
+These are percentages of tasks solved using the first \(k\) responses.
+We do not average over alternative subsets of the saved pool or use the
+combinatorial pass@\(k\) estimator.  All budgets reuse the same saved order,
+so the evaluated prefixes are nested.  Appendix~\ref{app:limitations}
+discusses the resulting sampling variance.
 
 \paragraph{Training configuration.}
 Tables~\ref{tab:sft-training-config} and~\ref{tab:rl-training-config}
@@ -904,6 +920,12 @@ the cross-model and tool comparisons behind RQ3.
 
 \subsection{Probe Curves}
 \label{app:probe-curves}
+
+In addition to the four backbones plotted in Figure~\ref{fig:base-model-probe},
+we evaluate Qwen3-1.7B and Qwen3-30B-A3B.  Table~\ref{tab:probe-complete}
+retains all six checkpoints and their per-stratum results.  Composition is
+not monotonic in total parameter count: Qwen3-30B-A3B trails the dense 8B
+and 14B checkpoints at compose@32.
 
 \begin{table}[H]
 \centering
@@ -1187,10 +1209,10 @@ SFT+RL rows of Table~\ref{tab:rl-complete}.
 Qwen3-8B SFT+RL checkpoint across all 832 programs.
 Each panel compares target-hidden (dashed squares) and target-visible
 (solid circles) inference at the same response budgets:
-(a) prefix compose@\(k\); (b) pass@\(k\).
+(a) compose@\(k\); (b) pass@\(k\), both using the first \(k\) saved responses.
 The horizontal axes use a base-2 logarithmic scale; the panels use different
 vertical ranges.  Visible compose rates are computed from exact success
-counts, while visible pass estimates were reported to one decimal place.
+counts, while visible pass rates were reported to one decimal place.
 Neither condition uses iterative verifier-feedback refinement.}
 \label{fig:target-visibility}
 \end{figure}
@@ -1206,9 +1228,9 @@ Visible compose@4 (78.73\%) also slightly exceeds hidden compose@32
 (78.37\%), demonstrating a practical effect on the response budget needed
 to reach this verification rate.  These are descriptive results from the
 reported runs; aggregate rates alone do not establish statistical significance.
-As discussed in Appendix~\ref{app:limitations}, pass and compose use different
-estimation procedures; the visibility comparisons above are made within each
-metric.
+Both metrics use the same saved prefix within each condition.  As discussed
+in Appendix~\ref{app:limitations}, the visibility comparisons remain subject
+to sampling variance from the prefixes generated under each condition.
 
 \begin{table}[H]
 \centering
@@ -1522,8 +1544,8 @@ reward differences during training.
 \caption{Complete reasoning-disabled cross-model results by benchmark stratum and
 sampling budget.  Each cell reports a percentage; All / 832 is the
 whole-workload result.  Rows for each model come from one archived rollout
-pool of 10 responses per task.  compose@\(k\) uses prefix composition and
-pass@\(k\) uses the unbiased estimator.  Bold marks the best value in each
+pool of 10 responses per task.  Both pass@\(k\) and compose@\(k\) evaluate
+the same first \(k\) saved responses.  Bold marks the best value in each
 column at a fixed budget.  GPT-5-mini is excluded because it has no
 reasoning-disabled setting.}
 \label{tab:cross-model-main}
@@ -1602,9 +1624,9 @@ Model & \(k\) & pass & comp & pass & comp & pass & comp & pass & comp \\
 \bottomrule
 \end{tabular}
 \end{table}
-Pass@\(k\) and compose@\(k\) use the same archived response pool for each
-model.  Pass@\(k\) is the unbiased pool estimator, whereas compose@\(k\)
-evaluates the first \(k\) saved responses.
+Pass@\(k\) and compose@\(k\) evaluate the same first \(k\) archived responses
+per task for each model.  Pass@\(k\) checks whether any response in that
+prefix succeeds alone; compose@\(k\) filters and composes its clause union.
 
 \subsection{Complete Comparison with Specialized Tools}
 \label{app:tools-comparison}
@@ -1745,32 +1767,23 @@ the clauses accepted by its downstream pipeline.
 \section{Detailed Limitations}
 \label{app:limitations}
 
-\paragraph{Comparability of pass and compose metrics.}
-Although pass@\(k\) and compose@\(k\) share the same archived response pool
-and nominal response budget, their reported estimates are not statistically
-equivalent.  pass@\(k\) uses the standard unbiased estimator
-\(1-\binom{n-c}{k}/\binom{n}{k}\), which averages standalone success over
-all size-\(k\) subsets of the pool.  compose@\(k\) instead evaluates only
-the first \(k\) saved responses per task, without averaging over alternative
-subsets or response orders.  This choice is primarily motivated by the high
-evaluation time required for a comparable subset-averaged compose estimate.
-Once standalone outcomes are available, pass@\(k\) is computed directly from
-\(n\) and \(c\).  Composition success, however, depends on interactions
-among clauses and cannot be recovered from standalone outcomes; each subset
-requires a separate Houdini filtering and final verification run.  Exact
-averaging would require evaluating all \(\binom{n}{k}\) subsets per task.
-Uniform subset sampling can provide an unbiased Monte Carlo estimate of this
-average, but obtaining adequate precision still requires repeated costly
-filtering and verification runs.  We therefore use saved prefixes to keep
-evaluation time tractable.  The resulting value can depend on the saved
-order, and the two metrics have different sampling variability.  In
-particular, pass@1 averages over the full pool, whereas compose@1 evaluates
-only the first response after filtering.  The reported gaps and relative
-saturation trends are descriptive comparisons under matched response budgets;
-they do not isolate the effect of composition under a matched statistical
-estimation procedure.  A stronger comparison would evaluate both methods on
-the same repeatedly sampled size-\(k\) subsets and report uncertainty across
-subsets and independent generation runs.
+\paragraph{Sampling variance of prefix evaluation.}
+Both pass@\(k\) and compose@\(k\) use the same first \(k\) saved responses
+per task.  We evaluate one prefix at each budget without averaging over
+alternative size-\(k\) subsets or independent generation runs.  This keeps
+composition evaluation tractable, since each alternative subset requires a
+separate Houdini filtering and final verification run.  Sharing the prefix
+controls which responses the two methods receive, but does not remove
+sampling variance: changing the generation seed or saved order can change
+which responses enter the prefix and hence both verification rates and their
+gap.  At \(k{=}1\), each task contributes only one sampled response to each
+metric.  Small differences and apparent saturation can therefore reflect the
+particular sampled prefixes.  Moreover, prefixes are nested across budgets,
+so points on a curve are correlated rather than independent replications.
+The reported curves characterize the saved runs; they do not establish
+statistical significance or equal variability for the two metrics.  A stronger
+evaluation would repeat generation or sample multiple matched subsets for
+both methods, and report uncertainty for the paired differences.
 
 \paragraph{Program scope.}
 Our implementation targets numerical programs with one scalar-integer loop.

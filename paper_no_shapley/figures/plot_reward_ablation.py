@@ -12,7 +12,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from paper_style import GREEN, MUTED, OCHRE, RUST, TEAL, use_paper_style
+from paper_style import GREEN, MUTED, OCHRE, RUST, SLATE, TEAL, use_paper_style
 
 
 OUT = Path(__file__).resolve().parent
@@ -32,12 +32,12 @@ VARIANTS = {
         "combine": [18.87, 19.95, 20.31, 21.27, 22.72],
         "color": OCHRE,  # weak ablation
         "marker": "s",
-        "style": "-",
+        "style": "--",
     },
     "Full decompose credit": {
         "pass": [6.80, 13.41, 16.80, 20.17, 23.44],
         "combine": [57.93, 66.95, 70.43, 72.60, 73.20],
-        "color": TEAL,   # decomposed ablation
+        "color": GREEN,  # full reward
         "marker": "^",
         "style": "-",
     },
@@ -49,16 +49,17 @@ UNTRAINED = {
 }
 
 def configure() -> None:
-    use_paper_style()
+    use_paper_style(base_size=8.2)
 
 
 def style_axis(ax: plt.Axes) -> None:
-    ax.set_xscale("log")
+    ax.set_xscale("log", base=2)
+    ax.minorticks_off()
     ax.set_xticks(K)
     ax.set_xticklabels([str(k) for k in K])
     ax.set_xlabel("Number of responses, $k$")
-    ax.set_ylabel("Verification rate (%)")
-    ax.grid(True, which="major", alpha=0.72)
+    ax.set_ylabel("Verified (%)")
+    ax.grid(axis="y", alpha=0.8)
     ax.tick_params(color="#92A39A", width=0.6)
     ax.spines[["top", "right"]].set_visible(False)
 
@@ -73,9 +74,9 @@ def plot_panel(
         color=MUTED,
         marker="x",
         linestyle=":",
-        linewidth=1.7,
-        markersize=5.2,
-        markeredgewidth=1.2,
+        linewidth=1.19,
+        markersize=4.5,
+        markeredgewidth=0.9,
         alpha=0.9,
     )
     for label, values in variants.items():
@@ -86,20 +87,20 @@ def plot_panel(
             color=values["color"],
             marker=values["marker"],
             linestyle=values["style"],
-            linewidth=2.0,
-            markersize=5.4,
-            markeredgewidth=0.7,
+            linewidth=1.4,
+            markersize=4.8,
+            markeredgewidth=0.5,
             markeredgecolor="white",
         )
 
 
 def reward_ablation() -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(7.15, 2.55))
+    fig, axes = plt.subplots(1, 2, figsize=(3.65, 2.7))
     panels = [
         (axes[0], "combine", UNTRAINED, VARIANTS,
-         "(a) Bare: compose@$k$", (0, 80)),
+         "(a) compose@$k$", (0, 80)),
         (axes[1], "pass", UNTRAINED, VARIANTS,
-         "(b) Bare: pass@$k$", (0, 36)),
+         "(b) pass@$k$", (0, 36)),
     ]
     for panel_idx, (ax, metric, reference, variants, title, ylim) in enumerate(panels):
         plot_panel(ax, metric, reference, variants)
@@ -112,10 +113,11 @@ def reward_ablation() -> None:
         ax.set_xlim(0.85, 38)
 
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=4, frameon=False,
-               handlelength=2.4, columnspacing=1.35, bbox_to_anchor=(0.5, 1.02))
-    fig.tight_layout(rect=(0, 0, 1, 0.84), w_pad=1.2)
-    fig.savefig(OUT / "reward_ablation.pdf", bbox_inches="tight")
+    fig.legend(handles, labels, loc="upper center", ncol=2, frameon=False,
+               handlelength=1.8, columnspacing=1.1, bbox_to_anchor=(0.54, 1.01))
+    fig.subplots_adjust(left=0.13, right=0.985, bottom=0.20, top=0.65,
+                        wspace=0.30)
+    fig.savefig(OUT / "reward_ablation.pdf", bbox_inches=None)
     plt.close(fig)
 
 

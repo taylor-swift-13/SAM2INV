@@ -101,12 +101,13 @@ def configure() -> None:
 
 
 def style_axis(ax: plt.Axes, display_ticks: list[int]) -> None:
-    ax.set_xscale("log")
+    ax.set_xscale("log", base=2)
+    ax.minorticks_off()
     ax.set_xticks(display_ticks)
     ax.set_xticklabels([str(k) for k in display_ticks])
-    ax.set_xlabel("Number of responses, $k$")
+    ax.set_xlabel("Responses, $k$")
     ax.set_ylabel("Verification rate (%)")
-    ax.grid(True, which="major", alpha=0.8)
+    ax.grid(axis="y", alpha=0.8)
     ax.spines[["top", "right"]].set_visible(False)
 
 
@@ -119,18 +120,21 @@ def plot_lines(ax: plt.Axes, data: dict, metric: str, ks: list[int]) -> None:
             color=values["color"],
             marker=values["marker"],
             linestyle=values["style"],
-            linewidth=1.7,
-            markersize=4.2,
-            markeredgewidth=0.6,
+            linewidth=1.4,
+            markersize=4.7,
+            markeredgewidth=0.5,
             markeredgecolor="white",
         )
 
 
 def official_probe() -> None:
     require_complete(OFFICIAL, "official_probe", RQ1_K)
-    fig, axes = plt.subplots(2, 3, figsize=(7.2, 3.75), sharex=True, sharey=True)
-    panel_names = ["(a)", "(b)", "(c)", "(d)", "(e)", "(f)"]
-    for panel, (model, values) in enumerate(OFFICIAL.items()):
+    fig, axes = plt.subplots(1, 4, figsize=(7.2, 2.25), sharex=True, sharey=True)
+    panel_names = ["(a)", "(b)", "(c)", "(d)"]
+    # Additional small and MoE backbones remain in the appendix tables.
+    main_models = ("Qwen3-4B", "Qwen3-8B", "Qwen3-14B", "Llama 3.1-8B")
+    for panel, model in enumerate(main_models):
+        values = OFFICIAL[model]
         ax = axes.flat[panel]
         ax.plot(
             RQ1_K,
@@ -139,8 +143,8 @@ def official_probe() -> None:
             color=RUST,
             marker="o",
             linestyle="-",
-            linewidth=1.6,
-            markersize=3.8,
+            linewidth=1.4,
+            markersize=4.1,
             markeredgewidth=0.5,
             markeredgecolor="white",
         )
@@ -151,41 +155,46 @@ def official_probe() -> None:
             color=GREEN,
             marker="s",
             linestyle="--",
-            linewidth=1.6,
-            markersize=3.8,
+            linewidth=1.4,
+            markersize=4.1,
             markeredgewidth=0.5,
             markeredgecolor="white",
         )
-        ax.set_xscale("log")
+        ax.set_xscale("log", base=2)
+        ax.minorticks_off()
+        ax.set_xlim(0.85, 38)
         ax.set_xticks(RQ1_K)
         ax.set_xticklabels([str(k) for k in RQ1_K])
-        ax.set_xlabel("Number of responses, $k$")
+        ax.set_xlabel("Responses, $k$")
         ax.set_ylabel("Verification rate (%)")
-        ax.grid(True, which="major", alpha=0.8)
+        ax.grid(axis="y", alpha=0.8)
         ax.spines[["top", "right"]].set_visible(False)
-        ax.set_title(f"{panel_names[panel]} {model}")
+        ax.set_title(f"{panel_names[panel]} {model}", fontsize=9.2, pad=7)
+        ax.tick_params(labelsize=8.2)
         ax.set_ylim(0, 72)
+        ax.set_yticks([0, 20, 40, 60])
 
-    # Shared labels keep the six model-specific panels compact.
-    axes[0, 0].set_xlabel("")
-    axes[0, 1].set_xlabel("")
-    axes[0, 2].set_xlabel("")
-    axes[0, 1].set_ylabel("")
-    axes[0, 2].set_ylabel("")
-    axes[1, 1].set_ylabel("")
-    axes[1, 2].set_ylabel("")
-    handles, labels = axes[0, 0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=2, frameon=False)
-    fig.tight_layout(rect=(0, 0, 1, 0.90), h_pad=0.9, w_pad=1.0)
+    # Shared axis labels leave room for readable titles and ticks.
+    for ax in axes.flat:
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+    fig.supxlabel("Responses, $k$", y=0.01, fontsize=10)
+    fig.supylabel("Verified (%)", x=0.01, fontsize=10)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=2,
+               bbox_to_anchor=(0.54, 1.0), columnspacing=2.5)
+    fig.subplots_adjust(left=0.07, right=0.985, bottom=0.27, top=0.72,
+                        wspace=0.22)
     fig.savefig(OUT / "base_model_probe.pdf", bbox_inches="tight")
     plt.close(fig)
 
 
 def rl_comparison_probe() -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(7.15, 2.55), sharey=True)
+    use_paper_style(base_size=8.2)
+    fig, axes = plt.subplots(1, 2, figsize=(3.65, 2.7), sharey=True)
     styles = {
-        "Before RL": (SLATE, "s", "--"),
-        "After RL": (GREEN, "o", "-"),
+        "Before RL": (GREEN, "D", "-"),
+        "After RL": (RUST, "^", "--"),
     }
     for ax, (title, pair) in zip(axes, RL_PAIRS.items()):
         for label, values in pair.items():
@@ -197,19 +206,23 @@ def rl_comparison_probe() -> None:
                 color=color,
                 marker=marker,
                 linestyle=linestyle,
-                linewidth=1.7,
-                markersize=4.2,
-                markeredgewidth=0.6,
+                linewidth=1.4,
+                markersize=4.7,
+                markeredgewidth=0.5,
                 markeredgecolor="white",
             )
         style_axis(ax, RL_K)
-        ax.set_title(title)
+        ax.set_title(title.replace(" initialization", ""), fontsize=8.5)
+        ax.set_ylabel("Verified (%)")
         ax.set_ylim(34, 82)
+        ax.set_xlim(0.85, 38)
     axes[1].set_ylabel("")
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=2, frameon=False)
-    fig.tight_layout(rect=(0, 0, 1, 0.86), w_pad=2.0)
-    fig.savefig(OUT / "qwen_rlzero_probe.pdf", bbox_inches="tight")
+    fig.legend(handles, labels, loc="upper center", ncol=2, frameon=False,
+               bbox_to_anchor=(0.54, 0.88))
+    fig.subplots_adjust(left=0.13, right=0.985, bottom=0.20, top=0.65,
+                        wspace=0.23)
+    fig.savefig(OUT / "qwen_rlzero_probe.pdf", bbox_inches=None)
     plt.close(fig)
 
 

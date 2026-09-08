@@ -813,9 +813,25 @@ penalty, re-roll, or target feedback.  Each RQ1 curve reuses the same saved
 response pool per task.  The model-specific pool sizes and the common reported
 budget grid are listed in Table~\ref{tab:constants}; every pool contains at
 least \(k_{\max}\) responses.
-For a pool with \(c\) standalone successes among \(n\) responses, pass@\(k\)
-uses \(1-\binom{n-c}{k}/\binom{n}{k}\); compose@\(k\) filters the first \(k\)
-responses in the saved order.
+For each task \(t\), both metrics use the same prefix
+\(y_{t,1:k}\) of its saved response pool, in the original saved order.
+Let \(s_{t,i}\in\{0,1\}\) indicate whether response \(i\) succeeds alone
+under the final verifier, and let \(c_{t,k}\in\{0,1\}\) indicate whether
+filtering and composing the clauses from \(y_{t,1:k}\) succeeds under that
+verifier.  For an evaluation set of \(N\) tasks, we report
+\[
+\begin{aligned}
+ \operatorname{pass}@k
+   &= \frac{100}{N}\sum_{t=1}^{N}\max_{1\leq i\leq k}s_{t,i},\\
+ \operatorname{compose}@k
+   &= \frac{100}{N}\sum_{t=1}^{N}c_{t,k}.
+\end{aligned}
+\]
+These are percentages of tasks solved using the first \(k\) responses.
+We do not average over alternative subsets of the saved pool or use the
+combinatorial pass@\(k\) estimator.  All budgets reuse the same saved order,
+so the evaluated prefixes are nested.  Appendix~\ref{app:limitations}
+discusses the resulting sampling variance.
 
 \paragraph{Training configuration.}
 Tables~\ref{tab:sft-training-config} and~\ref{tab:rl-training-config}
@@ -891,6 +907,12 @@ the cross-model and tool comparisons behind RQ3.
 
 \subsection{Probe Curves}
 \label{app:probe-curves}
+
+In addition to the four backbones plotted in Figure~\ref{fig:base-model-probe},
+we evaluate Qwen3-1.7B and Qwen3-30B-A3B.  Table~\ref{tab:probe-complete}
+retains all six checkpoints and their per-stratum results.  Composition is
+not monotonic in total parameter count: Qwen3-30B-A3B trails the dense 8B
+and 14B checkpoints at compose@32.
 
 \begin{table}[H]
 \centering
@@ -1472,8 +1494,8 @@ sufficient invariant.
 \caption{Complete reasoning-disabled cross-model results by benchmark stratum and
 sampling budget.  Each cell reports a percentage; All / 832 is the
 whole-workload result.  Rows for each model come from one archived rollout
-pool of 10 responses per task.  compose@\(k\) uses prefix composition and
-pass@\(k\) uses the unbiased estimator.  Bold marks the best value in each
+pool of 10 responses per task.  Both pass@\(k\) and compose@\(k\) evaluate
+the same first \(k\) saved responses.  Bold marks the best value in each
 column at a fixed budget.  GPT-5-mini is excluded because it has no
 reasoning-disabled setting.}
 \label{tab:cross-model-main}
@@ -1552,9 +1574,9 @@ Model & \(k\) & pass & comp & pass & comp & pass & comp & pass & comp \\
 \bottomrule
 \end{tabular}
 \end{table}
-Pass@\(k\) and compose@\(k\) use the same archived response pool for each
-model.  Pass@\(k\) is the unbiased pool estimator, whereas compose@\(k\)
-evaluates the first \(k\) saved responses.
+Pass@\(k\) and compose@\(k\) evaluate the same first \(k\) archived responses
+per task for each model.  Pass@\(k\) checks whether any response in that
+prefix succeeds alone; compose@\(k\) filters and composes its clause union.
 
 \subsection{Complete Comparison with Specialized Tools}
 \label{app:tools-comparison}
@@ -1694,6 +1716,24 @@ the clauses accepted by its downstream pipeline.
 \endgroup
 \section{Detailed Limitations}
 \label{app:limitations}
+
+\paragraph{Sampling variance of prefix evaluation.}
+Both pass@\(k\) and compose@\(k\) use the same first \(k\) saved responses
+per task.  We evaluate one prefix at each budget without averaging over
+alternative size-\(k\) subsets or independent generation runs.  This keeps
+composition evaluation tractable, since each alternative subset requires a
+separate Houdini filtering and final verification run.  Sharing the prefix
+controls which responses the two methods receive, but does not remove
+sampling variance: changing the generation seed or saved order can change
+which responses enter the prefix and hence both verification rates and their
+gap.  At \(k{=}1\), each task contributes only one sampled response to each
+metric.  Small differences and apparent saturation can therefore reflect the
+particular sampled prefixes.  Moreover, prefixes are nested across budgets,
+so points on a curve are correlated rather than independent replications.
+The reported curves characterize the saved runs; they do not establish
+statistical significance or equal variability for the two metrics.  A stronger
+evaluation would repeat generation or sample multiple matched subsets for
+both methods, and report uncertainty for the paired differences.
 
 \paragraph{Program scope.}
 Our implementation targets numerical programs with one scalar-integer loop.

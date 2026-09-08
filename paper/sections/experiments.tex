@@ -35,47 +35,49 @@ external tools retain their own target-hidden orchestration.  RQ1 reuses one
 saved pool of \(n_{\mathrm{probe}}\) responses per task.  Appendix~\ref{app:experimental-protocol}
 gives decoding, serving, prover, and training details.
 
+% Editorial TODO: the definitions below use matched prefixes. Existing numerical
+% tables and plots were not recomputed in this text revision; audit archived
+% pass aggregates and regenerate any pool-estimator values before submission.
 \tightparagraph{Metrics.}
 Throughout evaluation, success means \(\mathcal G\)-sufficiency under the final
-verifier.  pass@\(k\) estimates whether any of \(k\) responses succeeds alone;
-compose@\(k\) measures whether filtering their clause union succeeds.  The
-former uses the standard unbiased estimator, while the latter evaluates saved
-response prefixes; Appendix~\ref{app:experimental-protocol} gives both
-estimators.
+verifier.  Both metrics use the same first \(k\) saved responses per task.
+pass@\(k\) is the percentage of tasks for which at least one response in
+that prefix succeeds alone; compose@\(k\) is the percentage for which
+filtering and composing the prefix's clause union succeeds.
+Appendix~\ref{app:experimental-protocol} gives the definitions, and
+Appendix~\ref{app:limitations} discusses sampling variance.
 
 % ---------------------------------------------------------------------------
 \subsection{RQ1: How Do \texorpdfstring{pass@\(k\)}{pass@k} and
 \texorpdfstring{compose@\(k\)}{compose@k} Scale?}
 \label{sec:exp:probe}
 
-We sample \(n_{\mathrm{probe}}\) target-hidden responses per task from six base checkpoints:
-Qwen3-1.7B, Qwen3-4B, Qwen3-8B, Qwen3-14B, Qwen3-30B-A3B
-~\citep{yang2025qwen3}, and Llama 3.1-8B.  Complete curves and
-whole-workload values appear in Table~\ref{tab:probe-complete}.
+We sample \(n_{\mathrm{probe}}\) target-hidden responses per task from four
+base checkpoints: Qwen3-4B, Qwen3-8B, Qwen3-14B~\citep{yang2025qwen3},
+and Llama 3.1-8B.  Additional backbones and complete per-stratum results
+appear in Appendix~\ref{app:probe-curves}.
 
 \begin{figure}[H]
 \centering
 \includegraphics[width=\textwidth]{figures/base_model_probe.pdf}
-\caption{pass@\(k\) (unbiased estimate) and prefix compose@\(k\).
+\caption{pass@\(k\) and compose@\(k\) on the same first \(k\) saved responses.
 Composition saturates by \(k{\approx}8\)--\(16\), while pass@\(k\) keeps growing.}
 \label{fig:base-model-probe}
 \end{figure}
 
-At \(k{=}1\), compose@1 exceeds pass@1 by 13.8--42.0 points across the six
-checkpoints.  This comparison is descriptive: pass@1 averages standalone
-success over the saved pool, whereas compose@1 evaluates its first filtered
-prefix.  It therefore captures the benefit of decomposing and filtering one
-response, before any cross-response aggregation.
+At \(k{=}1\), compose@1 exceeds pass@1 by 26.51--35.84 points across the four
+checkpoints.  Both metrics evaluate the first saved response for each task:
+pass@1 checks its standalone success, while compose@1 decomposes and filters
+its clauses before final verification.  Their difference therefore captures
+the benefit of decomposing and filtering one response, before any
+cross-response aggregation, subject to prefix sampling variance.
 
-Beyond \(k{=}1\), the curves scale differently.  For every checkpoint,
-compose@16 is within 2.6 points of compose@32; from 16 to 32 responses,
-compose gains at most 2.53 points while pass gains 2.58--5.55 points.  Llama
-3.1-8B makes the contrast explicit: compose rises from 28.16\% at \(k{=}1\)
-to 55.06\% at \(k{=}16\) and then stops, whereas pass continues from 6.88\%
-to 10.88\%.  Composition is not monotonic in parameter count: Qwen3-30B-A3B
-trails the dense 8B and 14B checkpoints at compose@32.  We therefore carry
-forward four medium-sized dense models: Qwen3-4B, Qwen3-8B, Qwen3-14B, and
-Llama 3.1-8B.
+Beyond \(k{=}1\), the curves scale differently.  From 16 to 32 responses,
+compose gains at most 2.04 points across the four checkpoints, while pass
+gains 2.63--4.34 points.  On all 832 programs, Llama 3.1-8B compose rises
+from 27.88\% at \(k{=}1\) to 51.68\% at \(k{=}16\), then only to 52.16\%
+at \(k{=}32\), whereas pass rises from 6.30\% to 9.76\% over the latter
+interval.  We use these four backbones in the subsequent training experiments.
 
 \begin{insightbox}
 \textbf{Finding.}
@@ -161,28 +163,43 @@ surpassing the 57.81\% compose@32 of Bare with 32 rollouts.
 \end{insightbox}
 
 % ---------------------------------------------------------------------------
+\Needspace{22\baselineskip}
 \subsection{RQ3: How Does \sam{} Compare with Specialized Tools?}
 \label{sec:exp:tools}
 
-\begin{wrapfigure}[11]{r}{0.40\linewidth}
-\vspace{-0.75\baselineskip}
+\begin{wrapfigure}{r}{0.50\textwidth}
+\vspace{-\intextsep}
 \centering
 \includegraphics[width=\linewidth]{figures/tool_pareto.pdf}
-\caption{GPT-5-nano accuracy--token frontier; upper-left is better.}
+\captionsetup{font=small}
+\caption{Verification rate versus (a) token use and (b) end-to-end time;
+Costs are means; upper-left is better.  LLM-based runs use GPT-5-nano
+except CRAFT (trained).
+Daikon makes no model call and appears only in the time panel.}
 \label{fig:tool-pareto}
-\vspace{-0.6\baselineskip}
 \end{wrapfigure}
 We compare \sam{} with the target-hidden pipelines of AutoSpec, SESpec,
 Clause2Inv, Loopy, and Daikon~\citep{wen2024enchanting,yang2026sespec,
-cao2025clause2inv,kamath2023finding,daikon}.  All LLM-based systems use
-GPT-5-nano with reasoning disabled, all outputs face the same untouched
+cao2025clause2inv,kamath2023finding,daikon}.  The LLM-based baselines and the model-matched \sam{} runs use
+GPT-5-nano with reasoning disabled; the trained \sam{} checkpoint is shown
+as an additional series.  All outputs face the same untouched
 Frama-C/WP judge, and unsupported inputs count as failures among all 832
 programs.  Figure~\ref{fig:tool-pareto} compares verification rate against
-mean total tokens under each system's native orchestration.  All three
-\sam{} budgets lie on the model-matched Pareto frontier: compose@4 verifies
+mean total tokens and end-to-end time under each system's native
+orchestration.  In the token panel, all three
+GPT-5-nano \sam{} budgets lie on the model-matched Pareto frontier: compose@4 verifies
 49.04\% with fewer tokens than AutoSpec, the strongest external baseline in
 this reasoning-disabled comparison (42.19\%), while compose@8 reaches
 55.53\%.
+
+The trained \sam{} checkpoint reaches 70.31\%, 75.60\%, and 77.28\% at
+compose@1, @4, and @8, using 1,348, 2,053, and 2,993 tokens per task,
+respectively.  The corresponding mean end-to-end times are 28.2, 33.5,
+and 40.9 seconds per task.  At compose@4 and compose@8, the trained
+checkpoint has both higher verification rates and lower recorded times than
+GPT-5-nano \sam{} (46.40 and 69.99 seconds).  Wall times reflect each
+system's serving setup; GPT-5-nano \sam{} times combine archived request
+latency with measured prefix filtering and final verification.
 
 We compare systems end to end without matching calls or token
 budgets.  Appendix~\ref{app:complete-results} reports accuracy by category,
@@ -193,7 +210,7 @@ additional API models (Table~\ref{tab:cross-model-main}).
 \textbf{Finding.}
 Under target hiding, orchestration efficiency matters as much as proposal
 strength.  CRAFT turns independent responses into reusable clauses: all three
-tested budgets lie on the model-matched Pareto frontier, and compose@4
+GPT-5-nano budgets lie on the model-matched token frontier, and compose@4
 simultaneously beats the strongest external baseline in verification rate and
 mean tokens.
 \end{insightbox}
@@ -205,7 +222,8 @@ mean tokens.
 Prior work suggests that RLVR can reallocate probability toward behaviors
 already available to the base model rather than create fundamentally new
 reasoning patterns~\citep{yue2025rlcapacity}.  We test this at the level of
-compositional utility using matched Bare--RL and SFT--SFT+RL Qwen3-8B pairs.
+compositional utility using matched Bare--RL and SFT--SFT+RL Qwen3-8B pairs
+(Figure~\ref{fig:rl-panels}).
 
 From Bare, RL raises compose@1 by 20.07 points and compose@32 by 15.39 while
 leaving pass@1 nearly unchanged (6.80\% vs.\ 6.43\%).  One RL rollout reaches
@@ -241,14 +259,6 @@ gains concentrate at small \(k\), reducing the sampling budget needed to
 recover much of the large-\(k\) performance.
 \end{insightbox}
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.85\textwidth]{figures/qwen_rlzero_probe.pdf}
-\caption{Matched Qwen3-8B effects: RL improves Bare throughout and still
-  raises small-\(k\) composition after SFT saturates at large \(k\).}
-\label{fig:rl-panels}
-\end{figure}
-
 % ---------------------------------------------------------------------------
 \subsection{RQ5: How Should Credit Be Assigned for Compositional Inference?}
 \label{sec:exp:ablations}
@@ -262,12 +272,25 @@ other settings are fixed.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{figures/reward_ablation.pdf}
+\begin{minipage}[t]{0.48\textwidth}
+\vspace{0pt}
+\centering
+\includegraphics[width=\linewidth]{figures/reward_ablation.pdf}
 \caption{Qwen3-8B reward ablations from the Bare initialization.
   Whole-response credit reduces composition; clause and group credit recover
   it.  The matched SFT-initialized controls, where Binary collapses the
   strong SFT composition curve, are in Table~\ref{tab:reward-ablation}.}
 \label{fig:reward-ablation}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\vspace{0pt}
+\centering
+\includegraphics[width=\linewidth]{figures/qwen_rlzero_probe.pdf}
+\caption{Matched Qwen3-8B composition curves before and after RL.
+  RL improves Bare throughout and raises small-\(k\) composition after SFT
+  saturates at large \(k\).}
+\label{fig:rl-panels}
+\end{minipage}
 \end{figure}
 
 Whole-rollout credit raises pass@1 from 6.43\% to 16.67\% yet reduces
